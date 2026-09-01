@@ -434,6 +434,9 @@ export class Session {
   }
 }
 
+/** The slots the HUD lays out, in order. */
+export const ABILITY_BAR: AbilitySlot[] = ['q', 'w', 'e', 'r', 'd', 'f'];
+
 /** How far through its current attack phase an actor is, 0..1. */
 const phaseProgress = (a: Actor): number => {
   if (a.phase === 'idle') return 0;
@@ -459,12 +462,16 @@ export abstract class DrillBase {
   hudFields(): HudField[] {
     return [];
   }
-  /** The ability bar. Drills that use no abilities still show the bar, greyed. */
+  /**
+   * The ability bar. Every drill shows all six slots — the ones it does not use
+   * are drawn locked rather than hidden, so the bar never changes shape between
+   * drills and your eye always finds the same key in the same place.
+   */
   abilities(): AbilityView[] {
     const active = new Set(this.s.config.abilities);
-    return (['q', 'w', 'e', 'r'] as AbilitySlot[]).map((slot) => ({
+    return ABILITY_BAR.map((slot) => ({
       slot,
-      name: slot.toUpperCase(),
+      name: '',
       cd: 0,
       highlight: false,
       locked: !active.has(slot),

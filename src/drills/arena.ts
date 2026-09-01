@@ -5,7 +5,7 @@ import { derive } from '../engine/metrics';
 import { PALETTE } from '../engine/palette';
 import type { DrillPaint } from '../engine/paint';
 import type { AbilitySlot } from '../engine/input';
-import type { HudField } from '../engine/session';
+import type { AbilityView, HudField } from '../engine/session';
 import type { ArchetypeId, Vec2 } from '../engine/types';
 import type { WorldEvent } from '../engine/world';
 import { Drill, band, count, pct, secs, type DrillOutcome } from './base';
@@ -110,6 +110,15 @@ export class ArenaDrill extends Drill {
     this.s.fx.ring(p.pos.x, p.pos.y, 90, 12, 0.35, PALETTE.playerCore, 3, 'shock');
     this.s.fx.trace([from, { ...p.pos }], PALETTE.accent, 0.5, 6);
     this.s.fx.burst(p.pos.x, p.pos.y, 16, { color: PALETTE.accent, speed: 300, life: 0.4, size: 2.4 });
+  }
+
+  abilities(): AbilityView[] {
+    // The blink is the only thing on the bar in a duel, so it gets a live
+    // cooldown sweep. A summoner you cannot see the timer on is a summoner you
+    // hold forever.
+    return super.abilities().map((a) =>
+      a.slot === 'd' ? { ...a, name: 'BLINK', cd: clamp(this.blinkCd / BLINK_CD, 0, 1), locked: false } : a,
+    );
   }
 
   onEvents(events: readonly WorldEvent[]): void {

@@ -185,13 +185,17 @@ export class CombosDrill extends Drill {
 
   abilities(): AbilityView[] {
     const expected = this.idleCd > 0 ? null : this.sequence[this.index];
-    return (['q', 'w', 'e', 'r'] as Slot[]).map((slot) => ({
-      slot,
-      name: ABILITY_NAME[slot],
-      cd: this.idleCd > 0 ? Math.min(1, this.idleCd / 0.5) : 0,
-      highlight: slot === expected,
-      locked: false,
-    }));
+    return super.abilities().map((a) => {
+      if (a.slot === 'd' || a.slot === 'f') return a;
+      const slot = a.slot as Slot;
+      return {
+        ...a,
+        name: ABILITY_NAME[slot],
+        cd: this.idleCd > 0 ? Math.min(1, this.idleCd / 0.5) : 0,
+        highlight: slot === expected,
+        locked: false,
+      };
+    });
   }
 
   paint(out: DrillPaint, _t: number): void {

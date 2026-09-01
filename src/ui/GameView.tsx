@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
 import { DEFAULT_BINDINGS, InputSystem, type AbilitySlot, type Bindings } from '../engine/input';
 import { GameLoop } from '../engine/loop';
 import { derive } from '../engine/metrics';
 import { clearPaint, newPaint } from '../engine/paint';
-import { Session, type HudSnapshot } from '../engine/session';
+import { ABILITY_BAR, Session, type HudSnapshot } from '../engine/session';
 import { RiftRenderer } from '../gfx/RiftRenderer';
 import { arenaFor, createDrill } from '../drills';
 import { DRILLS, type DrillId } from '../drills/catalog';
@@ -32,7 +32,7 @@ const bindingsFrom = (settings: AppSettings): Bindings => {
   return out;
 };
 
-const SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r'];
+
 
 export function GameView({ drill, difficulty, seed, settings, context, onComplete, onExit, onRetry }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -392,18 +392,15 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
             </div>
 
             <div className="cf-abilities">
-              {SLOTS.map((s) => (
-                <div className="ability" data-ability key={s}>
-                  <span className="ab-cd" data-ab-cd />
-                  <span className="ab-key">{s.toUpperCase()}</span>
-                  <span className="ab-name" data-ab-name />
-                </div>
-              ))}
-              <div className="ab-sep" />
-              {(['d', 'f'] as const).map((s) => (
-                <div className="ability summoner" key={s}>
-                  <span className="ab-key">{s.toUpperCase()}</span>
-                </div>
+              {ABILITY_BAR.map((s, i) => (
+                <Fragment key={s}>
+                  {i === 4 && <div className="ab-sep" />}
+                  <div className={`ability${i >= 4 ? ' summoner' : ''}`} data-ability>
+                    <span className="ab-cd" data-ab-cd />
+                    <span className="ab-key">{s.toUpperCase()}</span>
+                    <span className="ab-name" data-ab-name />
+                  </div>
+                </Fragment>
               ))}
             </div>
           </div>

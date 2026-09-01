@@ -408,8 +408,15 @@
   overflow: hidden;
 }
 .ability.summoner {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
+  align-self: center;
+}
+.ability.summoner .ab-key {
+  font-size: 14px;
+}
+.ability.summoner .ab-name {
+  font-size: 6.5px;
 }
 .ability.locked {
   opacity: 0.34;
