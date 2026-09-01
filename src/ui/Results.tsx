@@ -58,7 +58,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
   const topPct = 1 - percentileForRating(runRating);
   const head = result.keyMetrics[0];
   const improvement = report.improvements[0];
-  const deltaTotal = report.axisChanges.reduce((a, b) => a + b.delta, 0);
+  const overallDelta = report.overallAfter - report.overallBefore;
 
   const outcomeLabel = useMemo(() => {
     if (result.endReason === 'death') return 'ELIMINATED';
@@ -68,6 +68,11 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
   }, [result.endReason]);
 
   const pbIds = new Set(report.personalBests.map((p) => p.id));
+  // A best that rounds to the same displayed value is still a best, but
+  // announcing "82% was 82%" reads as a bug rather than an improvement.
+  const visibleBests = report.personalBests.filter(
+    (pb) => pb.previous === null || formatMetric(pb.value, pb.format) !== formatMetric(pb.previous, pb.format),
+  );
 
   return (
     <div className="results scroll">
@@ -111,7 +116,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
           </div>
         </header>
 
-        {(report.newBestScore || report.personalBests.length > 0) && stage >= 3 && (
+        {(report.newBestScore || visibleBests.length > 0) && stage >= 3 && (
           <div className="pb-strip scale-in">
             <div className="pb-flash" />
             <span className="pb-tag">NEW BEST</span>
@@ -124,7 +129,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
                   )}
                 </span>
               )}
-              {report.personalBests.slice(0, 3).map((pb) => (
+              {visibleBests.slice(0, 3).map((pb) => (
                 <span key={pb.id}>
                   {pb.label} <b>{formatMetric(pb.value, pb.format)}</b>
                   {pb.previous !== null && <i> was {formatMetric(pb.previous, pb.format)}</i>}
@@ -138,28 +143,23 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
           <div className="hero-metric">
             <div className="eyebrow">{head?.label ?? meta.keyMetric}</div>
             <div className="hero-value display">{head ? formatMetric(head.value, head.format) : '—'}</div>
-            {improvement && (
-              <div
-                className={`hero-delta ${
-                  (improvement.direction === 'higher'
+            {improvement &&
+              (() => {
+                const same =
+                  formatMetric(improvement.current, improvement.format) ===
+                  formatMetric(improvement.previous, improvement.format);
+                const better =
+                  improvement.direction === 'higher'
                     ? improvement.current > improvement.previous
-                    : improvement.current < improvement.previous)
-                    ? 'up'
-                    : improvement.current === improvement.previous
-                      ? ''
-                      : 'down'
-                }`}
-              >
-                {improvement.direction === 'higher'
-                  ? improvement.current >= improvement.previous
-                    ? '▲'
-                    : '▼'
-                  : improvement.current <= improvement.previous
-                    ? '▲'
-                    : '▼'}{' '}
-                from {formatMetric(improvement.previous, improvement.format)} last run
-              </div>
-            )}
+                    : improvement.current < improvement.previous;
+                return (
+                  <div className={`hero-delta ${same ? '' : better ? 'up' : 'down'}`}>
+                    {same
+                      ? `held at ${formatMetric(improvement.previous, improvement.format)} from last run`
+                      : `${better ? '▲' : '▼'} from ${formatMetric(improvement.previous, improvement.format)} last run`}
+                  </div>
+                );
+              })()}
           </div>
 
           <div className="metric-grid">
@@ -195,7 +195,9 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
                     {c.delta >= 0 ? '+' : ''}
                     {Math.round(c.delta)}
                   </div>
-                  {c.promoted && <span className="rr-promo">RANK UP</span>}
+                  <div className="rr-promo-slot">
+                    {c.promoted && Math.round(c.delta) >= 1 && <span className="rr-promo">RANK UP</span>}
+                  </div>
                 </div>
               ))}
             </div>
@@ -210,9 +212,9 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
                 </div>
                 <div className="faint mono" style={{ fontSize: 12, marginTop: 2 }}>
                   {Math.round(report.overallAfter)} rating
-                  <span className={deltaTotal >= 0 ? 'good' : 'bad'} style={{ marginLeft: 8 }}>
-                    {deltaTotal >= 0 ? '+' : ''}
-                    {Math.round(report.overallAfter - report.overallBefore)}
+                  <span className={overallDelta >= 0 ? 'good' : 'bad'} style={{ marginLeft: 8 }}>
+                    {overallDelta >= 0 ? '+' : ''}
+                    {Math.round(overallDelta)}
                   </span>
                 </div>
               </div>
