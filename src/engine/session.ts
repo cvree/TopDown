@@ -1,0 +1,426 @@
+import { audio } from './audio';
+import { FxSystem } from './fx';
+import type { AbilitySlot, InputSystem } from './input';
+import { clamp, dist } from './math';
+import { MetricsRecorder } from './metrics';
+import { PALETTE } from './palette';
+import type { Renderer } from './renderer';
+import { Rng } from './rng';
+import type { Actor, Vec2 } from './types';
+import { World, type WorldEvent } from './world';
+
+export type SessionPhase = 'countdown' | 'running' | 'paused' | 'ended';
+
+export interface HudField {
+  label: string;
+  value: string;
+  /** 0..1 for a bar, undefined for plain text. */
+  bar?: number;
+  tone?: 'good' | 'warn' | 'bad' | 'neutral';
+}
+
+export interface HudSnapshot {
+  phase: SessionPhase;
+  timeLeft: number;
+  elapsed: number;
+  score: number;
+  chain: number;
+  chainBest: number;
+  hp: number;
+  maxHp: number;
+  fields: HudField[];
+  countdown: number;
+  banner: string | null;
+  fps: number;
+}
+
+/** A short piece of in-run feedback shown near the player. */
+export type Micro =
+  | 'PERFECT'
+  | 'CLEAN DODGE'
+  | 'MAX RANGE'
+  | 'PERFECT WINDUP'
+  | 'EARLY MOVE'
+  | 'ATTACK CANCELLED'
+  | 'LAST HIT'
+  | 'MISSED CS'
+  | 'SWITCHED'
+  | 'TOO CLOSE'
+  | 'PERFECT SPACING';
+
+export interface SessionConfig {
+  duration: number;
+  arena: { w: number; h: number };
+  seed: number;
+  difficulty: number;
+  abilities: AbilitySlot[];
+}
+
+/**
+ * Owns one run of one drill. React never touches this object during play — it
+ * reads a snapshot at its own cadence, which is what keeps input latency down.
+ */
+export class Session {
+  readonly world: World;
+  readonly fx = new FxSystem();
+  readonly metrics = new MetricsRecorder();
+  readonly rng: Rng;
+  readonly config: SessionConfig;
+
+  phase: SessionPhase = 'countdown';
+  countdown = 3;
+  elapsed = 0;
+  score = 0;
+  chain = 0;
+  chainBest = 0;
+  banner: string | null = null;
+  bannerTime = 0;
+
+  cursorWorld: Vec2 = { x: 0, y: 0 };
+  hoverTargetId: number | null = null;
+  pathTrail: Vec2[] = [];
+  hitFeedback = 0;
+  dimmed = 0;
+
+  /** Set by the drill when the run should stop early. */
+  forceEnd = false;
+  endReason: 'time' | 'death' | 'complete' | 'abort' = 'time';
+
+  private movedSinceRelease = false;
+  private lastReleaseAt = -1;
+  private lastMoveOrderAt = -1;
+  private trailAccum = 0;
+  private countdownTicked = -1;
+
+  drill: DrillBase | null = null;
+
+  constructor(config: SessionConfig, private readonly input: InputSystem, private readonly renderer: Renderer) {
+    this.config = config;
+    this.rng = new Rng(config.seed);
+    this.world = new World(config.arena, this.rng);
+  }
+
+  attachDrill(d: DrillBase): void {
+    this.drill = d;
+    d.setup();
+  }
+
+  // ------------------------------------------------------------------ frame
+
+  step(dt: number): void {
+    this.handleInput();
+
+    if (this.phase === 'countdown') {
+      this.countdown -= dt;
+      const whole = Math.ceil(this.countdown);
+      if (whole !== this.countdownTicked && whole > 0) {
+        this.countdownTicked = whole;
+        audio.play('countdown');
+      }
+      if (this.countdown <= 0) {
+        this.phase = 'running';
+        audio.play('go');
+        this.fx.addFlash(0.1, PALETTE.accent);
+        this.drill?.onStart();
+      }
+      this.fx.update(dt);
+      return;
+    }
+    if (this.phase !== 'running') {
+      this.fx.update(dt);
+      return;
+    }
+
+    this.elapsed += dt;
+    const player = this.world.player;
+
+    this.drill?.update(dt);
+    this.world.step(dt);
+
+    for (const e of this.world.events) this.onWorldEvent(e);
+    this.metrics.ingest(this.world.events, this.world);
+    this.drill?.onEvents(this.world.events);
+    this.world.clearEvents();
+
+    if (player) {
+      this.metrics.sample(this.world, player, this.cursorWorld, dt, this.chain);
+      this.trailAccum += dt;
+      if (this.trailAccum > 0.02) {
+        this.trailAccum = 0;
+        this.pathTrail.push({ x: player.pos.x, y: player.pos.y });
+        if (this.pathTrail.length > 90) this.pathTrail.shift();
+      }
+      this.hoverTargetId = this.pickHover(player);
+    }
+
+    this.fx.targetEnergy = clamp(this.chain / 9, 0, 1);
+    this.fx.update(dt);
+    this.hitFeedback = Math.max(0, this.hitFeedback - dt * 3.6);
+    if (this.bannerTime > 0) {
+      this.bannerTime -= dt;
+      if (this.bannerTime <= 0) this.banner = null;
+    }
+
+    if (this.config.duration > 0 && this.elapsed >= this.config.duration) {
+      this.endReason = 'time';
+      this.end();
+    } else if (player && !player.alive) {
+      this.endReason = 'death';
+      this.end();
+    } else if (this.forceEnd) {
+      this.endReason = this.drill?.endReason ?? 'complete';
+      this.end();
+    }
+  }
+
+  private end(): void {
+    if (this.phase === 'ended') return;
+    this.phase = 'ended';
+    this.score = this.drill?.score() ?? this.score;
+    audio.play(this.endReason === 'death' ? 'fail' : 'resultsReveal');
+    this.fx.addFlash(0.12, this.endReason === 'death' ? PALETTE.danger : PALETTE.accent);
+  }
+
+  abort(): void {
+    this.endReason = 'abort';
+    this.end();
+  }
+
+  togglePause(): void {
+    if (this.phase === 'running') this.phase = 'paused';
+    else if (this.phase === 'paused') this.phase = 'running';
+  }
+
+  // ------------------------------------------------------------------ input
+
+  private handleInput(): void {
+    const events = this.input.drain();
+    if (events.length === 0) return;
+    const player = this.world.player;
+    for (const e of events) {
+      if (e.kind === 'pause') {
+        if (this.phase === 'running' || this.phase === 'paused') this.togglePause();
+        continue;
+      }
+      if (e.kind === 'reset') {
+        this.onResetRequest?.();
+        continue;
+      }
+      if (this.phase !== 'running' || !player || !player.alive) continue;
+
+      switch (e.kind) {
+        case 'move': {
+          const w = this.renderer.screenToWorld(e.x, e.y);
+          this.metrics.noteClick(w, this.world.time);
+          if (this.drill?.onClick(w, 'move')) break;
+          const target = this.enemyAt(w, player);
+          if (target) {
+            this.world.issueAttackTarget(player, target.id);
+            this.drill?.onTargetOrder(target);
+            this.metrics.noteClickError(dist(w, target.pos));
+          } else {
+            this.issuePlayerMove(player, w, false);
+          }
+          break;
+        }
+        case 'attackMove': {
+          const w = this.renderer.screenToWorld(e.x, e.y);
+          this.metrics.noteClick(w, this.world.time);
+          if (this.drill?.onClick(w, 'attackMove')) break;
+          this.issuePlayerMove(player, w, true);
+          const t = this.enemyAt(w, player);
+          if (t) {
+            this.drill?.onTargetOrder(t);
+            this.metrics.noteClickError(dist(w, t.pos));
+          }
+          break;
+        }
+        case 'stop':
+          this.world.issueStop(player);
+          break;
+        case 'ability': {
+          const w = this.renderer.screenToWorld(e.x, e.y);
+          this.drill?.onAbility(e.slot, w);
+          break;
+        }
+        case 'centerCamera':
+          this.fx.ring(player.pos.x, player.pos.y, 10, 120, 0.4, PALETTE.accentDim, 2, 'pulse');
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  /** Called by the shell so `R` can restart instantly from anywhere. */
+  onResetRequest: (() => void) | null = null;
+
+  private issuePlayerMove(player: Actor, w: Vec2, attackMove: boolean): void {
+    const wasWindup = player.phase === 'windup';
+    this.world.issueMove(player, w, attackMove);
+    this.lastMoveOrderAt = this.world.time;
+    if (!wasWindup) this.movedSinceRelease = true;
+    audio.play('moveCommand');
+    this.fx.ring(w.x, w.y, 2, attackMove ? 26 : 20, 0.32, attackMove ? PALETTE.warn : PALETTE.accent, 2, 'pulse');
+  }
+
+  private enemyAt(w: Vec2, from: Actor): Actor | null {
+    let best: Actor | null = null;
+    let bd = Infinity;
+    for (const a of this.world.actors) {
+      if (!a.alive || a.team === from.team) continue;
+      const d = dist(w, a.pos);
+      if (d < a.radius + 26 && d < bd) {
+        bd = d;
+        best = a;
+      }
+    }
+    return best;
+  }
+
+  private pickHover(from: Actor): number | null {
+    let best: number | null = null;
+    let bd = Infinity;
+    for (const a of this.world.actors) {
+      if (!a.alive || a.team === from.team) continue;
+      const d = dist(this.cursorWorld, a.pos);
+      if (d < a.radius + 26 && d < bd) {
+        bd = d;
+        best = a.id;
+      }
+    }
+    return best;
+  }
+
+  // ----------------------------------------------------------------- events
+
+  private onWorldEvent(e: WorldEvent): void {
+    const pid = this.world.playerId;
+    const player = this.world.player;
+    switch (e.type) {
+      case 'attackRelease':
+        if (e.actorId === pid && player) {
+          audio.play('attackRelease');
+          const target = this.world.byId(e.targetId);
+          // A clean orbwalk step: you moved between this attack and the last.
+          if (this.movedSinceRelease && this.lastReleaseAt >= 0) {
+            this.chain++;
+            this.chainBest = Math.max(this.chainBest, this.chain);
+            audio.setComboPitch(this.chain);
+            if (this.chain >= 2) this.micro('PERFECT', player.pos);
+          }
+          if (target) {
+            const d = dist(player.pos, target.pos);
+            if (d > (player.attack.range + target.radius) * 0.88) this.micro('MAX RANGE', player.pos, PALETTE.good);
+          }
+          this.movedSinceRelease = false;
+          this.lastReleaseAt = this.world.time;
+          this.fx.ring(player.pos.x, player.pos.y, player.radius + 4, player.radius + 30, 0.24, PALETTE.accent, 2, 'impact');
+        }
+        break;
+      case 'attackLand':
+        if (e.actorId === pid && e.pos) {
+          audio.play('attackLand', 1);
+          const t = this.world.byId(e.targetId);
+          this.fx.impact(e.pos, t ? Math.atan2(e.pos.y - (player?.pos.y ?? 0), e.pos.x - (player?.pos.x ?? 0)) : 0, PALETTE.accent, 1 + Math.min(this.chain, 6) * 0.1);
+        }
+        break;
+      case 'attackCancel':
+        if (e.actorId === pid && player) {
+          audio.play('attackCancel');
+          this.fx.cancel(player.pos);
+          const lateness = e.amount ?? 0;
+          this.micro(lateness > 0.05 ? 'EARLY MOVE' : 'ATTACK CANCELLED', player.pos, PALETTE.textDim);
+          this.chain = 0;
+          audio.setComboPitch(0);
+        }
+        break;
+      case 'graze':
+        if (e.pos) {
+          audio.play('nearMiss');
+          this.fx.nearMiss(e.pos, 0);
+          if (player) this.micro('CLEAN DODGE', player.pos, PALETTE.warn);
+        }
+        break;
+      case 'death':
+        if (e.pos) {
+          const victim = this.world.byId(e.actorId);
+          if (e.actorId === pid) {
+            audio.play('hurt', 1.4);
+            this.fx.kill(e.pos, PALETTE.danger);
+          } else {
+            audio.play('kill');
+            this.fx.kill(e.pos, victim?.isMinion ? PALETTE.warn : PALETTE.accent);
+            this.fx.timeDilation = 0.72;
+          }
+        }
+        break;
+      case 'damage':
+        if (e.targetId === pid && e.pos) {
+          audio.play('hurt');
+          this.fx.hurt(e.pos);
+          this.hitFeedback = 1;
+          this.chain = 0;
+          audio.setComboPitch(0);
+        }
+        break;
+      default:
+        break;
+    }
+    void this.lastMoveOrderAt;
+  }
+
+  micro(text: Micro | string, at: Vec2, color: string = PALETTE.playerCore): void {
+    this.fx.text(at.x, at.y - 52, text, color, 19, 700);
+  }
+
+  setBanner(text: string, seconds = 1.4): void {
+    this.banner = text;
+    this.bannerTime = seconds;
+  }
+
+  // -------------------------------------------------------------------- hud
+
+  hud(fps: number): HudSnapshot {
+    const p = this.world.player;
+    return {
+      phase: this.phase,
+      timeLeft: this.config.duration > 0 ? Math.max(0, this.config.duration - this.elapsed) : this.elapsed,
+      elapsed: this.elapsed,
+      score: this.drill ? this.drill.liveScore() : this.score,
+      chain: this.chain,
+      chainBest: this.chainBest,
+      hp: p?.hp ?? 0,
+      maxHp: p?.maxHp ?? 1,
+      fields: this.drill?.hudFields() ?? [],
+      countdown: Math.max(0, Math.ceil(this.countdown)),
+      banner: this.banner,
+      fps,
+    };
+  }
+}
+
+/** Base class every drill extends. */
+export abstract class DrillBase {
+  endReason: 'time' | 'death' | 'complete' | 'abort' = 'time';
+  constructor(protected readonly s: Session) {}
+  abstract setup(): void;
+  onStart(): void {}
+  update(_dt: number): void {}
+  onEvents(_events: readonly WorldEvent[]): void {}
+  onTargetOrder(_a: Actor): void {}
+  /** Return true to consume the click so no move order is issued. */
+  onClick(_pos: Vec2, _kind: 'move' | 'attackMove'): boolean {
+    return false;
+  }
+  onAbility(_slot: AbilitySlot, _at: Vec2): void {}
+  hudFields(): HudField[] {
+    return [];
+  }
+  liveScore(): number {
+    return Math.round(this.s.score);
+  }
+  score(): number {
+    return this.liveScore();
+  }
+}

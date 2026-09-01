@@ -1,0 +1,60 @@
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.rank-chip {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 14px 7px 9px;
+  border-radius: 99px;
+  border: 1px solid var(--stroke);
+  background: var(--panel);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.rank-chip:hover {
+  border-color: var(--stroke-hot);
+  background: var(--panel-2);
+}
+.rc-label {
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  line-height: 1.1;
+}
+.rc-rating {
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+/* ------------------------------------------------------- interstitial */
+.interstitial {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 6, 11, 0.94);
+  animation: fadeIn 0.25s var(--ease) both;
+}
+.int-inner {
+  text-align: center;
+  animation: fadeUp 0.5s var(--ease) both;
+}
+.int-name {
+  font-size: clamp(40px, 6vw, 74px);
+  letter-spacing: 0.2em;
+  margin: 12px 0 14px;
+}
+.int-brief {
+  font-size: 13.5px;
+  color: var(--text-2);
+  max-width: 520px;
+  line-height: 1.6;
+  margin: 0 auto;
+}

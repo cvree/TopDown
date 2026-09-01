@@ -1,0 +1,457 @@
+/* ============================================================
+   APEX — design tokens
+   Cold instrument light on near-black. Glass only where it
+   separates a layer from the layer behind it.
+   ============================================================ */
+
+:root {
+  --bg: #05070c;
+  --bg-2: #070a11;
+  --bg-3: #0a0e17;
+
+  --panel: rgba(148, 190, 240, 0.032);
+  --panel-2: rgba(148, 190, 240, 0.055);
+  --stroke: rgba(140, 190, 240, 0.11);
+  --stroke-2: rgba(140, 190, 240, 0.2);
+  --stroke-hot: rgba(88, 224, 255, 0.55);
+
+  --accent: #58e0ff;
+  --accent-2: #7ceaff;
+  --accent-deep: #0e6b8f;
+  --good: #5ce1a8;
+  --warn: #ffcf6b;
+  --danger: #ff5f7e;
+  --violet: #b98cff;
+
+  --text: #e8f2ff;
+  --text-2: #9db1cb;
+  --text-3: #63758f;
+  --text-4: #3f4d61;
+
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --display: 'Chakra Petch', 'Inter', system-ui, sans-serif;
+  --body: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --r-sm: 6px;
+  --r: 10px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+
+  --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+  --glow: 0 0 40px -8px rgba(88, 224, 255, 0.4);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+::selection {
+  background: rgba(88, 224, 255, 0.28);
+}
+
+/* ---------------------------------------------------------- scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(140, 190, 240, 0.16);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 190, 240, 0.3);
+  background-clip: content-box;
+}
+
+/* ---------------------------------------------------------- typography */
+.display {
+  font-family: var(--display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.eyebrow {
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.num {
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------- app shell */
+.app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(1200px 700px at 15% -10%, rgba(30, 120, 170, 0.14), transparent 60%),
+    radial-gradient(900px 600px at 95% 5%, rgba(120, 70, 190, 0.1), transparent 55%),
+    var(--bg);
+}
+
+/* Atmospheric layer behind menus: slow, dim, never distracting. */
+.atmos {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+.wrap {
+  width: min(1440px, 100%);
+  margin: 0 auto;
+  padding: 0 40px 72px;
+}
+
+/* ---------------------------------------------------------- top bar */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 18px 40px;
+  border-bottom: 1px solid var(--stroke);
+  background: linear-gradient(180deg, rgba(8, 12, 20, 0.9), rgba(8, 12, 20, 0.4));
+  backdrop-filter: blur(18px);
+  flex: none;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: 0.24em;
+  cursor: pointer;
+  user-select: none;
+}
+.logo svg {
+  filter: drop-shadow(0 0 10px rgba(88, 224, 255, 0.6));
+}
+.logo-sub {
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  color: var(--text-4);
+  font-weight: 500;
+  margin-left: -4px;
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+}
+.nav button {
+  padding: 8px 15px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  font-family: var(--display);
+  color: var(--text-3);
+  transition: color 0.18s, background 0.18s;
+  position: relative;
+}
+.nav button:hover {
+  color: var(--text);
+  background: var(--panel);
+}
+.nav button.on {
+  color: var(--accent);
+  background: rgba(88, 224, 255, 0.08);
+}
+.nav button.on::after {
+  content: '';
+  position: absolute;
+  left: 15px;
+  right: 15px;
+  bottom: -19px;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+
+/* ---------------------------------------------------------- panels */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-lg);
+  position: relative;
+  overflow: hidden;
+}
+.panel.pad {
+  padding: 22px 24px;
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.04), transparent 40%);
+  pointer-events: none;
+}
+
+.panel-title {
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: var(--text-3);
+  text-transform: uppercase;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.panel-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--stroke-2), transparent);
+}
+
+/* ---------------------------------------------------------- buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 12px 22px;
+  border-radius: var(--r);
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid var(--stroke-2);
+  background: var(--panel-2);
+  color: var(--text);
+  transition: transform 0.12s var(--ease), background 0.18s, border-color 0.18s, box-shadow 0.18s;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: rgba(88, 224, 255, 0.1);
+  border-color: var(--stroke-hot);
+}
+.btn:active {
+  transform: translateY(1px) scale(0.995);
+}
+.btn.primary {
+  background: linear-gradient(180deg, rgba(88, 224, 255, 0.22), rgba(88, 224, 255, 0.08));
+  border-color: rgba(88, 224, 255, 0.5);
+  color: #eafcff;
+  box-shadow: 0 0 0 1px rgba(88, 224, 255, 0.08), 0 12px 30px -14px rgba(88, 224, 255, 0.7);
+}
+.btn.primary:hover {
+  background: linear-gradient(180deg, rgba(88, 224, 255, 0.32), rgba(88, 224, 255, 0.14));
+  box-shadow: 0 0 0 1px rgba(88, 224, 255, 0.2), 0 16px 40px -14px rgba(88, 224, 255, 0.9);
+}
+.btn.ghost {
+  background: transparent;
+  border-color: var(--stroke);
+  color: var(--text-2);
+}
+.btn.ghost:hover {
+  color: var(--text);
+}
+.btn.sm {
+  padding: 8px 14px;
+  font-size: 11px;
+}
+.btn.lg {
+  padding: 16px 34px;
+  font-size: 15px;
+  letter-spacing: 0.18em;
+}
+.btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 5px;
+  border: 1px solid var(--stroke-2);
+  border-bottom-width: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+/* ---------------------------------------------------------- utility */
+.row {
+  display: flex;
+  align-items: center;
+}
+.between {
+  justify-content: space-between;
+}
+.grid {
+  display: grid;
+}
+.dim {
+  color: var(--text-2);
+}
+.faint {
+  color: var(--text-3);
+}
+.good {
+  color: var(--good);
+}
+.warn {
+  color: var(--warn);
+}
+.bad {
+  color: var(--danger);
+}
+
+.divider {
+  height: 1px;
+  background: var(--stroke);
+  margin: 20px 0;
+}
+
+/* ---------------------------------------------------------- animation */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+@keyframes pulseGlow {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes spinSlow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fade-up {
+  animation: fadeUp 0.6s var(--ease) both;
+}
+.fade-in {
+  animation: fadeIn 0.5s var(--ease) both;
+}
+.scale-in {
+  animation: scaleIn 0.5s var(--ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
