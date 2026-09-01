@@ -6,12 +6,11 @@
  * scores well and that spamming does not. It runs without a browser.
  */
 import { GameLoop, SIM_DT } from '../src/engine/loop';
-import { Session } from '../src/engine/session';
+import { Session, type ViewProjection } from '../src/engine/session';
 import { createDrill, arenaFor } from '../src/drills';
 import { DRILLS, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
 import type { InputEventKind, InputSystem } from '../src/engine/input';
-import type { Renderer } from '../src/engine/renderer';
 import { dist, norm } from '../src/engine/math';
 
 type Policy = 'orbwalk' | 'spam' | 'idle' | 'standStill' | 'dodge' | 'aim' | 'hold' | 'nodes' | 'priority' | 'sequence';
@@ -30,9 +29,9 @@ class FakeInput {
   }
 }
 
-const fakeRenderer = {
+const fakeRenderer: ViewProjection = {
   screenToWorld: (x: number, y: number) => ({ x, y }),
-} as unknown as Renderer;
+};
 
 const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345) => {
   const meta = DRILLS[id];

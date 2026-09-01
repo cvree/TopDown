@@ -1,6 +1,6 @@
-import { hexA } from '../engine/renderer';
 import { clamp, dist } from '../engine/math';
 import { PALETTE } from '../engine/palette';
+import type { DrillPaint } from '../engine/paint';
 import type { HudField } from '../engine/session';
 import type { Vec2 } from '../engine/types';
 import { Drill, band, count, pct, type DrillOutcome } from './base';
@@ -98,32 +98,46 @@ export class MovementDrill extends Drill {
     void dt;
   }
 
-  drawOverlay(ctx: CanvasRenderingContext2D, scale: number, t: number): void {
+  paint(out: DrillPaint, t: number): void {
     for (const n of this.nodes) {
       const age = this.s.elapsed - n.born;
       const left = clamp(1 - age / n.ttl, 0, 1);
       const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+      const urgent = left < 0.3;
 
-      ctx.beginPath();
-      ctx.arc(n.pos.x, n.pos.y, n.radius, 0, Math.PI * 2);
-      ctx.fillStyle = hexA(PALETTE.accent, 0.07 + pulse * 0.05);
-      ctx.fill();
-      ctx.strokeStyle = hexA(PALETTE.accent, 0.55);
-      ctx.lineWidth = 2 / scale;
-      ctx.stroke();
-
-      // The remaining window drawn as a depleting arc — readable at a glance.
-      ctx.beginPath();
-      ctx.arc(n.pos.x, n.pos.y, n.radius + 9, -Math.PI / 2, -Math.PI / 2 + left * Math.PI * 2);
-      ctx.strokeStyle = left < 0.3 ? hexA(PALETTE.danger, 0.9) : hexA(PALETTE.accent, 0.85);
-      ctx.lineWidth = 4 / scale;
-      ctx.lineCap = 'round';
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(n.pos.x, n.pos.y, 5, 0, Math.PI * 2);
-      ctx.fillStyle = PALETTE.playerCore;
-      ctx.fill();
+      out.markers.push({
+        kind: 'disc',
+        x: n.pos.x,
+        y: n.pos.y,
+        radius: n.radius,
+        color: PALETTE.accent,
+        alpha: 0.85,
+        width: 3,
+        fill: 0.12 + pulse * 0.08,
+      });
+      // The remaining window drawn as a depleting arc, so you read urgency
+      // from the shape rather than from a number.
+      out.markers.push({
+        kind: 'ring',
+        x: n.pos.x,
+        y: n.pos.y,
+        radius: n.radius + 15,
+        color: urgent ? PALETTE.danger : PALETTE.accent,
+        alpha: 0.95,
+        width: 7,
+        progress: left,
+        rise: 2.6,
+      });
+      out.markers.push({
+        kind: 'ring',
+        x: n.pos.x,
+        y: n.pos.y,
+        radius: 8,
+        color: PALETTE.playerCore,
+        alpha: 0.8 + pulse * 0.2,
+        width: 8,
+        rise: 3,
+      });
     }
   }
 

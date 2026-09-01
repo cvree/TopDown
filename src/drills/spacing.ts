@@ -1,7 +1,7 @@
 import { clamp, dist } from '../engine/math';
 import { derive } from '../engine/metrics';
 import { PALETTE } from '../engine/palette';
-import { hexA } from '../engine/renderer';
+import type { DrillPaint } from '../engine/paint';
 import type { HudField } from '../engine/session';
 import { Drill, band, count, pct, secs, units, type DrillOutcome } from './base';
 
@@ -111,7 +111,7 @@ export class SpacingDrill extends Drill {
     }
   }
 
-  drawOverlay(ctx: CanvasRenderingContext2D, scale: number, t: number): void {
+  paint(out: DrillPaint, t: number): void {
     const p = this.s.world.player;
     const e = this.s.world.enemies()[0];
     if (!p || !e) return;
@@ -119,34 +119,56 @@ export class SpacingDrill extends Drill {
     const d = dist(p.pos, e.pos);
     const good = d >= inner && d <= outer;
 
-    // The band itself, drawn around the enemy.
-    ctx.beginPath();
-    ctx.arc(e.pos.x, e.pos.y, outer, 0, Math.PI * 2);
-    ctx.arc(e.pos.x, e.pos.y, inner, 0, Math.PI * 2, true);
-    ctx.fillStyle = hexA(PALETTE.good, good ? 0.075 + 0.02 * Math.sin(t * 4) : 0.035);
-    ctx.fill();
+    // The band drawn around the enemy: too close is red, the pocket is green.
+    out.markers.push({
+      kind: 'ring',
+      x: e.pos.x,
+      y: e.pos.y,
+      radius: outer,
+      color: PALETTE.good,
+      alpha: good ? 0.72 : 0.34,
+      width: 4,
+      dash: 60,
+      spin: 0.1,
+      rise: 1.8,
+    });
+    out.markers.push({
+      kind: 'ring',
+      x: e.pos.x,
+      y: e.pos.y,
+      radius: inner,
+      color: PALETTE.danger,
+      alpha: 0.55,
+      width: 3,
+      dash: 44,
+      spin: -0.14,
+      fill: good ? 0 : 0.05,
+      rise: 1.9,
+    });
+    if (good) {
+      out.markers.push({
+        kind: 'ring',
+        x: e.pos.x,
+        y: e.pos.y,
+        radius: (inner + outer) / 2,
+        color: PALETTE.good,
+        alpha: 0.12 + 0.05 * Math.sin(t * 4),
+        width: outer - inner,
+        rise: 1.6,
+      });
+    }
 
-    ctx.setLineDash([8, 10]);
-    ctx.lineWidth = 1.8 / scale;
-    ctx.strokeStyle = hexA(PALETTE.good, good ? 0.7 : 0.32);
-    ctx.beginPath();
-    ctx.arc(e.pos.x, e.pos.y, outer, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = hexA(PALETTE.danger, 0.5);
-    ctx.beginPath();
-    ctx.arc(e.pos.x, e.pos.y, inner, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // A live readout of the error, drawn on the line between the two units.
+    // A live readout of the error, on the line between the two units.
     const err = d < inner ? inner - d : d > outer ? d - outer : 0;
     if (err > 4) {
-      const mx = (p.pos.x + e.pos.x) / 2;
-      const my = (p.pos.y + e.pos.y) / 2;
-      ctx.font = `600 ${16 / scale}px "JetBrains Mono", monospace`;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = hexA(d < inner ? PALETTE.danger : PALETTE.warn, 0.85);
-      ctx.fillText(`${d < inner ? '-' : '+'}${Math.round(err)}u`, mx, my - 12 / scale);
+      out.billboards.push({
+        kind: 'label',
+        x: (p.pos.x + e.pos.x) / 2,
+        y: (p.pos.y + e.pos.y) / 2,
+        text: `${d < inner ? '-' : '+'}${Math.round(err)}u`,
+        color: d < inner ? PALETTE.danger : PALETTE.warn,
+        size: 15,
+      });
     }
   }
 

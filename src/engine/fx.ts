@@ -39,6 +39,8 @@ export interface RingFx {
 export interface FloatText {
   x: number;
   y: number;
+  /** Screen-space rise, in world units, accumulated from `vy`. */
+  rise: number;
   vy: number;
   life: number;
   max: number;
@@ -156,7 +158,7 @@ export class FxSystem {
   }
 
   text(x: number, y: number, text: string, color = '#dff6ff', size = 18, weight = 700, vy = -46): void {
-    this.texts.push({ x, y, vy, life: 0.95, max: 0.95, text, color, size, weight });
+    this.texts.push({ x, y, rise: 0, vy, life: 0.95, max: 0.95, text, color, size, weight });
   }
 
   trace(points: Vec2[], color: string, life = 0.7, width = 3): void {
@@ -191,7 +193,9 @@ export class FxSystem {
     for (let i = this.texts.length - 1; i >= 0; i--) {
       const t = this.texts[i];
       t.life -= dt;
-      t.y += t.vy * dt;
+      // Combat text rises on screen, not northward through the arena — the
+      // world position is where the thing happened and must not drift.
+      t.rise -= t.vy * dt;
       t.vy *= Math.exp(-2.4 * dt);
       if (t.life <= 0) this.texts.splice(i, 1);
     }

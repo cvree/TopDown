@@ -18,7 +18,7 @@ import {
 } from '../progression/profile';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
 import type { SkillAxis } from '../progression/skills';
-import { Atmos } from './components/Atmos';
+import { ArenaBackdrop } from './components/ArenaBackdrop';
 import { Daily } from './Daily';
 import { GameView } from './GameView';
 import { Home } from './Home';
@@ -327,13 +327,13 @@ export function App() {
 
   return (
     <div className="app">
-      <Atmos />
+      <ArenaBackdrop enabled={!profile.settings.lowFx} />
       <div className="shell">
         <header className="topbar">
           <div className="logo" onClick={() => setRoute('home')}>
             <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden>
-              <path d="M16 2 L29 26 H3 Z" fill="none" stroke="#58e0ff" strokeWidth="2.5" strokeLinejoin="round" />
-              <path d="M16 11 L22 22 H10 Z" fill="#58e0ff" />
+              <path d="M16 2 L29 26 H3 Z" fill="none" stroke="#c8aa6e" strokeWidth="2.5" strokeLinejoin="round" />
+              <path d="M16 11 L22 22 H10 Z" fill="#c8aa6e" />
             </svg>
             APEX
             <span className="logo-sub">MECHANICS</span>

@@ -6,6 +6,7 @@
  */
 
 type SfxName =
+  | 'attackWindup'
   | 'attackRelease'
   | 'attackLand'
   | 'attackCancel'
@@ -26,6 +27,7 @@ type SfxName =
   | 'rankUpBuild'
   | 'rankUpHit'
   | 'resultsReveal'
+  | 'step'
   | 'tick';
 
 export class AudioEngine {
@@ -37,6 +39,8 @@ export class AudioEngine {
   private comboPitch = 0;
   private musicNodes: { osc: OscillatorNode; gain: GainNode }[] = [];
   private musicOn = false;
+  private bedNodes: AudioNode[] = [];
+  private bedGain: GainNode | null = null;
 
   masterVolume = 0.75;
   sfxVolume = 0.9;
@@ -190,14 +194,24 @@ export class AudioEngine {
     if (this.muted) return;
     const semi = (n: number) => Math.pow(2, n / 12);
     switch (name) {
+      case 'attackWindup':
+        // A short rising breath. The windup is the most important thing in the
+        // game to feel, so it gets its own sound rather than silence.
+        this.noise(0.13, { gain: 0.035 * intensity, hp: 700, lp: 2600, lpEnd: 5200 });
+        this.tone(240, 0.12, { type: 'triangle', gain: 0.03 * intensity, slideTo: 430, filter: 2400 });
+        break;
       case 'attackRelease':
         this.tone(520 * semi(this.comboPitch * 0.35), 0.07, { type: 'triangle', gain: 0.1 * intensity, slideTo: 700 });
-        this.noise(0.05, { gain: 0.05 * intensity, hp: 1800, lp: 8000 });
+        this.noise(0.055, { gain: 0.07 * intensity, hp: 1500, lp: 9000, lpEnd: 2600 });
         break;
       case 'attackLand':
-        this.tone(180, 0.11, { type: 'sine', gain: 0.16 * intensity, slideTo: 90 });
-        this.noise(0.06, { gain: 0.09 * intensity, hp: 900, lp: 6000, lpEnd: 1200 });
-        this.tone(900 * semi(this.comboPitch), 0.06, { type: 'square', gain: 0.035 * intensity, filter: 4000 });
+        // Three layers: a body thump you feel, a mid crack you hear, and a
+        // high transient that makes it land on the frame it happened.
+        this.tone(150, 0.14, { type: 'sine', gain: 0.22 * intensity, slideTo: 62 });
+        this.tone(96, 0.2, { type: 'sine', gain: 0.14 * intensity, slideTo: 44 });
+        this.noise(0.075, { gain: 0.13 * intensity, hp: 700, lp: 7000, lpEnd: 900 });
+        this.noise(0.022, { gain: 0.1 * intensity, hp: 3600, lp: 14000 });
+        this.tone(900 * semi(this.comboPitch), 0.06, { type: 'square', gain: 0.04 * intensity, filter: 4200 });
         break;
       case 'attackCancel':
         this.tone(300, 0.13, { type: 'sawtooth', gain: 0.07, slideTo: 140, filter: 900 });
@@ -218,9 +232,11 @@ export class AudioEngine {
         this.noise(0.14, { gain: 0.1, hp: 200, lp: 2200, lpEnd: 300 });
         break;
       case 'kill':
-        this.tone(300, 0.3, { type: 'triangle', gain: 0.14, slideTo: 900 });
-        this.tone(600, 0.34, { type: 'sine', gain: 0.09, slideTo: 1500, delay: 0.03 });
-        this.noise(0.3, { gain: 0.09, hp: 400, lp: 9000, lpEnd: 600 });
+        // Impact, then a bloom. The low end is what makes a kill feel earned.
+        this.tone(70, 0.42, { type: 'sine', gain: 0.26, slideTo: 34 });
+        this.tone(300, 0.3, { type: 'triangle', gain: 0.15, slideTo: 900 });
+        this.tone(600, 0.34, { type: 'sine', gain: 0.1, slideTo: 1500, delay: 0.03 });
+        this.noise(0.34, { gain: 0.12, hp: 400, lp: 11000, lpEnd: 500 });
         break;
       case 'perfect':
         this.tone(1046, 0.14, { type: 'sine', gain: 0.09 });
@@ -269,10 +285,78 @@ export class AudioEngine {
         this.tone(65, 1.0, { type: 'sine', gain: 0.2, slideTo: 40 });
         this.noise(1.1, { gain: 0.11, hp: 600, lp: 12000, lpEnd: 500 });
         break;
+      case 'step':
+        this.noise(0.045, { gain: 0.022 * intensity, hp: 260, lp: 1500, lpEnd: 420 });
+        break;
       case 'tick':
         this.tone(2200, 0.02, { type: 'sine', gain: 0.02 });
         break;
     }
+  }
+
+  /**
+   * The arena's own sound: wind moving through an open stone bowl, plus a
+   * sub-bass drone. It is nearly inaudible on its own and immediately missed
+   * when it stops — which is exactly what a room tone should be.
+   */
+  startArenaBed(): void {
+    const ctx = this.ensure();
+    if (!ctx || !this.musicBus || !this.noiseBuf || this.bedGain || this.muted) return;
+
+    const bed = ctx.createGain();
+    bed.gain.value = 0;
+    bed.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 2.5);
+    bed.connect(this.musicBus);
+    this.bedGain = bed;
+
+    const wind = ctx.createBufferSource();
+    wind.buffer = this.noiseBuf;
+    wind.loop = true;
+    const band = ctx.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = 420;
+    band.Q.value = 0.7;
+    const windGain = ctx.createGain();
+    windGain.gain.value = 0.09;
+    wind.connect(band).connect(windGain).connect(bed);
+    wind.start();
+
+    // A slow sweep on the band keeps the wind from reading as static hiss.
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.055;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 230;
+    lfo.connect(lfoGain).connect(band.frequency);
+    lfo.start();
+
+    const drone = ctx.createOscillator();
+    drone.type = 'sine';
+    drone.frequency.value = 41.2;
+    const droneGain = ctx.createGain();
+    droneGain.gain.value = 0.09;
+    drone.connect(droneGain).connect(bed);
+    drone.start();
+
+    this.bedNodes = [wind, lfo, drone];
+  }
+
+  stopArenaBed(): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.bedGain) return;
+    const g = this.bedGain;
+    g.gain.cancelScheduledValues(ctx.currentTime);
+    g.gain.setValueAtTime(g.gain.value, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+    for (const n of this.bedNodes) {
+      const src = n as OscillatorNode & AudioBufferSourceNode;
+      try {
+        src.stop(ctx.currentTime + 0.6);
+      } catch {
+        /* already stopped */
+      }
+    }
+    this.bedNodes = [];
+    this.bedGain = null;
   }
 
   /** A slow two-note pad that sits under the menus. Deliberately sparse. */

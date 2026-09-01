@@ -1,5 +1,6 @@
 import { EnemyBrain, applyTuningToActor, tuningFor } from '../engine/ai';
 import { ARCHETYPES } from '../engine/archetypes';
+import type { DrillPaint } from '../engine/paint';
 import { DrillBase, type Session } from '../engine/session';
 import type { Actor, ArchetypeId, Vec2 } from '../engine/types';
 import type { KeyMetric } from '../progression/profile';
@@ -31,8 +32,12 @@ export abstract class Drill extends DrillBase {
 
   abstract outcome(): DrillOutcome;
 
-  /** Extra arena-space drawing, e.g. spacing bands or node markers. */
-  drawOverlay(_ctx: CanvasRenderingContext2D, _scale: number, _t: number): void {}
+  /**
+   * Drill-specific indicators. Push ground markers (drawn as real geometry on
+   * the arena floor) and billboards (crisp 2D anchored to a world point) into
+   * `out`; the renderer decides how each is realised.
+   */
+  paint(_out: DrillPaint, _t: number): void {}
 
   protected get session(): Session {
     return this.s;

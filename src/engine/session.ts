@@ -4,7 +4,6 @@ import type { AbilitySlot, InputSystem } from './input';
 import { clamp, dist } from './math';
 import { MetricsRecorder } from './metrics';
 import { PALETTE } from './palette';
-import type { Renderer } from './renderer';
 import { Rng } from './rng';
 import type { Actor, Vec2 } from './types';
 import { World, type WorldEvent } from './world';
@@ -19,6 +18,18 @@ export interface HudField {
   tone?: 'good' | 'warn' | 'bad' | 'neutral';
 }
 
+/** One slot on the ability bar. */
+export interface AbilityView {
+  slot: AbilitySlot;
+  name: string;
+  /** 0 = off cooldown, 1 = just cast. */
+  cd: number;
+  /** The drill is asking for this key right now. */
+  highlight: boolean;
+  /** The drill does not use this slot at all. */
+  locked: boolean;
+}
+
 export interface HudSnapshot {
   phase: SessionPhase;
   timeLeft: number;
@@ -29,6 +40,12 @@ export interface HudSnapshot {
   hp: number;
   maxHp: number;
   fields: HudField[];
+  abilities: AbilityView[];
+  /** 'windup' | 'backswing' | 'idle' plus how far through it the player is. */
+  attackPhase: 'idle' | 'windup' | 'backswing';
+  attackPhaseT: number;
+  /** Fraction of the attack cooldown still to run, 0..1. */
+  attackCd: number;
   countdown: number;
   banner: string | null;
   fps: number;
@@ -47,6 +64,15 @@ export type Micro =
   | 'SWITCHED'
   | 'TOO CLOSE'
   | 'PERFECT SPACING';
+
+/**
+ * The only thing the session needs from a renderer: where in the arena the
+ * cursor is. Keeping it to an interface is what let the 2D canvas renderer be
+ * swapped for the 3D one without the simulation noticing.
+ */
+export interface ViewProjection {
+  screenToWorld(x: number, y: number): Vec2;
+}
 
 export interface SessionConfig {
   duration: number;
@@ -94,7 +120,7 @@ export class Session {
 
   drill: DrillBase | null = null;
 
-  constructor(config: SessionConfig, private readonly input: InputSystem, private readonly renderer: Renderer) {
+  constructor(config: SessionConfig, private readonly input: InputSystem, private readonly renderer: ViewProjection) {
     this.config = config;
     this.rng = new Rng(config.seed);
     this.world = new World(config.arena, this.rng);
@@ -298,6 +324,10 @@ export class Session {
     const pid = this.world.playerId;
     const player = this.world.player;
     switch (e.type) {
+      case 'attackStart':
+        // The windup is the one thing in this game you must feel starting.
+        if (e.actorId === pid) audio.play('attackWindup');
+        break;
       case 'attackRelease':
         if (e.actorId === pid && player) {
           audio.play('attackRelease');
@@ -393,12 +423,24 @@ export class Session {
       hp: p?.hp ?? 0,
       maxHp: p?.maxHp ?? 1,
       fields: this.drill?.hudFields() ?? [],
+      abilities: this.drill?.abilities() ?? [],
+      attackPhase: p?.phase ?? 'idle',
+      attackPhaseT: p ? phaseProgress(p) : 0,
+      attackCd: p ? clamp(p.attackCd * Math.max(0.05, p.attack.attackSpeed), 0, 1) : 0,
       countdown: Math.max(0, Math.ceil(this.countdown)),
       banner: this.banner,
       fps,
     };
   }
 }
+
+/** How far through its current attack phase an actor is, 0..1. */
+const phaseProgress = (a: Actor): number => {
+  if (a.phase === 'idle') return 0;
+  const cycle = 1 / Math.max(0.05, a.attack.attackSpeed);
+  const total = a.phase === 'windup' ? cycle * a.attack.windupRatio : cycle * a.attack.backswingRatio;
+  return clamp(1 - a.phaseTime / Math.max(0.0001, total), 0, 1);
+};
 
 /** Base class every drill extends. */
 export abstract class DrillBase {
@@ -416,6 +458,17 @@ export abstract class DrillBase {
   onAbility(_slot: AbilitySlot, _at: Vec2): void {}
   hudFields(): HudField[] {
     return [];
+  }
+  /** The ability bar. Drills that use no abilities still show the bar, greyed. */
+  abilities(): AbilityView[] {
+    const active = new Set(this.s.config.abilities);
+    return (['q', 'w', 'e', 'r'] as AbilitySlot[]).map((slot) => ({
+      slot,
+      name: slot.toUpperCase(),
+      cd: 0,
+      highlight: false,
+      locked: !active.has(slot),
+    }));
   }
   liveScore(): number {
     return Math.round(this.s.score);

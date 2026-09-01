@@ -1,7 +1,7 @@
 import { audio } from '../engine/audio';
 import { clamp, dist } from '../engine/math';
 import { PALETTE } from '../engine/palette';
-import { hexA } from '../engine/renderer';
+import type { DrillPaint } from '../engine/paint';
 import type { HudField } from '../engine/session';
 import type { Actor, Vec2 } from '../engine/types';
 import { Drill, band, count, ms, pct, units, type DrillOutcome } from './base';
@@ -143,34 +143,48 @@ export class AimDrill extends Drill {
     return true;
   }
 
-  drawOverlay(ctx: CanvasRenderingContext2D, scale: number, t: number): void {
+  paint(out: DrillPaint, t: number): void {
     for (const m of this.marks) {
       const a = m.actor;
       const left = clamp(1 - (this.s.elapsed - m.born) / m.ttl, 0, 1);
       const col = m.decoy ? PALETTE.textFaint : PALETTE.accent;
-      ctx.beginPath();
-      ctx.arc(a.pos.x, a.pos.y, a.radius + 12, -Math.PI / 2, -Math.PI / 2 + left * Math.PI * 2);
-      ctx.strokeStyle = hexA(left < 0.3 ? PALETTE.danger : col, 0.9);
-      ctx.lineWidth = 3.5 / scale;
-      ctx.lineCap = 'round';
-      ctx.stroke();
-
+      out.markers.push({
+        kind: 'ring',
+        x: a.pos.x,
+        y: a.pos.y,
+        radius: a.radius + 16,
+        color: left < 0.3 ? PALETTE.danger : col,
+        alpha: 0.95,
+        width: 6,
+        progress: left,
+        rise: 2.6,
+      });
       if (m.decoy) {
-        ctx.strokeStyle = hexA(PALETTE.textFaint, 0.8);
-        ctx.lineWidth = 2 / scale;
-        const r = a.radius * 0.55;
-        ctx.beginPath();
-        ctx.moveTo(a.pos.x - r, a.pos.y - r);
-        ctx.lineTo(a.pos.x + r, a.pos.y + r);
-        ctx.moveTo(a.pos.x + r, a.pos.y - r);
-        ctx.lineTo(a.pos.x - r, a.pos.y + r);
-        ctx.stroke();
+        // A decoy is marked with a cross, never with colour alone: the whole
+        // point of the drill is that you can tell them apart at a glance.
+        out.markers.push({
+          kind: 'cross',
+          x: a.pos.x,
+          y: a.pos.y,
+          radius: a.radius * 0.5,
+          color: PALETTE.textFaint,
+          alpha: 0.85,
+          width: 4,
+          rise: 3,
+        });
       } else {
         const pulse = 0.5 + 0.5 * Math.sin(t * 6);
-        ctx.beginPath();
-        ctx.arc(a.pos.x, a.pos.y, a.radius * 0.32, 0, Math.PI * 2);
-        ctx.fillStyle = hexA(PALETTE.playerCore, 0.6 + pulse * 0.4);
-        ctx.fill();
+        out.markers.push({
+          kind: 'disc',
+          x: a.pos.x,
+          y: a.pos.y,
+          radius: a.radius * 0.45,
+          color: PALETTE.playerCore,
+          alpha: 0.6 + pulse * 0.4,
+          fill: 0.85,
+          width: 2,
+          rise: 3,
+        });
       }
     }
   }
