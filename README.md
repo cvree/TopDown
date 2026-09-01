@@ -150,3 +150,6 @@ Pushing to `main` builds, typechecks, runs the simulation checks, and publishes
 to GitHub Pages via `.github/workflows/deploy.yml`. Enable it once under
 **Settings → Pages → Source: GitHub Actions**. The build uses relative asset
 paths, so it also works from any static host or subdirectory.
+
+`npm run build:single` additionally emits `dist/apex-single.html` — the whole
+trainer inlined into one file, for hosts that only take a single document.

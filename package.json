@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "esbuild tools/simtest.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/simtest.mjs --log-level=error && node node_modules/.cache/simtest.mjs",
-    "test:drill": "esbuild tools/debugrun.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/debugrun.mjs --log-level=error && node node_modules/.cache/debugrun.mjs"
+    "test:drill": "esbuild tools/debugrun.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/debugrun.mjs --log-level=error && node node_modules/.cache/debugrun.mjs",
+    "build:single": "npm run build && node tools/bundle-single.mjs dist/apex-single.html"
   },
   "dependencies": {
     "react": "^19.2.0",
