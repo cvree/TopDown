@@ -122,6 +122,7 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
 
     let lastHudWrite = 0;
     let lastPhase: string = session.phase;
+    let endedAt = 0;
     let slowFrames = 0;
     let quality: 'high' | 'medium' | 'low' = settings.lowFx ? 'low' : 'high';
 
@@ -253,8 +254,17 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
           setPhase(session.phase);
         }
 
+        // Once the run is over the results panel owns the screen. Letting the
+        // arena keep rendering behind it costs a full frame budget for a view
+        // nobody is looking at — and on a slow machine it starves the reveal.
+        if (doneRef.current && endedAt && now - endedAt > 1000) {
+          loop.stop();
+          return;
+        }
+
         if (session.phase === 'ended' && !doneRef.current) {
           doneRef.current = true;
+          endedAt = now;
           const out = drillInstance.outcome();
           const m = session.metrics.m;
           const result: RunResult = {

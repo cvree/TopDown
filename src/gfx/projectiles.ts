@@ -80,7 +80,7 @@ export class ProjectileLayer {
       const color = p.color ?? (p.team === 'player' ? '#8fe9ff' : '#ff8a6a');
       let v = this.visuals.get(p.id);
       if (!v || v.shape !== p.shape || v.color !== color) {
-        v?.root.removeFromParent();
+        if (v) this.release(v);
         v = this.build(p, color);
         this.visuals.set(p.id, v);
       }
@@ -94,17 +94,23 @@ export class ProjectileLayer {
       if (p.shape === 'orb' || p.shape === 'shard') v.core.rotation.z += 0.22;
 
       const fade = 1 - Math.max(0, Math.min(1, (p.life / p.maxLife) ** 4));
-      v.corona.material.opacity = 0.85 * fade;
+      v.corona.material.opacity = 0.7 * fade;
       this.writeTrail(v, p, x, y, fade);
     }
 
     for (const [id, v] of this.visuals) {
       if (seen.has(id)) continue;
-      for (const g of v.geos) g.dispose();
-      for (const m of v.mats) m.dispose();
-      v.root.removeFromParent();
+      this.release(v);
       this.visuals.delete(id);
     }
+  }
+
+  /** The trail is a sibling of the body, so both have to be let go of. */
+  private release(v: Visual): void {
+    for (const g of v.geos) g.dispose();
+    for (const m of v.mats) m.dispose();
+    v.root.removeFromParent();
+    v.trail.removeFromParent();
   }
 
   private build(p: Projectile, color: string): Visual {
@@ -117,7 +123,7 @@ export class ProjectileLayer {
     const coreMat = new THREE.MeshStandardMaterial({
       color: c.clone().lerp(new THREE.Color('#ffffff'), 0.55),
       emissive: c,
-      emissiveIntensity: 2.2,
+      emissiveIntensity: 2.8,
       roughness: 0.3,
       metalness: 0.1,
       flatShading: true,
@@ -134,10 +140,10 @@ export class ProjectileLayer {
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      opacity: 0.85,
+      opacity: 0.7,
     });
     const corona = new THREE.Sprite(coronaMat);
-    corona.scale.setScalar(p.radius * 9);
+    corona.scale.setScalar(p.radius * 5.2);
     root.add(corona);
     mats.push(coronaMat);
 
@@ -177,28 +183,42 @@ export class ProjectileLayer {
     return { root, core, corona, trail, trailPos, trailAlpha, mats, geos, shape: p.shape, color };
   }
 
+  /**
+   * Rewrites the ribbon from the projectile's own flight path. Point 0 is the
+   * live head, the rest are the simulation's trail samples oldest-last, and
+   * each pair of vertices straddles the local direction of travel.
+   */
   private writeTrail(v: Visual, p: Projectile, x: number, y: number, fade: number): void {
-    const pts = p.trail;
     const n = TRAIL_SEGMENTS;
-    const width = p.radius * 1.15;
+    const width = Math.max(4, p.radius * 1.25);
+
+    // Head first, then the recorded samples newest to oldest.
+    const pts: Array<{ x: number; y: number }> = [{ x, y }];
+    for (let i = p.trail.length - 1; i >= 0 && pts.length < n; i--) pts.push(p.trail[i]);
+    // A projectile that has only just spawned gets a stub behind its velocity.
+    while (pts.length < 2) {
+      const len = Math.hypot(p.vel.x, p.vel.y) || 1;
+      pts.push({ x: x - (p.vel.x / len) * 24, y: y - (p.vel.y / len) * 24 });
+    }
+
     for (let i = 0; i < n; i++) {
-      // i = 0 is the head (at the projectile), i = n-1 the oldest sample.
-      const src = pts.length > 0 ? pts[Math.max(0, pts.length - 1 - Math.round((i / (n - 1)) * (pts.length - 1)))] : null;
-      const px = i === 0 || !src ? x : src.x;
-      const py = i === 0 || !src ? y : src.y;
-      // Perpendicular to the direction of travel, taken from the previous sample.
-      const refX = i === 0 ? x : px;
-      const refY = i === 0 ? y : py;
-      const prev = pts.length > 1 ? pts[Math.max(0, pts.length - 2)] : null;
-      const dx = i === 0 ? (prev ? x - prev.x : p.vel.x) : refX - x;
-      const dy = i === 0 ? (prev ? y - prev.y : p.vel.y) : refY - y;
+      const idx = Math.min(pts.length - 1, i);
+      const cur = pts[idx];
+      const nxt = pts[Math.min(pts.length - 1, idx + 1)];
+      const prv = pts[Math.max(0, idx - 1)];
+      const dx = prv.x - nxt.x;
+      const dy = prv.y - nxt.y;
       const len = Math.hypot(dx, dy) || 1;
-      const nx = (-dy / len) * width * (1 - i / n);
-      const ny = (dx / len) * width * (1 - i / n);
+      const t = i / (n - 1);
+      const half = width * (1 - t * 0.85);
+      const nx = (-dy / len) * half;
+      const ny = (dx / len) * half;
       const a = i * 2;
-      v.trailPos.setXYZ(a, px + nx, HEIGHT, py + ny);
-      v.trailPos.setXYZ(a + 1, px - nx, HEIGHT, py - ny);
-      const taper = (1 - i / (n - 1)) ** 1.6 * fade * 0.75;
+      v.trailPos.setXYZ(a, cur.x + nx, HEIGHT, cur.y + ny);
+      v.trailPos.setXYZ(a + 1, cur.x - nx, HEIGHT, cur.y - ny);
+      // Past the end of the real path the ribbon collapses to nothing.
+      const alive = i <= pts.length - 1 ? 1 : 0;
+      const taper = (1 - t) ** 1.5 * fade * 0.8 * alive;
       v.trailAlpha.setX(a, taper);
       v.trailAlpha.setX(a + 1, taper);
     }
@@ -207,12 +227,7 @@ export class ProjectileLayer {
   }
 
   dispose(): void {
-    for (const v of this.visuals.values()) {
-      for (const g of v.geos) g.dispose();
-      for (const m of v.mats) m.dispose();
-      v.root.removeFromParent();
-      v.trail.removeFromParent();
-    }
+    for (const v of this.visuals.values()) this.release(v);
     this.visuals.clear();
   }
 }

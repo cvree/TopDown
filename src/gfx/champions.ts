@@ -122,6 +122,8 @@ export class ChampionRig {
   private baseEmissive: THREE.Color[] = [];
 
   private stride = 0;
+  /** True while a damage flash is being written, so it is cleared exactly once. */
+  private flashed = false;
   private readonly spec: RigSpec;
   private readonly h: number;
 
@@ -559,8 +561,6 @@ export class ChampionRig {
     rm.opacity = (s.hovered ? 1 : 0.78) * (1 - s.death) + lowHp * 0.25;
     this.ring.scale.setScalar(s.hovered ? 1.08 : 1);
   }
-
-  private flashed = false;
 
   private applyAttackPose(shoulderX: number, elbowX: number, twist: number): void {
     this.shoulderR.group.rotation.x += shoulderX;

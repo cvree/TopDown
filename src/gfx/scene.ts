@@ -45,9 +45,11 @@ export class RiftScene {
   private sky: THREE.Mesh;
   private arena: Arena;
   private quality: Quality = 'high';
-  private cssW = 1600;
-  private cssH = 900;
-  private dpr = 1;
+  // Zero until the first resize, so that first call always takes effect even
+  // if the canvas happens to open at exactly the default size.
+  private cssW = 0;
+  private cssH = 0;
+  private dpr = 0;
   private time = 0;
   private disposed = false;
 
@@ -207,9 +209,15 @@ export class RiftScene {
   }
 
   resize(cssW: number, cssH: number): void {
-    this.cssW = Math.max(1, cssW);
-    this.cssH = Math.max(1, cssH);
-    this.dpr = this.pixelRatio();
+    const w = Math.max(1, Math.round(cssW));
+    const h = Math.max(1, Math.round(cssH));
+    const dpr = this.pixelRatio();
+    // A ResizeObserver fires for any layout change, and rebuilding the post
+    // chain allocates render targets. Only do it when the size really moved.
+    if (w === this.cssW && h === this.cssH && dpr === this.dpr && (this.composer !== null) === (this.quality !== 'low')) return;
+    this.cssW = w;
+    this.cssH = h;
+    this.dpr = dpr;
     this.renderer.setPixelRatio(this.dpr);
     this.renderer.setSize(this.cssW, this.cssH, false);
     this.rig.setViewport({ width: this.cssW, height: this.cssH });
