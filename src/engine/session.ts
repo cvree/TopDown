@@ -133,6 +133,7 @@ export class Session {
   private lastArmed: AbilitySlot | null = null;
   /** Rate limit for telegraph audio: a wave of hazards is one sound, not ten. */
   private lastTelegraphAt = -1;
+  private feedbackAccum = 0;
   /** True once the camera has been unlocked, so the hint is only shown once. */
   cameraLocked = true;
 
@@ -199,10 +200,19 @@ export class Session {
 
     this.fx.targetEnergy = clamp(this.chain / 9, 0, 1);
     this.fx.update(dt);
-    // The arena bed swells with the chain: a streak is audible before the
-    // number on the HUD has time to be read.
-    audio.setIntensity(this.fx.energy);
-    this.pollAbilityState();
+    // Polled feedback, at 20Hz rather than at the simulation's 240Hz.
+    // `abilities()` allocates, and allocating in a fixed-step loop is how you
+    // buy yourself a GC pause in the middle of a reaction-time measurement.
+    // Nothing here is time-critical: the ear cannot tell a 50ms-late chime
+    // from an on-time one, and the arena bed is a 350ms ramp anyway.
+    this.feedbackAccum += dt;
+    if (this.feedbackAccum >= 0.05) {
+      this.feedbackAccum = 0;
+      // The arena bed swells with the chain: a streak is audible before the
+      // number on the HUD has time to be read.
+      audio.setIntensity(this.fx.energy);
+      this.pollAbilityState();
+    }
     this.hitFeedback = Math.max(0, this.hitFeedback - dt * 3.6);
     if (this.bannerTime > 0) {
       this.bannerTime -= dt;
