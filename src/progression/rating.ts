@@ -88,6 +88,7 @@ export const overallRating = (
   const weights: Record<SkillAxis, number> = {
     movement: 1.0,
     aim: 1.0,
+    skillshot: 1.25,
     dodging: 1.15,
     kiting: 1.3,
     spacing: 1.1,
