@@ -56,6 +56,14 @@ export class RiftCamera {
   locked = true;
   /** Edge-pan speed in world units per second at full deflection. */
   edgeSpeed = 1750;
+  /**
+   * Scales every involuntary camera motion — shake, punch and kick — without
+   * touching the follow, the zoom or the pan. Zero leaves a camera that still
+   * does everything you asked it to and nothing you did not, which is the
+   * setting anyone prone to motion sickness needs and the one most games
+   * either omit or wire to "turn off all effects".
+   */
+  motionScale = 1;
   private baseDistance = 2200;
   private bounds = { w: 1660, h: 960 };
   private viewport: Viewport = { width: 1600, height: 900 };
@@ -141,7 +149,7 @@ export class RiftCamera {
 
   /** A short pull-in on a kill or a heavy hit. Sells weight better than shake. */
   addPunch(amount: number): void {
-    this.punch = Math.min(240, this.punch + amount);
+    this.punch = Math.min(240, this.punch + amount * this.motionScale);
   }
 
   /**
@@ -150,8 +158,9 @@ export class RiftCamera {
    * recoil, where an omnidirectional shake just reads as noise.
    */
   addKick(angle: number, amount: number): void {
-    this.kick.x += Math.cos(angle) * amount;
-    this.kick.y += Math.sin(angle) * amount;
+    const a = amount * this.motionScale;
+    this.kick.x += Math.cos(angle) * a;
+    this.kick.y += Math.sin(angle) * a;
     const m = this.kick.length();
     if (m > 90) this.kick.multiplyScalar(90 / m);
   }
@@ -190,7 +199,7 @@ export class RiftCamera {
   }
 
   addShake(amount: number): void {
-    this.shakeMag = Math.min(46, this.shakeMag + amount);
+    this.shakeMag = Math.min(46, this.shakeMag + amount * this.motionScale);
   }
 
   /**

@@ -125,6 +125,12 @@ export function Settings({ settings, onChange, onBack }: Props) {
               onChange={(v) => onChange({ showRange: v })}
             />
             <Toggle
+              label="Reduced camera motion"
+              hint="Stops the camera shaking, punching in and kicking on impacts. Everything you drive it to do — follow, zoom, edge pan — is untouched."
+              value={settings.reduceShake}
+              onChange={(v) => onChange({ reduceShake: v })}
+            />
+            <Toggle
               label="Reduced effects"
               hint="Turns off shadows, bloom and the live arena behind the menus. The simulation is unchanged, so scores stay comparable."
               value={settings.lowFx}

@@ -7,7 +7,7 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr) 320px;
+  grid-template-columns: 292px minmax(0, 1fr) 336px;
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
     'left stage right'
@@ -425,7 +425,7 @@
 }
 .axis {
   display: grid;
-  grid-template-columns: 78px 1fr 62px;
+  grid-template-columns: 74px 1fr 78px;
   align-items: center;
   gap: 9px;
 }
@@ -448,7 +448,8 @@
 }
 .ax-rank {
   font-family: var(--display);
-  font-size: 9.5px;
+  font-size: 9px;
+  white-space: nowrap;
   letter-spacing: 0.08em;
   text-align: right;
   color: var(--text-2);
@@ -620,7 +621,7 @@
 /* ------------------------------------------------------------ narrow */
 @media (max-width: 1240px) {
   .client {
-    grid-template-columns: 244px minmax(0, 1fr) 268px;
+    grid-template-columns: 244px minmax(0, 1fr) 292px;
   }
   .hero,
   .calib {

@@ -187,6 +187,10 @@ The renderer is a three.js scene built entirely from code.
 - **Cost.** Shadows, bloom and the grade pass step down automatically if frame
   rate drops, and "Reduced effects" in Settings turns them off outright. The
   simulation is untouched by any of it, so scores never depend on the machine.
+- **Motion.** "Reduced camera motion" damps shake, punch and the cast kick to
+  zero and leaves everything you drive the camera to do — follow, zoom, edge
+  pan — exactly as it was. It is a separate switch from "Reduced effects" on
+  purpose: needing a still camera is not the same as needing a cheap one.
 
 The menus are fronted by the same arena, rendered live at a capped frame rate.
 

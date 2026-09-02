@@ -34,6 +34,8 @@ export interface RenderOpts {
   allowEdgePan?: boolean;
   /** A non-quickcast slot waiting for its confirming click, if any. */
   armedSlot?: string | null;
+  /** Damps shake, punch and camera kick without changing anything you drive. */
+  reduceShake?: boolean;
   paint?: DrillPaint;
   showNames?: boolean;
   /** Suppresses the player's own indicators during the countdown. */
@@ -184,6 +186,7 @@ export class RiftRenderer {
     // ------------------------------------------------------------- camera
     const focus = player ? { x: player.pos.x, y: player.pos.y } : { x: world.bounds.w / 2, y: world.bounds.h / 2 };
     const ndc = { x: (opts.cursor.x / this.cssW) * 2 - 1, y: -((opts.cursor.y / this.cssH) * 2 - 1) };
+    this.scene.rig.motionScale = opts.reduceShake ? 0 : 1;
     // Feed the effect system's shake into the camera as impulses, so a hit
     // moves the whole viewpoint rather than sliding a flat image around.
     if (fx.shake > this.prevShake) this.scene.rig.addShake((fx.shake - this.prevShake) * 2.4);
