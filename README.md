@@ -29,6 +29,7 @@ npm run build      # production bundle
 | --- | --- | --- |
 | **Movement** | Path efficiency, command cleanliness | One click, the right point, no wandering |
 | **Aim** | Reaction, click error, target discrimination | Landing your click on the champion you meant |
+| **Skillshot** | Hit rate per ability, chain length | Landing a travel-time skillshot on a target trying to juke it |
 | **Dodge** | Hits per pattern, hazard exposure | One correct movement on the telegraph |
 | **Spacing** | Time inside your free-trade band | Trading from max range, not drifting in |
 | **Kite** | Orbwalk efficiency, cancels, DPS uptime | Attack → move → attack |
@@ -76,9 +77,9 @@ a real latency rather than a fudge factor.
 is not a prediction of anyone's League ranked tier, and the UI says so wherever
 the rank appears.
 
-Eight axes are rated independently — Movement, Aim, Dodging, Kiting, Spacing,
-Targeting, Combat, Last Hitting — and blended into an overall rating on an
-Iron → Challenger ladder.
+Nine axes are rated independently — Movement, Aim, Skillshot, Dodging, Kiting,
+Spacing, Targeting, Combat, Last Hitting — and blended into an overall rating
+on an Iron → Challenger ladder.
 
 **Rank comes from performance, not attendance.** Each run produces a
 performance in 0..1 and the difficulty it was played at. Those give an *expected

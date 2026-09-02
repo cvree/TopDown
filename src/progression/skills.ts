@@ -2,6 +2,7 @@
 export const SKILL_AXES = [
   'movement',
   'aim',
+  'skillshot',
   'dodging',
   'kiting',
   'spacing',
@@ -15,6 +16,7 @@ export type SkillAxis = (typeof SKILL_AXES)[number];
 export const AXIS_LABEL: Record<SkillAxis, string> = {
   movement: 'Movement',
   aim: 'Aim',
+  skillshot: 'Skillshot',
   dodging: 'Dodging',
   kiting: 'Kiting',
   spacing: 'Spacing',
@@ -26,6 +28,7 @@ export const AXIS_LABEL: Record<SkillAxis, string> = {
 export const AXIS_BLURB: Record<SkillAxis, string> = {
   movement: 'Path efficiency, click precision and how little distance you waste.',
   aim: 'How fast and how accurately you put a command on the right point.',
+  skillshot: 'Landing a telegraphed or travel-time ability on a target trying not to be hit.',
   dodging: 'Reading telegraphs and skillshots, and not being where they land.',
   kiting: 'Attack, move, attack. Orbwalk efficiency and cancelled attacks.',
   spacing: 'Holding the edge of your range instead of drifting into theirs.',

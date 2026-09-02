@@ -5,6 +5,7 @@ export type DrillId =
   | 'movement'
   | 'dodge'
   | 'aim'
+  | 'skillshot'
   | 'kite'
   | 'spacing'
   | 'lasthit'
@@ -63,6 +64,20 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     keyMetric: 'REACTION',
     order: 2,
   },
+  skillshot: {
+    id: 'skillshot',
+    name: 'SKILLSHOT',
+    tagline: 'Land the unlandable',
+    brief: 'Four skillshots, one evasive target. Lead the fast one, sell the cone, predict the ultimate.',
+    transfers: 'Landing a real skillshot — travel time, width and all — on a champion trying not to be hit.',
+    group: 'FOUNDATION',
+    axes: { skillshot: 0.85, aim: 0.15 },
+    duration: 75,
+    abilities: ['q', 'w', 'e', 'r'],
+    accent: '#ff6bd6',
+    keyMetric: 'HIT RATE',
+    order: 3,
+  },
   dodge: {
     id: 'dodge',
     name: 'DODGE',
@@ -75,7 +90,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     abilities: [],
     accent: '#ffcf6b',
     keyMetric: 'DODGE RATE',
-    order: 3,
+    order: 4,
   },
   spacing: {
     id: 'spacing',
@@ -89,7 +104,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     abilities: [],
     accent: '#5ce1a8',
     keyMetric: 'SPACING ERROR',
-    order: 4,
+    order: 5,
   },
   kite: {
     id: 'kite',
@@ -103,7 +118,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     abilities: [],
     accent: '#ff9f5c',
     keyMetric: 'ORBWALK EFFICIENCY',
-    order: 5,
+    order: 6,
   },
   lasthit: {
     id: 'lasthit',
@@ -117,7 +132,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     abilities: [],
     accent: '#ffd166',
     keyMetric: 'CS ACCURACY',
-    order: 6,
+    order: 7,
   },
   targetswitch: {
     id: 'targetswitch',
@@ -131,7 +146,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     abilities: [],
     accent: '#c48bff',
     keyMetric: 'SWITCH SPEED',
-    order: 7,
+    order: 8,
   },
   combos: {
     id: 'combos',
@@ -145,7 +160,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     abilities: ['q', 'w', 'e', 'r'],
     accent: '#b98cff',
     keyMetric: 'EXECUTION',
-    order: 8,
+    order: 9,
   },
   duel1v1: {
     id: 'duel1v1',
@@ -159,7 +174,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     abilities: ['d'],
     accent: '#ff7a5c',
     keyMetric: 'COMBAT SCORE',
-    order: 9,
+    order: 10,
   },
   duel1v2: {
     id: 'duel1v2',
@@ -173,7 +188,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     abilities: ['d'],
     accent: '#ff5f8f',
     keyMetric: 'SURVIVAL',
-    order: 10,
+    order: 11,
   },
   duel1v3: {
     id: 'duel1v3',
@@ -187,7 +202,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     abilities: ['d'],
     accent: '#ff4d6d',
     keyMetric: 'SURVIVAL',
-    order: 11,
+    order: 12,
   },
 };
 

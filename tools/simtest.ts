@@ -13,7 +13,7 @@ import { derive } from '../src/engine/metrics';
 import type { InputEventKind, InputSystem } from '../src/engine/input';
 import { dist, norm } from '../src/engine/math';
 
-type Policy = 'orbwalk' | 'spam' | 'idle' | 'standStill' | 'dodge' | 'aim' | 'hold' | 'nodes' | 'priority' | 'sequence';
+type Policy = 'orbwalk' | 'spam' | 'idle' | 'standStill' | 'dodge' | 'aim' | 'hold' | 'nodes' | 'priority' | 'sequence' | 'lead';
 
 class FakeInput {
   cursor = { x: 0, y: 0 };
@@ -214,6 +214,23 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345)
             }
             break;
           }
+          case 'lead': {
+            // A competent skillshot player: lead the nearest dummy by its
+            // travel-time-adjusted position and fire the instant the shot is
+            // off cooldown.
+            reactTimer = 0.05;
+            const cds = (drill as unknown as { cooldowns: Record<'q' | 'w' | 'e' | 'r', number> }).cooldowns;
+            if (!target || !cds || cds.q > 0) break;
+            const speed = 2050;
+            let leadT = dist(p.pos, target.pos) / speed;
+            for (let i = 0; i < 3; i++) {
+              const predicted = { x: target.pos.x + target.vel.x * leadT, y: target.pos.y + target.vel.y * leadT };
+              leadT = dist(p.pos, predicted) / speed;
+            }
+            const aim = { x: target.pos.x + target.vel.x * leadT, y: target.pos.y + target.vel.y * leadT };
+            input.push({ kind: 'ability', slot: 'q', x: aim.x, y: aim.y, t: t * 1000 });
+            break;
+          }
           case 'idle':
             reactTimer = 1;
             break;
@@ -339,12 +356,21 @@ line(`  idle    : inBand ${pct(spaceIdle.out.keyMetrics[0].value)}  perf ${pct(s
 expect('holding the band scores well', spaceGood.out.performance > 0.6, pct(spaceGood.out.performance));
 expect('holding beats drifting', spaceGood.out.performance > spaceIdle.out.performance * 1.8, `${pct(spaceGood.out.performance)} vs ${pct(spaceIdle.out.performance)}`);
 
+line('\n=== SKILLSHOT: leading a juking target vs. idle ===');
+const shotGood = runDrill('skillshot', 'lead', 0.35);
+const shotIdle = runDrill('skillshot', 'idle', 0.35);
+line(`  leading : hitRate ${pct(shotGood.out.keyMetrics[0].value)}  landed ${shotGood.out.keyMetrics[1].value}  chain ${shotGood.out.keyMetrics[3].value}  perf ${pct(shotGood.out.performance)}  score ${shotGood.out.score}`);
+line(`  idle    : hitRate ${pct(shotIdle.out.keyMetrics[0].value)}  perf ${pct(shotIdle.out.performance)}`);
+expect('leading beats idling in skillshot', shotGood.out.performance > shotIdle.out.performance, `${pct(shotGood.out.performance)} vs ${pct(shotIdle.out.performance)}`);
+expect('a competent player lands most shots on a juking dummy', shotGood.out.keyMetrics[0].value > 0.55, pct(shotGood.out.keyMetrics[0].value));
+
 line('\n=== Every drill rewards playing it correctly ===');
 for (const [id, policy] of [
   ['movement', 'nodes'],
   ['targetswitch', 'priority'],
   ['combos', 'sequence'],
   ['lasthit', 'orbwalk'],
+  ['skillshot', 'lead'],
 ] as [DrillId, Policy][]) {
   const r = runDrill(id, policy, 0.35);
   line(`  ${id.padEnd(13)} correct play perf ${pct(r.out.performance)}  score ${r.out.score}  ${r.out.keyMetrics.slice(0, 2).map((k) => `${k.label} ${k.value.toFixed(2)}`).join('  ')}`);
@@ -352,15 +378,15 @@ for (const [id, policy] of [
 }
 
 line('\n=== Honesty: doing nothing scores near zero everywhere ===');
-for (const id of ['movement', 'aim', 'kite', 'spacing', 'lasthit', 'targetswitch', 'combos'] as DrillId[]) {
+for (const id of ['movement', 'aim', 'skillshot', 'kite', 'spacing', 'lasthit', 'targetswitch', 'combos'] as DrillId[]) {
   const r = runDrill(id, 'idle', 0.4);
   line(`  ${id.padEnd(13)} idle perf ${pct(r.out.performance)}  score ${r.out.score}`);
   expect(`${id} cannot be passed by doing nothing`, r.out.performance < 0.3, pct(r.out.performance));
 }
 
-line('\n=== SPACING / MOVEMENT / LAST HIT / TARGET SWITCH / COMBOS run clean ===');
-for (const id of ['spacing', 'movement', 'lasthit', 'targetswitch', 'combos'] as DrillId[]) {
-  const r = runDrill(id, id === 'movement' ? 'orbwalk' : 'orbwalk', 0.4);
+line('\n=== SPACING / MOVEMENT / LAST HIT / TARGET SWITCH / COMBOS / SKILLSHOT run clean ===');
+for (const id of ['spacing', 'movement', 'lasthit', 'targetswitch', 'combos', 'skillshot'] as DrillId[]) {
+  const r = runDrill(id, id === 'skillshot' ? 'lead' : 'orbwalk', 0.4);
   const finite = Number.isFinite(r.out.performance) && Number.isFinite(r.out.score);
   line(`  ${id.padEnd(13)} perf ${pct(r.out.performance)}  score ${r.out.score}  metrics ${r.out.keyMetrics.length}`);
   expect(`${id} produces finite, in-range results`, finite && r.out.performance >= 0 && r.out.performance <= 1, `perf=${r.out.performance}`);

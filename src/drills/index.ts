@@ -8,6 +8,7 @@ import { DodgeDrill } from './dodge';
 import { KiteDrill } from './kite';
 import { LastHitDrill } from './lasthit';
 import { MovementDrill } from './movement';
+import { SkillshotDrill } from './skillshot';
 import { SpacingDrill } from './spacing';
 import { TargetSwitchDrill } from './targetswitch';
 
@@ -17,6 +18,8 @@ export const createDrill = (id: DrillId, session: Session): Drill => {
       return new MovementDrill(session);
     case 'aim':
       return new AimDrill(session);
+    case 'skillshot':
+      return new SkillshotDrill(session);
     case 'dodge':
       return new DodgeDrill(session);
     case 'kite':
