@@ -53,6 +53,10 @@ type SfxName =
   | 'castArm'
   | 'castRefuse'
   | 'abilityReady'
+  /* ---- what the other side is doing ---- */
+  | 'telegraph'
+  | 'hazardFire'
+  | 'enemyCast'
   /* ---- ceremony ---- */
   | 'gateEnter'
   | 'announce';
@@ -480,6 +484,25 @@ export class AudioEngine {
         // a fight, distinct enough to notice in one.
         this.tone(1320, 0.14, { type: 'sine', gain: 0.03, pan, space: 0.4 });
         this.tone(1980, 0.1, { type: 'sine', gain: 0.016, delay: 0.03, pan, space: 0.4 });
+        break;
+
+      // ------------------------------------------------- incoming danger
+      //
+      // A telegraph you can only see is a telegraph you miss while looking
+      // somewhere else. These three are quiet, panned to where the danger
+      // actually is, and pitched well away from your own ability voices so a
+      // fight never becomes one texture.
+      case 'telegraph':
+        this.tone(180, 0.42, { type: 'sawtooth', gain: 0.05 * intensity, slideTo: 340, filter: 900, filterEnd: 2200, attack: 0.06, pan, space: 0.45 });
+        this.noise(0.36, { gain: 0.03 * intensity, hp: 200, lp: 700, lpEnd: 2600, pan, space: 0.4 });
+        break;
+      case 'hazardFire':
+        this.tone(110, 0.3, { type: 'sine', gain: 0.15 * intensity, slideTo: 52, pan, space: 0.45 });
+        this.noise(0.26, { gain: 0.09 * intensity, hp: 260, lp: 6000, lpEnd: 500, pan, space: 0.45 });
+        break;
+      case 'enemyCast':
+        this.noise(0.16, { gain: 0.045 * intensity, hp: 900, lp: 5200, lpEnd: 1400, pan, space: 0.4 });
+        this.tone(420, 0.16, { type: 'triangle', gain: 0.04 * intensity, slideTo: 760, pan, space: 0.4 });
         break;
 
       // ----------------------------------------------------------- clock

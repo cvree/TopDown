@@ -652,7 +652,7 @@
 .hud-hints {
   position: absolute;
   right: 20px;
-  bottom: 206px;
+  bottom: 228px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -692,6 +692,36 @@
 }
 .hud-minimap canvas {
   display: block;
+}
+
+.hud-cam {
+  position: absolute;
+  right: 24px;
+  bottom: 200px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--text-3);
+  transition: color 0.2s;
+}
+.hud-cam svg {
+  width: 13px;
+  height: 13px;
+}
+.hud-cam .shackle {
+  transform-origin: 8px 7px;
+  transition: transform 0.2s var(--ease);
+}
+.hud-cam.unlocked {
+  color: var(--warn);
+}
+/* The shackle tips open — the same gesture as League's padlock, and the only
+   part of this that is readable at a glance mid-fight. */
+.hud-cam.unlocked .shackle {
+  transform: rotate(-28deg) translateX(-1.5px);
 }
 
 /* ---------------------------------------------------------- pause */

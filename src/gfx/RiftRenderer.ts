@@ -32,6 +32,8 @@ export interface RenderOpts {
   lowFx?: boolean;
   /** Edge panning is live only while the run is actually running. */
   allowEdgePan?: boolean;
+  /** A non-quickcast slot waiting for its confirming click, if any. */
+  armedSlot?: string | null;
   paint?: DrillPaint;
   showNames?: boolean;
   /** Suppresses the player's own indicators during the countdown. */
@@ -120,6 +122,11 @@ export class RiftRenderer {
 
   zoomBy(delta: number): void {
     this.scene.rig.zoomBy(delta);
+  }
+
+  /** Drop an actor into its cast pose. Driven by the session on a real cast. */
+  castPose(actorId: number): void {
+    this.units.castOn(actorId);
   }
 
   /** Camera controls the session drives on the player's behalf. */
@@ -225,12 +232,42 @@ export class RiftRenderer {
       });
     }
 
-    // Where you told your champion to go.
+    // Where you told your champion to go. Four inward ticks around a ring is
+    // League's destination marker, and it is a better shape than a plain dot:
+    // the ticks point at the exact spot, so a marker under a champion is still
+    // unambiguous about which pixel you actually clicked.
     if (player?.order && player.order.kind !== 'hold' && !opts.idle) {
       const o = player.order;
       const col = o.kind === 'attackMove' ? '#ffcf6b' : '#6dffb4';
-      this.decals.ring(o.pos.x, o.pos.y, 22, { color: col, alpha: 0.75, width: 3, rise: 2.4 });
-      this.decals.ring(o.pos.x, o.pos.y, 9, { color: col, alpha: 0.5, width: 9, rise: 2.4 });
+      this.decals.ring(o.pos.x, o.pos.y, 24, { color: col, alpha: 0.8, width: 3, rise: 2.4 });
+      this.decals.ring(o.pos.x, o.pos.y, 7, { color: col, alpha: 0.55, width: 7, rise: 2.4 });
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+        const cs = Math.cos(a);
+        const sn = Math.sin(a);
+        this.decals.line(
+          o.pos.x + cs * 38,
+          o.pos.y + sn * 38,
+          o.pos.x + cs * 25,
+          o.pos.y + sn * 25,
+          2.5,
+          { color: col, alpha: 0.7, rise: 2.4 },
+        );
+      }
+    }
+
+    // A non-quickcast ability waiting on its confirming click. The line to the
+    // cursor is the whole point: with quick cast off, the thing you have to
+    // learn is that the ability is *armed and aimed*, not merely selected.
+    if (player && opts.armedSlot && !opts.idle) {
+      const CAST = '#ffe6a8';
+      this.decals.line(player.pos.x, player.pos.y, cursorWorld.x, cursorWorld.y, 3, {
+        color: CAST,
+        alpha: 0.5,
+        rise: 2.6,
+      });
+      this.decals.ring(cursorWorld.x, cursorWorld.y, 34, { color: CAST, alpha: 0.8, width: 3, dash: 30, spin: 0.9, rise: 2.6 });
+      this.decals.ring(player.pos.x, player.pos.y, player.radius + 16, { color: CAST, alpha: 0.45, width: 2, rise: 2.6 });
     }
 
     for (const h of world.hazards) this.drawHazard(h);

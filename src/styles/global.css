@@ -238,6 +238,17 @@ h3 {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
+  /* Pages of content get their own ground.
+     The arena is live behind every screen, which is right for the client —
+     the middle of that screen is meant to be empty — and wrong for a page of
+     tables and body copy, where a lit brazier drifting under a paragraph is
+     just a legibility bug with atmosphere. So anything that scrolls sits on
+     a darkened, blurred plate: the arena still shows through as depth, never
+     as competition for the same pixels as the text. */
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(9, 20, 36, 0.72), rgba(2, 5, 10, 0.9) 62%),
+    linear-gradient(180deg, rgba(2, 5, 10, 0.86), rgba(2, 5, 10, 0.93));
+  backdrop-filter: blur(7px) saturate(0.82);
 }
 
 .wrap {

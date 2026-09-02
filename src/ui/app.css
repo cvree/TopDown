@@ -33,6 +33,9 @@
 }
 
 /* ------------------------------------------------------- interstitial */
+/* The card between drills in a sequence. It is shown five times during
+   calibration, so it is worth composing: a step tally, the drill's name
+   struck out of black in its own colour, and a bar that visibly runs out. */
 .interstitial {
   position: fixed;
   inset: 0;
@@ -40,17 +43,48 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(4, 6, 11, 0.94);
+  background:
+    radial-gradient(900px 520px at 50% 46%, color-mix(in srgb, var(--c, #c8aa6e) 12%, transparent), transparent 70%),
+    rgba(3, 5, 10, 0.96);
   animation: fadeIn 0.25s var(--ease) both;
 }
 .int-inner {
   text-align: center;
   animation: fadeUp 0.5s var(--ease) both;
+  width: min(560px, 84vw);
+}
+.int-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.int-step i {
+  width: 22px;
+  height: 3px;
+  background: rgba(200, 170, 110, 0.2);
+}
+.int-step i.on {
+  background: var(--c, var(--gold));
+  box-shadow: 0 0 12px var(--c, var(--gold));
+}
+.int-step .eyebrow {
+  margin-left: 8px;
 }
 .int-name {
   font-size: clamp(40px, 6vw, 74px);
   letter-spacing: 0.2em;
-  margin: 12px 0 14px;
+  margin: 0;
+  color: var(--gold-hot);
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.8),
+    0 0 52px color-mix(in srgb, var(--c, #c8aa6e) 60%, transparent);
+  animation: strike 0.6s var(--ease-in-out) both;
+}
+.int-inner .ornament {
+  margin: 14px auto 16px;
+  width: 70%;
 }
 .int-brief {
   font-size: 13.5px;
@@ -58,6 +92,28 @@
   max-width: 520px;
   line-height: 1.6;
   margin: 0 auto;
+}
+.int-bar {
+  margin: 30px auto 0;
+  width: 220px;
+  height: 2px;
+  background: rgba(200, 170, 110, 0.16);
+  overflow: hidden;
+}
+.int-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--c, var(--gold)));
+  transform-origin: left center;
+  animation: intBar 1.5s linear both;
+}
+@keyframes intBar {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
 
 /* ------------------------------------------------------ gesture notice */

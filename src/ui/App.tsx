@@ -340,15 +340,29 @@ export function App() {
           onRetry={retry}
         />
         {interstitial && (
-          <div className="interstitial">
+          <div
+            className="interstitial"
+            style={{ ['--c' as string]: DRILLS[interstitial.drill].accent }}
+          >
             <div className="int-inner">
-              <div className="eyebrow">
-                {flow.kind === 'placement' ? 'CALIBRATION' : 'DAILY'} {interstitial.step} / {interstitial.total}
+              <div className="int-step">
+                {Array.from({ length: interstitial.total }).map((_, i) => (
+                  <i key={i} className={i < interstitial.step ? 'on' : ''} />
+                ))}
+                <span className="eyebrow">
+                  {flow.kind === 'placement' ? 'CALIBRATION' : 'DAILY'} {interstitial.step} / {interstitial.total}
+                </span>
               </div>
-              <div className="int-name display" style={{ color: DRILLS[interstitial.drill].accent }}>
-                {DRILLS[interstitial.drill].name}
+              <div className="int-name display">{DRILLS[interstitial.drill].name}</div>
+              <div className="ornament">
+                <i />
               </div>
               <div className="int-brief">{DRILLS[interstitial.drill].brief}</div>
+              {/* Runs for exactly as long as the card is up, so the wait has a
+                  visible end rather than being an unexplained pause. */}
+              <div className="int-bar">
+                <span />
+              </div>
             </div>
           </div>
         )}

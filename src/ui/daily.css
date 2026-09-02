@@ -1,6 +1,95 @@
 .daily {
   padding-top: 46px;
-  max-width: 900px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 40px;
+  align-items: start;
+}
+.daily-main {
+  min-width: 0;
+  max-width: 860px;
+}
+
+/* ------------------------------------------------------------- side rail */
+.daily-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 46px;
+}
+.ds-streak-n {
+  font-size: 58px;
+  line-height: 1;
+  color: var(--gold-hot);
+  text-shadow: 0 0 34px rgba(200, 170, 110, 0.35);
+}
+.ds-streak-l {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+/* Seven days as seven cut tiles. A streak you can see the shape of is worth
+   more than a number you have to remember yesterday's value of. */
+.ds-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  margin-top: 18px;
+}
+.ds-week span {
+  height: 26px;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-4);
+  border: 1px solid rgba(120, 90, 40, 0.4);
+  background: rgba(0, 0, 0, 0.3);
+}
+.ds-week span.on {
+  color: #0c1219;
+  background: linear-gradient(180deg, var(--gold-lit), var(--gold-deep));
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(200, 170, 110, 0.5);
+}
+
+.ds-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--stroke);
+}
+.ds-rank-row b {
+  display: block;
+  font-size: 16px;
+  letter-spacing: 0.1em;
+  color: var(--gold-hot);
+}
+.ds-rank-row span {
+  font-size: 10.5px;
+}
+.ds-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+}
+.ds-line b {
+  font-family: var(--display);
+  font-size: 14px;
+}
+
+@media (max-width: 1080px) {
+  .daily {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .daily-side {
+    position: static;
+  }
 }
 .daily-h1 {
   font-size: clamp(32px, 4.5vw, 50px);
@@ -16,8 +105,9 @@
 
 .daily-list {
   border: 1px solid var(--stroke);
-  border-radius: var(--r-lg);
   overflow: hidden;
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  box-shadow: 0 24px 60px -30px #000;
 }
 .dl-row {
   display: grid;
@@ -25,7 +115,7 @@
   align-items: center;
   gap: 16px;
   padding: 16px 20px;
-  background: var(--panel);
+  background: linear-gradient(180deg, rgba(11, 22, 38, 0.94), rgba(5, 12, 22, 0.94));
   border-bottom: 1px solid var(--stroke);
   transition: background 0.25s;
 }

@@ -78,6 +78,8 @@ export interface ViewProjection {
    * method and still drive the whole simulation.
    */
   panAt?(p: Vec2): number;
+  /** Puts an actor into its cast pose for the next few frames. */
+  castPose?(actorId: number): void;
   cameraKick?(angle: number, amount: number): void;
   recenterCamera?(): void;
   toggleCameraLock?(): boolean;
@@ -129,6 +131,8 @@ export class Session {
   /** Last frame's cooldown per slot, for the ready chime. */
   private lastCd = new Map<AbilitySlot, number>();
   private lastArmed: AbilitySlot | null = null;
+  /** Rate limit for telegraph audio: a wave of hazards is one sound, not ten. */
+  private lastTelegraphAt = -1;
   /** True once the camera has been unlocked, so the hint is only shown once. */
   cameraLocked = true;
 
@@ -337,6 +341,7 @@ export class Session {
     }
 
     const angle = Math.atan2(at.y - player.pos.y, at.x - player.pos.x);
+    this.renderer.castPose?.(player.id);
     audio.play(audio.castVoice(slot), { pan: this.panOf(player.pos) });
     // The camera shoves along the cast, not at random. Ultimates shove hard.
     this.renderer.cameraKick?.(angle, slot === 'r' ? 62 : 26);
@@ -489,6 +494,21 @@ export class Session {
           this.chain = 0;
           audio.setComboPitch(0);
         }
+        break;
+      case 'hazardWarn':
+        // Every telegraph in the arena is audible and placed. Half of dodging
+        // in League is hearing a cast start while you are looking elsewhere,
+        // and a trainer that only ever draws the telegraph trains half of it.
+        if (e.pos && this.world.time - this.lastTelegraphAt > 0.12) {
+          this.lastTelegraphAt = this.world.time;
+          audio.play('telegraph', { intensity: 0.9, pan: this.panOf(e.pos) });
+        }
+        break;
+      case 'hazardFire':
+        if (e.pos) audio.play('hazardFire', { intensity: 0.85, pan: this.panOf(e.pos) });
+        break;
+      case 'projectileSpawn':
+        if (e.pos && !e.byPlayer) audio.play('enemyCast', { intensity: 0.8, pan: this.panOf(e.pos) });
         break;
       default:
         break;

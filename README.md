@@ -10,6 +10,14 @@ ranked mechanical skill system driven by measured performance rather than time
 played, and a results screen designed so you can see exactly what you did and
 what it cost you.
 
+It opens like a game rather than a page: black screen, a crest struck out of
+it, a load bar, and a key to press. That gate is not only theatre — the arena's
+terrain, its noise-painted surfaces and its shaders are generated on the main
+thread at startup, and browsers refuse to start an AudioContext without a
+gesture. So the wait happens behind a title card instead of in front of you,
+and the swell that carries you into the client is the first sound the app is
+allowed to make.
+
 Nothing is downloaded at runtime. The stone, the rock, the turf, the champions
 and every effect are generated in code at load time, so the whole trainer still
 fits in a single HTML file.
@@ -128,6 +136,9 @@ changed a score.
 | `Q` `W` `E` `R` | Abilities (drills that use them) |
 | `D` `F` | Summoners — blink in the arenas |
 | `S` | Stop |
+| `Space` | Centre the camera on your champion |
+| `Y` | Toggle camera lock. Unlocked, the camera stays where you leave it |
+| Screen edge | Edge pan, in both modes — in locked mode the offset springs back |
 | Mouse wheel | Zoom. The camera follows your champion once you are zoomed past the arena bounds |
 | `` ` `` / `Enter` | Instant reset |
 | `Esc` | Pause |
@@ -152,20 +163,70 @@ The renderer is a three.js scene built entirely from code.
   attack pose is driven by the simulation's own windup timer, so the windup you
   see is frame-exact against the windup being scored. Each archetype has its own
   silhouette, because at this camera distance silhouette is all that survives.
-- **Camera.** League's locked follow camera. The ground footprint is solved from
-  the real frustum rays rather than assumed symmetric — a pitched camera sees
-  far more ground away from itself than toward itself — so the whole arena stays
-  framed at every aspect ratio, and the camera only starts following you once
-  you zoom in past the arena bounds.
+- **Camera.** League's locked follow camera, with League's controls: a lock
+  toggle, centre-on-champion, and edge panning. The follow is stiff rather than
+  springy on purpose — a soft follow puts your champion somewhere your cursor
+  is not, which would make every click-error measurement in the trainer a lie.
+  The ground footprint is solved from the real frustum rays rather than assumed
+  symmetric — a pitched camera sees far more ground away from itself than
+  toward itself — so the whole arena stays framed at every aspect ratio, and no
+  camera state, panned or unlocked, can put the playable rectangle off screen.
+  Casts and heavy landings shove the camera along their own direction, because
+  a directional kick reads as recoil where an omnidirectional shake reads as
+  noise.
 - **Indicators.** Ranges, click markers, telegraphs and drill markers are real
   geometry lying on the floor, drawn by one analytic shader. Health bars,
   nameplates and combat text are projected into a 2D overlay so they stay
   pixel-crisp and the same size near and far.
+- **Grade.** One pass does the lot: an unsharp mask taken from the untouched
+  sample (deriving it from already-split channels rings every stone edge),
+  split toning with cold shadows and warm highlights, a filmic shoulder that
+  only touches the top end, an elliptical vignette, chromatic aberration at the
+  edges, grain, and a radial smear on damage that leaves the centre of the
+  screen sharp — you must always be able to read what is about to hit you next.
 - **Cost.** Shadows, bloom and the grade pass step down automatically if frame
   rate drops, and "Reduced effects" in Settings turns them off outright. The
   simulation is untouched by any of it, so scores never depend on the machine.
 
 The menus are fronted by the same arena, rendered live at a capped frame rate.
+
+## Sound
+
+Every sound is synthesised on the fly. No asset loading, no first-play stutter,
+and — the reason it is worth doing at all — pitch, timbre and space can track
+gameplay state directly.
+
+- **The room.** A generated impulse response: noise under an exponential decay
+  with a handful of discrete early reflections stamped into the first 80ms,
+  offset between channels so they do not collapse into a filter. That is enough
+  to read as a stone amphitheatre without shipping a WAV.
+- **Space.** Every voice is panned to where its source actually is, so a hit on
+  your left is on your left and a telegraph behind you announces itself.
+- **Abilities.** Q, W, E and R are one struck-metal instrument played four ways
+  — a bell, a swelling pad, a rising sweep, a gong under a choir — so your
+  hands learn which one fired without reading the bar. A slot that was already
+  on cooldown gives a dull closed thud instead: the input was real, the ability
+  was not.
+- **Incoming danger.** Every telegraph, every hazard landing and every enemy
+  projectile is audible and placed. Half of dodging in League is hearing a cast
+  start while you are looking somewhere else, and a trainer that only ever
+  *draws* the telegraph trains half of it.
+- **The chain.** Clean orbwalk steps raise the pitch of your own attacks, and
+  the arena's room tone swells with the streak — so a chain is audible before
+  it is legible.
+
+## The client
+
+The front end is not a page. There is no scrolling column of cards: a list down
+the left, the chosen drill standing in the live arena down the middle, your
+record down the right, and one large button along the bottom. The empty middle
+third is the point — the interface is a frame around a place rather than a
+surface covering one, and the arena behind it is the same terrain, lighting and
+champions you are about to play in, rendered live.
+
+Screens that are genuinely pages of content — the daily programme, your
+profile, settings — sit on a darkened plate instead, so the arena shows through
+as depth rather than competing for the same pixels as the text.
 
 ## Architecture
 

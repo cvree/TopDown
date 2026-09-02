@@ -170,6 +170,7 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
     const elCycleFill = q<HTMLDivElement>('[data-cycle-fill]');
     const elCycleLabel = q<HTMLDivElement>('[data-cycle-label]');
     const elFps = q<HTMLDivElement>('[data-fps]');
+    const elCam = q<HTMLDivElement>('[data-cam]');
     const elBanner = q<HTMLDivElement>('[data-banner]');
     const elCount = q<HTMLDivElement>('[data-count]');
     const fieldEls = Array.from(hud.querySelectorAll('[data-field]')) as HTMLDivElement[];
@@ -271,6 +272,7 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
       }
 
       elFps.textContent = `${Math.round(snap.fps)}`;
+      elCam.classList.toggle('unlocked', !renderer.cameraLocked);
       elBanner.textContent = snap.banner ?? '';
       elBanner.style.opacity = snap.banner ? '1' : '0';
       const countText = snap.phase === 'countdown' ? (snap.countdown > 0 ? `${snap.countdown}` : 'GO') : '';
@@ -532,6 +534,17 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
           <span>
             <b className="kbd">ESC</b> pause
           </span>
+        </div>
+
+        {/* Which camera mode you are in, sat above the minimap where League
+            puts its own lock. A sibling rather than a child: the minimap is
+            clipped to a cut corner, and a clip-path clips its children too. */}
+        <div className="hud-cam" data-cam>
+          <svg viewBox="0 0 16 16" aria-hidden>
+            <rect x="3.5" y="7" width="9" height="6.5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.4" />
+            <path className="shackle" d="M5.6 7V5.2a2.4 2.4 0 0 1 4.8 0V7" fill="none" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+          <span>CAM</span>
         </div>
 
         <div className="hud-minimap">

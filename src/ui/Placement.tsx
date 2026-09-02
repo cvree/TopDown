@@ -3,6 +3,7 @@ import { audio } from '../engine/audio';
 import { DRILLS, PLACEMENT_SEQUENCE } from '../drills/catalog';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
 import { AXIS_LABEL, type SkillAxis } from '../progression/skills';
+import { Crest } from './components/Crest';
 import { RankEmblem } from './components/RankEmblem';
 import './placement.css';
 
@@ -10,8 +11,12 @@ export function PlacementIntro({ onBegin, onCancel }: { onBegin: () => void; onC
   return (
     <div className="place-intro scroll">
       <div className="pi-inner fade-up">
+        <Crest size={72} />
         <div className="eyebrow">Calibration</div>
-        <h1 className="display">READ YOUR MECHANICS</h1>
+        <h1 className="display foil">READ YOUR MECHANICS</h1>
+        <div className="ornament">
+          <i />
+        </div>
         <p className="pi-lead">
           Five short drills, about four minutes. Each one measures something different, and together they
           place you on the ladder. Play them the way you would play a real game — the reading is only
@@ -41,7 +46,7 @@ export function PlacementIntro({ onBegin, onCancel }: { onBegin: () => void; onC
           accounts for the level you actually played at.
         </div>
 
-        <div className="row" style={{ gap: 12, marginTop: 30 }}>
+        <div className="row pi-actions" style={{ gap: 12, marginTop: 30 }}>
           <button
             className="btn primary lg"
             onClick={() => {
