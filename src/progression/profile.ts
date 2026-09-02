@@ -4,6 +4,13 @@ import { DRILLS, type DrillId } from '../drills/catalog';
 import { isDemotion, isPromotion, rankFromRating, type RankInfo } from './ranks';
 import { distribute, overallRating, updateRating } from './rating';
 import { AXIS_LABEL, SKILL_AXES, type SkillAxis } from './skills';
+import {
+  applyVayneRun,
+  emptyVayneProgress,
+  isVayneStage,
+  type VayneProgress,
+  type VayneRunReport,
+} from './vayne';
 
 const STORAGE_KEY = 'apex.profile.v1';
 const PROFILE_VERSION = 1;
@@ -65,6 +72,8 @@ export interface DailyState {
 
 export interface AppSettings {
   quickCast: boolean;
+  /** Click-to-move (League) or WASD. */
+  movementScheme: 'click' | 'wasd';
   showRange: boolean;
   lowFx: boolean;
   masterVolume: number;
@@ -72,6 +81,8 @@ export interface AppSettings {
   musicVolume: number;
   muted: boolean;
   bindings: Record<string, { primary: string; secondary?: string }>;
+  /** Rebinds that apply only under the WASD scheme; the two never collide. */
+  wasdBindings: Record<string, { primary: string; secondary?: string }>;
   reduceShake: boolean;
   /** The browser-gesture warning has been read and dismissed. */
   gestureNoticeDismissed: boolean;
@@ -95,6 +106,8 @@ export interface Profile {
   settings: AppSettings;
   totalRuns: number;
   totalSeconds: number;
+  /** The champion track. Separate from the general ladder on purpose. */
+  vayne: VayneProgress;
   /** Overall rating recorded at the start of each local day, for trends. */
   dailyMarks: { date: string; overall: number }[];
 }
@@ -116,6 +129,7 @@ const yesterdayKey = (): string => {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   quickCast: true,
+  movementScheme: 'click',
   showRange: true,
   lowFx: false,
   masterVolume: 0.75,
@@ -123,6 +137,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   musicVolume: 0.3,
   muted: false,
   bindings: {},
+  wasdBindings: {},
   reduceShake: false,
   gestureNoticeDismissed: false,
 };
@@ -144,6 +159,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   settings: { ...DEFAULT_SETTINGS },
   totalRuns: 0,
   totalSeconds: 0,
+  vayne: emptyVayneProgress(),
   dailyMarks: [],
 });
 
@@ -163,6 +179,10 @@ export const loadProfile = (): Profile => {
       difficulty: { ...p.difficulty, ...parsed.difficulty },
       settings: { ...p.settings, ...parsed.settings },
       daily: { ...p.daily, ...parsed.daily },
+      // A profile written before the champion track existed simply starts it.
+      vayne: parsed.vayne
+        ? { ...p.vayne, ...parsed.vayne, stages: { ...p.vayne.stages, ...parsed.vayne.stages } }
+        : p.vayne,
       bests: parsed.bests ?? {},
       history: Array.isArray(parsed.history) ? parsed.history.slice(-400) : [],
       dailyMarks: Array.isArray(parsed.dailyMarks) ? parsed.dailyMarks.slice(-120) : [],
@@ -232,6 +252,8 @@ export interface ProgressReport {
   difficultyBefore: number;
   difficultyAfter: number;
   advice: string;
+  /** Present only for runs on the Vayne path. */
+  vayne: VayneRunReport | null;
 }
 
 /** Where the adaptive system tries to keep you: challenged, not drowning. */
@@ -343,6 +365,10 @@ export const applyRun = (p: Profile, result: RunResult, opts: { placement?: bool
   });
   if (p.history.length > 400) p.history.splice(0, p.history.length - 400);
 
+  const vayne = isVayneStage(result.drill)
+    ? applyVayneRun(p.vayne, result.drill, result.performance, result.difficulty, result.score)
+    : null;
+
   adaptDifficulty(p, result.drill, result.performance);
   p.totalRuns++;
   p.totalSeconds += result.metrics.duration;
@@ -371,6 +397,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: { placement?: bool
     difficultyBefore,
     difficultyAfter: drillDifficulty(p, result.drill),
     advice: result.advice,
+    vayne,
   };
 };
 

@@ -11,6 +11,10 @@ export type ActionId =
   | 'move'
   | 'attackMove'
   | 'stop'
+  | 'moveUp'
+  | 'moveLeft'
+  | 'moveDown'
+  | 'moveRight'
   | 'q'
   | 'w'
   | 'e'
@@ -30,10 +34,25 @@ export interface Binding {
 
 export type Bindings = Record<ActionId, Binding>;
 
+/**
+ * How the champion is driven.
+ *
+ * `click` is League: right click to move, the click scheme every MOBA habit is
+ * built on. `wasd` drives the champion directly with the left hand and leaves
+ * the mouse for targeting only — the scheme most shooters and ARPGs use, and
+ * the one people coming from those games ask for. Both obey the same windup
+ * law, so a run scores the same way under either.
+ */
+export type MovementScheme = 'click' | 'wasd';
+
 export const DEFAULT_BINDINGS: Bindings = {
   move: { primary: 'Mouse2' },
   attackMove: { primary: 'KeyA', secondary: 'Mouse0' },
   stop: { primary: 'KeyS' },
+  moveUp: { primary: 'KeyW' },
+  moveLeft: { primary: 'KeyA' },
+  moveDown: { primary: 'KeyS' },
+  moveRight: { primary: 'KeyD' },
   q: { primary: 'KeyQ' },
   w: { primary: 'KeyW' },
   e: { primary: 'KeyE' },
@@ -46,10 +65,45 @@ export const DEFAULT_BINDINGS: Bindings = {
   pause: { primary: 'Escape' },
 };
 
+/**
+ * The WASD defaults.
+ *
+ * W, A, S and D are spoken for, so everything that lived on them moves one
+ * seat over and keeps its shape: the ability row stays a row your fingers can
+ * find (Q E R F), the summoners drop to the digits above them, and stop —
+ * which nobody presses mid-orbwalk — goes to X. Every one of them is
+ * rebindable, and the click defaults are untouched, so switching schemes is
+ * reversible without losing a layout you had already tuned.
+ */
+export const WASD_BINDINGS: Bindings = {
+  ...DEFAULT_BINDINGS,
+  move: { primary: 'Mouse2' },
+  attackMove: { primary: 'ShiftLeft', secondary: 'Mouse0' },
+  stop: { primary: 'KeyX' },
+  q: { primary: 'KeyQ' },
+  w: { primary: 'KeyE' },
+  e: { primary: 'KeyR' },
+  r: { primary: 'KeyF' },
+  d: { primary: 'Digit1' },
+  f: { primary: 'Digit2' },
+  centerCamera: { primary: 'Space' },
+  cameraLock: { primary: 'KeyY' },
+};
+
+export const defaultsFor = (scheme: MovementScheme): Bindings =>
+  scheme === 'wasd' ? WASD_BINDINGS : DEFAULT_BINDINGS;
+
+/** The four actions that only exist under the WASD scheme. */
+export const MOVE_ACTIONS: ActionId[] = ['moveUp', 'moveLeft', 'moveDown', 'moveRight'];
+
 export const ACTION_LABELS: Record<ActionId, string> = {
   move: 'Move / Attack target',
   attackMove: 'Attack-move',
   stop: 'Stop',
+  moveUp: 'Move up',
+  moveLeft: 'Move left',
+  moveDown: 'Move down',
+  moveRight: 'Move right',
   q: 'Ability Q',
   w: 'Ability W',
   e: 'Ability E',
@@ -84,6 +138,8 @@ export interface InputOptions {
   quickCast: boolean;
   /** Which ability slots the active drill actually uses. Unused slots fall through. */
   activeSlots: Set<AbilitySlot>;
+  /** Click-to-move, or WASD. */
+  scheme: MovementScheme;
 }
 
 export class InputSystem {
@@ -118,6 +174,52 @@ export class InputSystem {
 
   isHeld(code: string): boolean {
     return this.held.has(code);
+  }
+
+  get scheme(): MovementScheme {
+    return this.opts.scheme;
+  }
+
+  /**
+   * The held movement direction, polled by the simulation each step rather
+   * than queued as events.
+   *
+   * A direction is a *state*, not an event: queueing key-downs would make the
+   * champion's heading depend on how many simulation steps happened to fall
+   * between two key presses. Polling means 240Hz and 60Hz produce identical
+   * movement, which is the same promise the rest of the fixed-step loop makes.
+   */
+  moveVector(): { x: number; y: number } {
+    if (this.opts.scheme !== 'wasd') return ZERO;
+    const b = this.opts.bindings;
+    let x = 0;
+    let y = 0;
+    if (this.matchesHeld(b.moveLeft)) x -= 1;
+    if (this.matchesHeld(b.moveRight)) x += 1;
+    if (this.matchesHeld(b.moveUp)) y -= 1;
+    if (this.matchesHeld(b.moveDown)) y += 1;
+    if (x === 0 && y === 0) return ZERO;
+    return { x, y };
+  }
+
+  private matchesHeld(b: Binding): boolean {
+    return this.held.has(b.primary) || (b.secondary !== undefined && this.held.has(b.secondary));
+  }
+
+  /** True when this code drives movement under the active scheme. */
+  private isMovementKey(code: string): boolean {
+    if (this.opts.scheme !== 'wasd') return false;
+    const b = this.opts.bindings;
+    return (
+      b.moveUp.primary === code ||
+      b.moveDown.primary === code ||
+      b.moveLeft.primary === code ||
+      b.moveRight.primary === code ||
+      b.moveUp.secondary === code ||
+      b.moveDown.secondary === code ||
+      b.moveLeft.secondary === code ||
+      b.moveRight.secondary === code
+    );
   }
 
   attach(el: HTMLElement): void {
@@ -254,6 +356,13 @@ export class InputSystem {
     const t = e.timeStamp;
     const { x, y } = this.cursor;
 
+    // Under WASD the movement keys win outright. Nothing else may claim them,
+    // however the rest of the layout has been rebound.
+    if (this.isMovementKey(code)) {
+      e.preventDefault();
+      return;
+    }
+
     if (this.matches('pause', code)) {
       this.queue.push({ kind: 'pause', t });
       this.armed = null;
@@ -325,6 +434,7 @@ export class InputSystem {
 }
 
 const EMPTY: InputEventKind[] = [];
+const ZERO = { x: 0, y: 0 };
 
 /** Human-readable label for a binding code, for the settings screen. */
 export const codeLabel = (code: string): string => {

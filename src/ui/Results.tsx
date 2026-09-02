@@ -6,6 +6,7 @@ import { formatMetric, type ProgressReport, type RunResult } from '../progressio
 import { percentileForRating, rankFromRating } from '../progression/ranks';
 import { expectedRating } from '../progression/rating';
 import { AXIS_LABEL } from '../progression/skills';
+import { VAYNE_STAGES } from '../progression/vayne';
 import { PathMap, ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
 import './results.css';
 
@@ -273,6 +274,66 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
             </div>
           </div>
         </div>
+
+        {report.vayne && (
+          <div className={`res-vayne ${stage >= 3 ? 'in' : ''}`}>
+            <div className="panel pad">
+              <div className="panel-title">The Vayne path</div>
+              <div className="rv-grid">
+                <div className="rv-stage">
+                  <span className="eyebrow">
+                    Stage {report.vayne.stage.step} / {VAYNE_STAGES.length} · {report.vayne.stage.title}
+                  </span>
+                  <div className="rv-stars">
+                    {[1, 2, 3].map((n) => (
+                      <span key={n} className={n <= report.vayne!.starsAfter ? 'on' : ''}>
+                        ★
+                      </span>
+                    ))}
+                    {report.vayne.starsAfter > report.vayne.starsBefore && (
+                      <b className="rv-gain">
+                        +{report.vayne.starsAfter - report.vayne.starsBefore}
+                      </b>
+                    )}
+                  </div>
+                  <div className="rv-best mono">
+                    BEST {Math.round(report.vayne.best * 100)}%
+                    {report.vayne.improved && report.vayne.previousBest > 0 && (
+                      <i className="good"> ▲ from {Math.round(report.vayne.previousBest * 100)}%</i>
+                    )}
+                    {!report.vayne.improved && <i className="faint"> · this run {Math.round(result.performance * 100)}%</i>}
+                  </div>
+                </div>
+
+                <div className="rv-mastery">
+                  <span className="eyebrow">Mastery</span>
+                  <div className="rv-num display">{Math.round(report.vayne.masteryAfter)}</div>
+                  {report.vayne.masteryAfter > report.vayne.masteryBefore && (
+                    <span className="good mono">
+                      +{(report.vayne.masteryAfter - report.vayne.masteryBefore).toFixed(1)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="rv-title">
+                  <span className="eyebrow">Title</span>
+                  <b className="display">{report.vayne.titleAfter.name}</b>
+                  {report.vayne.titleAfter.name !== report.vayne.titleBefore.name && (
+                    <span className="rv-new">NEW</span>
+                  )}
+                  <p>{report.vayne.titleAfter.blurb}</p>
+                </div>
+              </div>
+
+              {report.vayne.unlocked && (
+                <div className="rv-unlock">
+                  Cleared. <b>{report.vayne.unlocked.title}</b> is now open — stage{' '}
+                  {report.vayne.unlocked.step} of the path.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className={`res-viz ${stage >= 4 ? 'in' : ''}`}>
           <div className="panel pad">

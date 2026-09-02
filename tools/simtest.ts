@@ -10,15 +10,38 @@ import { Session, type ViewProjection } from '../src/engine/session';
 import { createDrill, arenaFor } from '../src/drills';
 import { DRILLS, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
-import type { InputEventKind, InputSystem } from '../src/engine/input';
+import type { InputEventKind, InputSystem, MovementScheme } from '../src/engine/input';
 import { dist, norm } from '../src/engine/math';
+import type { VayneKit } from '../src/engine/vayne';
+import { VAYNE_STATS } from '../src/engine/vayne';
+import { Rng } from '../src/engine/rng';
+import { World } from '../src/engine/world';
 
-type Policy = 'orbwalk' | 'spam' | 'idle' | 'standStill' | 'dodge' | 'aim' | 'hold' | 'nodes' | 'priority' | 'sequence' | 'lead';
+type Policy =
+  | 'orbwalk'
+  | 'spam'
+  | 'idle'
+  | 'standStill'
+  | 'dodge'
+  | 'aim'
+  | 'hold'
+  | 'nodes'
+  | 'priority'
+  | 'sequence'
+  | 'lead'
+  | 'wasd'
+  | 'wasdHold'
+  | 'vayneTumble'
+  | 'vayneBolts'
+  | 'vayneCondemn'
+  | 'vayneKit';
 
 class FakeInput {
   cursor = { x: 0, y: 0 };
   queue: InputEventKind[] = [];
   totalClicks = 0;
+  /** The held WASD direction, polled by the session exactly as the real one is. */
+  dir = { x: 0, y: 0 };
   drain(): InputEventKind[] {
     const q = this.queue;
     this.queue = [];
@@ -27,18 +50,31 @@ class FakeInput {
   push(e: InputEventKind): void {
     this.queue.push(e);
   }
+  moveVector(): { x: number; y: number } {
+    return this.dir;
+  }
 }
+
+/** The kit behind a Vayne drill, for the policies that have to read it. */
+const kitOf = (drill: unknown): VayneKit | null => (drill as { kit?: VayneKit }).kit ?? null;
 
 const fakeRenderer: ViewProjection = {
   screenToWorld: (x: number, y: number) => ({ x, y }),
 };
 
-const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345) => {
+const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345, scheme: MovementScheme = 'click') => {
   const meta = DRILLS[id];
   const bounds = arenaFor(id);
   const input = new FakeInput();
   const session = new Session(
-    { duration: meta.duration > 0 ? meta.duration : 60, arena: bounds, seed, difficulty, abilities: meta.abilities },
+    {
+      duration: meta.duration > 0 ? meta.duration : 60,
+      arena: bounds,
+      seed,
+      difficulty,
+      abilities: meta.abilities,
+      scheme,
+    },
     input as unknown as InputSystem,
     fakeRenderer,
   );
@@ -231,12 +267,206 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345)
             input.push({ kind: 'ability', slot: 'q', x: aim.x, y: aim.y, t: t * 1000 });
             break;
           }
+          case 'wasd': {
+            // WASD orbwalking: hold a direction through the free window,
+            // release it to let the attack start, and never hold one through
+            // a windup. The same rhythm as the click policy, other hand.
+            reactTimer = 0.02;
+            if (!target) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            if (p.phase === 'windup') {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const d = dist(p.pos, target.pos);
+            const inRange = d - target.radius <= p.attack.range;
+            if (p.attackCd <= 0.001 && inRange) {
+              input.dir = { x: 0, y: 0 };
+              if (p.targetId !== target.id) {
+                input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              }
+              break;
+            }
+            const desired = p.attack.range * 0.92 + target.radius;
+            const radial = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            const tangent = { x: -radial.y, y: radial.x };
+            const correction = Math.max(-1, Math.min(1, (desired - d) / 180));
+            let gx = radial.x * correction + tangent.x * orbitDir * 0.6;
+            let gy = radial.y * correction + tangent.y * orbitDir * 0.6;
+            const margin = 190;
+            if (
+              p.pos.x < margin ||
+              p.pos.x > bounds.w - margin ||
+              p.pos.y < margin ||
+              p.pos.y > bounds.h - margin
+            ) {
+              orbitDir *= -1;
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gx = toCentre.x;
+              gy = toCentre.y;
+            }
+            input.dir = { x: gx, y: gy };
+            break;
+          }
+          case 'wasdHold': {
+            // Never lets go of the keys. Under direct control that means the
+            // attack never starts, which is exactly the mistake being priced.
+            reactTimer = 0.1;
+            if (target && p.targetId !== target.id) {
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+            }
+            const a = session.rng.angle();
+            input.dir = { x: Math.cos(a), y: Math.sin(a) };
+            break;
+          }
+          case 'vayneTumble': {
+            // Orbwalk, and spend the tumble in the backswing every time it is
+            // up — the behaviour the drill exists to reward.
+            reactTimer = 0.03;
+            const kit = kitOf(drill);
+            if (!target) break;
+            if (kit && p.phase === 'backswing' && kit.tumbleCd <= 0) {
+              const away = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+              input.push({
+                kind: 'ability',
+                slot: 'q',
+                x: p.pos.x + away.x * 320,
+                y: p.pos.y + away.y * 320,
+                t: t * 1000,
+              });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const d = dist(p.pos, target.pos);
+            const inRange = d - target.radius <= p.attack.range;
+            if (p.attackCd <= 0.001 && inRange) {
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              break;
+            }
+            const desired = p.attack.range * 0.92 + target.radius;
+            const radial = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            const tangent = { x: -radial.y, y: radial.x };
+            const correction = Math.max(-1, Math.min(1, (desired - d) / 180));
+            let gx = p.pos.x + (radial.x * correction + tangent.x * orbitDir * 0.55) * 320;
+            let gy = p.pos.y + (radial.y * correction + tangent.y * orbitDir * 0.55) * 320;
+            const margin = 190;
+            if (gx < margin || gx > bounds.w - margin || gy < margin || gy > bounds.h - margin) {
+              orbitDir *= -1;
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gx = p.pos.x + toCentre.x * 300;
+              gy = p.pos.y + toCentre.y * 300;
+            }
+            input.push({
+              kind: 'move',
+              x: Math.max(50, Math.min(bounds.w - 50, gx)),
+              y: Math.max(50, Math.min(bounds.h - 50, gy)),
+              t: t * 1000,
+            });
+            break;
+          }
+          case 'vayneBolts': {
+            // Never abandons a stack: stays on the unit holding stacks until
+            // the bolts fire, then takes whichever target is marked.
+            reactTimer = 0.12;
+            const kit = kitOf(drill);
+            const marked = (drill as unknown as { priorityId: number }).priorityId;
+            const held = kit && kit.stacks > 0 ? session.world.byId(kit.stackTargetId) : undefined;
+            const want = held && held.alive ? held : session.world.byId(marked) ?? target;
+            if (!want || !want.alive) break;
+            session.cursorWorld = { x: want.pos.x, y: want.pos.y };
+            input.push({ kind: 'move', x: want.pos.x, y: want.pos.y, t: t * 1000 });
+            break;
+          }
+          case 'vayneCondemn': {
+            // Condemns the first charger that has terrain waiting behind it,
+            // and otherwise keeps attacking.
+            reactTimer = 0.06;
+            const kit = kitOf(drill);
+            if (kit && kit.condemnCd <= 0) {
+              for (const e of session.world.enemies()) {
+                if (dist(p.pos, e.pos) - e.radius > VAYNE_STATS.condemnRange) continue;
+                const dir = norm(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
+                const path = session.world.terrainAlong(e.pos, dir, VAYNE_STATS.condemnPush, e.radius);
+                if (!path.hit) continue;
+                session.cursorWorld = { x: e.pos.x, y: e.pos.y };
+                input.push({ kind: 'ability', slot: 'e', x: e.pos.x, y: e.pos.y, t: t * 1000 });
+                break;
+              }
+            }
+            if (target && p.attackCd <= 0.001 && p.phase !== 'windup') {
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+            }
+            break;
+          }
+          case 'vayneKit': {
+            // The whole champion: orbwalk, tumble in the backswing, condemn
+            // into terrain, and open the ultimate once the fight is joined.
+            reactTimer = 0.04;
+            const kit = kitOf(drill);
+            if (kit && !kit.inFinalHour && kit.hourCd <= 0 && target && dist(p.pos, target.pos) < 700) {
+              input.push({ kind: 'ability', slot: 'r', x: p.pos.x, y: p.pos.y, t: t * 1000 });
+              break;
+            }
+            if (kit && kit.condemnCd <= 0) {
+              for (const e of session.world.enemies()) {
+                if (dist(p.pos, e.pos) - e.radius > VAYNE_STATS.condemnRange) continue;
+                const dir = norm(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
+                const path = session.world.terrainAlong(e.pos, dir, VAYNE_STATS.condemnPush, e.radius);
+                if (!path.hit) continue;
+                input.push({ kind: 'ability', slot: 'e', x: e.pos.x, y: e.pos.y, t: t * 1000 });
+                break;
+              }
+            }
+            if (!target) break;
+            if (kit && p.phase === 'backswing' && kit.tumbleCd <= 0) {
+              const away = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+              input.push({
+                kind: 'ability',
+                slot: 'q',
+                x: p.pos.x + away.x * 320,
+                y: p.pos.y + away.y * 320,
+                t: t * 1000,
+              });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const d = dist(p.pos, target.pos);
+            const inRange = d - target.radius <= p.attack.range;
+            if (p.attackCd <= 0.001 && inRange) {
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              break;
+            }
+            const desired = p.attack.range * 0.9 + target.radius;
+            const radial = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            const tangent = { x: -radial.y, y: radial.x };
+            const correction = Math.max(-1, Math.min(1, (desired - d) / 180));
+            let gx = p.pos.x + (radial.x * correction + tangent.x * orbitDir * 0.5) * 300;
+            let gy = p.pos.y + (radial.y * correction + tangent.y * orbitDir * 0.5) * 300;
+            const margin = 200;
+            if (gx < margin || gx > bounds.w - margin || gy < margin || gy > bounds.h - margin) {
+              orbitDir *= -1;
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gx = p.pos.x + toCentre.x * 300;
+              gy = p.pos.y + toCentre.y * 300;
+            }
+            input.push({
+              kind: 'move',
+              x: Math.max(60, Math.min(bounds.w - 60, gx)),
+              y: Math.max(60, Math.min(bounds.h - 60, gy)),
+              t: t * 1000,
+            });
+            break;
+          }
           case 'idle':
             reactTimer = 1;
             break;
         }
       }
-      if (policy !== 'aim') session.cursorWorld = { x: p.pos.x, y: p.pos.y };
+      if (policy !== 'aim' && policy !== 'vayneBolts' && policy !== 'vayneCondemn') {
+        session.cursorWorld = { x: p.pos.x, y: p.pos.y };
+      }
     }
 
     session.step(SIM_DT);
@@ -390,6 +620,103 @@ for (const id of ['spacing', 'movement', 'lasthit', 'targetswitch', 'combos', 's
   const finite = Number.isFinite(r.out.performance) && Number.isFinite(r.out.score);
   line(`  ${id.padEnd(13)} perf ${pct(r.out.performance)}  score ${r.out.score}  metrics ${r.out.keyMetrics.length}`);
   expect(`${id} produces finite, in-range results`, finite && r.out.performance >= 0 && r.out.performance <= 1, `perf=${r.out.performance}`);
+}
+
+line('\n=== WASD: the same rhythm with the other hand ===');
+{
+  const wasdGood = runDrill('kite', 'wasd', 0.45, 12345, 'wasd');
+  const wasdHold = runDrill('kite', 'wasdHold', 0.45, 12345, 'wasd');
+  const wasdIdle = runDrill('kite', 'idle', 0.45, 12345, 'wasd');
+  line(`  wasd orbwalk: orbwalk ${pct(wasdGood.d.orbwalkEfficiency)}  moveEff ${pct(wasdGood.d.moveEfficiency)}  attacks ${wasdGood.m.attacksCompleted}  cancels ${wasdGood.m.attacksCancelled}  dmg ${Math.round(wasdGood.m.damageDealt)}  perf ${pct(wasdGood.out.performance)}`);
+  line(`  keys held  : attacks ${wasdHold.m.attacksCompleted}  dmg ${Math.round(wasdHold.m.damageDealt)}  perf ${pct(wasdHold.out.performance)}`);
+  line(`  idle       : perf ${pct(wasdIdle.out.performance)}`);
+  expect('WASD orbwalking actually attacks', wasdGood.m.attacksCompleted > 20, `${wasdGood.m.attacksCompleted}`);
+  expect('WASD orbwalking uses its free window', wasdGood.d.moveEfficiency > 0.5, pct(wasdGood.d.moveEfficiency));
+  expect('WASD orbwalking scores well', wasdGood.out.performance > 0.5, pct(wasdGood.out.performance));
+  expect(
+    'never releasing the keys never attacks',
+    wasdHold.m.attacksCompleted === 0 && wasdGood.out.performance > wasdHold.out.performance * 1.5,
+    `${wasdHold.m.attacksCompleted} attacks, perf ${pct(wasdHold.out.performance)}`,
+  );
+  expect('WASD cannot be passed by doing nothing', wasdIdle.out.performance < 0.3, pct(wasdIdle.out.performance));
+  expect(
+    'WASD and click orbwalking land in the same band',
+    Math.abs(wasdGood.out.performance - kiteGood.out.performance) < 0.25,
+    `${pct(wasdGood.out.performance)} vs ${pct(kiteGood.out.performance)}`,
+  );
+}
+
+line('\n=== A held direction obeys the windup law, exactly as a click does ===');
+{
+  const world = new World({ w: 1000, h: 1000 }, new Rng(1));
+  const p = world.spawnPlayer({ x: 500, y: 500 });
+  const e = world.spawnActor({ pos: { x: 700, y: 500 }, team: 'enemy' });
+  world.beginAttack(p, e);
+  world.clearEvents();
+  world.setMoveDir(p, 1, 0);
+  const cancelled = world.events.some((ev) => ev.type === 'attackCancel');
+  expect('a direction taken mid-windup cancels the attack', cancelled && p.phase === 'idle', p.phase);
+
+  // And the backswing is free, which is the half that makes orbwalking work.
+  world.setMoveDir(p, 0, 0);
+  world.beginAttack(p, e);
+  for (let i = 0; i < 400 && p.phase !== 'backswing'; i++) world.step(1 / 240);
+  world.clearEvents();
+  world.setMoveDir(p, 1, 0);
+  expect(
+    'a direction taken in the backswing is free',
+    p.phase === 'backswing' && !world.events.some((ev) => ev.type === 'attackCancel'),
+    p.phase,
+  );
+}
+
+line('\n=== CONDEMN: a wall behind them is a stun; open ground is not ===');
+{
+  const world = new World({ w: 2000, h: 2000 }, new Rng(2));
+  world.walls = [{ x: 1200, y: 1000, w: 60, h: 600 }];
+  const from = { x: 900, y: 1000 };
+  const intoWall = world.terrainAlong({ x: 1050, y: 1000 }, { x: 1, y: 0 }, 430, 30);
+  const intoAir = world.terrainAlong({ x: 1050, y: 1000 }, { x: -1, y: 0 }, 430, 30);
+  void from;
+  expect('terrain in the path is found', intoWall.hit && intoWall.distance < 130, `${intoWall.distance.toFixed(0)}u hit=${intoWall.hit}`);
+  expect('open ground is not a wall', !intoAir.hit, `${intoAir.distance.toFixed(0)}u`);
+  const pinned = world.terrainAlong({ x: 1900, y: 1000 }, { x: 1, y: 0 }, 430, 30);
+  expect('the arena edge counts as terrain', pinned.hit, `${pinned.distance.toFixed(0)}u`);
+}
+
+line('\n=== VAYNE: each stage rewards playing it the way it is taught ===');
+{
+  const tumble = runDrill('vayneTumble', 'vayneTumble', 0.35);
+  const tumbleIdle = runDrill('vayneTumble', 'idle', 0.35);
+  line(`  tumble  : rhythm ${pct(tumble.out.keyMetrics[0].value)}  used ${tumble.out.keyMetrics[1].value}  thrown ${tumble.out.keyMetrics[2].value}  orbwalk ${pct(tumble.d.orbwalkEfficiency)}  perf ${pct(tumble.out.performance)}`);
+  expect('tumbling in the backswing scores well', tumble.out.performance > 0.55, pct(tumble.out.performance));
+  expect('a clean run throws away almost no windups', tumble.out.keyMetrics[2].value <= 2, `${tumble.out.keyMetrics[2].value}`);
+  expect('tumble beats doing nothing', tumble.out.performance > tumbleIdle.out.performance * 2, `${pct(tumble.out.performance)} vs ${pct(tumbleIdle.out.performance)}`);
+
+  const bolts = runDrill('vayneBolts', 'vayneBolts', 0.35);
+  const boltsSwitch = runDrill('vayneBolts', 'orbwalk', 0.35);
+  line(`  bolts   : efficiency ${pct(bolts.out.keyMetrics[0].value)}  procs ${bolts.out.keyMetrics[1].value}  dropped ${bolts.out.keyMetrics[2].value}  perf ${pct(bolts.out.performance)}`);
+  line(`  switcher: efficiency ${pct(boltsSwitch.out.keyMetrics[0].value)}  procs ${boltsSwitch.out.keyMetrics[1].value}  dropped ${boltsSwitch.out.keyMetrics[2].value}  perf ${pct(boltsSwitch.out.performance)}`);
+  expect('finishing stacks scores well', bolts.out.performance > 0.55, pct(bolts.out.performance));
+  expect('finishing stacks beats target-hopping', bolts.out.performance > boltsSwitch.out.performance, `${pct(bolts.out.performance)} vs ${pct(boltsSwitch.out.performance)}`);
+  expect('a disciplined run drops few stacks', bolts.out.keyMetrics[2].value <= boltsSwitch.out.keyMetrics[2].value, `${bolts.out.keyMetrics[2].value} vs ${boltsSwitch.out.keyMetrics[2].value}`);
+
+  const condemn = runDrill('vayneCondemn', 'vayneCondemn', 0.35);
+  line(`  condemn : wallRate ${pct(condemn.out.keyMetrics[0].value)}  stuns ${condemn.out.keyMetrics[1].value}  missed ${condemn.out.keyMetrics[3].value}  perf ${pct(condemn.out.performance)}`);
+  expect('condemning into terrain scores well', condemn.out.performance > 0.55, pct(condemn.out.performance));
+  expect('a wall-aware player actually lands wall stuns', condemn.out.keyMetrics[1].value >= 3, `${condemn.out.keyMetrics[1].value}`);
+
+  const hunt = runDrill('vayneHunt', 'vayneKit', 0.3);
+  line(`  hunt    : kit ${pct(hunt.out.keyMetrics[1].value)}  kills ${hunt.out.keyMetrics[2].value}  procs ${hunt.out.keyMetrics[3].value}  hp ${pct(hunt.d.hpRetained)}  perf ${pct(hunt.out.performance)}`);
+  expect('the full kit wins the hunt', hunt.m.kills >= 1, `${hunt.m.kills} kills`);
+  expect('the hunt rewards playing the champion', hunt.out.performance > 0.45, pct(hunt.out.performance));
+}
+
+line('\n=== Honesty: the Vayne path cannot be passed by presence ===');
+for (const id of ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'] as DrillId[]) {
+  const r = runDrill(id, 'idle', 0.4);
+  line(`  ${id.padEnd(13)} idle perf ${pct(r.out.performance)}  score ${r.out.score}`);
+  expect(`${id} cannot be passed by doing nothing`, r.out.performance < 0.3, pct(r.out.performance));
 }
 
 line('\n=== Losing focus pauses a run, and never un-pauses one ===');

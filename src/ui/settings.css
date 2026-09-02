@@ -164,3 +164,61 @@ input[type='range']::-moz-range-thumb {
     grid-template-columns: 1fr;
   }
 }
+
+/* --------------------------------------------------------- movement scheme
+   Two cards rather than a toggle: the choice changes what half the keyboard
+   does, so it has to say what it does before you commit to it. */
+.scheme-pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 10px;
+}
+.scheme-card {
+  text-align: left;
+  padding: 14px 15px 13px;
+  border: 1px solid var(--stroke);
+  background: rgba(4, 8, 16, 0.6);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: border-color 0.18s var(--ease), background 0.18s var(--ease);
+}
+.scheme-card:hover {
+  border-color: var(--stroke-2);
+}
+.scheme-card.on {
+  border-color: var(--gold);
+  background: linear-gradient(180deg, rgba(120, 90, 40, 0.22), rgba(4, 8, 16, 0.7));
+  box-shadow: inset 0 0 0 1px rgba(200, 170, 110, 0.18);
+}
+.sc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sc-head b {
+  font-family: var(--ui);
+  letter-spacing: 0.12em;
+  font-size: 13px;
+  color: var(--text);
+}
+.sc-head span {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.scheme-card p {
+  margin: 8px 0 10px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.sc-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.sc-keys .kbd {
+  font-size: 10px;
+  padding: 2px 6px;
+}

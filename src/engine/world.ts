@@ -1,6 +1,6 @@
 import { clamp, dist, distToSegment, norm, v2 } from './math';
 import { Rng } from './rng';
-import type { Actor, AttackProfile, Hazard, Projectile, Team, Vec2 } from './types';
+import type { Actor, AttackProfile, Hazard, Projectile, Team, Vec2, Wall } from './types';
 
 export interface WorldEvent {
   type:
@@ -16,7 +16,9 @@ export interface WorldEvent {
     | 'hazardFire'
     | 'projectileSpawn'
     | 'projectileExpire'
-    | 'dodgedProjectile';
+    | 'dodgedProjectile'
+    | 'knockbackStart'
+    | 'wallImpact';
   actorId?: number;
   targetId?: number;
   amount?: number;
@@ -50,6 +52,8 @@ export class World {
   actors: Actor[] = [];
   projectiles: Projectile[] = [];
   hazards: Hazard[] = [];
+  /** Terrain blocks. Empty in every drill that does not place them. */
+  walls: Wall[] = [];
   events: WorldEvent[] = [];
   playerId = -1;
 
@@ -104,6 +108,8 @@ export class World {
       attackCd: 0,
       targetId: null,
       order: null,
+      moveDir: null,
+      knockback: null,
       lastAttackAt: -99,
       hitFlash: 0,
       rootedFor: 0,
@@ -114,6 +120,8 @@ export class World {
       isMinion: init.isMinion,
       goldValue: init.goldValue,
       tint: init.tint,
+      visual: init.visual,
+      invisibleFor: 0,
     };
     this.actors.push(a);
     return a;
@@ -208,11 +216,135 @@ export class World {
     a.targetId = targetId;
   }
 
+  /**
+   * Direct control's attack order: acquire and fire without taking a step.
+   *
+   * It is an attack command, not a move command, so it never cancels a windup
+   * — under WASD the mouse cannot move you, and an input that cannot move you
+   * must not be able to throw away an attack. Naming a target locks onto it;
+   * the attack-move stance underneath re-acquires when that target dies.
+   */
+  issueAttackHere(a: Actor, targetId?: number): void {
+    a.order = { kind: 'attackMove', pos: { ...a.pos } };
+    if (targetId !== undefined) a.targetId = targetId;
+  }
+
   issueStop(a: Actor): void {
     if (a.phase === 'windup') return; // stop does not cancel a windup
     a.order = null;
     a.vel.x = 0;
     a.vel.y = 0;
+  }
+
+  /**
+   * The WASD scheme's movement command.
+   *
+   * A held direction is a move order that never stops arriving, so it obeys the
+   * same law every other move order does: taken during the windup it cancels
+   * the attack, taken during the backswing it is free. The asymmetry is the
+   * whole trainer, and it must not quietly disappear because the player
+   * switched control schemes.
+   */
+  setMoveDir(a: Actor, x: number, y: number): void {
+    const m = Math.hypot(x, y);
+    if (m < 0.001) {
+      a.moveDir = null;
+      return;
+    }
+    const dir = { x: x / m, y: y / m };
+    if (!a.moveDir && a.phase === 'windup') {
+      const remaining = a.phaseTime;
+      a.phase = 'idle';
+      a.phaseTime = 0;
+      this.emit({ type: 'attackCancel', actorId: a.id, amount: remaining });
+    }
+    if (!a.moveDir) this.emit({ type: 'moveOrder', actorId: a.id, pos: { x: a.pos.x + dir.x * 200, y: a.pos.y + dir.y * 200 } });
+    a.moveDir = dir;
+    // A direction supersedes any pathing order's destination, but not its
+    // targeting: an attack-move stance keeps acquiring while you drive.
+    if (a.order && a.order.kind === 'move') a.order = null;
+  }
+
+  /** Shoves an actor along `dir` for `distance` units at `speed` u/s. */
+  knockBack(a: Actor, dir: Vec2, distance: number, speed = 1400): void {
+    const m = Math.hypot(dir.x, dir.y) || 1;
+    a.knockback = { dir: { x: dir.x / m, y: dir.y / m }, remaining: distance, speed };
+    a.moveDir = null;
+    a.order = null;
+    if (a.phase === 'windup') {
+      const remaining = a.phaseTime;
+      a.phase = 'idle';
+      a.phaseTime = 0;
+      this.emit({ type: 'attackCancel', actorId: a.id, amount: remaining });
+    }
+    this.emit({ type: 'knockbackStart', actorId: a.id, pos: { ...a.pos }, amount: distance });
+  }
+
+  /**
+   * How far a body of `radius` can travel from `from` along `dir` before it
+   * meets terrain, capped at `maxDist`. Returns the free distance and whether
+   * something was actually hit — which is the entire question Condemn asks.
+   */
+  terrainAlong(from: Vec2, dir: Vec2, maxDist: number, radius: number): { distance: number; hit: boolean; at: Vec2 } {
+    const m = Math.hypot(dir.x, dir.y) || 1;
+    const dx = dir.x / m;
+    const dy = dir.y / m;
+    let best = maxDist;
+    let hit = false;
+    // The arena edge is a wall too — being pinned against it is a real
+    // League interaction, not an artefact of the playfield ending.
+    const edges = [
+      { t: (radius - from.x) / (dx || 1e-9), valid: dx < 0 },
+      { t: (this.bounds.w - radius - from.x) / (dx || 1e-9), valid: dx > 0 },
+      { t: (radius - from.y) / (dy || 1e-9), valid: dy < 0 },
+      { t: (this.bounds.h - radius - from.y) / (dy || 1e-9), valid: dy > 0 },
+    ];
+    for (const e of edges) {
+      if (!e.valid || e.t < 0) continue;
+      if (e.t < best) {
+        best = e.t;
+        hit = true;
+      }
+    }
+    for (const wall of this.walls) {
+      const t = raySlab(from, dx, dy, wall, radius);
+      if (t >= 0 && t < best) {
+        best = t;
+        hit = true;
+      }
+    }
+    best = Math.max(0, Math.min(best, maxDist));
+    return { distance: best, hit: hit && best < maxDist - 0.5, at: { x: from.x + dx * best, y: from.y + dy * best } };
+  }
+
+  /** Pushes a circle out of any wall it is standing in. */
+  private resolveWalls(a: Actor): void {
+    for (const wall of this.walls) {
+      const hw = wall.w / 2;
+      const hh = wall.h / 2;
+      const nx = clamp(a.pos.x, wall.x - hw, wall.x + hw);
+      const ny = clamp(a.pos.y, wall.y - hh, wall.y + hh);
+      const dx = a.pos.x - nx;
+      const dy = a.pos.y - ny;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > a.radius * a.radius) continue;
+      if (d2 > 1e-6) {
+        const d = Math.sqrt(d2);
+        a.pos.x = nx + (dx / d) * a.radius;
+        a.pos.y = ny + (dy / d) * a.radius;
+      } else {
+        // Dead centre: leave by the nearest face.
+        const left = a.pos.x - (wall.x - hw);
+        const right = wall.x + hw - a.pos.x;
+        const up = a.pos.y - (wall.y - hh);
+        const down = wall.y + hh - a.pos.y;
+        const min = Math.min(left, right, up, down);
+        if (min === left) a.pos.x = wall.x - hw - a.radius;
+        else if (min === right) a.pos.x = wall.x + hw + a.radius;
+        else if (min === up) a.pos.y = wall.y - hh - a.radius;
+        else a.pos.y = wall.y + hh + a.radius;
+      }
+    }
   }
 
   /** Nearest living hostile actor within `range` of `pos`. */
@@ -221,6 +353,7 @@ export class World {
     let bestD = Infinity;
     for (const b of this.actors) {
       if (!b.alive || b.team === from.team) continue;
+      if ((b.invisibleFor ?? 0) > 0) continue;
       const d = dist(pos, b.pos) - b.radius;
       if (d <= range && d < bestD) {
         bestD = d;
@@ -253,6 +386,27 @@ export class World {
   private stepActor(a: Actor, dt: number): void {
     if (a.hitFlash > 0) a.hitFlash = Math.max(0, a.hitFlash - dt * 4);
     if (a.rootedFor > 0) a.rootedFor -= dt;
+    if ((a.invisibleFor ?? 0) > 0) a.invisibleFor = Math.max(0, (a.invisibleFor ?? 0) - dt);
+
+    // A knockback owns the actor while it lasts: no pathing, no attacking.
+    if (a.knockback) {
+      const kb = a.knockback;
+      const step = Math.min(kb.speed * dt, kb.remaining);
+      a.pos.x += kb.dir.x * step;
+      a.pos.y += kb.dir.y * step;
+      a.vel.x = kb.dir.x * kb.speed;
+      a.vel.y = kb.dir.y * kb.speed;
+      kb.remaining -= step;
+      a.pos.x = clamp(a.pos.x, a.radius, this.bounds.w - a.radius);
+      a.pos.y = clamp(a.pos.y, a.radius, this.bounds.h - a.radius);
+      this.resolveWalls(a);
+      if (kb.remaining <= 0.001) {
+        a.knockback = null;
+        a.vel.x = 0;
+        a.vel.y = 0;
+      }
+      return;
+    }
     if (a.slowFor > 0) {
       a.slowFor -= dt;
       if (a.slowFor <= 0) a.slowFactor = 1;
@@ -296,7 +450,11 @@ export class World {
     // An attack-move never chases: it walks to the point you clicked and
     // attacks whatever enters range on the way, exactly as in League. Only an
     // explicit attack-on-target order follows the unit.
-    if (target && a.attackCd <= 0 && a.phase !== 'windup') {
+    // Under direct control a held direction and an attack are exclusive: you
+    // release the keys to shoot. That is the same commitment the click scheme
+    // asks for — it is just expressed with the other hand.
+    const holdingFire = a.directControl && a.moveDir !== null;
+    if (target && a.attackCd <= 0 && a.phase !== 'windup' && !holdingFire && (target.invisibleFor ?? 0) <= 0) {
       const d = dist(a.pos, target.pos) - target.radius;
       if (d <= a.attack.range) this.beginAttack(a, target);
     }
@@ -304,7 +462,15 @@ export class World {
     // Movement.
     const canMove = a.phase !== 'windup' && a.rootedFor <= 0;
     let moved = 0;
-    if (canMove && order) {
+    if (canMove && a.moveDir) {
+      const sp = a.moveSpeed * a.slowFactor;
+      a.pos.x += a.moveDir.x * sp * dt;
+      a.pos.y += a.moveDir.y * sp * dt;
+      a.vel.x = a.moveDir.x * sp;
+      a.vel.y = a.moveDir.y * sp;
+      a.facing = Math.atan2(a.moveDir.y, a.moveDir.x);
+      moved = sp * dt;
+    } else if (canMove && order && !a.directControl) {
       let goal = order.pos;
       let stopAt = 4;
       if (order.kind === 'attackTarget' && target) {
@@ -341,9 +507,10 @@ export class World {
     }
     if (target) a.facing = Math.atan2(target.pos.y - a.pos.y, target.pos.x - a.pos.x);
 
-    // Keep everyone inside the arena.
+    // Keep everyone inside the arena, and out of the terrain.
     a.pos.x = clamp(a.pos.x, a.radius, this.bounds.w - a.radius);
     a.pos.y = clamp(a.pos.y, a.radius, this.bounds.h - a.radius);
+    if (this.walls.length) this.resolveWalls(a);
   }
 
   beginAttack(a: Actor, target: Actor): void {
@@ -574,3 +741,32 @@ export class World {
     return a.phase !== 'windup';
   }
 }
+
+/**
+ * Distance along a ray to an axis-aligned box grown by `radius`, or -1 if the
+ * ray misses it. The classic slab test, written out rather than pulled in.
+ */
+const raySlab = (from: Vec2, dx: number, dy: number, wall: Wall, radius: number): number => {
+  const minX = wall.x - wall.w / 2 - radius;
+  const maxX = wall.x + wall.w / 2 + radius;
+  const minY = wall.y - wall.h / 2 - radius;
+  const maxY = wall.y + wall.h / 2 + radius;
+  let t0 = 0;
+  let t1 = Infinity;
+  for (const [o, d, lo, hi] of [
+    [from.x, dx, minX, maxX],
+    [from.y, dy, minY, maxY],
+  ] as [number, number, number, number][]) {
+    if (Math.abs(d) < 1e-9) {
+      if (o < lo || o > hi) return -1;
+      continue;
+    }
+    let ta = (lo - o) / d;
+    let tb = (hi - o) / d;
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta);
+    t1 = Math.min(t1, tb);
+    if (t0 > t1) return -1;
+  }
+  return t0;
+};

@@ -31,10 +31,11 @@ import { RankEmblem } from './components/RankEmblem';
 import { RankUp } from './RankUp';
 import { Results } from './Results';
 import { Settings } from './Settings';
+import { Vayne } from './Vayne';
 import '../styles/global.css';
 import './app.css';
 
-type Route = 'home' | 'profile' | 'daily' | 'settings';
+type Route = 'home' | 'profile' | 'daily' | 'vayne' | 'settings';
 
 interface Flow {
   kind: 'single' | 'placement' | 'daily';
@@ -202,6 +203,14 @@ export function App() {
           history: [...prev.history],
           daily: { ...prev.daily, completed: [...prev.daily.completed] },
           dailyMarks: [...prev.dailyMarks],
+          // The champion path is written in place by applyRun, so it has to be
+          // copied down to the records or the previous state would move too.
+          vayne: {
+            ...prev.vayne,
+            stages: Object.fromEntries(
+              Object.entries(prev.vayne.stages).map(([k, v]) => [k, { ...v }]),
+            ) as typeof prev.vayne.stages,
+          },
         };
         report = applyRun(next, result, { placement: flow.kind === 'placement' });
         if (flow.kind === 'daily' || flow.kind === 'single') markDailyComplete(next, result.drill);
@@ -405,7 +414,7 @@ export function App() {
           </div>
 
           <nav className="nav">
-            {(['home', 'daily', 'profile', 'settings'] as Route[]).map((r) => (
+            {(['home', 'daily', 'vayne', 'profile', 'settings'] as Route[]).map((r) => (
               <button
                 key={r}
                 className={route === r ? 'on' : ''}
@@ -416,7 +425,7 @@ export function App() {
                   setRoute(r);
                 }}
               >
-                {r === 'home' ? 'TRAIN' : r.toUpperCase()}
+                {r === 'home' ? 'TRAIN' : r === 'vayne' ? 'VAYNE' : r.toUpperCase()}
               </button>
             ))}
           </nav>
@@ -443,10 +452,14 @@ export function App() {
             onDaily={() => setRoute('daily')}
             onProfile={() => setRoute('profile')}
             onPlacement={() => setPlacementIntro(true)}
+            onVayne={() => setRoute('vayne')}
           />
         )}
         {route === 'daily' && (
           <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('home')} />
+        )}
+        {route === 'vayne' && (
+          <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('home')} />
         )}
         {route === 'profile' && (
           <ProfileScreen

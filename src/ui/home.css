@@ -643,3 +643,13 @@
     display: none;
   }
 }
+
+/* A path stage you have not earned yet. It still shows, because seeing what
+   is ahead is part of the course; it just does not start. */
+.rowitem.locked {
+  opacity: 0.42;
+  cursor: help;
+}
+.rowitem.locked .ri-name {
+  letter-spacing: 0.1em;
+}

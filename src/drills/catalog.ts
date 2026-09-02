@@ -13,9 +13,13 @@ export type DrillId =
   | 'combos'
   | 'duel1v1'
   | 'duel1v2'
-  | 'duel1v3';
+  | 'duel1v3'
+  | 'vayneTumble'
+  | 'vayneBolts'
+  | 'vayneCondemn'
+  | 'vayneHunt';
 
-export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT';
+export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'VAYNE';
 
 export interface DrillMeta {
   id: DrillId;
@@ -204,6 +208,62 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     keyMetric: 'SURVIVAL',
     order: 12,
   },
+  vayneTumble: {
+    id: 'vayneTumble',
+    name: 'TUMBLE',
+    tagline: 'The Vayne rhythm',
+    brief: 'Attack, tumble out of the backswing, attack again. Never tumble mid-windup, never sit on the cooldown.',
+    transfers: 'Vayne’s core loop — Q as free distance and an empowered shot, not as an escape button.',
+    group: 'VAYNE',
+    axes: { kiting: 0.75, movement: 0.15, spacing: 0.1 },
+    duration: 60,
+    abilities: ['q'],
+    accent: '#c86bff',
+    keyMetric: 'TUMBLE RHYTHM',
+    order: 20,
+  },
+  vayneBolts: {
+    id: 'vayneBolts',
+    name: 'SILVER BOLTS',
+    tagline: 'Finish the third hit',
+    brief: 'Three hits on one target detonate. The mark moves every eleven seconds — finish your stack, then switch.',
+    transfers: 'The habit that makes Vayne kill tanks: never abandoning a stack at two.',
+    group: 'VAYNE',
+    axes: { targeting: 0.6, lastHitting: 0.25, aim: 0.15 },
+    duration: 60,
+    abilities: ['q', 'w'],
+    accent: '#e6f0ff',
+    keyMetric: 'BOLT EFFICIENCY',
+    order: 21,
+  },
+  vayneCondemn: {
+    id: 'vayneCondemn',
+    name: 'CONDEMN',
+    tagline: 'Pin them to the wall',
+    brief: 'Chargers come from every angle. Stand so the terrain is behind them, then condemn them into it.',
+    transfers: 'Wall-side positioning — the difference between a knockback and a 1.5s stun.',
+    group: 'VAYNE',
+    axes: { skillshot: 0.5, spacing: 0.3, movement: 0.2 },
+    duration: 70,
+    abilities: ['q', 'e'],
+    accent: '#ffcf6b',
+    keyMetric: 'WALL STUN RATE',
+    order: 22,
+  },
+  vayneHunt: {
+    id: 'vayneHunt',
+    name: 'NIGHT HUNTER',
+    tagline: 'The whole champion',
+    brief: 'Two opponents, terrain, and the full kit including Final Hour. Everything at once, the way it actually happens.',
+    transfers: 'Playing Vayne — not playing an ADC who happens to own her abilities.',
+    group: 'VAYNE',
+    axes: { combat: 0.5, kiting: 0.2, targeting: 0.2, dodging: 0.1 },
+    duration: 0,
+    abilities: ['q', 'w', 'e', 'r'],
+    accent: '#ff5fa8',
+    keyMetric: 'KIT EXECUTION',
+    order: 23,
+  },
 };
 
 export const DRILL_LIST = Object.values(DRILLS).sort((a, b) => a.order - b.order);
@@ -213,3 +273,8 @@ export const PLACEMENT_SEQUENCE: DrillId[] = ['movement', 'aim', 'dodge', 'kite'
 
 /** Today's programme. Deliberately short enough to finish every day. */
 export const DAILY_SEQUENCE: DrillId[] = ['movement', 'dodge', 'kite', 'spacing', 'duel1v1'];
+
+/** The champion track, in the order it has to be learned. */
+export const VAYNE_SEQUENCE: DrillId[] = ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'];
+
+export const isVayneDrill = (id: DrillId): boolean => DRILLS[id].group === 'VAYNE';

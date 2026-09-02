@@ -11,6 +11,10 @@ import { MovementDrill } from './movement';
 import { SkillshotDrill } from './skillshot';
 import { SpacingDrill } from './spacing';
 import { TargetSwitchDrill } from './targetswitch';
+import { VayneBoltsDrill } from './vaynebolts';
+import { VayneCondemnDrill } from './vaynecondemn';
+import { VayneHuntDrill } from './vaynehunt';
+import { VayneTumbleDrill } from './vaynetumble';
 
 export const createDrill = (id: DrillId, session: Session): Drill => {
   switch (id) {
@@ -38,6 +42,14 @@ export const createDrill = (id: DrillId, session: Session): Drill => {
       return new ArenaDrill(session, 2);
     case 'duel1v3':
       return new ArenaDrill(session, 3);
+    case 'vayneTumble':
+      return new VayneTumbleDrill(session);
+    case 'vayneBolts':
+      return new VayneBoltsDrill(session);
+    case 'vayneCondemn':
+      return new VayneCondemnDrill(session);
+    case 'vayneHunt':
+      return new VayneHuntDrill(session);
   }
 };
 
@@ -52,6 +64,13 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
     case 'duel1v2':
     case 'duel1v3':
       return { w: 1800, h: 1050 };
+    // The Vayne arenas are wider than they are tall and larger than the duel
+    // floor: condemn needs somewhere to throw people, and terrain eats space.
+    case 'vayneCondemn':
+    case 'vayneHunt':
+      return { w: 1900, h: 1100 };
+    case 'vayneBolts':
+      return { w: 1720, h: 1000 };
     default:
       return { w: 1660, h: 960 };
   }

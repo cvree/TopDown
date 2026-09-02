@@ -10,6 +10,7 @@ import {
 } from '../progression/profile';
 import { percentileForRating, rankFromRating } from '../progression/ranks';
 import { AXIS_BLURB, AXIS_LABEL, SKILL_AXES } from '../progression/skills';
+import { titleFor } from '../progression/vayne';
 import { RankEmblem } from './components/RankEmblem';
 import { SkillRadar, Sparkline } from './components/charts';
 import './profile.css';
@@ -101,6 +102,13 @@ export function ProfileScreen({ profile, onRename, onReset, onPlay }: Props) {
               <span className="eyebrow">Runs</span>
               <b>{profile.totalRuns}</b>
               <i>{formatDuration(profile.totalSeconds)}</i>
+            </div>
+            {/* The champion path is a separate claim from the rank, so it is
+                stated separately rather than folded into the ladder. */}
+            <div className="pc">
+              <span className="eyebrow">Vayne path</span>
+              <b style={{ color: '#e7c8ff' }}>{titleFor(profile.vayne.peak).name}</b>
+              <i>{Math.round(profile.vayne.mastery)} mastery</i>
             </div>
           </div>
         </section>

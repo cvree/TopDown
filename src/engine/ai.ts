@@ -100,6 +100,15 @@ export class EnemyBrain {
     this.history.push({ t: world.time, pos: { ...player.pos }, vel: { ...player.vel } });
     if (this.history.length > 240) this.history.shift();
 
+    // A unit being shoved through the air, or stunned against a wall, is not
+    // making decisions. Condemn is supposed to buy Vayne real time.
+    if (me.knockback || me.rootedFor > 0) {
+      me.order = null;
+      this.dashTime = 0;
+      if (this.abilityCd > 0) this.abilityCd -= dt;
+      return;
+    }
+
     if (this.abilityCd > 0) this.abilityCd -= dt;
     if (this.repathCd > 0) this.repathCd -= dt;
     if (this.strafeCd > 0) this.strafeCd -= dt;

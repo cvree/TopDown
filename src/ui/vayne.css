@@ -1,0 +1,282 @@
+/* The champion path. Violet where the rest of the client is gold, because it
+   is a different kind of progress and should not read as a second rank. */
+
+.vpath {
+  padding-top: 46px;
+  padding-bottom: 60px;
+  max-width: 1180px;
+}
+
+.vpath-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 46px;
+  align-items: start;
+}
+.vpath-h1 {
+  font-size: clamp(34px, 4.4vw, 58px);
+  letter-spacing: 0.05em;
+  margin: 6px 0 14px;
+  background: linear-gradient(180deg, #f3e6ff 0%, #c86bff 52%, #7a3fb0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.vpath-lead {
+  max-width: 720px;
+  line-height: 1.65;
+  font-size: 14px;
+}
+
+/* ------------------------------------------------------------------ crest */
+
+.vpath-crest {
+  border: 1px solid rgba(150, 90, 220, 0.4);
+  background: linear-gradient(180deg, rgba(30, 12, 50, 0.7), rgba(6, 8, 20, 0.75));
+  padding: 22px 20px 20px;
+  text-align: center;
+  position: sticky;
+  top: 46px;
+}
+/* A conic sweep for the mastery number: the value is the shape of the ring,
+   so it is legible before the digits are read. */
+.vc-ring {
+  width: 148px;
+  height: 148px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(6, 8, 20, 0.98) 61%, transparent 62%),
+    conic-gradient(#c86bff 0 var(--m), rgba(120, 90, 160, 0.18) var(--m) 100%);
+  box-shadow: 0 0 40px -10px rgba(200, 110, 255, 0.55);
+}
+.vc-num {
+  font-size: 42px;
+  line-height: 1;
+  color: #f3e6ff;
+}
+.vc-lab {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--text-3);
+  margin-top: 6px;
+}
+.vc-title {
+  font-size: 19px;
+  letter-spacing: 0.08em;
+  color: #e7c8ff;
+}
+.vc-blurb {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.55;
+  margin: 8px 0 0;
+}
+.vc-next {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(150, 90, 220, 0.28);
+  display: grid;
+  gap: 3px;
+}
+.vc-next b {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--text);
+}
+.vc-next i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ----------------------------------------------------------------- stages */
+
+.vpath-stages {
+  margin-top: 34px;
+  display: grid;
+  gap: 12px;
+}
+
+.vstage {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 160px;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 20px;
+  border: 1px solid var(--stroke);
+  border-left: 3px solid var(--c);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 9%, transparent), rgba(4, 8, 16, 0.72) 42%);
+  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.vstage.rec {
+  border-color: var(--stroke-2);
+  box-shadow: 0 0 34px -18px var(--c);
+}
+.vstage.locked {
+  opacity: 0.46;
+  filter: saturate(0.4);
+}
+.vs-step {
+  font-size: 26px;
+  color: var(--c);
+  text-align: center;
+}
+.vs-titles {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.vs-name {
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+.vs-sub {
+  font-size: 12px;
+  color: var(--text-3);
+  text-transform: lowercase;
+}
+.vs-flag {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  padding: 3px 7px;
+  color: #0a0710;
+  background: var(--c);
+}
+.vs-purpose {
+  margin: 7px 0 12px;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.55;
+  max-width: 640px;
+}
+.vs-stats {
+  display: flex;
+  gap: 26px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.vs-stats b {
+  display: block;
+  font-size: 15px;
+  color: var(--text);
+  margin-top: 2px;
+}
+.vs-track {
+  position: relative;
+  height: 6px;
+  margin-top: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  max-width: 640px;
+}
+.vs-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, #ffffff), var(--c));
+}
+.vs-gate {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--gold-lit);
+  opacity: 0.85;
+}
+
+.vs-right {
+  display: grid;
+  gap: 10px;
+  justify-items: end;
+}
+.vs-stars {
+  display: flex;
+  gap: 3px;
+  font-size: 17px;
+  color: rgba(255, 255, 255, 0.14);
+}
+.vs-stars .on {
+  color: var(--c);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.vs-lock {
+  text-align: right;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--text-3);
+}
+.vs-lock i {
+  display: block;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  margin-top: 3px;
+  color: var(--text-4);
+}
+
+/* ----------------------------------------------------------------- ladder */
+
+.vpath-ladder {
+  margin-top: 30px;
+}
+.vl-rows {
+  display: grid;
+  gap: 2px;
+}
+.vl-row {
+  display: grid;
+  grid-template-columns: 46px 190px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 9px 10px;
+  border-left: 2px solid transparent;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.vl-row.held {
+  border-left-color: #c86bff;
+  background: rgba(120, 60, 180, 0.12);
+  color: var(--text-2);
+}
+.vl-row.held .vl-name {
+  color: #e7c8ff;
+}
+.vl-name {
+  font-family: var(--ui);
+  letter-spacing: 0.12em;
+  font-size: 12px;
+  color: var(--text-4);
+}
+
+.vpath-foot {
+  margin-top: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+@media (max-width: 940px) {
+  .vpath-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .vpath-crest {
+    position: static;
+  }
+  .vstage {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+  .vs-right {
+    grid-column: 1 / -1;
+    justify-items: start;
+  }
+  .vl-row {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+  .vl-blurb {
+    display: none;
+  }
+}

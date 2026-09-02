@@ -5,10 +5,13 @@ thing that feels rewarding should be the thing that actually makes you better.
 
 It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
-drawn on the ground where the thing it is about actually is. Eleven drills, a
+drawn on the ground where the thing it is about actually is. Sixteen drills, a
 ranked mechanical skill system driven by measured performance rather than time
-played, and a results screen designed so you can see exactly what you did and
-what it cost you.
+played, a champion path that teaches one champion properly, and a results
+screen designed so you can see exactly what you did and what it cost you.
+
+It can be driven either way: League's click-to-move, or WASD. Both obey the
+same windup law, so a run scores identically under either.
 
 It opens like a game rather than a page: black screen, a crest struck out of
 it, a load bar, and a key to press. That gate is not only theatre — the arena's
@@ -45,6 +48,10 @@ npm run build      # production bundle
 | **Target Switch** | Switch latency and accuracy | Retargeting mid-fight without freezing |
 | **Combos** | Sequence execution under a closing window | Ability order while your other hand is busy |
 | **1v1 / 1v2 / 1v3** | All of the above, against live AI | Priority, cooldown awareness, not panicking |
+| **Tumble** | Tumble rhythm, windups thrown away | Q in the backswing — Vayne's whole movement game |
+| **Silver Bolts** | Bolt efficiency, stacks dropped | Finishing the third hit instead of switching at two |
+| **Condemn** | Wall stun rate, chances missed | Standing on the right side of the wall *before* the fight |
+| **Night Hunter** | Kit execution under a live 1v2 | Playing Vayne rather than an ADC who owns her abilities |
 
 ## The mechanics model
 
@@ -78,6 +85,36 @@ health bar.
 
 The AI perceives you through a delayed snapshot buffer, so its reaction time is
 a real latency rather than a fudge factor.
+
+## The Vayne path
+
+The ladder above rates nine general axes and does not care which champion you
+play. The champion path is the other thing: one champion, four stages in the
+order they actually have to be learned, each gating the next.
+
+| Stage | It teaches | Cleared at |
+| --- | --- | --- |
+| **1 · Tumble** | Q in the backswing, every time it is up, without throwing an attack away | 55% |
+| **2 · Silver Bolts** | Finish every stack. Switching at two is the mistake that defines a bad Vayne | 58% |
+| **3 · Condemn** | Position so terrain is behind them, then turn a knockback into a 1.5s stun | 58% |
+| **4 · Night Hunter** | All of it at once, with Final Hour, against two opponents and real walls | 60% |
+
+**The kit is modelled, not gestured at.** Tumble is a dash whose entire skill is
+*when* you press it — mid-windup it throws the attack away and is counted
+against you, in the backswing it is free distance and an empowered shot. Silver
+Bolts is a counter that only pays on three consecutive hits against the *same*
+target, and every stack you abandon is recorded. Condemn knocks a target 430
+units along the line from you and only stuns if terrain is waiting at the end
+of it, which makes it a question about where you chose to stand. Final Hour
+shortens the tumble, adds damage, and hides you for a second on each tumble.
+
+**Mastery is a ceiling, not a total.** Each stage stores your *best* run and
+the difficulty you played it at; mastery is the weighted blend of those, so a
+worse run never costs you anything and grinding at a level you have already
+beaten converges and stops. Titles run from RECRUIT to **THE GREATEST VAYNE**,
+which needs every stage at three stars at a difficulty with nothing left to
+teach you — and the screen that awards it says plainly that it is a claim
+about these drills, not about anybody's ranked ladder.
 
 ## The ranked system
 
@@ -117,6 +154,12 @@ depends on:
   >90% orbwalk efficiency and beats both spamming and standing still.
 - Spamming move commands produces cancels and scores near zero.
 - Every drill rewards playing it correctly (>55% performance).
+- WASD orbwalking scores in the same band as click orbwalking, a direction
+  taken mid-windup cancels the attack, one taken in the backswing does not,
+  and a player who never releases the keys never attacks at all.
+- Tumbling in the backswing beats tumbling on cooldown; finishing bolt stacks
+  beats target-hopping; a wall-aware condemn player lands wall stuns and a
+  wall-blind one does not.
 - **Every drill scores under 30% for a player who does nothing.** No drill can
   be passed by presence alone.
 - 1v1 is winnable; 1v2 and 1v3 cost progressively more health; all three are
@@ -128,6 +171,10 @@ prints a per-5-second trace — the fastest way to see why a tuning change
 changed a score.
 
 ## Controls
+
+Two schemes, chosen in Settings. The default is League's.
+
+### Click to move
 
 | | |
 | --- | --- |
@@ -143,14 +190,32 @@ changed a score.
 | `` ` `` / `Enter` | Instant reset |
 | `Esc` | Pause |
 
-All bindings are remappable in Settings, along with quick cast. In drills with
-no ultimate bound, `R` also acts as instant reset.
+### WASD
+
+| | |
+| --- | --- |
+| `W` `A` `S` `D` | Move. Release to attack — a direction held through the windup cancels it, exactly as a click does |
+| Left click | Attack the unit under the cursor, or take an attack-move stance. It never walks you anywhere |
+| `Q` `E` `R` `F` | Abilities Q, W, E and R — the row moves one seat over, because W is spoken for |
+| `1` `2` | Summoners |
+| `X` | Stop |
+
+Under WASD the mouse only ever targets, so it can never cancel an attack; the
+keys are the only thing that moves you, and holding one is the same commitment
+a click is. Everything else — camera, zoom, reset, pause — is unchanged.
+
+All bindings are remappable in Settings, along with quick cast, and each scheme
+keeps its own rebinds so switching never breaks a layout you tuned. In drills
+with no ultimate bound, `R` also acts as instant reset.
 
 ## The arena
 
 The renderer is a three.js scene built entirely from code.
 
-- **Terrain.** A sunken amphitheatre: a dead-level paved playfield, a stone
+- **Terrain.** Drills that need it place blocks the simulation treats as solid
+  — you cannot walk through them and Condemn pins people against them — drawn
+  as real geometry with real shadows, because the shadow is what tells you
+  which side of a body the wall is on. A sunken amphitheatre: a dead-level paved playfield, a stone
   kerb, three terraces, then turf and cliffs. The playfield being perfectly flat
   is a gameplay decision, not a shortcut — it means every ground indicator can
   hug the floor without a height query and without z-fighting.
@@ -236,12 +301,17 @@ as depth rather than competing for the same pixels as the text.
 
 ```
 src/engine/     simulation: world, combat, AI, metrics, audio, input, paint
-src/gfx/        the 3D renderer: scene, terrain, champions, decals, VFX, camera
+src/engine/vayne.ts   the champion kit: tumble, bolts, condemn, final hour
+src/gfx/        the 3D renderer: scene, terrain, walls, champions, decals, VFX
 src/drills/     one file per drill; each owns its rules and its scoring
-src/progression/ rating maths, rank ladder, profile persistence
-src/ui/         React shell, HUD, results, profile, rank-up
+src/progression/ rating maths, rank ladder, champion path, profile persistence
+src/ui/         React shell, HUD, results, profile, rank-up, the Vayne path
 tools/          headless test harnesses
 ```
+
+The champion kit lives in `engine` rather than in the drills because four
+drills and the gauntlet share it: there is exactly one implementation of what
+a tumble is, and the drills only decide what to spawn and how to score it.
 
 The boundary between `engine` and `gfx` is deliberate and narrow. The
 simulation knows nothing about three.js; the renderer knows nothing about

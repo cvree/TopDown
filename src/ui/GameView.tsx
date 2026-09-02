@@ -1,6 +1,13 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { audio } from '../engine/audio';
-import { DEFAULT_BINDINGS, InputSystem, type AbilitySlot, type Bindings } from '../engine/input';
+import {
+  InputSystem,
+  codeLabel,
+  defaultsFor,
+  type AbilitySlot,
+  type Bindings,
+  type MovementScheme,
+} from '../engine/input';
 import { GameLoop } from '../engine/loop';
 import { derive } from '../engine/metrics';
 import { clearPaint, newPaint } from '../engine/paint';
@@ -67,15 +74,47 @@ const SLOT_GLYPH: Record<string, ReactElement> = {
   ),
 };
 
+const schemeOf = (settings: AppSettings): MovementScheme => settings.movementScheme ?? 'click';
+
 const bindingsFrom = (settings: AppSettings): Bindings => {
-  const out = { ...DEFAULT_BINDINGS };
-  for (const [k, v] of Object.entries(settings.bindings ?? {})) {
+  const scheme = schemeOf(settings);
+  const out = { ...defaultsFor(scheme) };
+  const overrides = scheme === 'wasd' ? settings.wasdBindings : settings.bindings;
+  for (const [k, v] of Object.entries(overrides ?? {})) {
     if (k in out) (out as Record<string, unknown>)[k] = v;
   }
   return out;
 };
 
+/** The hint row, which is different in the two schemes and short in both. */
+const HINTS: Record<MovementScheme, { key: string; label: string }[]> = {
+  click: [
+    { key: 'RMB', label: 'move · attack' },
+    { key: 'A', label: 'attack-move' },
+    { key: 'S', label: 'stop' },
+    { key: 'SPACE', label: 'centre camera' },
+    { key: 'Y', label: 'camera lock' },
+    { key: 'WHEEL', label: 'zoom' },
+    { key: 'ESC', label: 'pause' },
+  ],
+  wasd: [
+    { key: 'WASD', label: 'move' },
+    { key: 'LMB', label: 'attack' },
+    { key: 'Q E R F', label: 'abilities' },
+    { key: 'RELEASE', label: 'to shoot' },
+    { key: 'SPACE', label: 'centre camera' },
+    { key: 'WHEEL', label: 'zoom' },
+    { key: 'ESC', label: 'pause' },
+  ],
+};
 
+
+
+/** What is actually printed on the ability key, which the scheme decides. */
+const abilityKeyLabel = (settings: AppSettings, slot: AbilitySlot): string => {
+  const b = bindingsFrom(settings)[slot];
+  return codeLabel(b.primary).toUpperCase();
+};
 
 export function GameView({ drill, difficulty, seed, settings, context, onComplete, onExit, onRetry }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -104,13 +143,15 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
     const minimap = new Minimap(minimapCanvas);
     minimap.resize(158);
 
+    const scheme = schemeOf(settings);
     const input = new InputSystem({
       bindings: bindingsFrom(settings),
       quickCast: settings.quickCast,
       activeSlots: new Set<AbilitySlot>(meta.abilities),
+      scheme,
     });
     const session = new Session(
-      { duration: meta.duration, arena: bounds, seed, difficulty, abilities: meta.abilities },
+      { duration: meta.duration, arena: bounds, seed, difficulty, abilities: meta.abilities, scheme },
       input,
       renderer,
     );
@@ -502,7 +543,7 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
                     <span className="ab-sweep" />
                     <span className="ab-shine" />
                   </span>
-                  <span className="ab-key">{s.toUpperCase()}</span>
+                  <span className="ab-key">{abilityKeyLabel(settings, s)}</span>
                   <span className="ab-name" data-ab-name />
                 </div>
               </Fragment>
@@ -513,27 +554,11 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
         {/* Controls, shown once and then gone. A cheat sheet that never
             leaves is a cheat sheet you stop reading and start seeing. */}
         <div className="hud-hints">
-          <span>
-            <b className="kbd">RMB</b> move · attack
-          </span>
-          <span>
-            <b className="kbd">A</b> attack-move
-          </span>
-          <span>
-            <b className="kbd">S</b> stop
-          </span>
-          <span>
-            <b className="kbd">SPACE</b> centre camera
-          </span>
-          <span>
-            <b className="kbd">Y</b> camera lock
-          </span>
-          <span>
-            <b className="kbd">WHEEL</b> zoom
-          </span>
-          <span>
-            <b className="kbd">ESC</b> pause
-          </span>
+          {HINTS[schemeOf(settings)].map((h) => (
+            <span key={h.key}>
+              <b className="kbd">{h.key}</b> {h.label}
+            </span>
+          ))}
         </div>
 
         {/* Which camera mode you are in, sat above the minimap where League

@@ -46,6 +46,18 @@ export interface Actor {
   /** Destination of the current move order, if any. */
   order: { kind: 'move' | 'attackMove' | 'attackTarget' | 'hold'; pos: Vec2; targetId?: number } | null;
 
+  /**
+   * A held movement direction, unit length, or null. Set by the WASD scheme;
+   * while it is set it overrides order pathing entirely.
+   */
+  moveDir: Vec2 | null;
+  /**
+   * This actor is driven directly rather than by pathing: orders may still
+   * pick targets, but they never walk it anywhere. Only ever set on the
+   * player, and only under the WASD scheme.
+   */
+  directControl?: boolean;
+
   /** Visual/analysis bookkeeping. */
   lastAttackAt: number;
   hitFlash: number;
@@ -62,6 +74,12 @@ export interface Actor {
   killedByPlayer?: boolean;
   /** Per-actor accent colour index for rendering. */
   tint?: number;
+  /** Overrides the silhouette the renderer picks for this actor. */
+  visual?: 'nightHunter';
+  /** Seconds this actor is untargetable — Vayne's Final Hour tumble. */
+  invisibleFor?: number;
+  /** Active knockback: direction, remaining distance, speed. */
+  knockback?: { dir: Vec2; remaining: number; speed: number } | null;
 }
 
 export type ProjectileShape = 'bolt' | 'orb' | 'shard' | 'wave';
@@ -161,4 +179,14 @@ export interface AiTuning {
   aggression: number;
   /** Multiplier on its attack speed and move speed (kept subtle). */
   tempo: number;
+}
+
+/** An axis-aligned block of terrain. Actors cannot walk through it. */
+export interface Wall {
+  /** Centre. */
+  x: number;
+  y: number;
+  /** Full extents. */
+  w: number;
+  h: number;
 }

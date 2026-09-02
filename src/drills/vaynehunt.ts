@@ -1,0 +1,212 @@
+import { clamp, dist } from '../engine/math';
+import { derive } from '../engine/metrics';
+import { PALETTE } from '../engine/palette';
+import type { DrillPaint } from '../engine/paint';
+import type { HudField } from '../engine/session';
+import type { ArchetypeId } from '../engine/types';
+import { VAYNE_COLOR, boltEfficiency, tumbleRhythm, wallRate } from '../engine/vayne';
+import type { WorldEvent } from '../engine/world';
+import { band, count, pct, secs, type DrillOutcome } from './base';
+import { VayneDrill } from './vaynebase';
+
+const HARD_CAP = 150;
+
+/**
+ * NIGHT HUNTER — the whole champion at once.
+ *
+ * Tumble rhythm, bolt discipline, wall geometry and Final Hour, against two
+ * opponents who move, cast, dodge and respect their cooldowns, in an arena
+ * with terrain in it. Every earlier drill isolates one habit precisely because
+ * this is where they all have to happen in the same four seconds.
+ *
+ * It is scored on the fight *and* on the kit: winning by standing still and
+ * right-clicking is possible at low difficulty, and it is not what the mastery
+ * ladder is willing to call a Vayne player.
+ */
+export class VayneHuntDrill extends VayneDrill {
+  private killed = 0;
+  private startedWith = 2;
+
+  constructor(s: import('../engine/session').Session) {
+    super(s, { tumble: true, bolts: true, condemn: true, finalHour: true });
+  }
+
+  setup(): void {
+    const { w, h } = this.s.world.bounds;
+    this.placeWalls();
+    const p = this.spawnVayne({ x: w / 2, y: h * 0.78 });
+    p.maxHp = 1080;
+    p.hp = p.maxHp;
+
+    // One that closes and one that pokes: the composition that forces every
+    // part of the kit to be used for the thing it is for.
+    const melee: ArchetypeId[] = ['diver', 'duelist', 'juggernaut'];
+    const ranged: ArchetypeId[] = ['ranger', 'artillery', 'controller'];
+    const picks: ArchetypeId[] = [this.s.rng.pick(melee), this.s.rng.pick(ranged)];
+    this.startedWith = picks.length;
+    picks.forEach((id, i) => {
+      const spread = (i - (picks.length - 1) / 2) * 320;
+      const a = this.spawnEnemy(id, { x: w / 2 + spread, y: h * 0.2 }, { hpScale: 0.62 });
+      this.s.fx.ring(a.pos.x, a.pos.y, 10, 160, 0.7, PALETTE.danger, 3, 'shock');
+    });
+  }
+
+  onStart(): void {
+    this.s.setBanner(this.s.world.enemies().map((e) => e.label ?? '').join('  ·  '), 1.8);
+  }
+
+  update(dt: number): void {
+    super.update(dt);
+    this.updateBrains(dt);
+
+    if (this.s.world.enemies().length === 0) {
+      this.endReason = 'complete';
+      this.s.forceEnd = true;
+    } else if (this.s.elapsed > HARD_CAP) {
+      this.endReason = 'time';
+      this.s.forceEnd = true;
+    }
+  }
+
+  onEvents(events: readonly WorldEvent[]): void {
+    super.onEvents(events);
+    for (const e of events) {
+      if (e.type !== 'death' || !e.byPlayer) continue;
+      this.killed++;
+      const left = this.s.world.enemies().length;
+      if (left > 0) this.s.setBanner(`${left} LEFT`, 1);
+      this.s.fx.addFlash(0.1, VAYNE_COLOR);
+    }
+  }
+
+  paint(out: DrillPaint, t: number): void {
+    super.paint(out, t);
+    this.paintSignature(out, t);
+    const p = this.s.world.player;
+    if (!p) return;
+    for (const e of this.s.world.enemies()) {
+      const r = e.attack.range + p.radius;
+      if (dist(p.pos, e.pos) >= r) continue;
+      out.markers.push({
+        kind: 'ring',
+        x: e.pos.x,
+        y: e.pos.y,
+        radius: r,
+        color: PALETTE.danger,
+        alpha: 0.32 + 0.16 * Math.sin(t * 6),
+        width: 3,
+        dash: 54,
+        spin: -0.2,
+        rise: 1.8,
+      });
+    }
+  }
+
+  hudFields(): HudField[] {
+    return [
+      { label: 'ENEMIES', value: `${this.s.world.enemies().length}`, tone: 'neutral' },
+      this.boltField(),
+      {
+        label: this.kit.inFinalHour ? 'FINAL HOUR' : 'ULTIMATE',
+        value: this.kit.inFinalHour
+          ? `${this.kit.hourLeft.toFixed(1)}s`
+          : this.kit.hourCd > 0
+            ? `${this.kit.hourCd.toFixed(0)}s`
+            : 'READY',
+        bar: this.kit.inFinalHour ? this.kit.hourLeft / 9 : 1 - clamp(this.kit.hourCd / 55, 0, 1),
+        tone: this.kit.inFinalHour ? 'good' : this.kit.hourCd > 0 ? 'warn' : 'good',
+      },
+    ];
+  }
+
+  liveScore(): number {
+    const m = this.s.metrics.m;
+    const d = derive(m, this.s.world.player?.maxHp ?? 1080);
+    const st = this.kit.stats;
+    const won = this.killed >= this.startedWith;
+    return Math.max(0, Math.round(
+      m.damageDealt * 8 +
+        st.boltProcs * 1200 +
+        st.condemnWallStuns * 1400 +
+        st.tumblesClean * 350 +
+        this.killed * 5200 +
+        (won ? 12000 : 0) +
+        d.hpRetained * 6000 -
+        st.tumblesWasted * 700,
+    ));
+  }
+
+  outcome(): DrillOutcome {
+    const m = this.s.metrics.m;
+    const d = derive(m, this.s.world.player?.maxHp ?? 1080);
+    const st = this.kit.stats;
+    const won = this.killed >= this.startedWith && m.survived;
+
+    const rhythm = tumbleRhythm(st);
+    const bolts = boltEfficiency(st);
+    const walls = st.condemnHits > 0 ? wallRate(st) : 0;
+    // The kit term: were you playing Vayne, or an ADC who happens to have her
+    // abilities? It is a third of the score, and it is the part the mastery
+    // ladder cares about most.
+    const kit = clamp(rhythm * 0.36 + bolts * 0.4 + walls * 0.24, 0, 1);
+
+    const outcomeScore = won ? 1 : (this.killed / this.startedWith) * 0.7;
+    const survival = m.survived ? 1 : clamp(m.survivalTime / 45, 0, 0.85);
+    const speed = won ? band(this.s.elapsed, 95, 26) : 0;
+
+    const performance = clamp(
+      outcomeScore * 0.26 +
+        kit * 0.28 +
+        d.hpRetained * 0.16 +
+        survival * 0.12 +
+        d.orbwalkEfficiency * 0.1 +
+        speed * 0.08,
+      0,
+      1,
+    );
+
+    const helped: string[] = [];
+    const hurt: string[] = [];
+    if (won) helped.push(`Cleared both with ${Math.round(d.hpRetained * 100)}% health left.`);
+    if (bolts > 0.75) helped.push('Bolt discipline held up under fire — that is the hard version.');
+    if (st.condemnWallStuns > 1) helped.push(`${st.condemnWallStuns} wall stuns in a live fight.`);
+    if (st.finalHours > 0 && won) helped.push('Final Hour used and converted.');
+    if (!m.survived) hurt.push(`You died at ${m.survivalTime.toFixed(1)}s.`);
+    if (st.tumblesWasted > 1) hurt.push(`${st.tumblesWasted} tumbles thrown mid-windup under pressure.`);
+    if (bolts < 0.55 && st.attacksLanded > 10) hurt.push('Your bolts fell apart in the fight — you switched targets on instinct.');
+    if (st.finalHours === 0) hurt.push('Final Hour never came out. It is a fight-winning window, not an emergency button.');
+
+    const advice = !m.survived
+      ? 'Use the terrain. Condemn the diver into a wall, then tumble away from the ranged one — do not trade with both at once.'
+      : bolts < 0.6
+        ? 'Pick your target and finish three attacks on it. Switching mid-stack is why the fight is going long.'
+        : st.finalHours === 0
+          ? 'Open with Final Hour once they commit. The shorter tumble cooldown is what makes the fight unloseable.'
+          : won && d.hpRetained > 0.7
+            ? 'That is a complete Vayne. Raise the difficulty — this one has nothing left to teach you.'
+            : 'Won it. Now win it without the health bar moving.';
+
+    return {
+      score: Math.max(0, this.liveScore()),
+      performance,
+      axisPerformance: {
+        combat: performance,
+        kiting: clamp(rhythm * 0.5 + d.orbwalkEfficiency * 0.5, 0, 1),
+        targeting: clamp(bolts, 0, 1),
+        dodging: clamp(band(m.hitsTaken / Math.max(1, this.s.elapsed / 10), 4, 0.3), 0, 1),
+      },
+      keyMetrics: [
+        pct('hpLeft', 'HEALTH REMAINING', d.hpRetained),
+        pct('kitScore', 'KIT EXECUTION', kit),
+        count('kills', 'ENEMIES DOWN', this.killed),
+        count('procs', 'BOLT PROCS', st.boltProcs),
+        secs('fightTime', won ? 'TIME TO WIN' : 'SURVIVED', won ? this.s.elapsed : m.survivalTime, won ? 'lower' : 'higher'),
+      ],
+      helped,
+      hurt,
+      advice,
+      // Two opponents plus a full kit to execute is more than the slider says.
+      effectiveDifficulty: clamp(this.s.config.difficulty + 0.16, 0, 1),
+    };
+  }
+}

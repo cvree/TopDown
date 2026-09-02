@@ -13,7 +13,7 @@ import { ChampionRig, type RigSpec } from './champions';
  * scoring reads, never a separate visual approximation of it.
  */
 
-type VisualKey = ArchetypeId | 'player' | 'minion' | 'dummy';
+type VisualKey = ArchetypeId | 'player' | 'nightHunter' | 'minion' | 'dummy';
 
 const ENEMY_RING = '#ff4d42';
 const ALLY_RING = '#5fe0ff';
@@ -29,6 +29,19 @@ const VISUALS: Record<VisualKey, Omit<RigSpec, 'height' | 'radius' | 'ringColor'
     skin: '#e6c2a0',
     weapon: 'sword',
     headgear: 'helm',
+    cape: true,
+  },
+  // The Vayne silhouette: lean, hooded, cloaked, and violet rather than the
+  // default blue — at this camera distance the outline and the colour are the
+  // whole of a champion's identity, so those are the two things that change.
+  nightHunter: {
+    build: 'lean',
+    primary: '#4a2f6b',
+    secondary: '#1b1030',
+    accent: '#c86bff',
+    skin: '#e3c6ae',
+    weapon: 'bow',
+    headgear: 'hood',
     cape: true,
   },
   ranger: {
@@ -114,6 +127,7 @@ const VISUALS: Record<VisualKey, Omit<RigSpec, 'height' | 'radius' | 'ringColor'
 };
 
 const visualKeyFor = (a: Actor, playerId: number): VisualKey => {
+  if (a.visual === 'nightHunter') return 'nightHunter';
   if (a.id === playerId) return 'player';
   if (a.isMinion) return 'minion';
   if (a.archetype && a.archetype in VISUALS) return a.archetype;
@@ -211,7 +225,7 @@ export class UnitLayer {
       height,
       radius: a.radius,
       ringColor: ally ? ALLY_RING : ENEMY_RING,
-      accent: key === 'player' ? base.accent : arch?.color ?? base.accent,
+      accent: key === 'player' || key === 'nightHunter' ? base.accent : arch?.color ?? base.accent,
     };
   }
 

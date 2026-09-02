@@ -10,6 +10,7 @@ import { ParticleLayer } from './particles';
 import { ProjectileLayer } from './projectiles';
 import { RiftScene, type Quality } from './scene';
 import { UnitLayer } from './units';
+import { WallLayer } from './walls';
 
 /**
  * The renderer the game talks to.
@@ -54,6 +55,7 @@ export class RiftRenderer {
   private decals: DecalLayer;
   private projectiles: ProjectileLayer;
   private particles: ParticleLayer;
+  private walls: WallLayer;
   private overlay: OverlayHud;
   private emptyPaint = newPaint();
 
@@ -79,6 +81,7 @@ export class RiftRenderer {
     this.decals = new DecalLayer(this.scene.world);
     this.projectiles = new ProjectileLayer(this.scene.world);
     this.particles = new ParticleLayer(this.scene.world);
+    this.walls = new WallLayer(this.scene.world);
     this.overlay = new OverlayHud(overlayCanvas);
 
     // Your own movement history, drawn as a fading ribbon on the floor. It is
@@ -199,6 +202,9 @@ export class RiftRenderer {
 
     const cursorWorld = this.screenToWorld(opts.cursor.x, opts.cursor.y);
 
+    // Terrain the drill placed. A no-op on every frame after the first.
+    this.walls.sync(world.walls);
+
     // ------------------------------------------------------------- decals
     this.decals.begin(dt);
 
@@ -239,7 +245,9 @@ export class RiftRenderer {
     // League's destination marker, and it is a better shape than a plain dot:
     // the ticks point at the exact spot, so a marker under a champion is still
     // unambiguous about which pixel you actually clicked.
-    if (player?.order && player.order.kind !== 'hold' && !opts.idle) {
+    // Under direct control the order marker would sit permanently under the
+    // champion's own feet, which says nothing: there is no destination.
+    if (player?.order && player.order.kind !== 'hold' && !opts.idle && !player.directControl) {
       const o = player.order;
       const col = o.kind === 'attackMove' ? '#ffcf6b' : '#6dffb4';
       this.decals.ring(o.pos.x, o.pos.y, 24, { color: col, alpha: 0.8, width: 3, rise: 2.4 });
@@ -455,6 +463,7 @@ export class RiftRenderer {
     if (this.disposed) return;
     this.disposed = true;
     this.units.dispose();
+    this.walls.dispose();
     this.decals.dispose();
     this.projectiles.dispose();
     this.particles.dispose();

@@ -1,6 +1,6 @@
 import { audio } from './audio';
 import { FxSystem } from './fx';
-import type { AbilitySlot, InputSystem } from './input';
+import type { AbilitySlot, InputSystem, MovementScheme } from './input';
 import { clamp, dist } from './math';
 import { MetricsRecorder } from './metrics';
 import { PALETTE } from './palette';
@@ -91,6 +91,8 @@ export interface SessionConfig {
   seed: number;
   difficulty: number;
   abilities: AbilitySlot[];
+  /** How the champion is driven. Defaults to League's click scheme. */
+  scheme?: MovementScheme;
 }
 
 /**
@@ -148,12 +150,23 @@ export class Session {
   attachDrill(d: DrillBase): void {
     this.drill = d;
     d.setup();
+    // Under WASD the champion is steered, not sent: orders still choose what
+    // it shoots at, but nothing walks it anywhere.
+    if (this.scheme === 'wasd') {
+      const p = this.world.player;
+      if (p) p.directControl = true;
+    }
+  }
+
+  get scheme(): MovementScheme {
+    return this.config.scheme ?? 'click';
   }
 
   // ------------------------------------------------------------------ frame
 
   step(dt: number): void {
     this.handleInput();
+    this.applyHeldDirection();
 
     if (this.phase === 'countdown') {
       this.countdown -= dt;
@@ -279,9 +292,15 @@ export class Session {
           if (this.drill?.onClick(w, 'move')) break;
           const target = this.enemyAt(w, player);
           if (target) {
-            this.world.issueAttackTarget(player, target.id);
+            if (this.scheme === 'wasd') this.issueAttackStance(player, w, target.id);
+            else this.world.issueAttackTarget(player, target.id);
             this.drill?.onTargetOrder(target);
             this.metrics.noteClickError(dist(w, target.pos));
+          } else if (this.scheme === 'wasd') {
+            // Nothing under the cursor and nothing to walk toward: the click
+            // is a stance, telling the champion what to shoot at when
+            // something wanders into range.
+            this.issueAttackStance(player, w, undefined);
           } else {
             this.issuePlayerMove(player, w, false);
           }
@@ -291,8 +310,12 @@ export class Session {
           const w = this.renderer.screenToWorld(e.x, e.y);
           this.metrics.noteClick(w, this.world.time);
           if (this.drill?.onClick(w, 'attackMove')) break;
-          this.issuePlayerMove(player, w, true);
           const t = this.enemyAt(w, player);
+          if (this.scheme === 'wasd') {
+            this.issueAttackStance(player, w, t?.id);
+          } else {
+            this.issuePlayerMove(player, w, true);
+          }
           if (t) {
             this.drill?.onTargetOrder(t);
             this.metrics.noteClickError(dist(w, t.pos));
@@ -321,6 +344,36 @@ export class Session {
         default:
           break;
       }
+    }
+  }
+
+  /**
+   * The WASD scheme's movement, applied once per fixed step.
+   *
+   * Held keys are read as state rather than drained as events, so the heading
+   * is exact at any tick rate; the world then applies the same windup rules a
+   * click would have triggered. Everything downstream — orbwalk efficiency,
+   * cancels, the free-window measurement — sees an ordinary moving champion
+   * and cannot tell which hand moved it.
+   */
+  private applyHeldDirection(): void {
+    if (this.scheme !== 'wasd') return;
+    const player = this.world.player;
+    if (!player || !player.alive) return;
+    if (this.phase !== 'running') {
+      if (player.moveDir) player.moveDir = null;
+      return;
+    }
+    const v = this.input.moveVector?.() ?? { x: 0, y: 0 };
+    const wasMoving = player.moveDir !== null;
+    const wasWindup = player.phase === 'windup';
+    this.world.setMoveDir(player, v.x, v.y);
+    if (!wasMoving && player.moveDir) {
+      this.movedSinceRelease = true;
+      // A direction taken during the windup is the same mistake as a click
+      // taken during the windup, and it is called by the same name.
+      if (wasWindup) this.fx.cancel(player.pos);
+      else audio.play('moveCommand', { pan: this.panOf(player.pos) });
     }
   }
 
@@ -385,7 +438,7 @@ export class Session {
   }
 
   /** Where a world point sits in the stereo field. */
-  private panOf(p: Vec2): number {
+  panOf(p: Vec2): number {
     return this.renderer.panAt?.(p) ?? 0;
   }
 
@@ -396,6 +449,16 @@ export class Session {
     if (!wasWindup) this.movedSinceRelease = true;
     audio.play('moveCommand', { pan: this.panOf(w) });
     this.fx.ring(w.x, w.y, 2, attackMove ? 26 : 20, 0.32, attackMove ? PALETTE.warn : PALETTE.accent, 2, 'pulse');
+  }
+
+  /**
+   * WASD's attack order: acquire and fire, but never take a step. The keys own
+   * where the champion is; the mouse only ever owns what it is shooting.
+   */
+  private issueAttackStance(player: Actor, at: Vec2, targetId: number | undefined): void {
+    this.world.issueAttackHere(player, targetId);
+    audio.play('moveCommand', { pan: this.panOf(at) });
+    this.fx.ring(at.x, at.y, 2, 26, 0.32, PALETTE.warn, 2, 'pulse');
   }
 
   private enemyAt(w: Vec2, from: Actor): Actor | null {

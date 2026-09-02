@@ -11,6 +11,7 @@ import {
 } from '../progression/profile';
 import { rankFromRating } from '../progression/ranks';
 import { AXIS_LABEL, SKILL_AXES } from '../progression/skills';
+import { VAYNE_STAGES, isVayneStage, stageUnlocked } from '../progression/vayne';
 import { RankEmblem } from './components/RankEmblem';
 import { Sparkline } from './components/charts';
 import './home.css';
@@ -35,18 +36,23 @@ interface Props {
   onDaily: () => void;
   onProfile: () => void;
   onPlacement: () => void;
+  onVayne: () => void;
 }
+
+/** The path stage behind a Vayne drill id. */
+const stageOf = (id: DrillId) => VAYNE_STAGES[VAYNE_STAGES.findIndex((s) => s.id === id)];
 
 const GROUPS: { id: DrillGroup; title: string; blurb: string }[] = [
   { id: 'FOUNDATION', title: 'Foundation', blurb: 'The inputs everything else is built on' },
   { id: 'RHYTHM', title: 'Rhythm', blurb: 'Timing between your hands and the clock' },
   { id: 'COMBAT', title: 'Combat', blurb: 'All of it, against something that fights back' },
+  { id: 'VAYNE', title: 'Vayne', blurb: 'One champion, learned in order' },
 ];
 
 const metricFormat = (key: string): 'ms' | 'units' | 'pct' =>
   key.includes('REACTION') || key.includes('SPEED') ? 'ms' : key.includes('ERROR') ? 'units' : 'pct';
 
-export function Home({ profile, onPlay, onDaily, onProfile, onPlacement }: Props) {
+export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne }: Props) {
   const rank = rankFromRating(profile.overall);
   const best = bestAxis(profile);
   const priority = trainingPriority(profile);
@@ -105,17 +111,22 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement }: Props
               {DRILL_LIST.filter((d) => d.group === g.id).map((d) => {
                 const rec = profile.bests[d.id];
                 const on = selected === d.id;
+                // A stage of the champion path is locked here exactly as it is
+                // locked there. One list saying "locked" while another happily
+                // launches it would make the course meaningless.
+                const locked = isVayneStage(d.id) && !stageUnlocked(profile.vayne, stageOf(d.id));
                 return (
                   <button
                     key={d.id}
-                    className={`rowitem${on ? ' on' : ''}`}
+                    className={`rowitem${on ? ' on' : ''}${locked ? ' locked' : ''}`}
                     style={{ ['--c' as string]: d.accent }}
                     onMouseEnter={() => audio.play('uiHover')}
-                    onClick={() => pick(d.id)}
+                    onClick={() => (locked ? onVayne() : pick(d.id))}
+                    title={locked ? 'Locked — clear the previous stage on the Vayne path' : undefined}
                   >
                     <span className="ri-bar" />
                     <span className="ri-name">{d.name}</span>
-                    <span className="ri-best mono">{rec ? rec.score.toLocaleString() : '—'}</span>
+                    <span className="ri-best mono">{locked ? '🔒' : rec ? rec.score.toLocaleString() : '—'}</span>
                   </button>
                 );
               })}

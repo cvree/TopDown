@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { audio } from '../engine/audio';
-import { ACTION_LABELS, DEFAULT_BINDINGS, codeLabel, type ActionId, type Binding } from '../engine/input';
+import {
+  ACTION_LABELS,
+  codeLabel,
+  defaultsFor,
+  type ActionId,
+  type Binding,
+  type MovementScheme,
+} from '../engine/input';
 import type { AppSettings } from '../progression/profile';
 import { hasBrowserMouseGestures } from './components/GestureNotice';
 import './settings.css';
@@ -11,7 +18,29 @@ interface Props {
   onBack: () => void;
 }
 
-const ACTIONS: ActionId[] = [
+/** The click scheme's binding list, in the order a League player expects it. */
+const CLICK_ACTIONS: ActionId[] = [
+  'move',
+  'attackMove',
+  'stop',
+  'q',
+  'w',
+  'e',
+  'r',
+  'd',
+  'f',
+  'centerCamera',
+  'cameraLock',
+  'reset',
+  'pause',
+];
+
+/** WASD's list leads with the four keys that define it. */
+const WASD_ACTIONS: ActionId[] = [
+  'moveUp',
+  'moveLeft',
+  'moveDown',
+  'moveRight',
   'move',
   'attackMove',
   'stop',
@@ -29,13 +58,21 @@ const ACTIONS: ActionId[] = [
 
 export function Settings({ settings, onChange, onBack }: Props) {
   const [capturing, setCapturing] = useState<ActionId | null>(null);
+  const scheme: MovementScheme = settings.movementScheme ?? 'click';
+  const wasd = scheme === 'wasd';
+  // Each scheme keeps its own rebinds. Sharing one map would mean switching to
+  // WASD silently broke a layout you had tuned for clicking, and switching
+  // back would not repair it.
+  const overrides = wasd ? settings.wasdBindings ?? {} : settings.bindings ?? {};
+  const actions = wasd ? WASD_ACTIONS : CLICK_ACTIONS;
 
-  const bindingFor = (a: ActionId): Binding => settings.bindings[a] ?? DEFAULT_BINDINGS[a];
+  const bindingFor = (a: ActionId): Binding => overrides[a] ?? defaultsFor(scheme)[a];
 
   useEffect(() => {
     if (!capturing) return;
     const finish = (code: string) => {
-      onChange({ bindings: { ...settings.bindings, [capturing]: { primary: code } } });
+      const next = { ...overrides, [capturing]: { primary: code } };
+      onChange(wasd ? { wasdBindings: next } : { bindings: next });
       setCapturing(null);
       audio.play('uiClick');
     };
@@ -59,7 +96,7 @@ export function Settings({ settings, onChange, onBack }: Props) {
       window.removeEventListener('mousedown', onMouse, true);
       window.removeEventListener('contextmenu', preventDefault, true);
     };
-  }, [capturing, onChange, settings.bindings]);
+  }, [capturing, onChange, overrides, wasd]);
 
   return (
     <div className="scroll">
@@ -69,9 +106,63 @@ export function Settings({ settings, onChange, onBack }: Props) {
 
         <div className="set-grid">
           <section className="panel pad">
+            <div className="panel-title">Movement</div>
+            <div className="scheme-pick">
+              {(
+                [
+                  {
+                    id: 'click' as MovementScheme,
+                    name: 'CLICK TO MOVE',
+                    sub: 'League',
+                    body: 'Right click to move, right click a unit to attack it. The scheme every MOBA habit is built on, and the one your muscle memory has to transfer to.',
+                  },
+                  {
+                    id: 'wasd' as MovementScheme,
+                    name: 'WASD',
+                    sub: 'Direct control',
+                    body: 'The left hand steers, the mouse only ever targets. Release the keys to attack — holding a direction through the windup throws the attack away, exactly as a click does.',
+                  },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  className={`scheme-card${scheme === opt.id ? ' on' : ''}`}
+                  onMouseEnter={() => audio.play('uiHover')}
+                  onClick={() => {
+                    if (scheme === opt.id) return;
+                    audio.play('uiClick');
+                    onChange({ movementScheme: opt.id });
+                  }}
+                >
+                  <div className="sc-head">
+                    <b>{opt.name}</b>
+                    <span>{opt.sub}</span>
+                  </div>
+                  <p>{opt.body}</p>
+                  <div className="sc-keys">
+                    {(opt.id === 'click'
+                      ? ['RMB', 'A', 'S', 'Q', 'W', 'E', 'R']
+                      : ['W', 'A', 'S', 'D', 'Q', 'E', 'R', 'F']
+                    ).map((k) => (
+                      <kbd className="kbd" key={k}>
+                        {k}
+                      </kbd>
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <p className="set-note">
+              {wasd
+                ? 'W, A, S and D drive the champion, so the ability row moves one seat over: Q, E, R and F are Q, W, E and R, the summoners are 1 and 2, and stop is X. Everything below is rebindable and applies to this scheme only.'
+                : 'Scores are identical under either scheme — both obey the same windup rule, and the free-movement window is measured the same way.'}
+            </p>
+          </section>
+
+          <section className="panel pad">
             <div className="panel-title">Controls</div>
             <div className="bind-list">
-              {ACTIONS.map((a) => {
+              {actions.map((a) => {
                 const b = bindingFor(a);
                 return (
                   <div className="bind-row" key={a}>
@@ -90,14 +181,17 @@ export function Settings({ settings, onChange, onBack }: Props) {
             <button
               className="btn ghost sm"
               style={{ marginTop: 16 }}
-              onClick={() => onChange({ bindings: {} })}
+              onClick={() => onChange(wasd ? { wasdBindings: {} } : { bindings: {} })}
             >
               Restore defaults
             </button>
             <p className="set-note">
               Attack-move fires on the confirm button while the modifier is held. A bare left click also
               issues an attack-move, so you can train the habit without being punished for forgetting the
-              modifier. <b>R</b> doubles as instant reset in drills with no ultimate bound.
+              modifier.{' '}
+              {wasd
+                ? 'Under WASD an attack order never walks you anywhere — it only chooses what you shoot.'
+                : 'R doubles as instant reset in drills with no ultimate bound.'}
             </p>
             {hasBrowserMouseGestures() && (
               <p className="set-note">
