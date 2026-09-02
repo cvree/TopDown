@@ -1,6 +1,6 @@
 import { clamp, dist } from '../engine/math';
 import { PALETTE } from '../engine/palette';
-import { hexA } from '../engine/renderer';
+import type { DrillPaint } from '../engine/paint';
 import { derive } from '../engine/metrics';
 import type { HudField } from '../engine/session';
 import { Drill, band, count, pct, secs, type DrillOutcome } from './base';
@@ -86,24 +86,28 @@ export class KiteDrill extends Drill {
     for (const e of events) if (e.type === 'death' && e.byPlayer) this.kills++;
   }
 
-  drawOverlay(ctx: CanvasRenderingContext2D, scale: number, t: number): void {
+  paint(out: DrillPaint, t: number): void {
     const p = this.s.world.player;
     if (!p) return;
-    // Threat rings: the distance at which each pursuer can hit you.
+    // Threat rings: the distance at which each pursuer can hit you. The one
+    // you are standing inside lights up and fills, because that is the only
+    // one that is costing you anything.
     for (const e of this.s.world.enemies()) {
       const r = e.attack.range + p.radius;
       const inside = dist(p.pos, e.pos) < r;
-      ctx.beginPath();
-      ctx.arc(e.pos.x, e.pos.y, r, 0, Math.PI * 2);
-      ctx.strokeStyle = hexA(PALETTE.danger, inside ? 0.5 + 0.2 * Math.sin(t * 8) : 0.2);
-      ctx.setLineDash([6, 10]);
-      ctx.lineWidth = 1.6 / scale;
-      ctx.stroke();
-      ctx.setLineDash([]);
-      if (inside) {
-        ctx.fillStyle = hexA(PALETTE.danger, 0.05);
-        ctx.fill();
-      }
+      out.markers.push({
+        kind: 'ring',
+        x: e.pos.x,
+        y: e.pos.y,
+        radius: r,
+        color: PALETTE.danger,
+        alpha: inside ? 0.55 + 0.2 * Math.sin(t * 8) : 0.22,
+        width: inside ? 4 : 2.5,
+        dash: 46,
+        spin: -0.22,
+        fill: inside ? 0.07 : 0,
+        rise: 1.8,
+      });
     }
   }
 

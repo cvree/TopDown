@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
 import { DEFAULT_BINDINGS, InputSystem, type AbilitySlot, type Bindings } from '../engine/input';
 import { GameLoop } from '../engine/loop';
 import { derive } from '../engine/metrics';
-import { PALETTE } from '../engine/palette';
-import { Renderer } from '../engine/renderer';
-import { Session, type HudSnapshot } from '../engine/session';
+import { clearPaint, newPaint } from '../engine/paint';
+import { ABILITY_BAR, Session, type HudSnapshot } from '../engine/session';
+import { RiftRenderer } from '../gfx/RiftRenderer';
 import { arenaFor, createDrill } from '../drills';
 import { DRILLS, type DrillId } from '../drills/catalog';
-import type { RunResult } from '../progression/profile';
-import type { AppSettings } from '../progression/profile';
+import type { AppSettings, RunResult } from '../progression/profile';
+import { Minimap } from './hud/Minimap';
 import './gameview.css';
 
 interface Props {
@@ -32,9 +32,13 @@ const bindingsFrom = (settings: AppSettings): Bindings => {
   return out;
 };
 
+
+
 export function GameView({ drill, difficulty, seed, settings, context, onComplete, onExit, onRetry }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const minimapRef = useRef<HTMLCanvasElement>(null);
   const hudRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<'countdown' | 'running' | 'paused' | 'ended'>('countdown');
   const doneRef = useRef(false);
@@ -44,12 +48,18 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
   // be driven by, or wait on, a render pass.
   useEffect(() => {
     const canvas = canvasRef.current;
+    const overlay = overlayRef.current;
     const host = hostRef.current;
-    if (!canvas || !host) return;
+    const minimapCanvas = minimapRef.current;
+    if (!canvas || !host || !overlay || !minimapCanvas) return;
     doneRef.current = false;
 
     const bounds = arenaFor(drill);
-    const renderer = new Renderer(canvas);
+    const renderer = new RiftRenderer(canvas, overlay, bounds, meta.accent, seed % 997);
+    renderer.setQuality(settings.lowFx ? 'low' : 'high');
+    const minimap = new Minimap(minimapCanvas);
+    minimap.resize(158);
+
     const input = new InputSystem({
       bindings: bindingsFrom(settings),
       quickCast: settings.quickCast,
@@ -67,6 +77,8 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
       session.abort();
     };
 
+    const paint = newPaint();
+
     // An opt-in handle for automated testing and for players who want to
     // inspect a run. Off unless ?debug is present, so it never ships as a
     // stray global.
@@ -76,12 +88,19 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
     }
 
     input.attach(canvas);
-    renderer.resize(bounds.w, bounds.h);
+    renderer.resize();
     audio.unlock();
     audio.stopAmbience();
+    audio.startArenaBed();
 
-    const ro = new ResizeObserver(() => renderer.resize(bounds.w, bounds.h));
+    const ro = new ResizeObserver(() => renderer.resize());
     ro.observe(host);
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      renderer.zoomBy(Math.sign(e.deltaY) * 0.09);
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
 
     // --- HUD elements, written to directly each frame -------------------
     const hud = hudRef.current!;
@@ -91,31 +110,53 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
     const elChain = q<HTMLDivElement>('[data-chain]');
     const elChainN = q<HTMLDivElement>('[data-chain-n]');
     const elHp = q<HTMLDivElement>('[data-hp]');
-    const elHpWrap = q<HTMLDivElement>('[data-hp-wrap]');
+    const elHpText = q<HTMLDivElement>('[data-hp-text]');
+    const elCycle = q<HTMLDivElement>('[data-cycle]');
+    const elCycleFill = q<HTMLDivElement>('[data-cycle-fill]');
+    const elCycleLabel = q<HTMLDivElement>('[data-cycle-label]');
     const elFps = q<HTMLDivElement>('[data-fps]');
     const elBanner = q<HTMLDivElement>('[data-banner]');
     const elCount = q<HTMLDivElement>('[data-count]');
     const fieldEls = Array.from(hud.querySelectorAll('[data-field]')) as HTMLDivElement[];
+    const abilityEls = Array.from(hud.querySelectorAll('[data-ability]')) as HTMLDivElement[];
 
     let lastHudWrite = 0;
     let lastPhase: string = session.phase;
+    let endedAt = 0;
+    let slowFrames = 0;
+    let quality: 'high' | 'medium' | 'low' = settings.lowFx ? 'low' : 'high';
 
     const writeHud = (snap: HudSnapshot, now: number) => {
-      if (now - lastHudWrite < 45) return;
+      if (now - lastHudWrite < 42) return;
       lastHudWrite = now;
       const t = snap.timeLeft;
       elTime.textContent =
         meta.duration > 0
           ? `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`
           : `${t.toFixed(1)}`;
-      if (meta.duration > 0 && t < 5.5) elTime.classList.add('urgent');
-      else elTime.classList.remove('urgent');
+      elTime.classList.toggle('urgent', meta.duration > 0 && t < 5.5);
 
       elScore.textContent = snap.score.toLocaleString();
+
       const hpPct = Math.max(0, (snap.hp / Math.max(1, snap.maxHp)) * 100);
       elHp.style.width = `${hpPct}%`;
-      elHp.style.background = hpPct < 30 ? PALETTE.danger : hpPct < 60 ? PALETTE.warn : PALETTE.good;
-      elHpWrap.style.opacity = snap.maxHp > 1 ? '1' : '0';
+      elHp.classList.toggle('low', hpPct < 30);
+      elHpText.textContent = snap.maxHp > 1 ? `${Math.round(snap.hp)} / ${Math.round(snap.maxHp)}` : '—';
+
+      // The attack-cycle bar. This is the drill's whole thesis made visible:
+      // amber means committed, green means the backswing is yours to cancel.
+      const phaseName = snap.attackPhase;
+      elCycle.dataset.state = phaseName;
+      if (phaseName === 'windup') {
+        elCycleFill.style.width = `${snap.attackPhaseT * 100}%`;
+        elCycleLabel.textContent = 'WINDUP · COMMITTED';
+      } else if (phaseName === 'backswing') {
+        elCycleFill.style.width = `${(1 - snap.attackPhaseT) * 100}%`;
+        elCycleLabel.textContent = 'BACKSWING · FREE TO MOVE';
+      } else {
+        elCycleFill.style.width = `${snap.attackCd * 100}%`;
+        elCycleLabel.textContent = snap.attackCd > 0.02 ? 'WINDING DOWN' : 'READY';
+      }
 
       if (snap.chain >= 2) {
         elChain.classList.add('on');
@@ -147,6 +188,18 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
         }
       }
 
+      for (let i = 0; i < abilityEls.length; i++) {
+        const a = snap.abilities[i];
+        const el = abilityEls[i];
+        if (!a) continue;
+        el.classList.toggle('locked', a.locked);
+        el.classList.toggle('highlight', a.highlight);
+        const cd = el.querySelector('[data-ab-cd]') as HTMLElement;
+        cd.style.height = `${Math.round(a.cd * 100)}%`;
+        const name = el.querySelector('[data-ab-name]') as HTMLElement;
+        if (name.textContent !== a.name) name.textContent = a.name;
+      }
+
       elFps.textContent = `${Math.round(snap.fps)}`;
       elBanner.textContent = snap.banner ?? '';
       elBanner.style.opacity = snap.banner ? '1' : '0';
@@ -160,6 +213,9 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
         session.step(dt);
       },
       (alpha, dtWall) => {
+        clearPaint(paint);
+        drillInstance.paint(paint, session.world.time);
+
         renderer.render(session.world, session.fx, alpha, dtWall, {
           cursor: input.cursor,
           showRange: settings.showRange,
@@ -169,19 +225,46 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
           dimmed: session.phase === 'paused' ? 0.55 : session.dimmed,
           hitFeedback: session.hitFeedback,
           lowFx: settings.lowFx,
-          overlay: (ctx, scale, t) => drillInstance.drawOverlay(ctx, scale, t),
+          paint,
+          idle: session.phase === 'countdown',
         });
 
         const now = performance.now();
         writeHud(session.hud(loop.stats.fps), now);
+        minimap.draw(session.world, renderer.scene.rig.coverage, renderer.scene.rig.focus, meta.accent);
+
+        // Quality falls back on its own rather than asking the player to find
+        // a setting. Scores must never depend on the machine.
+        if (!settings.lowFx) {
+          if (loop.stats.fps < 42) slowFrames++;
+          else slowFrames = Math.max(0, slowFrames - 2);
+          if (slowFrames > 120 && quality === 'high') {
+            quality = 'medium';
+            renderer.setQuality('medium');
+            slowFrames = 0;
+          } else if (slowFrames > 180 && quality === 'medium') {
+            quality = 'low';
+            renderer.setQuality('low');
+            slowFrames = 0;
+          }
+        }
 
         if (session.phase !== lastPhase) {
           lastPhase = session.phase;
           setPhase(session.phase);
         }
 
+        // Once the run is over the results panel owns the screen. Letting the
+        // arena keep rendering behind it costs a full frame budget for a view
+        // nobody is looking at — and on a slow machine it starves the reveal.
+        if (doneRef.current && endedAt && now - endedAt > 1000) {
+          loop.stop();
+          return;
+        }
+
         if (session.phase === 'ended' && !doneRef.current) {
           doneRef.current = true;
+          endedAt = now;
           const out = drillInstance.outcome();
           const m = session.metrics.m;
           const result: RunResult = {
@@ -200,7 +283,7 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
             advice: out.advice,
           };
           // Let the death/victory effects land before the results take over.
-          window.setTimeout(() => onComplete(result, bounds), session.endReason === 'abort' ? 0 : 620);
+          window.setTimeout(() => onComplete(result, bounds), session.endReason === 'abort' ? 0 : 700);
         }
       },
     );
@@ -209,8 +292,11 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
     return () => {
       loop.stop();
       ro.disconnect();
+      canvas.removeEventListener('wheel', onWheel);
       input.detach();
       session.fx.clear();
+      audio.stopArenaBed();
+      renderer.dispose();
       if (debug) delete (window as unknown as { __apex?: unknown }).__apex;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -224,93 +310,120 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
   return (
     <div className="game-host" ref={hostRef}>
       <canvas ref={canvasRef} className="game-canvas" tabIndex={0} />
+      <canvas ref={overlayRef} className="game-overlay" />
 
       <div className="hud" ref={hudRef}>
-        <div className="hud-top">
-          <div className="hud-drill">
-            {context && <div className="hud-context">{context}</div>}
-            <div className="hud-name display">{meta.name}</div>
-            <div className="hud-tag">{meta.tagline}</div>
-          </div>
+        <div className="hud-objective panel-rift">
+          {context && <div className="hud-context">{context}</div>}
+          <div className="hud-name">{meta.name}</div>
+          <div className="hud-tag">{meta.tagline}</div>
+          <div className="hud-brief">{meta.brief}</div>
+        </div>
 
-          <div className="hud-center">
-            <div className="hud-time num" data-time>
-              0:00
-            </div>
-            <div className="hud-score-wrap">
-              <span className="eyebrow">SCORE</span>
-              <span className="hud-score num" data-score>
-                0
-              </span>
+        <div className="hud-clock">
+          <div className="hud-time num" data-time>
+            0:00
+          </div>
+          <div className="hud-score-row">
+            <span className="hud-score-label">SCORE</span>
+            <span className="hud-score num" data-score>
+              0
+            </span>
+          </div>
+        </div>
+
+        <div className="hud-right">
+          <div className="hud-diff">
+            <span className="hud-diff-label">DIFFICULTY</span>
+            <div className="diff-bars">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <span key={i} className={i < Math.round(difficulty * 10) ? 'on' : ''} />
+              ))}
             </div>
           </div>
-
-          <div className="hud-right">
-            <div className="hud-diff">
-              <span className="eyebrow">DIFFICULTY</span>
-              <div className="diff-bars">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <span key={i} className={i < Math.round(difficulty * 10) ? 'on' : ''} />
-                ))}
-              </div>
-            </div>
-            <div className="hud-fps">
-              <span data-fps>60</span> FPS
-            </div>
+          <div className="hud-fps">
+            <span data-fps>60</span> FPS
           </div>
         </div>
 
         <div className="hud-banner" data-banner />
-        <div className="hud-count display" data-count />
+        <div className="hud-count" data-count />
 
-        <div className="hud-bottom">
-          <div className="hud-fields">
-            {[0, 1, 2].map((i) => (
-              <div className="hud-field" data-field key={i}>
-                <div className="hud-field-label" data-fl />
-                <div className="hud-field-value tone-neutral" data-fv />
-                <div className="hud-field-bar" data-fb>
-                  <span />
-                </div>
+        <div className="hud-chain" data-chain>
+          <span className="hud-chain-n num" data-chain-n>
+            2
+          </span>
+          <span className="hud-chain-label">CLEAN CHAIN</span>
+        </div>
+
+        <div className="hud-stats">
+          {[0, 1, 2].map((i) => (
+            <div className="hud-field" data-field key={i}>
+              <div className="hud-field-label" data-fl />
+              <div className="hud-field-value tone-neutral" data-fv />
+              <div className="hud-field-bar" data-fb>
+                <span />
               </div>
-            ))}
+            </div>
+          ))}
+        </div>
+
+        <div className="champ-frame">
+          <div className="cf-portrait">
+            <svg viewBox="0 0 48 48" aria-hidden>
+              <path d="M24 5 L41 38 H7 Z" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
+              <path d="M24 17 L32 33 H16 Z" fill="currentColor" />
+            </svg>
           </div>
 
-          <div className="hud-center-bottom">
-            <div className="hud-chain" data-chain>
-              <span className="hud-chain-x">×</span>
-              <span className="hud-chain-n num" data-chain-n>
-                2
-              </span>
-              <span className="hud-chain-label">CLEAN CHAIN</span>
+          <div className="cf-body">
+            <div className="cf-bar-row">
+              <div className="cf-hp">
+                <span data-hp />
+                <em data-hp-text>—</em>
+              </div>
             </div>
-            <div className="hud-hp" data-hp-wrap>
-              <span data-hp />
+
+            <div className="cf-cycle" data-cycle data-state="idle">
+              <span className="cf-cycle-fill" data-cycle-fill />
+              <em className="cf-cycle-label" data-cycle-label>
+                READY
+              </em>
+            </div>
+
+            <div className="cf-abilities">
+              {ABILITY_BAR.map((s, i) => (
+                <Fragment key={s}>
+                  {i === 4 && <div className="ab-sep" />}
+                  <div className={`ability${i >= 4 ? ' summoner' : ''}`} data-ability>
+                    <span className="ab-cd" data-ab-cd />
+                    <span className="ab-key">{s.toUpperCase()}</span>
+                    <span className="ab-name" data-ab-name />
+                  </div>
+                </Fragment>
+              ))}
             </div>
           </div>
 
-          <div className="hud-keys">
+          <div className="cf-keys">
             <div>
-              <span className="kbd">RMB</span> move / attack
+              <span className="kbd">RMB</span> move · attack
             </div>
             <div>
               <span className="kbd">A</span>
               <span className="kbd">LMB</span> attack-move
             </div>
-            {meta.abilities.length > 0 && (
-              <div>
-                {meta.abilities.map((a) => (
-                  <span className="kbd" key={a}>
-                    {a.toUpperCase()}
-                  </span>
-                ))}{' '}
-                abilities
-              </div>
-            )}
+            <div>
+              <span className="kbd">S</span> stop · <span className="kbd">WHEEL</span> zoom
+            </div>
             <div>
               <span className="kbd">ESC</span> pause · <span className="kbd">`</span> reset
             </div>
           </div>
+        </div>
+
+        <div className="hud-minimap">
+          <canvas ref={minimapRef} />
         </div>
       </div>
 
@@ -318,8 +431,8 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
         <div className="pause-overlay fade-in">
           <div className="pause-card scale-in">
             <div className="eyebrow">PAUSED</div>
-            <h2 className="display">{meta.name}</h2>
-            <p className="dim" style={{ maxWidth: 380, margin: '0 0 22px' }}>
+            <h2>{meta.name}</h2>
+            <p className="dim" style={{ maxWidth: 400, margin: '0 0 22px' }}>
               {meta.brief}
             </p>
             <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>

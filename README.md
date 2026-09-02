@@ -3,9 +3,16 @@
 A browser-based mechanics trainer for MOBA players, built around one idea: the
 thing that feels rewarding should be the thing that actually makes you better.
 
-Eleven drills, a ranked mechanical skill system driven by measured performance
-rather than time played, and a results screen designed so you can see exactly
-what you did and what it cost you.
+It plays in a real 3D arena — a locked overhead camera, champions with
+silhouettes you can read at a glance, and every piece of gameplay information
+drawn on the ground where the thing it is about actually is. Eleven drills, a
+ranked mechanical skill system driven by measured performance rather than time
+played, and a results screen designed so you can see exactly what you did and
+what it cost you.
+
+Nothing is downloaded at runtime. The stone, the rock, the turf, the champions
+and every effect are generated in code at load time, so the whole trainer still
+fits in a single HTML file.
 
 ```
 npm install
@@ -120,25 +127,67 @@ changed a score.
 | `Q` `W` `E` `R` | Abilities (drills that use them) |
 | `D` `F` | Summoners — blink in the arenas |
 | `S` | Stop |
+| Mouse wheel | Zoom. The camera follows your champion once you are zoomed past the arena bounds |
 | `` ` `` / `Enter` | Instant reset |
 | `Esc` | Pause |
 
 All bindings are remappable in Settings, along with quick cast. In drills with
 no ultimate bound, `R` also acts as instant reset.
 
+## The arena
+
+The renderer is a three.js scene built entirely from code.
+
+- **Terrain.** A sunken amphitheatre: a dead-level paved playfield, a stone
+  kerb, three terraces, then turf and cliffs. The playfield being perfectly flat
+  is a gameplay decision, not a shortcut — it means every ground indicator can
+  hug the floor without a height query and without z-fighting.
+- **Surfaces.** Ashlar masonry, layered rock and turf are painted into canvases
+  at load time from value, cellular and fBm noise, with normal maps derived from
+  the same height fields. Terrain is sampled triplanar, so cliff faces do not
+  wear vertically smeared grass.
+- **Champions.** Hierarchies of primitives posed by a procedural animator rather
+  than skinned meshes playing clips. That buys the thing that matters here: the
+  attack pose is driven by the simulation's own windup timer, so the windup you
+  see is frame-exact against the windup being scored. Each archetype has its own
+  silhouette, because at this camera distance silhouette is all that survives.
+- **Camera.** League's locked follow camera. The ground footprint is solved from
+  the real frustum rays rather than assumed symmetric — a pitched camera sees
+  far more ground away from itself than toward itself — so the whole arena stays
+  framed at every aspect ratio, and the camera only starts following you once
+  you zoom in past the arena bounds.
+- **Indicators.** Ranges, click markers, telegraphs and drill markers are real
+  geometry lying on the floor, drawn by one analytic shader. Health bars,
+  nameplates and combat text are projected into a 2D overlay so they stay
+  pixel-crisp and the same size near and far.
+- **Cost.** Shadows, bloom and the grade pass step down automatically if frame
+  rate drops, and "Reduced effects" in Settings turns them off outright. The
+  simulation is untouched by any of it, so scores never depend on the machine.
+
+The menus are fronted by the same arena, rendered live at a capped frame rate.
+
 ## Architecture
 
 ```
-src/engine/     simulation: world, combat, AI, metrics, renderer, audio, input
+src/engine/     simulation: world, combat, AI, metrics, audio, input, paint
+src/gfx/        the 3D renderer: scene, terrain, champions, decals, VFX, camera
 src/drills/     one file per drill; each owns its rules and its scoring
 src/progression/ rating maths, rank ladder, profile persistence
 src/ui/         React shell, HUD, results, profile, rank-up
 tools/          headless test harnesses
 ```
 
+The boundary between `engine` and `gfx` is deliberate and narrow. The
+simulation knows nothing about three.js; the renderer knows nothing about
+drills. Drills describe what they want to say — "a countdown ring around this
+node", "a caret over the priority target" — as ground markers and billboards
+(`src/engine/paint.ts`), and the renderer decides how that is realised. That is
+what let the original flat 2D canvas renderer be replaced wholesale without
+touching a line of scoring.
+
 React renders menus and the results screens. It never touches the simulation
 during play: the game loop owns the canvas, and the HUD is written to through
-DOM refs at ~20Hz, so a React render can never sit between your click and the
+DOM refs at ~24Hz, so a React render can never sit between your click and the
 game reacting to it.
 
 Progress is stored in `localStorage` under `apex.profile.v1` — no account, no
@@ -152,4 +201,5 @@ to GitHub Pages via `.github/workflows/deploy.yml`. Enable it once under
 paths, so it also works from any static host or subdirectory.
 
 `npm run build:single` additionally emits `dist/apex-single.html` — the whole
-trainer inlined into one file, for hosts that only take a single document.
+trainer, arena included, inlined into one file for hosts that only take a
+single document.

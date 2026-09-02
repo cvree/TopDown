@@ -125,7 +125,7 @@
   position: relative;
   height: 5px;
   border-radius: 99px;
-  background: rgba(140, 190, 240, 0.11);
+  background: rgba(200, 170, 110, 0.14);
   margin: 7px 0 6px;
   overflow: visible;
 }
@@ -245,7 +245,7 @@
   width: 90px;
   height: 4px;
   border-radius: 99px;
-  background: rgba(140, 190, 240, 0.12);
+  background: rgba(200, 170, 110, 0.14);
   overflow: hidden;
 }
 .tiny-bar span {

@@ -1,7 +1,7 @@
 import { audio } from '../engine/audio';
 import { clamp } from '../engine/math';
 import { PALETTE } from '../engine/palette';
-import { hexA } from '../engine/renderer';
+import type { DrillPaint } from '../engine/paint';
 import type { HudField } from '../engine/session';
 import type { Actor } from '../engine/types';
 import type { WorldEvent } from '../engine/world';
@@ -129,20 +129,24 @@ export class LastHitDrill extends Drill {
     }
   }
 
-  drawOverlay(ctx: CanvasRenderingContext2D, scale: number, t: number): void {
+  paint(out: DrillPaint, t: number): void {
     const p = this.s.world.player;
     if (!p) return;
     for (const m of this.minions) {
-      if (!m.alive) continue;
-      const killable = m.hp <= p.attack.damage;
-      if (!killable) continue;
-      // A minion that will die to your next attack gets a clear, calm mark.
+      if (!m.alive || m.hp > p.attack.damage) continue;
+      // A minion that dies to your next attack gets a clear, calm mark. It
+      // never tells you *when* to click — only that this one is now worth it.
       const pulse = 0.55 + 0.45 * Math.sin(t * 9);
-      ctx.beginPath();
-      ctx.arc(m.pos.x, m.pos.y, m.radius + 12 + pulse * 3, 0, Math.PI * 2);
-      ctx.strokeStyle = hexA(PALETTE.good, 0.5 + pulse * 0.4);
-      ctx.lineWidth = 2.4 / scale;
-      ctx.stroke();
+      out.markers.push({
+        kind: 'ring',
+        x: m.pos.x,
+        y: m.pos.y,
+        radius: m.radius + 14 + pulse * 4,
+        color: PALETTE.good,
+        alpha: 0.55 + pulse * 0.4,
+        width: 4,
+        rise: 2.4,
+      });
     }
   }
 

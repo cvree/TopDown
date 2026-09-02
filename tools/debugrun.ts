@@ -1,10 +1,9 @@
 import { SIM_DT } from '../src/engine/loop';
-import { Session } from '../src/engine/session';
+import { Session, type ViewProjection } from '../src/engine/session';
 import { createDrill, arenaFor } from '../src/drills';
 import { DRILLS, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
 import type { InputEventKind, InputSystem } from '../src/engine/input';
-import type { Renderer } from '../src/engine/renderer';
 import { dist, norm } from '../src/engine/math';
 
 (globalThis as unknown as { window: unknown }).window = { setTimeout: (f: () => void, m: number) => setTimeout(f, m) };
@@ -12,7 +11,7 @@ import { dist, norm } from '../src/engine/math';
 
 class FakeInput { cursor = { x: 0, y: 0 }; queue: InputEventKind[] = []; totalClicks = 0;
   drain() { const q = this.queue; this.queue = []; return q; } push(e: InputEventKind) { this.queue.push(e); } }
-const fakeRenderer = { screenToWorld: (x: number, y: number) => ({ x, y }) } as unknown as Renderer;
+const fakeRenderer = { screenToWorld: (x: number, y: number) => ({ x, y }) } as unknown as ViewProjection;
 
 const id = (process.argv[2] ?? 'kite') as DrillId;
 const difficulty = Number(process.argv[3] ?? 0.45);

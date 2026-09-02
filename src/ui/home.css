@@ -92,7 +92,7 @@
 .sr-bar {
   height: 5px;
   border-radius: 99px;
-  background: rgba(140, 190, 240, 0.11);
+  background: rgba(200, 170, 110, 0.14);
   overflow: hidden;
 }
 .sr-bar span {
@@ -239,19 +239,35 @@
   position: relative;
   text-align: left;
   padding: 22px 24px 20px;
-  border-radius: var(--r-lg);
   border: 1px solid var(--stroke);
-  background: var(--panel);
+  background: linear-gradient(165deg, var(--panel-2), var(--panel));
   overflow: hidden;
-  transition: transform 0.18s var(--ease), border-color 0.22s, background 0.22s;
+  transition: transform 0.18s var(--ease), border-color 0.22s, background 0.22s, box-shadow 0.22s;
   display: flex;
   flex-direction: column;
   min-height: 246px;
+  /* Cut corner, top-left, matching the panel language. */
+  clip-path: polygon(16px 0, 100% 0, 100% 100%, 0 100%, 0 16px);
+}
+.drill-card::before {
+  /* A bar of the drill's own colour along the top edge: the card is labelled
+     by hue before you have read a word of it. */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--c), transparent 78%);
+  opacity: 0.75;
 }
 .drill-card:hover {
   transform: translateY(-3px);
-  border-color: color-mix(in srgb, var(--c) 45%, transparent);
-  background: var(--panel-2);
+  border-color: color-mix(in srgb, var(--c) 50%, transparent);
+  box-shadow: 0 18px 44px -22px color-mix(in srgb, var(--c) 70%, transparent);
+}
+.drill-card:hover::before {
+  opacity: 1;
 }
 .dc-glow {
   position: absolute;
@@ -294,9 +310,8 @@
   line-height: 1.5;
   color: var(--text-3);
   padding: 10px 12px;
-  border-radius: var(--r-sm);
-  background: rgba(255, 255, 255, 0.022);
-  border-left: 2px solid color-mix(in srgb, var(--c) 55%, transparent);
+  background: rgba(0, 0, 0, 0.24);
+  border-left: 2px solid color-mix(in srgb, var(--c) 60%, transparent);
   margin-bottom: auto;
 }
 .dc-transfer .eyebrow {

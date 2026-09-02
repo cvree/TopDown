@@ -9,22 +9,23 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 7px 14px 7px 9px;
-  border-radius: 99px;
+  padding: 7px 18px 7px 11px;
   border: 1px solid var(--stroke);
-  background: var(--panel);
+  background: linear-gradient(160deg, var(--panel-2), var(--panel));
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
 }
 .rank-chip:hover {
-  border-color: var(--stroke-hot);
-  background: var(--panel-2);
+  border-color: var(--stroke-2);
+  background: linear-gradient(160deg, rgba(24, 42, 68, 0.95), rgba(12, 24, 42, 0.92));
 }
 .rc-label {
   font-family: var(--display);
-  font-size: 11px;
-  letter-spacing: 0.14em;
+  font-size: 12px;
+  letter-spacing: 0.16em;
   line-height: 1.1;
+  color: var(--gold-hot);
 }
 .rc-rating {
   font-size: 10px;

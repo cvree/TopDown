@@ -3,9 +3,9 @@ import { ARCHETYPES } from '../engine/archetypes';
 import { clamp, dist, norm } from '../engine/math';
 import { derive } from '../engine/metrics';
 import { PALETTE } from '../engine/palette';
-import { hexA } from '../engine/renderer';
+import type { DrillPaint } from '../engine/paint';
 import type { AbilitySlot } from '../engine/input';
-import type { HudField } from '../engine/session';
+import type { AbilityView, HudField } from '../engine/session';
 import type { ArchetypeId, Vec2 } from '../engine/types';
 import type { WorldEvent } from '../engine/world';
 import { Drill, band, count, pct, secs, type DrillOutcome } from './base';
@@ -112,6 +112,15 @@ export class ArenaDrill extends Drill {
     this.s.fx.burst(p.pos.x, p.pos.y, 16, { color: PALETTE.accent, speed: 300, life: 0.4, size: 2.4 });
   }
 
+  abilities(): AbilityView[] {
+    // The blink is the only thing on the bar in a duel, so it gets a live
+    // cooldown sweep. A summoner you cannot see the timer on is a summoner you
+    // hold forever.
+    return super.abilities().map((a) =>
+      a.slot === 'd' ? { ...a, name: 'BLINK', cd: clamp(this.blinkCd / BLINK_CD, 0, 1), locked: false } : a,
+    );
+  }
+
   onEvents(events: readonly WorldEvent[]): void {
     for (const e of events) {
       if (e.type === 'death' && e.byPlayer) {
@@ -123,20 +132,26 @@ export class ArenaDrill extends Drill {
     }
   }
 
-  drawOverlay(ctx: CanvasRenderingContext2D, scale: number, t: number): void {
+  paint(out: DrillPaint, t: number): void {
     const p = this.s.world.player;
     if (!p) return;
+    // Only the ranges that currently threaten you are drawn. Every enemy's
+    // range at once is noise; the one that can hit you right now is a read.
     for (const e of this.s.world.enemies()) {
       const r = e.attack.range + p.radius;
-      const inside = dist(p.pos, e.pos) < r;
-      if (!inside) continue;
-      ctx.beginPath();
-      ctx.arc(e.pos.x, e.pos.y, r, 0, Math.PI * 2);
-      ctx.strokeStyle = hexA(PALETTE.danger, 0.22 + 0.12 * Math.sin(t * 6));
-      ctx.setLineDash([5, 9]);
-      ctx.lineWidth = 1.5 / scale;
-      ctx.stroke();
-      ctx.setLineDash([]);
+      if (dist(p.pos, e.pos) >= r) continue;
+      out.markers.push({
+        kind: 'ring',
+        x: e.pos.x,
+        y: e.pos.y,
+        radius: r,
+        color: PALETTE.danger,
+        alpha: 0.34 + 0.16 * Math.sin(t * 6),
+        width: 3,
+        dash: 54,
+        spin: -0.2,
+        rise: 1.8,
+      });
     }
   }
 

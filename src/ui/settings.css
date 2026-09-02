@@ -95,7 +95,7 @@
   width: 44px;
   height: 24px;
   border-radius: 99px;
-  background: rgba(140, 190, 240, 0.14);
+  background: rgba(200, 170, 110, 0.16);
   border: 1px solid var(--stroke-2);
   position: relative;
   flex: none;
@@ -138,7 +138,7 @@ input[type='range'] {
   width: 160px;
   height: 4px;
   border-radius: 99px;
-  background: rgba(140, 190, 240, 0.16);
+  background: rgba(200, 170, 110, 0.18);
   outline: none;
 }
 input[type='range']::-webkit-slider-thumb {

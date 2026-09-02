@@ -1,7 +1,7 @@
 import { audio } from '../engine/audio';
 import { clamp, median } from '../engine/math';
 import { PALETTE } from '../engine/palette';
-import { hexA } from '../engine/renderer';
+import type { DrillPaint } from '../engine/paint';
 import type { HudField } from '../engine/session';
 import type { Actor } from '../engine/types';
 import { Drill, band, count, ms, pct, type DrillOutcome } from './base';
@@ -101,32 +101,31 @@ export class TargetSwitchDrill extends Drill {
     }
   }
 
-  drawOverlay(ctx: CanvasRenderingContext2D, scale: number, t: number): void {
+  paint(out: DrillPaint, t: number): void {
     for (const a of this.dummies) {
-      const isPriority = a.id === this.priorityId;
-      if (!isPriority) continue;
+      if (a.id !== this.priorityId) continue;
       const pulse = 0.5 + 0.5 * Math.sin(t * 8);
-      ctx.strokeStyle = hexA(PALETTE.warn, 0.6 + pulse * 0.4);
-      ctx.lineWidth = 3 / scale;
-      ctx.beginPath();
-      ctx.arc(a.pos.x, a.pos.y, a.radius + 16 + pulse * 4, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // A caret above the priority target, plus the closing window as a bar.
-      const left = clamp(this.switchCd / 2.4, 0, 1);
-      const w = 70;
-      ctx.fillStyle = hexA(PALETTE.warn, 0.25);
-      ctx.fillRect(a.pos.x - w / 2, a.pos.y - a.radius - 42, w, 5);
-      ctx.fillStyle = hexA(PALETTE.warn, 0.95);
-      ctx.fillRect(a.pos.x - w / 2, a.pos.y - a.radius - 42, w * left, 5);
-
-      ctx.fillStyle = hexA(PALETTE.warn, 0.95);
-      ctx.beginPath();
-      ctx.moveTo(a.pos.x, a.pos.y - a.radius - 22);
-      ctx.lineTo(a.pos.x - 9, a.pos.y - a.radius - 34);
-      ctx.lineTo(a.pos.x + 9, a.pos.y - a.radius - 34);
-      ctx.closePath();
-      ctx.fill();
+      out.markers.push({
+        kind: 'ring',
+        x: a.pos.x,
+        y: a.pos.y,
+        radius: a.radius + 18 + pulse * 5,
+        color: PALETTE.warn,
+        alpha: 0.6 + pulse * 0.4,
+        width: 5,
+        rise: 2.4,
+      });
+      // A caret above the priority target plus the closing window as a bar:
+      // both live over the unit, so your eye never leaves the fight.
+      out.billboards.push({ kind: 'caret', x: a.pos.x, y: a.pos.y, color: PALETTE.warn });
+      out.billboards.push({
+        kind: 'timerBar',
+        x: a.pos.x,
+        y: a.pos.y,
+        progress: clamp(this.switchCd / 2.4, 0, 1),
+        color: PALETTE.warn,
+        width: 70,
+      });
     }
   }
 

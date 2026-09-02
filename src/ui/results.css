@@ -2,10 +2,15 @@
   position: fixed;
   inset: 0;
   z-index: 6;
+  /* Opaque, so no backdrop-filter: blurring a full-screen WebGL canvas behind
+     a background you cannot see through costs a great deal and shows nothing. */
+  /* The arena is still there, frozen on the last frame of the run, and it
+     shows through. No backdrop-filter: blurring a full-screen WebGL canvas
+     costs a great deal for something this dark. */
   background:
-    radial-gradient(900px 600px at 50% -10%, rgba(30, 120, 170, 0.16), transparent 65%),
-    rgba(5, 7, 12, 0.985);
-  backdrop-filter: blur(22px) saturate(0.8);
+    radial-gradient(1000px 640px at 50% -12%, rgba(200, 170, 110, 0.12), transparent 66%),
+    radial-gradient(760px 520px at 82% 108%, rgba(10, 200, 185, 0.08), transparent 70%),
+    linear-gradient(180deg, rgba(3, 10, 18, 0.94), rgba(3, 10, 18, 0.97) 45%, rgba(3, 10, 18, 0.99));
   overflow-y: auto;
   animation: fadeIn 0.4s var(--ease) both;
 }
@@ -47,7 +52,7 @@
   line-height: 0.9;
   margin: 6px 0 10px;
   letter-spacing: -0.02em;
-  background: linear-gradient(180deg, #ffffff, #7fbfe0);
+  background: linear-gradient(180deg, #fbf3df 8%, #e0c489 52%, #a2803e);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -222,7 +227,7 @@
   position: relative;
   height: 7px;
   border-radius: 99px;
-  background: rgba(140, 190, 240, 0.12);
+  background: rgba(200, 170, 110, 0.14);
   overflow: hidden;
 }
 .rr-bar span {
@@ -280,7 +285,7 @@
 .rp-track {
   height: 8px;
   border-radius: 99px;
-  background: rgba(140, 190, 240, 0.12);
+  background: rgba(200, 170, 110, 0.14);
   overflow: hidden;
 }
 .rp-track span {

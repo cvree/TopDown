@@ -1,9 +1,9 @@
 import { audio } from '../engine/audio';
 import { clamp, dist, norm } from '../engine/math';
 import { PALETTE } from '../engine/palette';
-import { hexA } from '../engine/renderer';
+import type { DrillPaint } from '../engine/paint';
 import type { AbilitySlot } from '../engine/input';
-import type { HudField } from '../engine/session';
+import type { AbilityView, HudField } from '../engine/session';
 import type { Vec2 } from '../engine/types';
 import { Drill, band, count, ms, pct, type DrillOutcome } from './base';
 
@@ -183,43 +183,36 @@ export class CombosDrill extends Drill {
     }
   }
 
-  drawOverlay(ctx: CanvasRenderingContext2D, scale: number, _t: number): void {
+  abilities(): AbilityView[] {
+    const expected = this.idleCd > 0 ? null : this.sequence[this.index];
+    return super.abilities().map((a) => {
+      if (a.slot === 'd' || a.slot === 'f') return a;
+      const slot = a.slot as Slot;
+      return {
+        ...a,
+        name: ABILITY_NAME[slot],
+        cd: this.idleCd > 0 ? Math.min(1, this.idleCd / 0.5) : 0,
+        highlight: slot === expected,
+        locked: false,
+      };
+    });
+  }
+
+  paint(out: DrillPaint, _t: number): void {
     const p = this.s.world.player;
     if (!p || this.idleCd > 0) return;
-    // The prompt lives in the arena, above the player — never in a corner the
-    // eye has to travel to.
+    // The prompt lives in the arena, above your champion — never in a corner
+    // the eye has to travel to and back from mid-combo.
     const left = clamp(1 - (this.s.elapsed - this.shownAt) / this.window, 0, 1);
-    const boxW = 62;
-    const gap = 12;
-    const total = this.sequence.length * boxW + (this.sequence.length - 1) * gap;
-    const x0 = p.pos.x - total / 2;
-    const y = p.pos.y - 118;
-
-    for (let i = 0; i < this.sequence.length; i++) {
-      const x = x0 + i * (boxW + gap);
-      const done = i < this.index;
-      const active = i === this.index;
-      ctx.fillStyle = done ? hexA(PALETTE.good, 0.22) : active ? hexA(PALETTE.accent, 0.2) : 'rgba(10,14,22,0.72)';
-      ctx.strokeStyle = done ? hexA(PALETTE.good, 0.85) : active ? PALETTE.accent : hexA(PALETTE.textFaint, 0.6);
-      ctx.lineWidth = (active ? 3 : 1.8) / scale;
-      roundRect(ctx, x, y, boxW, 54, 10);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.font = `700 ${26}px "Chakra Petch", sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = done ? PALETTE.good : active ? PALETTE.playerCore : PALETTE.textDim;
-      ctx.fillText(this.sequence[i].toUpperCase(), x + boxW / 2, y + 22);
-      ctx.font = `600 ${11}px "Inter", sans-serif`;
-      ctx.fillStyle = hexA(PALETTE.textDim, 0.9);
-      ctx.fillText(ABILITY_NAME[this.sequence[i]], x + boxW / 2, y + 43);
-    }
-
-    ctx.fillStyle = hexA(PALETTE.textFaint, 0.4);
-    ctx.fillRect(x0, y - 12, total, 5);
-    ctx.fillStyle = left < 0.3 ? PALETTE.danger : PALETTE.accent;
-    ctx.fillRect(x0, y - 12, total * left, 5);
+    out.billboards.push({
+      kind: 'keys',
+      x: p.pos.x,
+      y: p.pos.y,
+      seq: this.sequence.slice(),
+      labels: this.sequence.map((k) => ABILITY_NAME[k]),
+      index: this.index,
+      progress: left,
+    });
   }
 
   hudFields(): HudField[] {
@@ -276,13 +269,3 @@ export class CombosDrill extends Drill {
     };
   }
 }
-
-const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void => {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-};

@@ -115,7 +115,7 @@ export function Settings({ settings, onChange, onBack }: Props) {
             />
             <Toggle
               label="Reduced effects"
-              hint="Drops the arena energy pool and heavy glows. Use it if frames dip."
+              hint="Turns off shadows, bloom and the live arena behind the menus. The simulation is unchanged, so scores stay comparable."
               value={settings.lowFx}
               onChange={(v) => onChange({ lowFx: v })}
             />
