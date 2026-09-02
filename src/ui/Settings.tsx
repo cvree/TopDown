@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { audio } from '../engine/audio';
 import { ACTION_LABELS, DEFAULT_BINDINGS, codeLabel, type ActionId, type Binding } from '../engine/input';
 import type { AppSettings } from '../progression/profile';
+import { hasBrowserMouseGestures } from './components/GestureNotice';
 import './settings.css';
 
 interface Props {
@@ -97,6 +98,15 @@ export function Settings({ settings, onChange, onBack }: Props) {
               issues an attack-move, so you can train the habit without being punished for forgetting the
               modifier. <b>R</b> doubles as instant reset in drills with no ultimate bound.
             </p>
+            {hasBrowserMouseGestures() && (
+              <p className="set-note">
+                <b className="warn">Opera mouse gestures.</b> Right-drag and right-click&nbsp;+&nbsp;left-click
+                are browser gestures — new tab, and back — and they are the same inputs used here to move and
+                attack-move. The browser handles them above the page, so this trainer cannot block them: turn
+                them off in <b>Settings → Browser → Shortcuts</b>, or rebind <b>Move</b> above to a button
+                gestures do not use.
+              </p>
+            )}
           </section>
 
           <section className="panel pad">

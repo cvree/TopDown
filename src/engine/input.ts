@@ -67,6 +67,8 @@ export type InputEventKind =
   | { kind: 'abilityRelease'; slot: 'q' | 'w' | 'e' | 'r' | 'd' | 'f'; x: number; y: number; t: number }
   | { kind: 'reset'; t: number }
   | { kind: 'pause'; t: number }
+  /** Focus or visibility was lost. Pauses; never un-pauses. */
+  | { kind: 'blur'; t: number }
   | { kind: 'centerCamera'; t: number };
 
 const ABILITY_SLOTS = ['q', 'w', 'e', 'r', 'd', 'f'] as const;
@@ -123,10 +125,13 @@ export class InputSystem {
     el.addEventListener('pointermove', this.onPointerMove, { passive: true });
     // Chrome delivers these ahead of coalesced pointermove; better cursor freshness.
     el.addEventListener('pointerrawupdate', this.onPointerMove as EventListener, { passive: true });
-    el.addEventListener('contextmenu', this.onContextMenu);
+    el.addEventListener('contextmenu', this.onSuppress);
+    // A right-drag here is a move command, never a browser drag.
+    el.addEventListener('dragstart', this.onSuppress);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   detach(): void {
@@ -136,11 +141,13 @@ export class InputSystem {
       el.removeEventListener('pointerup', this.onPointerUp);
       el.removeEventListener('pointermove', this.onPointerMove);
       el.removeEventListener('pointerrawupdate', this.onPointerMove as EventListener);
-      el.removeEventListener('contextmenu', this.onContextMenu);
+      el.removeEventListener('contextmenu', this.onSuppress);
+      el.removeEventListener('dragstart', this.onSuppress);
     }
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('blur', this.onBlur);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.el = null;
     this.attached = false;
     this.held.clear();
@@ -182,7 +189,7 @@ export class InputSystem {
     this.updateCursor(e);
   };
 
-  private onContextMenu = (e: Event): void => {
+  private onSuppress = (e: Event): void => {
     e.preventDefault();
   };
 
@@ -295,7 +302,16 @@ export class InputSystem {
   private onBlur = (): void => {
     this.held.clear();
     this.armed = null;
-    this.queue.push({ kind: 'pause', t: performance.now() });
+    this.queue.push({ kind: 'blur', t: performance.now() });
+  };
+
+  /**
+   * A tab opened behind this one — an Opera gesture does exactly that — does
+   * not always blur the window, but it always changes visibility. Either way
+   * the run should stop rather than play itself out unwatched.
+   */
+  private onVisibilityChange = (): void => {
+    if (document.visibilityState === 'hidden') this.onBlur();
   };
 }
 

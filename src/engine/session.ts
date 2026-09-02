@@ -228,6 +228,12 @@ export class Session {
         if (this.phase === 'running' || this.phase === 'paused') this.togglePause();
         continue;
       }
+      if (e.kind === 'blur') {
+        // Losing focus only ever pauses. Toggling here would resume a run for
+        // someone who paused deliberately and then switched away from the tab.
+        if (this.phase === 'running') this.phase = 'paused';
+        continue;
+      }
       if (e.kind === 'reset') {
         this.onResetRequest?.();
         continue;

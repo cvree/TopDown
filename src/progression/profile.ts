@@ -73,6 +73,8 @@ export interface AppSettings {
   muted: boolean;
   bindings: Record<string, { primary: string; secondary?: string }>;
   reduceShake: boolean;
+  /** The browser-gesture warning has been read and dismissed. */
+  gestureNoticeDismissed: boolean;
 }
 
 export interface Profile {
@@ -122,6 +124,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   muted: false,
   bindings: {},
   reduceShake: false,
+  gestureNoticeDismissed: false,
 };
 
 export const newProfile = (name = 'PLAYER'): Profile => ({

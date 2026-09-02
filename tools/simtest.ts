@@ -392,6 +392,41 @@ for (const id of ['spacing', 'movement', 'lasthit', 'targetswitch', 'combos', 's
   expect(`${id} produces finite, in-range results`, finite && r.out.performance >= 0 && r.out.performance <= 1, `perf=${r.out.performance}`);
 }
 
+line('\n=== Losing focus pauses a run, and never un-pauses one ===');
+{
+  // A gesture-opened background tab can fire window blur *and*
+  // visibilitychange for one switch, so the pause has to be idempotent —
+  // and it must never resume a run the player paused deliberately.
+  const input = new FakeInput();
+  const session = new Session(
+    { duration: 60, arena: arenaFor('kite'), seed: 4242, difficulty: 0.4, abilities: DRILLS.kite.abilities },
+    input as unknown as InputSystem,
+    fakeRenderer,
+  );
+  session.attachDrill(createDrill('kite', session));
+  session.countdown = 0;
+  session.step(SIM_DT);
+  expect('a run starts out running', session.phase === 'running', session.phase);
+
+  input.push({ kind: 'blur', t: 0 });
+  session.step(SIM_DT);
+  expect('losing focus pauses the run', session.phase === 'paused', session.phase);
+
+  input.push({ kind: 'blur', t: 0 });
+  session.step(SIM_DT);
+  expect('a second blur does not resume it', session.phase === 'paused', session.phase);
+
+  input.push({ kind: 'pause', t: 0 });
+  session.step(SIM_DT);
+  expect('Esc still resumes', session.phase === 'running', session.phase);
+
+  input.push({ kind: 'pause', t: 0 });
+  session.step(SIM_DT);
+  input.push({ kind: 'blur', t: 0 });
+  session.step(SIM_DT);
+  expect('blur cannot resume a deliberate pause', session.phase === 'paused', session.phase);
+}
+
 line(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}\n`);
 void GameLoop;
 process.exit(failures === 0 ? 0 : 1);
