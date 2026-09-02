@@ -30,6 +30,8 @@ export interface RenderOpts {
   dimmed: number;
   hitFeedback: number;
   lowFx?: boolean;
+  /** Edge panning is live only while the run is actually running. */
+  allowEdgePan?: boolean;
   paint?: DrillPaint;
   showNames?: boolean;
   /** Suppresses the player's own indicators during the countdown. */
@@ -120,6 +122,23 @@ export class RiftRenderer {
     this.scene.rig.zoomBy(delta);
   }
 
+  /** Camera controls the session drives on the player's behalf. */
+  cameraKick(angle: number, amount: number): void {
+    this.scene.rig.addKick(angle, amount);
+  }
+
+  recenterCamera(): void {
+    this.scene.rig.recenter();
+  }
+
+  toggleCameraLock(): boolean {
+    return this.scene.rig.toggleLock();
+  }
+
+  get cameraLocked(): boolean {
+    return this.scene.rig.locked;
+  }
+
   /** Kept for API compatibility with the old renderer: bounds are fixed. */
   resize(_worldW?: number, _worldH?: number): void {
     const rect = this.scene.renderer.domElement.getBoundingClientRect();
@@ -133,6 +152,15 @@ export class RiftRenderer {
     const nx = (x / this.cssW) * 2 - 1;
     const ny = -((y / this.cssH) * 2 - 1);
     return this.scene.rig.screenToWorld(nx, ny);
+  }
+
+  /**
+   * Where a world point sits in the stereo field. Scaled short of the hard
+   * edges: a sound pinned fully to one ear reads as a bug, not as space.
+   */
+  panAt(p: Vec2): number {
+    const s = this.scene.rig.worldToScreen(p.x, p.y, 0);
+    return Math.max(-1, Math.min(1, ((s.x / this.cssW) * 2 - 1) * 0.7));
   }
 
   worldToScreen(p: Vec2): Vec2 {
@@ -154,6 +182,9 @@ export class RiftRenderer {
     if (fx.shake > this.prevShake) this.scene.rig.addShake((fx.shake - this.prevShake) * 2.4);
     this.prevShake = fx.shake;
     if (fx.flash > 0.1) this.scene.rig.addPunch(fx.flash * 130);
+    // Edge panning happens before the follow update so a pan and a follow in
+    // the same frame resolve against the same clamp.
+    if (opts.allowEdgePan) this.scene.rig.edgePan(ndc.x, ndc.y, dt);
     this.scene.rig.update(dt, focus, ndc);
 
     const cursorWorld = this.screenToWorld(opts.cursor.x, opts.cursor.y);

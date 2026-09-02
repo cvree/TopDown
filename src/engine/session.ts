@@ -72,6 +72,15 @@ export type Micro =
  */
 export interface ViewProjection {
   screenToWorld(x: number, y: number): Vec2;
+  /**
+   * Stereo position of a world point, -1..1. Optional so the headless test
+   * harness — which has no camera — can implement the interface with one
+   * method and still drive the whole simulation.
+   */
+  panAt?(p: Vec2): number;
+  cameraKick?(angle: number, amount: number): void;
+  recenterCamera?(): void;
+  toggleCameraLock?(): boolean;
 }
 
 export interface SessionConfig {
@@ -117,6 +126,11 @@ export class Session {
   private lastMoveOrderAt = -1;
   private trailAccum = 0;
   private countdownTicked = -1;
+  /** Last frame's cooldown per slot, for the ready chime. */
+  private lastCd = new Map<AbilitySlot, number>();
+  private lastArmed: AbilitySlot | null = null;
+  /** True once the camera has been unlocked, so the hint is only shown once. */
+  cameraLocked = true;
 
   drill: DrillBase | null = null;
 
@@ -181,6 +195,10 @@ export class Session {
 
     this.fx.targetEnergy = clamp(this.chain / 9, 0, 1);
     this.fx.update(dt);
+    // The arena bed swells with the chain: a streak is audible before the
+    // number on the HUD has time to be read.
+    audio.setIntensity(this.fx.energy);
+    this.pollAbilityState();
     this.hitFeedback = Math.max(0, this.hitFeedback - dt * 3.6);
     if (this.bannerTime > 0) {
       this.bannerTime -= dt;
@@ -272,12 +290,20 @@ export class Session {
           break;
         case 'ability': {
           const w = this.renderer.screenToWorld(e.x, e.y);
-          this.drill?.onAbility(e.slot, w);
+          this.castAbility(e.slot, w, player);
           break;
         }
         case 'centerCamera':
+          this.renderer.recenterCamera?.();
           this.fx.ring(player.pos.x, player.pos.y, 10, 120, 0.4, PALETTE.accentDim, 2, 'pulse');
           break;
+        case 'cameraLock': {
+          const locked = this.renderer.toggleCameraLock?.() ?? true;
+          this.cameraLocked = locked;
+          audio.play('uiTab');
+          this.setBanner(locked ? 'CAMERA LOCKED' : 'CAMERA UNLOCKED · EDGE PAN', 1.1);
+          break;
+        }
         default:
           break;
       }
@@ -287,12 +313,73 @@ export class Session {
   /** Called by the shell so `R` can restart instantly from anywhere. */
   onResetRequest: (() => void) | null = null;
 
+  /**
+   * A cast, with everything a cast is supposed to come with.
+   *
+   * The drill owns whether an ability is legal — cooldowns, ammo, whether this
+   * drill even uses the slot — and it has no way to say so directly. Rather
+   * than widen every drill's interface, this reads the ability bar either side
+   * of the call: a slot whose cooldown jumped fired, one that was already down
+   * and stayed down refused. That keeps the feedback honest without a single
+   * drill having to know that sound exists.
+   */
+  private castAbility(slot: AbilitySlot, at: Vec2, player: Actor): void {
+    const before = this.drill?.abilities().find((a) => a.slot === slot);
+    this.drill?.onAbility(slot, at);
+    const after = this.drill?.abilities().find((a) => a.slot === slot);
+    if (!before || !after || after.locked) return;
+
+    const fired = after.cd > before.cd + 0.08;
+    if (!fired) {
+      // Down and staying down: the input was real, the ability was not ready.
+      if (before.cd > 0.02) audio.play('castRefuse', { pan: this.panOf(player.pos) });
+      return;
+    }
+
+    const angle = Math.atan2(at.y - player.pos.y, at.x - player.pos.x);
+    audio.play(audio.castVoice(slot), { pan: this.panOf(player.pos) });
+    // The camera shoves along the cast, not at random. Ultimates shove hard.
+    this.renderer.cameraKick?.(angle, slot === 'r' ? 62 : 26);
+    if (slot === 'r') {
+      this.fx.addFlash(0.08, PALETTE.accent);
+      this.fx.ring(player.pos.x, player.pos.y, player.radius, player.radius + 200, 0.5, PALETTE.accent, 4, 'shock');
+    } else {
+      this.fx.ring(player.pos.x, player.pos.y, player.radius, player.radius + 74, 0.3, PALETTE.accent, 3, 'pulse');
+    }
+  }
+
+  /**
+   * Two quiet pieces of ability feedback, polled rather than pushed because
+   * neither the drill nor the input system raises an event for them: the
+   * chime as a cooldown finishes, and the tick as a non-quickcast slot arms.
+   */
+  private pollAbilityState(): void {
+    const bar = this.drill?.abilities();
+    if (bar) {
+      for (const a of bar) {
+        const prev = this.lastCd.get(a.slot) ?? 0;
+        if (prev > 0.04 && a.cd <= 0.02 && !a.locked) audio.play('abilityReady');
+        this.lastCd.set(a.slot, a.cd);
+      }
+    }
+    const armed = this.input.armedSlot;
+    if (armed !== this.lastArmed) {
+      this.lastArmed = armed;
+      if (armed) audio.play('castArm');
+    }
+  }
+
+  /** Where a world point sits in the stereo field. */
+  private panOf(p: Vec2): number {
+    return this.renderer.panAt?.(p) ?? 0;
+  }
+
   private issuePlayerMove(player: Actor, w: Vec2, attackMove: boolean): void {
     const wasWindup = player.phase === 'windup';
     this.world.issueMove(player, w, attackMove);
     this.lastMoveOrderAt = this.world.time;
     if (!wasWindup) this.movedSinceRelease = true;
-    audio.play('moveCommand');
+    audio.play('moveCommand', { pan: this.panOf(w) });
     this.fx.ring(w.x, w.y, 2, attackMove ? 26 : 20, 0.32, attackMove ? PALETTE.warn : PALETTE.accent, 2, 'pulse');
   }
 
@@ -330,10 +417,13 @@ export class Session {
     const pid = this.world.playerId;
     const player = this.world.player;
     switch (e.type) {
-      case 'attackStart':
+      case 'attackStart': {
         // The windup is the one thing in this game you must feel starting.
+        const a = this.world.byId(e.actorId);
         if (e.actorId === pid) audio.play('attackWindup');
+        else if (a) audio.play('attackWindup', { intensity: 0.5, pan: this.panOf(a.pos) });
         break;
+      }
       case 'attackRelease':
         if (e.actorId === pid && player) {
           audio.play('attackRelease');
@@ -356,7 +446,7 @@ export class Session {
         break;
       case 'attackLand':
         if (e.actorId === pid && e.pos) {
-          audio.play('attackLand', 1);
+          audio.play('attackLand', { pan: this.panOf(e.pos) });
           const t = this.world.byId(e.targetId);
           this.fx.impact(e.pos, t ? Math.atan2(e.pos.y - (player?.pos.y ?? 0), e.pos.x - (player?.pos.x ?? 0)) : 0, PALETTE.accent, 1 + Math.min(this.chain, 6) * 0.1);
         }
@@ -373,7 +463,7 @@ export class Session {
         break;
       case 'graze':
         if (e.pos) {
-          audio.play('nearMiss');
+          audio.play('nearMiss', { pan: this.panOf(e.pos) });
           this.fx.nearMiss(e.pos, 0);
           if (player) this.micro('CLEAN DODGE', player.pos, PALETTE.warn);
         }
@@ -385,7 +475,7 @@ export class Session {
             audio.play('hurt', 1.4);
             this.fx.kill(e.pos, PALETTE.danger);
           } else {
-            audio.play('kill');
+            audio.play('kill', { pan: this.panOf(e.pos) });
             this.fx.kill(e.pos, victim?.isMinion ? PALETTE.warn : PALETTE.accent);
             this.fx.timeDilation = 0.72;
           }
@@ -393,7 +483,7 @@ export class Session {
         break;
       case 'damage':
         if (e.targetId === pid && e.pos) {
-          audio.play('hurt');
+          audio.play('hurt', { pan: this.panOf(e.pos) });
           this.fx.hurt(e.pos);
           this.hitFeedback = 1;
           this.chain = 0;

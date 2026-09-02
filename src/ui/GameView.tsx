@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { audio } from '../engine/audio';
 import { DEFAULT_BINDINGS, InputSystem, type AbilitySlot, type Bindings } from '../engine/input';
 import { GameLoop } from '../engine/loop';
@@ -23,6 +23,49 @@ interface Props {
   onExit: () => void;
   onRetry: () => void;
 }
+
+/**
+ * A sigil per slot.
+ *
+ * League's ability icons are art, and art is the one thing this trainer does
+ * not generate. What it can do is give each slot a shape that is distinct at
+ * 20 pixels — which is the only property of an ability icon that matters in a
+ * fight — and match it to the sound that slot makes: Q is a dart, W is a
+ * shield arc, E is a dash, R is a burst.
+ */
+const SLOT_GLYPH: Record<string, ReactElement> = {
+  q: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M4 20 L20 4 M20 4 L20 11 M20 4 L13 4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  ),
+  w: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M12 3 L20 7 V12 C20 17 16 20 12 21.5 C8 20 4 17 4 12 V7 Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    </svg>
+  ),
+  e: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M3 12 H15 M10 7 L15 12 L10 17 M18 6 V18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  r: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M12 2 L14.4 9.2 L21.5 12 L14.4 14.8 L12 22 L9.6 14.8 L2.5 12 L9.6 9.2 Z" fill="currentColor" />
+    </svg>
+  ),
+  d: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 5.5 V12 L16 15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  f: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M13 2 L5 13 H11 L10 22 L19 10 H13 Z" fill="currentColor" />
+    </svg>
+  ),
+};
 
 const bindingsFrom = (settings: AppSettings): Bindings => {
   const out = { ...DEFAULT_BINDINGS };
@@ -132,6 +175,8 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
     const fieldEls = Array.from(hud.querySelectorAll('[data-field]')) as HTMLDivElement[];
     const abilityEls = Array.from(hud.querySelectorAll('[data-ability]')) as HTMLDivElement[];
 
+    const abilityCd: number[] = [];
+    let lastCount = '';
     let lastHudWrite = 0;
     let lastPhase: string = session.phase;
     let endedAt = 0;
@@ -206,8 +251,21 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
         if (!a) continue;
         el.classList.toggle('locked', a.locked);
         el.classList.toggle('highlight', a.highlight);
-        const cd = el.querySelector('[data-ab-cd]') as HTMLElement;
-        cd.style.height = `${Math.round(a.cd * 100)}%`;
+        // The radial sweep, exactly as a MOBA draws it: a dark wedge that
+        // unwinds anticlockwise, so how much is left is a shape rather than
+        // a number you have to read mid-fight.
+        el.style.setProperty('--cd', String(a.cd));
+        el.classList.toggle('cooling', a.cd > 0.015);
+        const prev = abilityCd[i] ?? 0;
+        if (prev > 0.04 && a.cd <= 0.015 && !a.locked) {
+          // Retrigger the ready flash by taking the class off and forcing a
+          // reflow — otherwise a second cooldown in the same element never
+          // restarts the animation.
+          el.classList.remove('ready');
+          void el.offsetWidth;
+          el.classList.add('ready');
+        }
+        abilityCd[i] = a.cd;
         const name = el.querySelector('[data-ab-name]') as HTMLElement;
         if (name.textContent !== a.name) name.textContent = a.name;
       }
@@ -215,7 +273,17 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
       elFps.textContent = `${Math.round(snap.fps)}`;
       elBanner.textContent = snap.banner ?? '';
       elBanner.style.opacity = snap.banner ? '1' : '0';
-      elCount.textContent = snap.phase === 'countdown' ? (snap.countdown > 0 ? `${snap.countdown}` : 'GO') : '';
+      const countText = snap.phase === 'countdown' ? (snap.countdown > 0 ? `${snap.countdown}` : 'GO') : '';
+      if (countText !== lastCount) {
+        lastCount = countText;
+        elCount.textContent = countText;
+        elCount.classList.toggle('go', countText === 'GO');
+        // Restart the strike animation on every tick rather than letting the
+        // number swap silently inside a still element.
+        elCount.classList.remove('tick');
+        void elCount.offsetWidth;
+        if (countText) elCount.classList.add('tick');
+      }
       elCount.style.opacity = snap.phase === 'countdown' ? '1' : '0';
     };
 
@@ -396,57 +464,74 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
         </div>
 
         <div className="champ-frame">
-          <div className="cf-portrait">
+          <div className="cf-portrait" style={{ ['--c' as string]: meta.accent }}>
             <svg viewBox="0 0 48 48" aria-hidden>
               <path d="M24 5 L41 38 H7 Z" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
               <path d="M24 17 L32 33 H16 Z" fill="currentColor" />
             </svg>
+            <span className="cf-level">{Math.max(1, Math.round(difficulty * 17) + 1)}</span>
           </div>
 
           <div className="cf-body">
-            <div className="cf-bar-row">
-              <div className="cf-hp">
-                <span data-hp />
-                <em data-hp-text>—</em>
-              </div>
+            <div className="cf-hp">
+              <span data-hp />
+              <em data-hp-text>—</em>
             </div>
 
+            {/* The attack-cycle bar. Not a League element — League has no
+                reason to show you this — but it is the one thing the whole
+                trainer is about, so it sits where League puts your resource
+                bar: directly under your health, under your hands. */}
             <div className="cf-cycle" data-cycle data-state="idle">
               <span className="cf-cycle-fill" data-cycle-fill />
               <em className="cf-cycle-label" data-cycle-label>
                 READY
               </em>
             </div>
-
-            <div className="cf-abilities">
-              {ABILITY_BAR.map((s, i) => (
-                <Fragment key={s}>
-                  {i === 4 && <div className="ab-sep" />}
-                  <div className={`ability${i >= 4 ? ' summoner' : ''}`} data-ability>
-                    <span className="ab-cd" data-ab-cd />
-                    <span className="ab-key">{s.toUpperCase()}</span>
-                    <span className="ab-name" data-ab-name />
-                  </div>
-                </Fragment>
-              ))}
-            </div>
           </div>
 
-          <div className="cf-keys">
-            <div>
-              <span className="kbd">RMB</span> move · attack
-            </div>
-            <div>
-              <span className="kbd">A</span>
-              <span className="kbd">LMB</span> attack-move
-            </div>
-            <div>
-              <span className="kbd">S</span> stop · <span className="kbd">WHEEL</span> zoom
-            </div>
-            <div>
-              <span className="kbd">ESC</span> pause · <span className="kbd">`</span> reset
-            </div>
+          <div className="cf-abilities">
+            {ABILITY_BAR.map((s, i) => (
+              <Fragment key={s}>
+                {i === 4 && <div className="ab-sep" />}
+                <div className={`ability${i >= 4 ? ' summoner' : ''}`} data-ability style={{ ['--cd' as string]: 0 }}>
+                  <span className="ab-face">
+                    <span className="ab-glyph">{SLOT_GLYPH[s]}</span>
+                    <span className="ab-sweep" />
+                    <span className="ab-shine" />
+                  </span>
+                  <span className="ab-key">{s.toUpperCase()}</span>
+                  <span className="ab-name" data-ab-name />
+                </div>
+              </Fragment>
+            ))}
           </div>
+        </div>
+
+        {/* Controls, shown once and then gone. A cheat sheet that never
+            leaves is a cheat sheet you stop reading and start seeing. */}
+        <div className="hud-hints">
+          <span>
+            <b className="kbd">RMB</b> move · attack
+          </span>
+          <span>
+            <b className="kbd">A</b> attack-move
+          </span>
+          <span>
+            <b className="kbd">S</b> stop
+          </span>
+          <span>
+            <b className="kbd">SPACE</b> centre camera
+          </span>
+          <span>
+            <b className="kbd">Y</b> camera lock
+          </span>
+          <span>
+            <b className="kbd">WHEEL</b> zoom
+          </span>
+          <span>
+            <b className="kbd">ESC</b> pause
+          </span>
         </div>
 
         <div className="hud-minimap">

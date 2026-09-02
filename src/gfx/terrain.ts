@@ -239,7 +239,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
     new THREE.MeshBasicMaterial({
       map: runeRing(),
       transparent: true,
-      opacity: 0.11,
+      opacity: 0.2,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       color: accentColor.clone().lerp(new THREE.Color('#ffffff'), 0.4),

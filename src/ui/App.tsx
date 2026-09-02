@@ -19,6 +19,8 @@ import {
 import { rankFromRating, type RankInfo } from '../progression/ranks';
 import type { SkillAxis } from '../progression/skills';
 import { ArenaBackdrop } from './components/ArenaBackdrop';
+import { Boot } from './Boot';
+import { Crest } from './components/Crest';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
 import { Daily } from './Daily';
 import { GameView } from './GameView';
@@ -63,6 +65,10 @@ export function App() {
     headline: { label: string; value: string } | null;
   } | null>(null);
   const [placementIntro, setPlacementIntro] = useState(false);
+  // The cold open. `booted` gates the client; `arenaReady` is the real signal
+  // the boot screen is waiting on — the arena's first rendered frame.
+  const [booted, setBooted] = useState(false);
+  const [arenaReady, setArenaReady] = useState(false);
   const [placementReveal, setPlacementReveal] = useState(false);
   const [interstitial, setInterstitial] = useState<{ drill: DrillId; step: number; total: number } | null>(null);
   const saveTimer = useRef(0);
@@ -86,9 +92,9 @@ export function App() {
   const inGame = flow !== null && !results && !placementReveal && !interstitial;
 
   useEffect(() => {
-    if (inGame || profile.settings.muted) audio.stopAmbience();
+    if (!booted || inGame || profile.settings.muted) audio.stopAmbience();
     else audio.startAmbience();
-  }, [inGame, profile.settings.muted]);
+  }, [booted, inGame, profile.settings.muted]);
 
   const patchSettings = useCallback((patch: Partial<AppSettings>) => {
     setProfile((p) => ({ ...p, settings: { ...p.settings, ...patch } }));
@@ -374,14 +380,12 @@ export function App() {
 
   return (
     <div className="app">
-      <ArenaBackdrop enabled={!profile.settings.lowFx} />
+      <ArenaBackdrop enabled={!profile.settings.lowFx} onReady={() => setArenaReady(true)} />
+      {!booted && <Boot ready={arenaReady} onEnter={() => setBooted(true)} />}
       <div className="shell">
         <header className="topbar">
           <div className="logo" onClick={() => setRoute('home')}>
-            <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden>
-              <path d="M16 2 L29 26 H3 Z" fill="none" stroke="#c8aa6e" strokeWidth="2.5" strokeLinejoin="round" />
-              <path d="M16 11 L22 22 H10 Z" fill="#c8aa6e" />
-            </svg>
+            <Crest size={26} />
             APEX
             <span className="logo-sub">MECHANICS</span>
           </div>
@@ -394,7 +398,7 @@ export function App() {
                 onMouseEnter={() => audio.play('uiHover')}
                 onClick={() => {
                   audio.unlock();
-                  audio.play('uiClick');
+                  audio.play('uiTab');
                   setRoute(r);
                 }}
               >

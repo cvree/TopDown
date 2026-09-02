@@ -22,6 +22,7 @@ const ACTIONS: ActionId[] = [
   'd',
   'f',
   'centerCamera',
+  'cameraLock',
   'reset',
   'pause',
 ];

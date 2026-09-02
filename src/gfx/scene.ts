@@ -65,17 +65,17 @@ export class RiftScene {
     });
     this.renderer.setClearColor(0x070b12, 1);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.16;
+    this.renderer.toneMappingExposure = 1.14;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    this.scene.fog = new THREE.Fog(0x1d3050, 2500, 7200);
+    this.scene.fog = new THREE.Fog(0x1b2c4a, 3100, 8200);
 
     // ------------------------------------------------------------- lighting
     // Warm key from the upper left, cool bounce from behind. Two lights and a
     // hemisphere is all a stylised look needs; more just muddies the read.
-    this.sun = new THREE.DirectionalLight(0xffdcaa, 3.1);
+    this.sun = new THREE.DirectionalLight(0xffd6a0, 3.4);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0016;
@@ -92,11 +92,11 @@ export class RiftScene {
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
 
-    this.rim = new THREE.DirectionalLight(0x86bcff, 1.15);
+    this.rim = new THREE.DirectionalLight(0x7fb4ff, 1.45);
     this.rim.position.set(bounds.w * 0.5 + 1400, 900, bounds.h * 0.5 - 1600);
     this.scene.add(this.rim);
 
-    this.hemi = new THREE.HemisphereLight(0x93bcec, 0x4b4232, 1.25);
+    this.hemi = new THREE.HemisphereLight(0x8fb6e8, 0x4a4030, 0.95);
     this.scene.add(this.hemi);
 
     // ------------------------------------------------------------------ sky
@@ -200,6 +200,9 @@ export class RiftScene {
     composer.addPass(bloom);
 
     const grade = new ShaderPass(GradeShader);
+    // Sharpening costs four taps a pixel; a machine that has already fallen
+    // back to medium has better uses for them.
+    grade.uniforms.uSharpen.value = this.quality === 'high' ? 0.24 : 0.12;
     composer.addPass(grade);
     composer.addPass(new OutputPass());
 
@@ -235,6 +238,7 @@ export class RiftScene {
 
     if (this.grade) {
       const u = this.grade.uniforms;
+      (u.uTexel.value as THREE.Vector2).set(1 / Math.max(1, this.cssW), 1 / Math.max(1, this.cssH));
       u.uHurt.value = Math.min(1, grade.hurt);
       u.uFlash.value = Math.min(1, grade.flash);
       (u.uFlashColor.value as THREE.Color).set(grade.flashColor);

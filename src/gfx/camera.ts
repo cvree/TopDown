@@ -9,6 +9,23 @@ import { clamp01, smoothstep } from './noise';
  * inside the frustum. At the default zoom that clamp pins the camera to the
  * arena centre and the champion moves within a static frame; zoom in and the
  * clamp opens up and the camera starts following you properly.
+ *
+ * Three behaviours exist because League has them and because each one is a
+ * habit worth training rather than a convenience:
+ *
+ *  - **Locked** (default) follows your champion rigidly. The follow is stiff
+ *    on purpose: a floaty spring feels nicer in isolation and is actively
+ *    misleading here, because it decouples where your champion is from where
+ *    your cursor thinks it is.
+ *  - **Unlocked** leaves the camera where it is and lets you drive it. That
+ *    is the mode most high-elo players use, and edge-panning without losing
+ *    your own champion is a skill in itself.
+ *  - **Edge pan** moves the camera when the cursor reaches a screen edge, in
+ *    both modes — in locked mode it applies a temporary offset that springs
+ *    back, which is exactly how League's locked camera behaves.
+ *
+ * All of it stays inside the same clamp, so no camera state can ever hide the
+ * playable rectangle from you.
  */
 
 export interface Viewport {
@@ -31,6 +48,14 @@ export class RiftCamera {
   private target = new THREE.Vector3();
   private smoothed = new THREE.Vector3();
   private lean = new THREE.Vector2();
+  /** Directional kick, in world units, decaying back to zero. */
+  private kick = new THREE.Vector2();
+  /** Player-driven pan offset from the follow point, in world units. */
+  private pan = new THREE.Vector2();
+  /** False = unlocked: the camera stays put and you drive it. */
+  locked = true;
+  /** Edge-pan speed in world units per second at full deflection. */
+  edgeSpeed = 1750;
   private baseDistance = 2200;
   private bounds = { w: 1660, h: 960 };
   private viewport: Viewport = { width: 1600, height: 900 };
@@ -119,6 +144,51 @@ export class RiftCamera {
     this.punch = Math.min(240, this.punch + amount);
   }
 
+  /**
+   * A directional shove, in world units, along a heading. Used for ability
+   * casts and heavy landings: a camera that moves *away from* a blow reads as
+   * recoil, where an omnidirectional shake just reads as noise.
+   */
+  addKick(angle: number, amount: number): void {
+    this.kick.x += Math.cos(angle) * amount;
+    this.kick.y += Math.sin(angle) * amount;
+    const m = this.kick.length();
+    if (m > 90) this.kick.multiplyScalar(90 / m);
+  }
+
+  /** Snap the camera back onto the champion and re-lock the follow. */
+  recenter(): void {
+    this.pan.set(0, 0);
+  }
+
+  toggleLock(): boolean {
+    this.locked = !this.locked;
+    if (this.locked) this.recenter();
+    return this.locked;
+  }
+
+  /**
+   * Edge pan. `nx`/`ny` are the cursor in normalised device coords; anything
+   * within the outer 6% of the frame pushes the camera that way, ramped so a
+   * cursor parked in the very corner moves at full speed and one merely near
+   * the edge barely drifts.
+   */
+  edgePan(nx: number, ny: number, dt: number): void {
+    const EDGE = 0.94;
+    const ramp = (v: number) => {
+      const a = Math.abs(v);
+      if (a < EDGE) return 0;
+      const t = Math.min(1, (a - EDGE) / (1 - EDGE));
+      return Math.sign(v) * t * t;
+    };
+    const dx = ramp(nx);
+    // Screen-up is -z in world space for this camera's fixed heading.
+    const dz = -ramp(ny);
+    if (dx === 0 && dz === 0) return;
+    this.pan.x += dx * this.edgeSpeed * dt;
+    this.pan.y += dz * this.edgeSpeed * dt;
+  }
+
   addShake(amount: number): void {
     this.shakeMag = Math.min(46, this.shakeMag + amount);
   }
@@ -131,6 +201,11 @@ export class RiftCamera {
     this.zoom += (this.zoomTarget - this.zoom) * clamp01(dt * 9);
     this.punch *= Math.exp(-dt * 7);
     this.shakeMag *= Math.exp(-dt * 9.5);
+    this.kick.multiplyScalar(Math.exp(-dt * 11));
+
+    // A locked camera springs its pan offset back to the champion; an
+    // unlocked one keeps whatever you drove it to.
+    if (this.locked) this.pan.multiplyScalar(Math.exp(-dt * 3.2));
 
     const cov = this.coverage;
     const { w, h } = this.bounds;
@@ -141,17 +216,27 @@ export class RiftCamera {
 
     const cx = w / 2;
     const cz = h / 2;
+    // The pan offset is clamped to the same slack, so no amount of edge
+    // scrolling can put the arena off screen.
+    this.pan.x = THREE.MathUtils.clamp(this.pan.x, -slackX * 2, slackX * 2);
+    this.pan.y = THREE.MathUtils.clamp(this.pan.y, -slackZ * 2, slackZ * 2);
+
+    const anchorX = this.locked ? focus.x : cx;
+    const anchorZ = this.locked ? focus.y : cz;
     this.target.set(
-      THREE.MathUtils.clamp(focus.x, cx - slackX, cx + slackX),
+      THREE.MathUtils.clamp(anchorX + this.pan.x, cx - slackX, cx + slackX),
       0,
-      THREE.MathUtils.clamp(focus.y, cz - slackZ, cz + slackZ),
+      THREE.MathUtils.clamp(anchorZ + this.pan.y, cz - slackZ, cz + slackZ),
     );
 
     if (!this.initialised) {
       this.smoothed.copy(this.target);
       this.initialised = true;
     } else {
-      this.smoothed.lerp(this.target, clamp01(dt * 6.5));
+      // Stiff on purpose. League's locked camera is rigid, and a soft follow
+      // puts your champion somewhere your cursor is not — which would make
+      // every click-error measurement in the trainer a lie.
+      this.smoothed.lerp(this.target, clamp01(dt * 17));
     }
 
     // A few units of lean toward the cursor. Not enough to move the arena,
@@ -171,7 +256,11 @@ export class RiftCamera {
     const d = this.distance;
     // Push the look point toward the camera by half the footprint's bias so
     // the thing you are actually looking at lands on the centre of the screen.
-    const look = new THREE.Vector3(this.smoothed.x + this.lean.x, 0, this.smoothed.z - this.lean.y + cov.bias * 0.55);
+    const look = new THREE.Vector3(
+      this.smoothed.x + this.lean.x + this.kick.x,
+      0,
+      this.smoothed.z - this.lean.y + this.kick.y + cov.bias * 0.55,
+    );
     this.camera.position.set(
       look.x + this.shake.x,
       Math.sin(PITCH) * d + this.shake.y,

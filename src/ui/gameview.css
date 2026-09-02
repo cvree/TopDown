@@ -145,8 +145,9 @@
 }
 .diff-bars span {
   width: 10px;
-  height: 4px;
-  background: rgba(200, 170, 110, 0.16);
+  height: 5px;
+  background: rgba(10, 16, 26, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(200, 170, 110, 0.3);
   transform: skewX(-20deg);
 }
 .diff-bars span.on {
@@ -182,13 +183,66 @@
   top: 25%;
   left: 50%;
   transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 210px;
+  height: 210px;
   font-family: var(--display);
-  font-size: 96px;
+  font-size: 104px;
   font-weight: 900;
   color: var(--gold-hot);
-  text-shadow: 0 0 60px rgba(200, 170, 110, 0.55), 0 10px 40px rgba(0, 0, 0, 0.95);
+  text-shadow: 0 0 60px rgba(200, 170, 110, 0.6), 0 10px 40px rgba(0, 0, 0, 0.95);
   opacity: 0;
   transition: opacity 0.2s;
+}
+/* A ring struck outward on every tick. A countdown that only swaps a glyph
+   reads as a clock; one that hits the screen reads as a start line. */
+.hud-count::before,
+.hud-count::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(200, 170, 110, 0.6);
+  border-radius: 50%;
+  opacity: 0;
+}
+.hud-count.tick::before {
+  animation: countRing 0.85s var(--ease) both;
+}
+.hud-count.tick::after {
+  animation: countRing 0.85s var(--ease) 0.09s both;
+}
+.hud-count.tick {
+  animation: countStrike 0.5s var(--ease-in-out) both;
+}
+.hud-count.go {
+  font-size: 84px;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  color: #fff6e0;
+}
+@keyframes countRing {
+  0% {
+    transform: scale(0.42);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+@keyframes countStrike {
+  0% {
+    transform: translate(-50%, -50%) scale(1.5);
+    filter: blur(8px);
+  }
+  55% {
+    filter: blur(0);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    filter: blur(0);
+  }
 }
 
 .hud-chain {
@@ -274,62 +328,102 @@
 }
 
 /* ---------------------------------------------------------- champion frame */
+/* Bottom-centre, under your hands, in the order a MOBA puts it: portrait,
+   bars, abilities. The geometry is copied from muscle memory rather than
+   from taste — anyone who plays League should be able to find their R
+   without looking, on the first run. */
 .champ-frame {
   position: absolute;
-  bottom: 16px;
+  bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: flex-end;
   gap: 14px;
-  padding: 11px 18px 12px;
-  background: linear-gradient(180deg, rgba(6, 14, 26, 0.55), rgba(3, 9, 17, 0.94));
-  border: 1px solid var(--stroke);
+  padding: 13px 24px 19px;
+  background:
+    linear-gradient(180deg, rgba(6, 14, 26, 0.42), rgba(2, 6, 12, 0.96) 62%);
+  border: 1px solid rgba(120, 90, 40, 0.55);
   border-bottom: none;
-  clip-path: polygon(22px 0, calc(100% - 22px) 0, 100% 100%, 0 100%);
-  backdrop-filter: blur(7px);
+  clip-path: polygon(30px 0, calc(100% - 30px) 0, 100% 100%, 0 100%);
+  backdrop-filter: blur(9px);
+}
+.champ-frame::before {
+  /* The lit top edge every League frame has. */
+  content: '';
+  position: absolute;
+  left: 30px;
+  right: 30px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200, 170, 110, 0.75), transparent);
 }
 
+/* ------------------------------------------------------------- portrait */
 .cf-portrait {
-  width: 62px;
-  height: 62px;
+  position: relative;
+  width: 64px;
+  height: 64px;
   flex: none;
   display: grid;
   place-items: center;
   color: var(--gold);
   border: 2px solid var(--gold-deep);
-  background: radial-gradient(circle at 50% 30%, rgba(200, 170, 110, 0.2), rgba(6, 14, 26, 0.9));
+  background:
+    radial-gradient(circle at 50% 26%, color-mix(in srgb, var(--c, #c8aa6e) 34%, transparent), rgba(4, 10, 18, 0.95));
   clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
 }
 .cf-portrait svg {
   width: 30px;
   height: 30px;
-  filter: drop-shadow(0 0 8px rgba(200, 170, 110, 0.6));
+  filter: drop-shadow(0 0 9px rgba(200, 170, 110, 0.7));
+}
+/* The level badge. It reports the drill's difficulty, which is the closest
+   honest analogue this trainer has to a champion level. */
+.cf-level {
+  position: absolute;
+  left: -7px;
+  bottom: 1px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 700;
+  color: #0c1219;
+  background: linear-gradient(180deg, #f0dda8, #c8aa6e 60%, #96773d);
+  border: 1px solid rgba(10, 16, 23, 0.8);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
 }
 
+/* ----------------------------------------------------------------- bars */
 .cf-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 348px;
+  gap: 5px;
+  width: 306px;
 }
 
 .cf-hp {
   position: relative;
-  height: 15px;
-  background: linear-gradient(180deg, #10161d, #070c12);
-  border: 1px solid rgba(200, 170, 110, 0.35);
+  height: 17px;
+  background: linear-gradient(180deg, #0e141b, #05090e);
+  border: 1px solid rgba(200, 170, 110, 0.45);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.6);
   overflow: hidden;
 }
 .cf-hp span {
   display: block;
   height: 100%;
   width: 100%;
-  background: linear-gradient(180deg, #6ff0a0, #3ddc84 55%, #1f9a58);
+  background: linear-gradient(180deg, #7ef7ac, #3ddc84 48%, #17864b);
+  box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.35);
   transition: width 0.1s linear;
 }
 .cf-hp span.low {
-  background: linear-gradient(180deg, #ff8f8f, #e84057 55%, #9c2131);
+  background: linear-gradient(180deg, #ff9d9d, #e84057 48%, #8d1c2c);
 }
 .cf-hp::after {
   /* Tick marks every eighth, the way a segmented MOBA bar reads. */
@@ -340,8 +434,8 @@
     90deg,
     transparent 0,
     transparent calc(12.5% - 1px),
-    rgba(3, 8, 14, 0.75) calc(12.5% - 1px),
-    rgba(3, 8, 14, 0.75) 12.5%
+    rgba(3, 8, 14, 0.8) calc(12.5% - 1px),
+    rgba(3, 8, 14, 0.8) 12.5%
   );
   pointer-events: none;
 }
@@ -353,30 +447,32 @@
   font-family: var(--mono);
   font-style: normal;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.92);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
 }
 
 /* The attack-cycle bar: the whole point of the trainer, made visible. */
 .cf-cycle {
   position: relative;
   height: 13px;
-  background: linear-gradient(180deg, #10161d, #070c12);
-  border: 1px solid rgba(200, 170, 110, 0.25);
+  background: linear-gradient(180deg, #0e141b, #05090e);
+  border: 1px solid rgba(200, 170, 110, 0.28);
   overflow: hidden;
 }
 .cf-cycle-fill {
   display: block;
   height: 100%;
   width: 0;
-  background: rgba(160, 155, 140, 0.4);
+  background: rgba(160, 155, 140, 0.35);
   transition: width 0.05s linear;
 }
 .cf-cycle[data-state='windup'] .cf-cycle-fill {
-  background: linear-gradient(180deg, #ffd777, #f0a92c);
+  background: linear-gradient(180deg, #ffe08c, #f0a92c);
+  box-shadow: 0 0 14px rgba(240, 169, 44, 0.55);
 }
 .cf-cycle[data-state='backswing'] .cf-cycle-fill {
-  background: linear-gradient(180deg, #7ef0b4, #2fbb74);
+  background: linear-gradient(180deg, #92f7c4, #2fbb74);
+  box-shadow: 0 0 14px rgba(47, 187, 116, 0.5);
 }
 .cf-cycle-label {
   position: absolute;
@@ -387,89 +483,201 @@
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.22em;
-  color: rgba(255, 255, 255, 0.9);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.98);
 }
 
+/* ------------------------------------------------------------ abilities */
 .cf-abilities {
   display: flex;
-  gap: 5px;
-  align-items: center;
+  gap: 6px;
+  align-items: flex-end;
 }
 .ability {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 50px;
   flex: none;
-  border: 1px solid var(--gold-deep);
-  background: linear-gradient(160deg, #1a2634, #0a131d);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+/* The icon itself. Beveled metal with an inset face — the bevel is what
+   stops six flat squares reading as a settings menu. */
+.ab-face {
+  position: relative;
+  width: 50px;
+  height: 50px;
   display: grid;
   place-items: center;
   overflow: hidden;
+  border: 1px solid var(--gold-deep);
+  background: linear-gradient(160deg, #24384c 0%, #16283a 42%, #08131f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(200, 190, 160, 0.22),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.5),
+    0 4px 12px -6px #000;
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+  transition: border-color 0.18s, box-shadow 0.18s;
 }
+.ab-glyph {
+  display: grid;
+  place-items: center;
+  color: var(--gold-lit);
+  filter: drop-shadow(0 0 7px rgba(200, 170, 110, 0.45));
+}
+.ab-glyph svg {
+  width: 26px;
+  height: 26px;
+}
+/* The cooldown wedge. Anticlockwise, exactly as a MOBA draws it, so how
+   much is left is a shape you read in peripheral vision. */
+.ab-sweep {
+  position: absolute;
+  inset: -25%;
+  pointer-events: none;
+  background: conic-gradient(
+    from 180deg,
+    rgba(2, 6, 12, 0.82) 0turn,
+    rgba(2, 6, 12, 0.82) calc(var(--cd, 0) * 1turn),
+    transparent calc(var(--cd, 0) * 1turn)
+  );
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.ability.cooling .ab-sweep {
+  opacity: 1;
+}
+.ability.cooling .ab-glyph {
+  color: var(--text-3);
+  filter: none;
+}
+/* The flare as a cooldown finishes. */
+.ab-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 246, 220, 0.9), transparent 68%);
+  opacity: 0;
+}
+.ability.ready .ab-shine {
+  animation: abReady 0.5s var(--ease) both;
+}
+@keyframes abReady {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+.ability.ready .ab-face {
+  animation: abReadyEdge 0.5s var(--ease) both;
+}
+@keyframes abReadyEdge {
+  0% {
+    border-color: var(--gold-hot);
+    box-shadow: 0 0 20px rgba(240, 230, 210, 0.75);
+  }
+  100% {
+    border-color: var(--gold-deep);
+  }
+}
+
 .ability.summoner {
-  width: 36px;
-  height: 36px;
-  align-self: center;
+  width: 40px;
 }
-.ability.summoner .ab-key {
-  font-size: 14px;
+.ability.summoner .ab-face {
+  width: 40px;
+  height: 40px;
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
 }
-.ability.summoner .ab-name {
-  font-size: 6.5px;
+.ability.summoner .ab-glyph svg {
+  width: 20px;
+  height: 20px;
 }
 .ability.locked {
-  opacity: 0.34;
+  opacity: 0.28;
   filter: grayscale(1);
 }
-.ability.highlight {
+/* The drill asking for this key. It pulses, because in a drill this is an
+   instruction rather than a status. */
+.ability.highlight .ab-face {
   border-color: var(--gold-hot);
-  box-shadow: 0 0 0 1px var(--gold), 0 0 18px rgba(240, 230, 210, 0.55);
+  box-shadow: 0 0 0 1px var(--gold), 0 0 22px rgba(240, 230, 210, 0.6);
+  animation: abCall 1.05s var(--ease-in-out) infinite;
 }
+@keyframes abCall {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px var(--gold), 0 0 10px rgba(240, 230, 210, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 1px var(--gold-hot), 0 0 28px rgba(240, 230, 210, 0.8);
+  }
+}
+
+/* The keycap under the icon: where League puts it, and the reason the bar
+   can be read by a player who has never seen this app. */
 .ab-key {
-  font-family: var(--display);
-  font-size: 17px;
+  font-family: var(--mono);
+  font-size: 10px;
   font-weight: 700;
-  color: var(--gold-hot);
+  letter-spacing: 0.1em;
+  color: var(--gold);
   line-height: 1;
 }
-.ab-name {
-  position: absolute;
-  bottom: 2px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-size: 7.5px;
-  letter-spacing: 0.1em;
-  color: var(--text-3);
+.ability.locked .ab-key {
+  color: var(--text-4);
 }
-.ab-cd {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 0;
-  background: rgba(6, 12, 20, 0.8);
-  border-top: 1px solid rgba(200, 170, 110, 0.4);
-  transition: height 0.08s linear;
+.ab-name {
+  font-size: 7.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  text-align: center;
+  line-height: 1.1;
+  min-height: 9px;
+  max-width: 58px;
 }
 .ab-sep {
   width: 1px;
-  height: 30px;
+  height: 34px;
   background: linear-gradient(180deg, transparent, var(--stroke), transparent);
-  margin: 0 4px;
+  margin: 0 5px 16px;
 }
 
-.cf-keys {
+/* ---------------------------------------------------------------- hints */
+.hud-hints {
+  position: absolute;
+  right: 20px;
+  bottom: 206px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  align-items: flex-end;
+  gap: 5px;
   font-size: 10px;
   color: var(--text-3);
-  padding-bottom: 2px;
+  white-space: nowrap;
+  /* Visible for the first thirteen seconds of a run, then gone for good. A
+     cheat sheet that never leaves is one you stop reading and start seeing. */
+  animation: hintFade 1.2s var(--ease) 13s both;
 }
-.cf-keys .kbd {
-  margin-right: 3px;
+.hud-hints span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.hud-hints .kbd {
+  height: 17px;
+  font-size: 9px;
+}
+@keyframes hintFade {
+  to {
+    opacity: 0;
+    transform: translateX(14px);
+  }
 }
 
 /* ---------------------------------------------------------- minimap */
@@ -520,9 +728,9 @@
     display: none;
   }
   .cf-body {
-    width: 288px;
+    width: 250px;
   }
-  .cf-keys {
+  .hud-hints {
     display: none;
   }
 }

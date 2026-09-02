@@ -18,6 +18,7 @@ export type ActionId =
   | 'd'
   | 'f'
   | 'centerCamera'
+  | 'cameraLock'
   | 'reset'
   | 'pause';
 
@@ -40,6 +41,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   d: { primary: 'KeyD' },
   f: { primary: 'KeyF' },
   centerCamera: { primary: 'Space' },
+  cameraLock: { primary: 'KeyY' },
   reset: { primary: 'Backquote', secondary: 'Enter' },
   pause: { primary: 'Escape' },
 };
@@ -55,6 +57,7 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   d: 'Summoner D',
   f: 'Summoner F',
   centerCamera: 'Center camera',
+  cameraLock: 'Toggle camera lock',
   reset: 'Instant reset',
   pause: 'Pause',
 };
@@ -69,7 +72,8 @@ export type InputEventKind =
   | { kind: 'pause'; t: number }
   /** Focus or visibility was lost. Pauses; never un-pauses. */
   | { kind: 'blur'; t: number }
-  | { kind: 'centerCamera'; t: number };
+  | { kind: 'centerCamera'; t: number }
+  | { kind: 'cameraLock'; t: number };
 
 const ABILITY_SLOTS = ['q', 'w', 'e', 'r', 'd', 'f'] as const;
 export type AbilitySlot = (typeof ABILITY_SLOTS)[number];
@@ -287,6 +291,11 @@ export class InputSystem {
     }
     if (this.matches('centerCamera', code)) {
       this.queue.push({ kind: 'centerCamera', t });
+      e.preventDefault();
+      return;
+    }
+    if (this.matches('cameraLock', code)) {
+      this.queue.push({ kind: 'cameraLock', t });
       e.preventDefault();
       return;
     }
