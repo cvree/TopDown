@@ -41,6 +41,7 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
   const minimapRef = useRef<HTMLCanvasElement>(null);
   const hudRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<'countdown' | 'running' | 'paused' | 'ended'>('countdown');
+  const [gpuLost, setGpuLost] = useState(false);
   const doneRef = useRef(false);
   const meta = DRILLS[drill];
 
@@ -101,6 +102,17 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
       renderer.zoomBy(Math.sign(e.deltaY) * 0.09);
     };
     canvas.addEventListener('wheel', onWheel, { passive: false });
+
+    // Last line of defence for a run in progress. Opera's back gesture is a
+    // right-drag — the same input used to move — so a misfire used to unload
+    // the page mid-drill with no way back. The in-app history guard catches
+    // almost all of those; this catches the rest.
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (doneRef.current || session.phase === 'ended') return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
 
     // --- HUD elements, written to directly each frame -------------------
     const hud = hudRef.current!;
@@ -289,10 +301,25 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
     );
     loop.start();
 
+    // Browsers can take the GPU back — Opera GX's RAM and CPU limiters make it
+    // markedly more likely than elsewhere. Unhandled, that is a black canvas
+    // and a run that quietly stops meaning anything. Freeze it, say so, and
+    // let the player restart on their own terms.
+    const onContextLost = (e: Event) => {
+      // Without preventDefault the context can never come back at all.
+      e.preventDefault();
+      loop.stop();
+      if (session.phase === 'running') session.phase = 'paused';
+      setGpuLost(true);
+    };
+    canvas.addEventListener('webglcontextlost', onContextLost);
+
     return () => {
       loop.stop();
       ro.disconnect();
       canvas.removeEventListener('wheel', onWheel);
+      canvas.removeEventListener('webglcontextlost', onContextLost);
+      window.removeEventListener('beforeunload', onBeforeUnload);
       input.detach();
       session.fx.clear();
       audio.stopArenaBed();
@@ -427,7 +454,29 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
         </div>
       </div>
 
-      {phase === 'paused' && (
+      {gpuLost && (
+        <div className="pause-overlay fade-in">
+          <div className="pause-card scale-in">
+            <div className="eyebrow">GRAPHICS CONTEXT LOST</div>
+            <h2>{meta.name}</h2>
+            <p className="dim" style={{ maxWidth: 430, margin: '0 0 22px' }}>
+              The browser reclaimed the GPU, so this run has been stopped rather than scored on a
+              frozen arena. If it keeps happening, turn off your browser’s RAM and CPU limiters
+              (Opera GX: <b>GX Control</b>) or switch on <b>Reduced effects</b> in settings.
+            </p>
+            <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+              <button className="btn primary" onClick={onRetry}>
+                Restart drill
+              </button>
+              <button className="btn ghost" onClick={onExit}>
+                Exit drill
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {phase === 'paused' && !gpuLost && (
         <div className="pause-overlay fade-in">
           <div className="pause-card scale-in">
             <div className="eyebrow">PAUSED</div>

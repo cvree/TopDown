@@ -59,3 +59,68 @@
   line-height: 1.6;
   margin: 0 auto;
 }
+
+/* ------------------------------------------------------ gesture notice */
+/* Browser-level mouse gestures collide with right-click movement. The page
+   cannot suppress them, so this says where the switch is and gets out of
+   the way once it has been read. */
+.gesture-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  /* Aligned with the content column: .wrap is 1440px inset by 40px a side. */
+  width: min(1360px, calc(100% - 80px));
+  margin: 4px auto 0;
+  padding: 14px 18px;
+  border-left: 3px solid var(--warn, #ffcf6b);
+  animation: fadeUp 0.4s var(--ease) both;
+}
+.gn-mark {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 15px;
+  color: #120c02;
+  background: var(--warn, #ffcf6b);
+}
+.gn-body {
+  flex: 1;
+  min-width: 0;
+}
+.gn-title {
+  font-family: var(--ui);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.gn-body p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+.gn-path {
+  margin-top: 8px !important;
+  font-size: 12.5px !important;
+}
+.gn-path code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  user-select: all;
+}
+.gn-dismiss {
+  flex: none;
+  align-self: center;
+}
+@media (max-width: 720px) {
+  .gesture-notice {
+    flex-wrap: wrap;
+  }
+}

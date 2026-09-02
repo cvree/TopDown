@@ -19,6 +19,7 @@ import {
 import { rankFromRating, type RankInfo } from '../progression/ranks';
 import type { SkillAxis } from '../progression/skills';
 import { ArenaBackdrop } from './components/ArenaBackdrop';
+import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
 import { Daily } from './Daily';
 import { GameView } from './GameView';
 import { Home } from './Home';
@@ -91,6 +92,46 @@ export function App() {
 
   const patchSettings = useCallback((patch: Partial<AppSettings>) => {
     setProfile((p) => ({ ...p, settings: { ...p.settings, ...patch } }));
+  }, []);
+
+  // -------------------------------------------------------------- back guard
+  //
+  // Opera ships mouse gestures on by default, and two of them are built from
+  // the exact inputs this trainer uses: right-drag-left and the right+left
+  // "rocker" both mean Back. A stray one used to unload the page and take the
+  // run with it, which reads as the game restarting at random.
+  //
+  // While a run is live an extra history entry sits on top of the stack, so a
+  // Back lands here instead of off-site: we swallow it, re-arm, and the run
+  // carries on. Esc is still the way out. The entry is popped again the moment
+  // the run ends, so Back behaves normally everywhere else on the site.
+  const runInProgress = flow !== null || placementReveal;
+  const guard = useRef({ armed: false, live: false });
+  guard.current.live = runInProgress;
+
+  useEffect(() => {
+    if (!runInProgress) return;
+    guard.current.armed = true;
+    window.history.pushState({ apexBackGuard: true }, '');
+    return () => {
+      if (!guard.current.armed) return;
+      guard.current.armed = false;
+      window.history.back();
+    };
+  }, [runInProgress]);
+
+  useEffect(() => {
+    const onPop = () => {
+      const g = guard.current;
+      // Not our entry: let the browser navigate as the player asked.
+      if (!g.armed) return;
+      g.armed = false;
+      if (!g.live) return;
+      g.armed = true;
+      window.history.pushState({ apexBackGuard: true }, '');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   // ------------------------------------------------------------- flow start
@@ -244,6 +285,12 @@ export function App() {
   }, []);
 
   const rank = rankFromRating(profile.overall);
+  // Only ever shown to browsers that actually ship gestures, and only until
+  // it has been read once.
+  const showGestureNotice = useMemo(
+    () => !profile.settings.gestureNoticeDismissed && hasBrowserMouseGestures(),
+    [profile.settings.gestureNoticeDismissed],
+  );
 
   // ------------------------------------------------------------------ render
 
@@ -366,6 +413,10 @@ export function App() {
             </div>
           </div>
         </header>
+
+        {showGestureNotice && (
+          <GestureNotice onDismiss={() => patchSettings({ gestureNoticeDismissed: true })} />
+        )}
 
         {route === 'home' && (
           <Home
