@@ -46,11 +46,18 @@ const GROUPS: { id: DrillGroup; title: string; blurb: string }[] = [
   { id: 'FOUNDATION', title: 'Foundation', blurb: 'The inputs everything else is built on' },
   { id: 'RHYTHM', title: 'Rhythm', blurb: 'Timing between your hands and the clock' },
   { id: 'COMBAT', title: 'Combat', blurb: 'All of it, against something that fights back' },
+  { id: 'APM', title: 'APM Trainer', blurb: 'Thirteen modes, all of them counted in actions per minute' },
   { id: 'VAYNE', title: 'Vayne', blurb: 'One champion, learned in order' },
 ];
 
-const metricFormat = (key: string): 'ms' | 'units' | 'pct' =>
-  key.includes('REACTION') || key.includes('SPEED') ? 'ms' : key.includes('ERROR') ? 'units' : 'pct';
+const metricFormat = (key: string): 'ms' | 'units' | 'pct' | 'int' =>
+  key.includes('APM') || key.includes('SECURED') || key.includes('TAKEN') || key.includes('CS')
+    ? 'int'
+    : key.includes('REACTION') || key.includes('SPEED') || key.includes('PER KEY')
+      ? 'ms'
+      : key.includes('ERROR')
+        ? 'units'
+        : 'pct';
 
 export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne }: Props) {
   const rank = rankFromRating(profile.overall);

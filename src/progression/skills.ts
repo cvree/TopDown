@@ -1,4 +1,4 @@
-/** The eight mechanical axes the trainer rates independently. */
+/** The ten mechanical axes the trainer rates independently. */
 export const SKILL_AXES = [
   'movement',
   'aim',
@@ -9,6 +9,7 @@ export const SKILL_AXES = [
   'targeting',
   'combat',
   'lastHitting',
+  'tempo',
 ] as const;
 
 export type SkillAxis = (typeof SKILL_AXES)[number];
@@ -23,6 +24,7 @@ export const AXIS_LABEL: Record<SkillAxis, string> = {
   targeting: 'Targeting',
   combat: 'Combat',
   lastHitting: 'Last Hitting',
+  tempo: 'APM',
 };
 
 export const AXIS_BLURB: Record<SkillAxis, string> = {
@@ -35,6 +37,7 @@ export const AXIS_BLURB: Record<SkillAxis, string> = {
   targeting: 'Switching to the right target, and how quickly you commit.',
   combat: 'Everything at once, under pressure, against something fighting back.',
   lastHitting: 'Timing a killing blow on a moving health bar.',
+  tempo: 'Actions per minute that mean something — hand speed with nothing wasted.',
 };
 
 /** Which drill trains which axis, and how strongly (weights sum per drill). */

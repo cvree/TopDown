@@ -8,10 +8,12 @@
 import { GameLoop, SIM_DT } from '../src/engine/loop';
 import { Session, type ViewProjection } from '../src/engine/session';
 import { createDrill, arenaFor } from '../src/drills';
+import { APM_DRILL_IDS } from '../src/drills/apm';
 import { DRILLS, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
 import type { InputEventKind, InputSystem, MovementScheme } from '../src/engine/input';
 import { dist, norm } from '../src/engine/math';
+import { incomingDamage } from '../src/engine/lane';
 import type { VayneKit } from '../src/engine/vayne';
 import { VAYNE_STATS } from '../src/engine/vayne';
 import { Rng } from '../src/engine/rng';
@@ -29,12 +31,22 @@ type Policy =
   | 'priority'
   | 'sequence'
   | 'lead'
+  | 'lastHit'
   | 'wasd'
   | 'wasdHold'
   | 'vayneTumble'
   | 'vayneBolts'
   | 'vayneCondemn'
-  | 'vayneKit';
+  | 'vayneKit'
+  | 'apmClick'
+  | 'apmPing'
+  | 'apmKeys'
+  | 'apmCollect'
+  | 'apmUpkeep'
+  | 'apmBand'
+  | 'apmSmite'
+  | 'apmOrbwalk'
+  | 'apmCsDodge';
 
 class FakeInput {
   cursor = { x: 0, y: 0 };
@@ -104,12 +116,17 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345,
       reactTimer -= SIM_DT;
       if (reactTimer <= 0) {
         switch (policy) {
+          case 'apmOrbwalk':
           case 'orbwalk': {
             // A competent orbwalker: attack the instant the timer is up, then
             // spend the whole free window circling at the edge of range —
             // tangentially, with a radial correction, steering off the walls
             // rather than running into them.
-            reactTimer = 0.05;
+            //
+            // The APM variant runs at a human cadence rather than the sim's.
+            // Twenty commands a second is not a fast player, it is a macro,
+            // and the APM modes are built to refuse to pay one.
+            reactTimer = policy === 'apmOrbwalk' ? 0.2 : 0.05;
             if (!target) break;
             const d = dist(p.pos, target.pos);
             const inRange = d - target.radius <= p.attack.range;
@@ -142,6 +159,46 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345,
               y: Math.max(50, Math.min(bounds.h - 50, gy)),
               t: t * 1000,
             });
+            break;
+          }
+          case 'lastHit': {
+            // Farming a lane the way it is meant to be farmed: hold the
+            // attack until the shot will actually secure the kill, and stand
+            // at the back of your own wave the rest of the time.
+            //
+            // It leans on exactly the read the drill draws for you — where the
+            // health bar will be once everything already in the air arrives —
+            // which is the point: if playing to the trainer's own indicator
+            // did not beat swinging at everything, the indicator would be
+            // teaching the wrong thing.
+            reactTimer = 0.03;
+            const w = session.world;
+            const minions = w.actors.filter((a) => a.alive && a.team === 'enemy' && a.isMinion);
+            let pick: (typeof minions)[number] | null = null;
+            for (const m of minions) {
+              const gap = dist(p.pos, m.pos) - m.radius;
+              if (gap > p.attack.range) continue;
+              if (incomingDamage(w, m, Infinity, { only: p.id }) > 0) continue; // already committed
+              const lead = (1 / p.attack.attackSpeed) * p.attack.windupRatio + gap / p.attack.projectileSpeed;
+              const at = m.hp - incomingDamage(w, m, lead, { exclude: p.id });
+              if (at <= 0 || at > p.attack.damage) continue;
+              if (!pick || m.hp < pick.hp) pick = m;
+            }
+            if (pick && p.attackCd <= 0.001 && p.phase !== 'windup') {
+              input.push({ kind: 'move', x: pick.pos.x, y: pick.pos.y, t: t * 1000 });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const near = minions.filter((m) => m.pos.x < bounds.w * 0.62);
+            if (near.length) {
+              const cx = near.reduce((sum, m) => sum + m.pos.x, 0) / near.length;
+              const cy = near.reduce((sum, m) => sum + m.pos.y, 0) / near.length;
+              const gx = Math.min(cx - 430, bounds.w * 0.55);
+              const gy = cy + 90;
+              if (Math.hypot(gx - p.pos.x, gy - p.pos.y) > 40) {
+                input.push({ kind: 'move', x: gx, y: gy, t: t * 1000 });
+              }
+            }
             break;
           }
           case 'spam': {
@@ -459,12 +516,150 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345,
             });
             break;
           }
+          // ------------------------------------------------------ APM trainer
+          case 'apmClick':
+          case 'apmPing': {
+            // A competent hand: take the legal mark, click its centre, and —
+            // in the map mode — answer the alert with the key it asks for.
+            reactTimer = 0.15;
+            if (policy === 'apmPing') {
+              const pings = (drill as unknown as { pings?: { slot: 'd' | 'f' }[] }).pings ?? [];
+              if (pings.length) {
+                input.push({ kind: 'ability', slot: pings[0].slot, x: p.pos.x, y: p.pos.y, t: t * 1000 });
+                break;
+              }
+            }
+            const marks = (drill as unknown as { marks?: { actor: { pos: { x: number; y: number } }; order: number }[] })
+              .marks ?? [];
+            if (!marks.length) break;
+            const ordered = marks.some((m) => m.order > 0);
+            const mk = ordered
+              ? marks.reduce((a, b) => (a.order <= b.order ? a : b))
+              : marks.reduce((a, b) => (dist(p.pos, a.actor.pos) <= dist(p.pos, b.actor.pos) ? a : b));
+            input.cursor = { x: mk.actor.pos.x, y: mk.actor.pos.y };
+            session.cursorWorld = { x: mk.actor.pos.x, y: mk.actor.pos.y };
+            input.push({ kind: 'move', x: mk.actor.pos.x, y: mk.actor.pos.y, t: t * 1000 });
+            break;
+          }
+          case 'apmCsDodge': {
+            // Last-hitting under harassment: leave any telegraph standing on
+            // you first, and otherwise take the lowest bar in range.
+            reactTimer = 0.2;
+            let stepped = false;
+            for (const h of session.world.hazards) {
+              if (h.warn <= 0) continue;
+              if (!session.world.hazardHits(h, p.pos, p.radius + 40)) continue;
+              const axis = h.end ? norm(h.end.x - h.pos.x, h.end.y - h.pos.y) : norm(p.pos.x - h.pos.x, p.pos.y - h.pos.y);
+              const away = h.end ? { x: -axis.y, y: axis.x } : axis;
+              input.push({
+                kind: 'move',
+                x: Math.max(70, Math.min(bounds.w - 70, p.pos.x + away.x * 280)),
+                y: Math.max(70, Math.min(bounds.h - 70, p.pos.y + away.y * 280)),
+                t: t * 1000,
+              });
+              stepped = true;
+              break;
+            }
+            if (stepped || !target) break;
+            const reach = dist(p.pos, target.pos) - target.radius;
+            if (reach <= p.attack.range) {
+              if (p.attackCd <= 0.001 && p.phase !== 'windup') {
+                input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              }
+              break;
+            }
+            const toward = norm(target.pos.x - p.pos.x, target.pos.y - p.pos.y);
+            input.push({
+              kind: 'move',
+              x: p.pos.x + toward.x * (reach - p.attack.range + 40),
+              y: p.pos.y + toward.y * (reach - p.attack.range + 40),
+              t: t * 1000,
+            });
+            break;
+          }
+          case 'apmKeys': {
+            reactTimer = 0.1;
+            const q = (drill as unknown as { queue?: string[] }).queue ?? [];
+            if (q.length) input.push({ kind: 'ability', slot: q[0] as 'q', x: p.pos.x, y: p.pos.y, t: t * 1000 });
+            break;
+          }
+          case 'apmCollect':
+          case 'apmUpkeep': {
+            // Walk the charges down, and in the upkeep mode spend every
+            // ability the instant its wheel finishes.
+            reactTimer = 0.18;
+            if (policy === 'apmUpkeep') {
+              const cds = (drill as unknown as { cd?: Record<string, number> }).cd;
+              if (cds) {
+                const ready = (['q', 'w', 'e', 'r'] as const).find((k) => cds[k] <= 0);
+                if (ready) {
+                  input.push({ kind: 'ability', slot: ready, x: p.pos.x + 200, y: p.pos.y, t: t * 1000 });
+                  break;
+                }
+              }
+            }
+            const charges = (drill as unknown as { charges?: { pos: { x: number; y: number } }[] }).charges ?? [];
+            if (!charges.length) break;
+            const c = charges.reduce((a, b) => (dist(p.pos, a.pos) <= dist(p.pos, b.pos) ? a : b));
+            input.push({ kind: 'move', x: c.pos.x, y: c.pos.y, t: t * 1000 });
+            break;
+          }
+          case 'apmBand': {
+            // Stand where the current call asks, on the line from the chaser
+            // through the player so the move is always the shortest one.
+            reactTimer = 0.3;
+            const dr = drill as unknown as { chaser?: { pos: { x: number; y: number } }; band(): { lo: number; hi: number } };
+            const e = dr.chaser;
+            if (!e) break;
+            const b = dr.band();
+            const want = (b.lo + b.hi) / 2;
+            const away = norm(p.pos.x - e.pos.x, p.pos.y - e.pos.y);
+            const gx = e.pos.x + away.x * want;
+            const gy = e.pos.y + away.y * want;
+            input.push({
+              kind: 'move',
+              x: Math.max(70, Math.min(bounds.w - 70, gx)),
+              y: Math.max(70, Math.min(bounds.h - 70, gy)),
+              t: t * 1000,
+            });
+            break;
+          }
+          case 'apmSmite': {
+            // Walk to whichever objective is closest to its window and take it
+            // the moment it is legal.
+            reactTimer = 0.3;
+            const dr = drill as unknown as {
+              camps?: { actor: { pos: { x: number; y: number }; hp: number; radius: number } }[];
+              cd: number;
+              threshold(): number;
+            };
+            const camps = dr.camps ?? [];
+            if (!camps.length) break;
+            const next = camps.reduce((a, b) => (a.actor.hp <= b.actor.hp ? a : b));
+            input.cursor = { x: next.actor.pos.x, y: next.actor.pos.y };
+            session.cursorWorld = { x: next.actor.pos.x, y: next.actor.pos.y };
+            const reach = dist(p.pos, next.actor.pos) - next.actor.radius;
+            if (next.actor.hp <= dr.threshold() && dr.cd <= 0 && reach <= 700) {
+              input.push({ kind: 'ability', slot: 'd', x: next.actor.pos.x, y: next.actor.pos.y, t: t * 1000 });
+              break;
+            }
+            // Walk to it, but only while there is walking left to do.
+            if (reach > 500) input.push({ kind: 'move', x: next.actor.pos.x, y: next.actor.pos.y, t: t * 1000 });
+            break;
+          }
           case 'idle':
             reactTimer = 1;
             break;
         }
       }
-      if (policy !== 'aim' && policy !== 'vayneBolts' && policy !== 'vayneCondemn') {
+      const ownsCursor =
+        policy === 'aim' ||
+        policy === 'vayneBolts' ||
+        policy === 'vayneCondemn' ||
+        policy === 'apmClick' ||
+        policy === 'apmPing' ||
+        policy === 'apmSmite';
+      if (!ownsCursor) {
         session.cursorWorld = { x: p.pos.x, y: p.pos.y };
       }
     }
@@ -476,7 +671,7 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345,
   const out = drill.outcome();
   const m = session.metrics.m;
   const d = derive(m, session.world.player?.maxHp ?? 720);
-  return { out, m, d, session };
+  return { out, m, d, session, drill };
 };
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
@@ -599,12 +794,45 @@ for (const [id, policy] of [
   ['movement', 'nodes'],
   ['targetswitch', 'priority'],
   ['combos', 'sequence'],
-  ['lasthit', 'orbwalk'],
+  ['lasthit', 'lastHit'],
   ['skillshot', 'lead'],
 ] as [DrillId, Policy][]) {
   const r = runDrill(id, policy, 0.35);
   line(`  ${id.padEnd(13)} correct play perf ${pct(r.out.performance)}  score ${r.out.score}  ${r.out.keyMetrics.slice(0, 2).map((k) => `${k.label} ${k.value.toFixed(2)}`).join('  ')}`);
   expect(`${id} rewards correct play`, r.out.performance > 0.55, pct(r.out.performance));
+}
+
+line('\n=== LAST HIT: a lane rewards patience, not volume ===');
+{
+  const drillOf = (r: ReturnType<typeof runDrill>) => r.drill as unknown as Record<string, number>;
+  const patient = runDrill('lasthit', 'lastHit', 0.45);
+  const greedy = runDrill('lasthit', 'orbwalk', 0.45);
+  const dp = drillOf(patient);
+  const dg = drillOf(greedy);
+  const accOf = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'csAcc')?.value ?? 0;
+  line(
+    `  patient : cs ${dp.cs}  perfect ${dp.perfect}  missed ${dp.missed}  wasted ${dp.wastedHits}  acc ${pct(accOf(patient))}  perf ${pct(patient.out.performance)}`,
+  );
+  line(
+    `  greedy  : cs ${dg.cs}  perfect ${dg.perfect}  missed ${dg.missed}  wasted ${dg.wastedHits}  acc ${pct(accOf(greedy))}  perf ${pct(greedy.out.performance)}`,
+  );
+  expect('waiting for the kill window beats swinging at everything', patient.out.performance > greedy.out.performance + 0.15, `${pct(patient.out.performance)} vs ${pct(greedy.out.performance)}`);
+  expect('patience secures a higher share of the wave', accOf(patient) > accOf(greedy), `${pct(accOf(patient))} vs ${pct(accOf(greedy))}`);
+  expect('a patient run wastes almost no attacks', dp.wastedHits <= dg.wastedHits, `${dp.wastedHits} vs ${dg.wastedHits}`);
+  expect('the lane actually produces farm', dp.cs > 15, `${dp.cs} cs`);
+}
+
+line('\n=== LAST HIT: every point of damage has an owner ===');
+{
+  // The premise of the whole drill: nothing drains. Run the lane with no
+  // player input at all and assert that every minion that died was killed by
+  // a unit that is still identifiable, and that the enemy laner farms.
+  const r = runDrill('lasthit', 'idle', 0.7);
+  const d = r.drill as unknown as Record<string, number>;
+  line(`  unattended lane: enemy minions lost ${d.missed}  to your turret ${d.missedToTurret}  rival cs ${d.rivalCs}  your cs ${d.cs}`);
+  expect('minions kill each other without you', d.missed > 10, `${d.missed}`);
+  expect('an unattended lane is farmed by the rival', d.rivalCs > 4, `${d.rivalCs}`);
+  expect('doing nothing farms nothing', d.cs === 0, `${d.cs}`);
 }
 
 line('\n=== Honesty: doing nothing scores near zero everywhere ===');
@@ -616,7 +844,7 @@ for (const id of ['movement', 'aim', 'skillshot', 'kite', 'spacing', 'lasthit', 
 
 line('\n=== SPACING / MOVEMENT / LAST HIT / TARGET SWITCH / COMBOS / SKILLSHOT run clean ===');
 for (const id of ['spacing', 'movement', 'lasthit', 'targetswitch', 'combos', 'skillshot'] as DrillId[]) {
-  const r = runDrill(id, id === 'skillshot' ? 'lead' : 'orbwalk', 0.4);
+  const r = runDrill(id, id === 'skillshot' ? 'lead' : id === 'lasthit' ? 'lastHit' : 'orbwalk', 0.4);
   const finite = Number.isFinite(r.out.performance) && Number.isFinite(r.out.score);
   line(`  ${id.padEnd(13)} perf ${pct(r.out.performance)}  score ${r.out.score}  metrics ${r.out.keyMetrics.length}`);
   expect(`${id} produces finite, in-range results`, finite && r.out.performance >= 0 && r.out.performance <= 1, `perf=${r.out.performance}`);
@@ -717,6 +945,90 @@ for (const id of ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'] as D
   const r = runDrill(id, 'idle', 0.4);
   line(`  ${id.padEnd(13)} idle perf ${pct(r.out.performance)}  score ${r.out.score}`);
   expect(`${id} cannot be passed by doing nothing`, r.out.performance < 0.3, pct(r.out.performance));
+}
+
+line('\n=== APM TRAINER: every mode pays for correct play and nothing else ===');
+{
+  const cases: [DrillId, Policy][] = [
+    ['apmAim', 'apmClick'],
+    ['apmAim2', 'apmClick'],
+    ['apmAimMap', 'apmPing'],
+    ['apmPrecision', 'apmClick'],
+    ['apmKeys', 'apmKeys'],
+    ['apmDodge', 'apmCollect'],
+    ['apmDodgeCd', 'apmUpkeep'],
+    ['apmKite', 'apmOrbwalk'],
+    ['apmDefKite', 'apmOrbwalk'],
+    ['apmLastHit', 'lastHit'],
+    ['apmLastHit2', 'lastHit'],
+    ['apmSpacing', 'apmBand'],
+    ['apmSmite', 'apmSmite'],
+  ];
+  // Adding a mode without adding it here would silently ship it untested.
+  expect(
+    'every APM mode is covered by these checks',
+    APM_DRILL_IDS.every((id) => cases.some(([c]) => c === id)) && cases.length === APM_DRILL_IDS.length,
+    `${cases.length} cases for ${APM_DRILL_IDS.length} modes`,
+  );
+  for (const [id, policy] of cases) {
+    const good = runDrill(id, policy, 0.35);
+    const idle = runDrill(id, 'idle', 0.35);
+    const apm = good.out.keyMetrics.find((k) => k.id === 'apm')?.value ?? 0;
+    const finite = Number.isFinite(good.out.performance) && Number.isFinite(good.out.score);
+    line(
+      `  ${id.padEnd(13)} played ${pct(good.out.performance)} @ ${Math.round(apm)} APM  score ${good.out.score}` +
+        `   idle ${pct(idle.out.performance)} score ${idle.out.score}`,
+    );
+    const inner = (good as unknown as { session: { drill: unknown } }).session.drill as unknown as {
+      hits: number; fumbles: number; strays: number; expiries: number; bestChain: number; pushes?: number;
+    };
+    line(
+      `      hits ${inner.hits}  fumbles ${inner.fumbles}  strays ${inner.strays}  expiries ${inner.expiries}` +
+        `  chain ${inner.bestChain}${inner.pushes === undefined ? '' : `  pushes ${inner.pushes}`}  correct/min ${Math.round(good.out.keyMetrics.find((k) => k.id === 'correctApm')?.value ?? 0)}`,
+    );
+    expect(`${id} produces finite, in-range results`, finite && good.out.performance >= 0 && good.out.performance <= 1, `perf=${good.out.performance}`);
+    expect(`${id} rewards playing it`, good.out.performance > 0.4, pct(good.out.performance));
+    expect(`${id} cannot be passed by doing nothing`, idle.out.performance < 0.3, pct(idle.out.performance));
+    expect(`${id} counts actions per minute`, apm > 30, `${Math.round(apm)} APM`);
+  }
+}
+
+line('\n=== APM TRAINER: speed alone is not a score ===');
+{
+  // Mashing the field at random is faster than playing it. It must not pay.
+  const played = runDrill('apmAim', 'apmClick', 0.35);
+  const mashed = runDrill('apmAim', 'spam', 0.35);
+  const mashedApm = mashed.out.keyMetrics.find((k) => k.id === 'apm')?.value ?? 0;
+  const playedApm = played.out.keyMetrics.find((k) => k.id === 'apm')?.value ?? 0;
+  line(`  played: ${pct(played.out.performance)} @ ${Math.round(playedApm)} APM  score ${played.out.score}`);
+  line(`  mashed: ${pct(mashed.out.performance)} @ ${Math.round(mashedApm)} APM  score ${mashed.out.score}`);
+  expect('clicking at nothing scores below playing', mashed.out.performance < played.out.performance * 0.6, pct(mashed.out.performance));
+  expect('clicking at nothing scores near zero', mashed.out.score < played.out.score * 0.35, `${mashed.out.score} vs ${played.out.score}`);
+}
+
+line('\n=== APM TRAINER: the flow ladder is what the score is made of ===');
+{
+  const r = runDrill('apmKeys', 'apmKeys', 0.35);
+  const chain = r.out.keyMetrics.find((k) => k.id === 'chain')?.value ?? 0;
+  line(`  best chain ${chain}  perfects and multiplier folded into score ${r.out.score}`);
+  expect('a clean run actually chains', chain >= 13, `${chain}`);
+}
+
+line('\n=== APM TRAINER: the same modes, driven with the keys ===');
+{
+  // The movement modes count commands, and under WASD a command is a key
+  // going down rather than a click on the ground. If that is not counted the
+  // whole trainer silently becomes a click-scheme feature.
+  const kite = runDrill('apmKite', 'wasd', 0.35, 12345, 'wasd');
+  const idle = runDrill('apmKite', 'idle', 0.35, 12345, 'wasd');
+  const apm = kite.out.keyMetrics.find((k) => k.id === 'apm')?.value ?? 0;
+  const steps = kite.out.keyMetrics.find((k) => k.id === 'steps')?.value ?? 0;
+  line(`  wasd kiting: ${pct(kite.out.performance)} @ ${Math.round(apm)} APM  steps ${steps}  score ${kite.out.score}`);
+  line(`  wasd idle  : ${pct(idle.out.performance)}`);
+  expect('WASD movement is counted as APM', apm > 30, `${Math.round(apm)} APM`);
+  expect('the WASD step scores as the step half of the cycle', steps > 10, `${steps} steps`);
+  expect('WASD kiting rewards playing it', kite.out.performance > 0.4, pct(kite.out.performance));
+  expect('WASD idling still scores nothing', idle.out.performance < 0.3, pct(idle.out.performance));
 }
 
 line('\n=== Losing focus pauses a run, and never un-pauses one ===');

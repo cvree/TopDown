@@ -118,6 +118,8 @@ export class World {
       archetype: init.archetype,
       label: init.label,
       isMinion: init.isMinion,
+      unitKind: init.unitKind,
+      immovable: init.immovable,
       goldValue: init.goldValue,
       tint: init.tint,
       visual: init.visual,
@@ -538,8 +540,9 @@ export class World {
         speed: a.attack.projectileSpeed,
         damage: a.attack.damage,
         targetId: target.id,
-        radius: 11,
-        shape: 'bolt',
+        radius: a.attack.projectileRadius ?? 11,
+        shape: a.attack.projectileShape ?? 'bolt',
+        color: a.attack.projectileColor,
         maxLife: 2.5,
       });
     } else {
@@ -576,19 +579,27 @@ export class World {
       for (let j = i + 1; j < n; j++) {
         const b = this.actors[j];
         if (!b.alive) continue;
+        if (a.immovable && b.immovable) continue;
         const dx = b.pos.x - a.pos.x;
         const dy = b.pos.y - a.pos.y;
         const min = a.radius + b.radius;
         const d2 = dx * dx + dy * dy;
         if (d2 >= min * min || d2 < 1e-6) continue;
         const d = Math.sqrt(d2);
-        const push = (min - d) * 0.5;
+        // A structure never gives ground: the whole displacement goes to
+        // whoever walked into it, which is what makes a turret feel planted.
+        const share = a.immovable || b.immovable ? 1 : 0.5;
+        const push = (min - d) * share;
         const nx = dx / d;
         const ny = dy / d;
-        a.pos.x -= nx * push;
-        a.pos.y -= ny * push;
-        b.pos.x += nx * push;
-        b.pos.y += ny * push;
+        if (!a.immovable) {
+          a.pos.x -= nx * push;
+          a.pos.y -= ny * push;
+        }
+        if (!b.immovable) {
+          b.pos.x += nx * push;
+          b.pos.y += ny * push;
+        }
       }
     }
   }

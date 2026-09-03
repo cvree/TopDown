@@ -123,7 +123,8 @@ export function Tests({ profile, onRun, onBack }: Props) {
             <div className="eyebrow">Skill tests</div>
             <h1 className="display tests-h1">BENCHMARK</h1>
             <p className="dim tests-lead">
-              Twelve instruments, twenty to sixty seconds each. A drill trains a habit; a test hands you a
+              Twelve instruments, twenty to sixty seconds each. A drill trains a habit and the APM trainer
+              measures what your hands can sustain; a test measures one event on a bare field and hands you a
               number. Reaction, prediction, recall, arithmetic under a closing window — the parts of the game
               nobody practises because nobody measures them.
             </p>

@@ -13,7 +13,14 @@ import { ChampionRig, type RigSpec } from './champions';
  * scoring reads, never a separate visual approximation of it.
  */
 
-type VisualKey = ArchetypeId | 'player' | 'nightHunter' | 'minion' | 'dummy';
+type VisualKey =
+  | ArchetypeId
+  | 'player'
+  | 'nightHunter'
+  | 'minionMelee'
+  | 'minionCaster'
+  | 'minionCannon'
+  | 'dummy';
 
 const ENEMY_RING = '#ff4d42';
 const ALLY_RING = '#5fe0ff';
@@ -104,7 +111,12 @@ const VISUALS: Record<VisualKey, Omit<RigSpec, 'height' | 'radius' | 'ringColor'
     headgear: 'helm',
     cape: false,
   },
-  minion: {
+  // The three lane minions. They differ by silhouette before they differ by
+  // colour, because at this camera distance the outline is what you actually
+  // read: the melee is a squat blade, the caster carries a staff, and the
+  // cannon is a slab twice the mass of either. Which one is dying matters —
+  // a cannon is worth three casters — so they must never be confusable.
+  minionMelee: {
     build: 'small',
     primary: '#9c8a6c',
     secondary: '#3a3226',
@@ -112,6 +124,26 @@ const VISUALS: Record<VisualKey, Omit<RigSpec, 'height' | 'radius' | 'ringColor'
     skin: '#9d8465',
     weapon: 'sword',
     headgear: 'none',
+    cape: false,
+  },
+  minionCaster: {
+    build: 'small',
+    primary: '#8b7f9c',
+    secondary: '#2e2838',
+    accent: '#b6a2ff',
+    skin: '#9d8465',
+    weapon: 'staff',
+    headgear: 'hood',
+    cape: true,
+  },
+  minionCannon: {
+    build: 'heavy',
+    primary: '#7d6a4e',
+    secondary: '#2b2419',
+    accent: '#ffb457',
+    skin: '#8d7455',
+    weapon: 'hammer',
+    headgear: 'helm',
     cape: false,
   },
   dummy: {
@@ -129,14 +161,32 @@ const VISUALS: Record<VisualKey, Omit<RigSpec, 'height' | 'radius' | 'ringColor'
 const visualKeyFor = (a: Actor, playerId: number): VisualKey => {
   if (a.visual === 'nightHunter') return 'nightHunter';
   if (a.id === playerId) return 'player';
-  if (a.isMinion) return 'minion';
+  if (a.unitKind === 'caster') return 'minionCaster';
+  if (a.unitKind === 'cannon') return 'minionCannon';
+  if (a.isMinion) return 'minionMelee';
   if (a.archetype && a.archetype in VISUALS) return a.archetype;
   return 'dummy';
 };
 
+/**
+ * A minion's livery.
+ *
+ * Both sides of a lane run the same three bodies, so the only thing keeping
+ * "mine" apart from "theirs" is colour, and it has to survive being glanced at
+ * for a tenth of a second in a pile of twelve units. Blue-steel against
+ * blood-iron, with the accent doing most of the work.
+ */
+const teamTint = (spec: Omit<RigSpec, 'height' | 'radius' | 'ringColor'>, ally: boolean): typeof spec => ({
+  ...spec,
+  primary: ally ? '#4a6f9c' : '#9c4a42',
+  secondary: ally ? '#1b2c44' : '#3d1a17',
+  accent: ally ? '#7fd2ff' : '#ff9a6a',
+});
+
 interface Entry {
   rig: ChampionRig;
-  key: VisualKey;
+  /** Visual key plus team: the same body in the other livery is a rebuild. */
+  key: string;
   death: number;
   cast: number;
   /** Facing is smoothed: the simulation can snap it, the model should not. */
@@ -161,11 +211,15 @@ export class UnitLayer {
 
     for (const a of world.actors) {
       seen.add(a.id);
+      // Structures are drawn by their own layer; a turret is not a body with
+      // legs and no amount of rig tuning makes it read as one.
+      if (a.unitKind === 'turret') continue;
       let e = this.entries.get(a.id);
-      const key = visualKeyFor(a, world.playerId);
+      const visual = visualKeyFor(a, world.playerId);
+      const key = `${visual}:${a.team}`;
       if (!e || e.key !== key) {
         e?.rig.dispose();
-        const rig = new ChampionRig(this.specFor(a, key));
+        const rig = new ChampionRig(this.specFor(a, visual));
         this.parent.add(rig.group);
         e = { rig, key, death: 0, cast: 0, facing: a.facing };
         this.entries.set(a.id, e);
@@ -214,18 +268,19 @@ export class UnitLayer {
   }
 
   private specFor(a: Actor, key: VisualKey): RigSpec {
-    const base = VISUALS[key];
     const arch = a.archetype ? ARCHETYPES[a.archetype] : null;
     const ally = a.team === 'player';
+    const minion = key === 'minionMelee' || key === 'minionCaster' || key === 'minionCannon';
+    const base = minion ? teamTint(VISUALS[key], ally) : VISUALS[key];
     // Champion height scales with the collision radius so a juggernaut really
     // does loom over a duelist, exactly as its radius promises.
-    const height = a.radius * (key === 'minion' ? 4.2 : 5.4);
+    const height = a.radius * (minion ? 4.5 : 5.4);
     return {
       ...base,
       height,
       radius: a.radius,
       ringColor: ally ? ALLY_RING : ENEMY_RING,
-      accent: key === 'player' || key === 'nightHunter' ? base.accent : arch?.color ?? base.accent,
+      accent: key === 'player' || key === 'nightHunter' || minion ? base.accent : arch?.color ?? base.accent,
     };
   }
 

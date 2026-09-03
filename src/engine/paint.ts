@@ -43,14 +43,50 @@ export type Billboard =
   /** A downward caret marking the priority target. */
   | { kind: 'caret'; x: number; y: number; color: string; lift?: number };
 
+/**
+ * An annotation drawn onto one unit's health bar.
+ *
+ * The health bar is where a last-hitter's eyes already are, so that is where
+ * the teaching has to happen — not in a panel at the side of the screen. A
+ * plate can say three things about a bar: how much damage is already on its
+ * way to it, where your own next attack would leave it, and whether the unit
+ * is takeable right now.
+ */
+export interface PlateMark {
+  actorId: number;
+  /**
+   * Share of maximum health already committed by attacks in flight — missiles
+   * on the way plus windups that cannot be called back. Drawn as a hatched
+   * slice at the end of the bar, so damage always visibly comes from somewhere.
+   */
+  incoming?: number;
+  /**
+   * Share of maximum health your own next attack removes. Drawn as a tick, so
+   * "is it under my auto yet" becomes a distance you can see rather than a
+   * number you have to guess.
+   */
+  threshold?: number;
+  /**
+   * ready  — fire now and it is yours.
+   * soon   — one more allied hit and it enters your window.
+   * losing — it dies before your attack could land; let it go.
+   */
+  tone?: 'ready' | 'soon' | 'losing';
+  /** A short caption under the bar, e.g. "FIRE". */
+  note?: string;
+}
+
 export interface DrillPaint {
   markers: GroundMarker[];
   billboards: Billboard[];
+  /** Health-bar annotations, keyed by actor id. */
+  plates: PlateMark[];
 }
 
 export const clearPaint = (p: DrillPaint): void => {
   p.markers.length = 0;
   p.billboards.length = 0;
+  p.plates.length = 0;
 };
 
-export const newPaint = (): DrillPaint => ({ markers: [], billboards: [] });
+export const newPaint = (): DrillPaint => ({ markers: [], billboards: [], plates: [] });

@@ -66,10 +66,19 @@ export class Minimap {
     for (const a of world.actors) {
       if (!a.alive) continue;
       const isPlayer = a.id === world.playerId;
-      const r = isPlayer ? 4.2 : a.isMinion ? 2 : 3.4;
+      const ally = a.team === 'player';
+      const turret = a.unitKind === 'turret';
+      const r = isPlayer ? 4.2 : turret ? 4 : a.isMinion ? 2 : 3.4;
       g.beginPath();
-      g.arc(px(a.pos.x), py(a.pos.y), r, 0, Math.PI * 2);
-      g.fillStyle = isPlayer ? accent : a.isMinion ? '#b8664e' : '#ff5a52';
+      if (turret) {
+        // Structures are squares. On a map this small, shape carries further
+        // than colour, and a turret is not a unit you can chase or run from.
+        const s = r * 1.6;
+        g.rect(px(a.pos.x) - s / 2, py(a.pos.y) - s / 2, s, s);
+      } else {
+        g.arc(px(a.pos.x), py(a.pos.y), r, 0, Math.PI * 2);
+      }
+      g.fillStyle = isPlayer ? accent : ally ? (a.isMinion ? '#4d9a72' : '#5fe0ff') : a.isMinion ? '#b8664e' : '#ff5a52';
       g.fill();
       if (isPlayer) {
         g.strokeStyle = 'rgba(255,255,255,0.9)';
