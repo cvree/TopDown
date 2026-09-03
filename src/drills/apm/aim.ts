@@ -8,7 +8,7 @@ import type { Actor, Vec2 } from '../../engine/types';
 import type { KeyMetric } from '../../progression/profile';
 import type { SkillAxis } from '../../progression/skills';
 import { count, ms, pct, units } from '../base';
-import { ApmDrill, INERT_ATTACK, KeyCooldowns } from './engine';
+import { APM_TARGET_APM, ApmDrill, INERT_ATTACK, KeyCooldowns } from './engine';
 
 /**
  * The click-target family.
@@ -230,7 +230,7 @@ abstract class TargetField extends ApmDrill {
  * your hand can actually produce, and it answers it in about forty seconds.
  */
 export class ApmAimDrill extends TargetField {
-  protected readonly targetApm = 175;
+  protected readonly targetApm = APM_TARGET_APM.apmAim;
 
   protected concurrency(): number {
     return 2 + Math.floor(this.d * 2.4);
@@ -266,7 +266,7 @@ export class ApmAimDrill extends TargetField {
  * click on the wrong unit is worse than the slower click on the right one.
  */
 export class ApmAim2Drill extends TargetField {
-  protected readonly targetApm = 140;
+  protected readonly targetApm = APM_TARGET_APM.apmAim2;
   private outOfOrder = 0;
 
   protected ordered(): boolean {
@@ -333,7 +333,7 @@ export class ApmAim2Drill extends TargetField {
  * proportion that you are getting better at it.
  */
 export class ApmPrecisionDrill extends TargetField {
-  protected readonly targetApm = 150;
+  protected readonly targetApm = APM_TARGET_APM.apmPrecision;
 
   protected concurrency(): number {
     return 3 + Math.floor(this.d * 3);
@@ -421,7 +421,7 @@ interface Ping {
  * different key — which is what the minimap actually costs you in a game.
  */
 export class ApmAimMapDrill extends TargetField {
-  protected readonly targetApm = 120;
+  protected readonly targetApm = APM_TARGET_APM.apmAimMap;
   protected get targetRate(): number {
     return 88;
   }

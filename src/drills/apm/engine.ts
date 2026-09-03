@@ -49,6 +49,31 @@ export const FLOW_TIERS: FlowTier[] = [
   { name: 'TRANSCENDENT', at: 42, mult: 3.2, color: PALETTE.violet },
 ];
 
+/**
+ * The rate a strong run sustains in each mode.
+ *
+ * It lives out here, in one table, rather than as a number buried in each
+ * class, because it is not only a scoring constant: the level ladder prints it
+ * next to every rung as the par for that mode. A figure the player is shown
+ * and a figure the score is built from must be the same figure, or the ladder
+ * is lying about what it is asking for.
+ */
+export const APM_TARGET_APM = {
+  apmAim: 175,
+  apmAim2: 140,
+  apmAimMap: 120,
+  apmPrecision: 150,
+  apmKeys: 235,
+  apmDodge: 100,
+  apmDodgeCd: 130,
+  apmKite: 105,
+  apmDefKite: 115,
+  apmLastHit: 110,
+  apmLastHit2: 130,
+  apmSpacing: 95,
+  apmSmite: 105,
+} as const;
+
 /** Seconds of history the live APM readout averages over. */
 const APM_WINDOW = 6;
 

@@ -6,6 +6,7 @@ import { formatMetric, type ProgressReport, type RunResult } from '../progressio
 import { percentileForRating, rankFromRating } from '../progression/ranks';
 import { expectedRating } from '../progression/rating';
 import { AXIS_LABEL } from '../progression/skills';
+import { APM_LEVELS, CLEAR_AT, levelDifficulty } from '../progression/apm';
 import { VAYNE_STAGES } from '../progression/vayne';
 import { PathMap, ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
 import './results.css';
@@ -329,6 +330,86 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
                 <div className="rv-unlock">
                   Cleared. <b>{report.vayne.unlocked.title}</b> is now open — stage{' '}
                   {report.vayne.unlocked.step} of the path.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {report.apm && (
+          <div className={`res-apm ${stage >= 3 ? 'in' : ''}`}>
+            <div className="panel pad">
+              <div className="panel-title">The APM ladder</div>
+              <div className="ra-grid">
+                <div className="ra-level">
+                  <span className="eyebrow">
+                    Level {report.apm.level} / {APM_LEVELS} · difficulty{' '}
+                    {Math.round(levelDifficulty(report.apm.level) * 100)}
+                    {report.apm.endurance && ' · endurance'}
+                  </span>
+                  <div className="ra-stars">
+                    {[1, 2, 3].map((n) => (
+                      <span key={n} className={n <= report.apm!.starsAfter ? 'on' : ''}>
+                        ★
+                      </span>
+                    ))}
+                    {report.apm.starsAfter > report.apm.starsBefore && (
+                      <b className="ra-gain">+{report.apm.starsAfter - report.apm.starsBefore}</b>
+                    )}
+                  </div>
+                  <div className="ra-best mono">
+                    BEST {Math.round(report.apm.best * 100)}%
+                    {report.apm.best > report.apm.previousBest && report.apm.previousBest > 0 && (
+                      <i className="good"> ▲ from {Math.round(report.apm.previousBest * 100)}%</i>
+                    )}
+                    {report.apm.best <= report.apm.previousBest && (
+                      <i className="faint"> · this run {Math.round(result.performance * 100)}%</i>
+                    )}
+                  </div>
+                </div>
+
+                <div className="ra-rate">
+                  <span className="eyebrow">Correct actions / min</span>
+                  <div className="ra-num display">{Math.round(report.apm.apm)}</div>
+                  {report.apm.apmRecord ? (
+                    <span className="good mono">RATE RECORD ON THIS RUNG</span>
+                  ) : (
+                    <span className="faint mono">rung best {Math.round(report.apm.bestApm)}</span>
+                  )}
+                </div>
+
+                <div className="ra-title">
+                  <span className="eyebrow">Mastery</span>
+                  <b className="display">
+                    {Math.round(report.apm.masteryAfter)}
+                    {report.apm.masteryAfter > report.apm.masteryBefore && (
+                      <em className="good mono">
+                        {' '}
+                        +{(report.apm.masteryAfter - report.apm.masteryBefore).toFixed(1)}
+                      </em>
+                    )}
+                  </b>
+                  <p>
+                    {report.apm.titleAfter.name}
+                    {report.apm.titleAfter.name !== report.apm.titleBefore.name && (
+                      <span className="ra-new">NEW</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {report.apm.unlockedTo !== null ? (
+                <div className="ra-unlock">
+                  {report.apm.skipped ? 'Taken outright.' : 'Cleared.'} <b>Level {report.apm.unlockedTo}</b> is
+                  now open
+                  {report.apm.skipped && ' — two rungs at once, because this one had nothing left to teach you'}
+                  .
+                </div>
+              ) : (
+                <div className="ra-unlock quiet">
+                  {report.apm.cleared
+                    ? `Level ${report.apm.level} stays cleared. The ladder suggests level ${report.apm.nextLevel} next.`
+                    : `${Math.round((CLEAR_AT - result.performance) * 100)} points short of clearing level ${report.apm.level}.`}
                 </div>
               )}
             </div>

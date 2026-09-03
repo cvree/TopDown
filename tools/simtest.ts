@@ -16,6 +16,20 @@ import { dist, norm } from '../src/engine/math';
 import { incomingDamage } from '../src/engine/lane';
 import type { VayneKit } from '../src/engine/vayne';
 import { VAYNE_STATS } from '../src/engine/vayne';
+import {
+  APM_LEVELS,
+  APM_MODES,
+  CLEAR_AT,
+  STAR_AT,
+  applyApmRun,
+  clearedThrough,
+  emptyApmProgress,
+  levelDifficulty,
+  levelStars,
+  modeMastery,
+  recommendedLevel,
+  seedApmLadder,
+} from '../src/progression/apm';
 import { Rng } from '../src/engine/rng';
 import { World } from '../src/engine/world';
 
@@ -1094,6 +1108,150 @@ line('\n=== APM TRAINER: the same modes, driven with the keys ===');
   expect('the WASD step scores as the step half of the cycle', steps > 10, `${steps} steps`);
   expect('WASD kiting rewards playing it', kite.out.performance > 0.4, pct(kite.out.performance));
   expect('WASD idling still scores nothing', idle.out.performance < 0.3, pct(idle.out.performance));
+}
+
+line('\n=== APM LADDER: ten explicit levels, and nothing moves on its own ===');
+{
+  expect(
+    'every mode is on the ladder exactly once',
+    APM_MODES.length === APM_DRILL_IDS.length &&
+      APM_DRILL_IDS.every((id) => APM_MODES.filter((m) => m.id === id).length === 1),
+    `${APM_MODES.length} modes for ${APM_DRILL_IDS.length} drills`,
+  );
+
+  const rungs = Array.from({ length: APM_LEVELS }, (_, i) => levelDifficulty(i + 1));
+  expect(
+    'a rung is harder than the one below it',
+    rungs.every((d, i) => i === 0 || d > rungs[i - 1]),
+    rungs.map((d) => Math.round(d * 100)).join(' '),
+  );
+  expect(
+    'the ladder spans the difficulty range',
+    rungs[0] < 0.12 && rungs[APM_LEVELS - 1] > 0.95,
+    `${Math.round(rungs[0] * 100)} .. ${Math.round(rungs[APM_LEVELS - 1] * 100)}`,
+  );
+
+  // A fresh ladder starts closed above rung one, and only a cleared run opens
+  // the next. This is the property the whole section rests on: a level is a
+  // place you went, not a number the app inferred about you.
+  const p = emptyApmProgress();
+  expect('a fresh ladder opens on level 1 only', p.modes.apmAim.unlocked === 1, `${p.modes.apmAim.unlocked}`);
+
+  const failed = applyApmRun(p, {
+    drill: 'apmAim',
+    level: 1,
+    performance: CLEAR_AT - 0.05,
+    score: 900,
+    apm: 120,
+    endurance: false,
+  });
+  expect('a run short of the gate opens nothing', !failed.cleared && p.modes.apmAim.unlocked === 1, `${p.modes.apmAim.unlocked}`);
+
+  const cleared = applyApmRun(p, {
+    drill: 'apmAim',
+    level: 1,
+    performance: CLEAR_AT + 0.02,
+    score: 1200,
+    apm: 140,
+    endurance: false,
+  });
+  expect('clearing a rung opens the next one', cleared.unlockedTo === 2, `${cleared.unlockedTo}`);
+
+  const taken = applyApmRun(p, {
+    drill: 'apmAim',
+    level: 2,
+    performance: STAR_AT[2] + 0.02,
+    score: 2400,
+    apm: 190,
+    endurance: false,
+  });
+  expect('taking a rung outright opens two', taken.skipped && taken.unlockedTo === 4, `${taken.unlockedTo}`);
+  expect('three stars need the top mark', taken.starsAfter === 3, `${taken.starsAfter}`);
+
+  // A worse run is a warm-up: it counts, and it takes nothing away.
+  const before = p.modes.apmAim.levels[1].best;
+  const warmup = applyApmRun(p, {
+    drill: 'apmAim',
+    level: 2,
+    performance: 0.3,
+    score: 300,
+    apm: 60,
+    endurance: false,
+  });
+  expect(
+    'a worse run cannot lower a record',
+    p.modes.apmAim.levels[1].best === before && warmup.starsAfter === 3,
+    `${Math.round(p.modes.apmAim.levels[1].best * 100)}%`,
+  );
+  expect('but it is still counted as a run', p.modes.apmAim.levels[1].runs === 2, `${p.modes.apmAim.levels[1].runs}`);
+
+  // An endurance run is longer, so it may set a rate record and never a score.
+  const scoreBefore = p.modes.apmAim.levels[1].bestScore;
+  applyApmRun(p, {
+    drill: 'apmAim',
+    level: 2,
+    performance: 0.9,
+    score: scoreBefore * 4,
+    apm: 260,
+    endurance: true,
+  });
+  expect(
+    'an endurance run sets no score record',
+    p.modes.apmAim.levels[1].bestScore === scoreBefore,
+    `${p.modes.apmAim.levels[1].bestScore} vs ${scoreBefore * 4}`,
+  );
+  expect('an endurance run may still set a rate record', p.modes.apmAim.levels[1].bestApm === 260, `${p.modes.apmAim.levels[1].bestApm}`);
+
+  expect('cleared-through reads the highest cleared rung', clearedThrough(p.modes.apmAim) === 2, `${clearedThrough(p.modes.apmAim)}`);
+  expect(
+    'the ladder points at the first rung that is not properly taken',
+    recommendedLevel(p, 'apmAim') === 3,
+    `${recommendedLevel(p, 'apmAim')}`,
+  );
+
+  // Mastery weights the top of the ladder, so the same stars are worth more
+  // higher up. Without that, thirty stars at the bottom would read as a
+  // finished mode.
+  const low = emptyApmProgress();
+  const high = emptyApmProgress();
+  low.modes.apmAim.levels[0].best = 1;
+  high.modes.apmAim.levels[APM_LEVELS - 1].best = 1;
+  expect(
+    'three stars high on the ladder are worth more than three stars low',
+    modeMastery(high.modes.apmAim) > modeMastery(low.modes.apmAim) * 5,
+    `${modeMastery(high.modes.apmAim).toFixed(1)} vs ${modeMastery(low.modes.apmAim).toFixed(1)}`,
+  );
+  expect(
+    'a full ladder is full mastery',
+    Math.round(
+      modeMastery({
+        levels: Array.from({ length: APM_LEVELS }, () => ({ runs: 1, best: 1, bestScore: 1, bestApm: 1 })),
+        unlocked: APM_LEVELS,
+        lastLevel: APM_LEVELS,
+        runs: APM_LEVELS,
+      }),
+    ) === 100,
+    'weighted stars',
+  );
+  expect(
+    'stars are the gate, then two harder marks',
+    levelStars({ runs: 1, best: CLEAR_AT, bestScore: 0, bestApm: 0 }) === 1 &&
+      levelStars({ runs: 1, best: STAR_AT[1], bestScore: 0, bestApm: 0 }) === 2 &&
+      levelStars({ runs: 1, best: CLEAR_AT - 0.01, bestScore: 0, bestApm: 0 }) === 0,
+    `${Math.round(STAR_AT[0] * 100)}/${Math.round(STAR_AT[1] * 100)}/${Math.round(STAR_AT[2] * 100)}`,
+  );
+
+  // Calibration opens rungs; it never awards one.
+  const seeded = emptyApmProgress();
+  const opened = seedApmLadder(seeded, 2400);
+  expect('calibration opens the ladder without scoring it', opened > 1 && seeded.mastery === 0, `level ${opened}, mastery ${seeded.mastery}`);
+  expect(
+    'and it opens the same rung on every mode',
+    APM_DRILL_IDS.every((id) => seeded.modes[id].unlocked === opened),
+    `${opened}`,
+  );
+  const unplaced = emptyApmProgress();
+  expect('an unrated player starts at the bottom', seedApmLadder(unplaced, 0) === 1, 'level 1');
 }
 
 line('\n=== The Vayne path, driven with the keys ===');
