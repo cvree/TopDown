@@ -24,6 +24,13 @@ import {
   type VayneProgress,
   type VayneRunReport,
 } from './vayne';
+import {
+  applyEzrealRun,
+  emptyEzrealProgress,
+  isEzrealStage,
+  type EzrealProgress,
+  type EzrealRunReport,
+} from './ezreal';
 
 const STORAGE_KEY = 'apex.profile.v1';
 const PROFILE_VERSION = 1;
@@ -164,6 +171,7 @@ export interface Profile {
   totalSeconds: number;
   /** The champion track. Separate from the general ladder on purpose. */
   vayne: VayneProgress;
+  ezreal: EzrealProgress;
   /** The APM trainer's own ladder: thirteen modes, ten explicit levels each. */
   apm: ApmProgress;
   /** Overall rating recorded at the start of each local day, for trends. */
@@ -230,6 +238,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   totalRuns: 0,
   totalSeconds: 0,
   vayne: emptyVayneProgress(),
+  ezreal: emptyEzrealProgress(),
   apm: emptyApmProgress(),
   dailyMarks: [],
   tests: {},
@@ -264,6 +273,9 @@ export const loadProfile = (): Profile => {
       vayne: parsed.vayne
         ? { ...p.vayne, ...parsed.vayne, stages: { ...p.vayne.stages, ...parsed.vayne.stages } }
         : p.vayne,
+      ezreal: parsed.ezreal
+        ? { ...p.ezreal, ...parsed.ezreal, stages: { ...p.ezreal.stages, ...parsed.ezreal.stages } }
+        : p.ezreal,
       // The APM ladder is repaired rather than merged: a profile written
       // before it existed, or before a mode did, has to come back playable.
       apm: normalizeApmProgress(parsed.apm),
@@ -340,6 +352,8 @@ export interface ProgressReport {
   advice: string;
   /** Present only for runs on the Vayne path. */
   vayne: VayneRunReport | null;
+  /** Present only for runs on the Ezreal path. */
+  ezreal: EzrealRunReport | null;
   /** Present only for runs in the APM trainer. */
   apm: ApmRunReport | null;
 }
@@ -485,6 +499,18 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
       )
     : null;
 
+  const ezreal = isEzrealStage(result.drill)
+    ? applyEzrealRun(
+        p.ezreal,
+        result.drill,
+        result.performance,
+        result.difficulty,
+        result.score,
+        Object.fromEntries(result.keyMetrics.map((k) => [k.id, k.value])),
+        p.settings.movementScheme === 'wasd',
+      )
+    : null;
+
   // The rate the ladder records is the *correct* one — the number the mode's
   // score is built on — rather than the raw headline rate, so a level record
   // can never be set by mashing.
@@ -528,6 +554,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     difficultyAfter: drillDifficulty(p, result.drill),
     advice: result.advice,
     vayne,
+    ezreal,
     apm,
   };
 };

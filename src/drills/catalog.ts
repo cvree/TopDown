@@ -18,6 +18,17 @@ export type DrillId =
   | 'vayneBolts'
   | 'vayneCondemn'
   | 'vayneHunt'
+  /* --- the Ezreal path. Ten stages of aiming while busy --- */
+  | 'ezQ'
+  | 'ezLead'
+  | 'ezStrafe'
+  | 'ezThread'
+  | 'ezWeave'
+  | 'ezMaxRange'
+  | 'ezKite'
+  | 'ezShift'
+  | 'ezSwitch'
+  | 'ezFight'
   /* --- the APM lab. One engine, thirteen ways of measuring a press --- */
   | 'apmPulse'
   | 'apmSequence'
@@ -33,7 +44,7 @@ export type DrillId =
   | 'apmSwitch'
   | 'apmSustain';
 
-export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'APM' | 'VAYNE';
+export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'APM' | 'VAYNE' | 'EZREAL';
 
 export interface DrillMeta {
   id: DrillId;
@@ -421,6 +432,146 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     keyMetric: 'SUSTAINED APM',
     order: 42,
   },
+  ezQ: {
+    id: 'ezQ',
+    name: 'MYSTIC SHOT',
+    tagline: 'Travel time, and a width',
+    brief: 'A target that does not move. Learn how long the missile takes to cross the gap and how wide it is when it arrives.',
+    transfers: 'The one shot Ezreal cannot play without — and the only stage on the path where standing still is allowed.',
+    group: 'EZREAL',
+    axes: { skillshot: 0.8, aim: 0.2 },
+    duration: 45,
+    abilities: ['q'],
+    accent: '#ffd166',
+    keyMetric: 'Q ACCURACY',
+    order: 50,
+  },
+  ezLead: {
+    id: 'ezLead',
+    name: 'LEAD',
+    tagline: 'Where they will be',
+    brief: 'The same shot at something that will not hold still. Aim at the arrival, not the departure.',
+    transfers: 'Prediction: the half-second of travel that every skillshot in the game is decided in.',
+    group: 'EZREAL',
+    axes: { skillshot: 0.75, aim: 0.25 },
+    duration: 55,
+    abilities: ['q'],
+    accent: '#ffd166',
+    keyMetric: 'LANDED ON A MOVER',
+    order: 51,
+  },
+  ezStrafe: {
+    id: 'ezStrafe',
+    name: 'Q WHILE STRAFING',
+    tagline: 'Both feet busy',
+    brief: 'Zones land where you are standing. Keep moving, and land the shot anyway — hits fired from a standstill barely count.',
+    transfers: 'The actual Ezreal skill: aiming with the mouse while the keys are doing something else entirely.',
+    group: 'EZREAL',
+    axes: { skillshot: 0.5, movement: 0.3, dodging: 0.2 },
+    duration: 60,
+    abilities: ['q'],
+    accent: '#ffb347',
+    keyMetric: 'LANDED ON THE MOVE',
+    order: 52,
+  },
+  ezThread: {
+    id: 'ezThread',
+    name: 'THREAD',
+    tagline: 'Through the wave',
+    brief: 'A minion wall between you and what you want. Find the gap, and fire before it closes.',
+    transfers: 'Not feeding your cooldown to a caster minion, which is where most Ezreal Qs in a real lane actually go.',
+    group: 'EZREAL',
+    axes: { skillshot: 0.6, aim: 0.2, movement: 0.2 },
+    duration: 60,
+    abilities: ['q'],
+    accent: '#ffa057',
+    keyMetric: 'QS BLOCKED',
+    order: 53,
+  },
+  ezWeave: {
+    id: 'ezWeave',
+    name: 'WEAVE',
+    tagline: 'Auto, Q, auto',
+    brief: 'Q out of the backswing, never out of the windup. The missile goes between your attacks, not instead of them.',
+    transfers: 'Ezreal’s real damage: the auto you kept while casting, every single cycle.',
+    group: 'EZREAL',
+    axes: { kiting: 0.5, skillshot: 0.3, tempo: 0.2 },
+    duration: 60,
+    abilities: ['q'],
+    accent: '#ff9f5c',
+    keyMetric: 'AUTO-Q WEAVES',
+    order: 54,
+  },
+  ezMaxRange: {
+    id: 'ezMaxRange',
+    name: 'MAX RANGE Q',
+    tagline: 'The outer quarter',
+    brief: 'They hold the far edge. Only the shots that land past three quarters of the missile’s range are worth full marks.',
+    transfers: 'Poking from where nothing can answer — the range Ezreal is picked for.',
+    group: 'EZREAL',
+    axes: { spacing: 0.45, skillshot: 0.4, movement: 0.15 },
+    duration: 60,
+    abilities: ['q'],
+    accent: '#6dffb4',
+    keyMetric: 'LANDED AT MAX RANGE',
+    order: 55,
+  },
+  ezKite: {
+    id: 'ezKite',
+    name: 'KITE AND Q',
+    tagline: 'Aim with something on you',
+    brief: 'A hunter that commits. Keep the attack cycle running, keep the distance, and keep landing the missile.',
+    transfers: 'The reason ADC mechanics are hard: none of them are hard on their own.',
+    group: 'EZREAL',
+    axes: { kiting: 0.45, spacing: 0.25, skillshot: 0.2, movement: 0.1 },
+    duration: 65,
+    abilities: ['q'],
+    accent: '#ff7a5c',
+    keyMetric: 'ATTACK TIMING',
+    order: 56,
+  },
+  ezShift: {
+    id: 'ezShift',
+    name: 'ARCANE SHIFT',
+    tagline: 'Where it puts you',
+    brief: 'Two shellers and a target. The blink is scored on where you land — out of their reach, still inside your own.',
+    transfers: 'Treating a blink as a repositioning tool rather than an escape button you press when frightened.',
+    group: 'EZREAL',
+    axes: { dodging: 0.4, movement: 0.3, skillshot: 0.3 },
+    duration: 65,
+    abilities: ['q', 'e'],
+    accent: '#7cc7ff',
+    keyMetric: 'BLINKS THAT PAID',
+    order: 57,
+  },
+  ezSwitch: {
+    id: 'ezSwitch',
+    name: 'TRANSFER',
+    tagline: 'Onto the one that matters',
+    brief: 'Three targets, one marked, and the mark keeps moving. Get the missile onto the new one before it changes again.',
+    transfers: 'Retargeting a skillshot mid-fight, which is a different act from retargeting an auto.',
+    group: 'EZREAL',
+    axes: { targeting: 0.5, skillshot: 0.3, aim: 0.2 },
+    duration: 60,
+    abilities: ['q', 'w'],
+    accent: '#c48bff',
+    keyMetric: 'SWITCH SPEED',
+    order: 58,
+  },
+  ezFight: {
+    id: 'ezFight',
+    name: 'THE FIGHT',
+    tagline: 'All of it, at once',
+    brief: 'A hunter, a duelist, a wave, terrain and the whole kit. Move, aim, attack, dodge and decide — simultaneously.',
+    transfers: 'Playing Ezreal, rather than owning his abilities.',
+    group: 'EZREAL',
+    axes: { combat: 0.45, skillshot: 0.2, kiting: 0.15, movement: 0.1, dodging: 0.1 },
+    duration: 0,
+    abilities: ['q', 'w', 'e'],
+    accent: '#ff5fa8',
+    keyMetric: 'LANDED ON THE MOVE',
+    order: 59,
+  },
   vayneTumble: {
     id: 'vayneTumble',
     name: 'TUMBLE',
@@ -489,5 +640,25 @@ export const DAILY_SEQUENCE: DrillId[] = ['movement', 'dodge', 'kite', 'spacing'
 
 /** The champion track, in the order it has to be learned. */
 export const VAYNE_SEQUENCE: DrillId[] = ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'];
+
+/**
+ * The Ezreal path, in the order it has to be learned.
+ *
+ * Isolated at the top, a whole fight at the bottom, and nothing left
+ * permanently isolated in between — every stage after the first one asks for
+ * the previous stage's skill plus one more thing at the same time.
+ */
+export const EZREAL_SEQUENCE: DrillId[] = [
+  'ezQ',
+  'ezLead',
+  'ezStrafe',
+  'ezThread',
+  'ezWeave',
+  'ezMaxRange',
+  'ezKite',
+  'ezShift',
+  'ezSwitch',
+  'ezFight',
+];
 
 export const isVayneDrill = (id: DrillId): boolean => DRILLS[id].group === 'VAYNE';

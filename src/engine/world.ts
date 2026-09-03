@@ -719,6 +719,12 @@ export class World {
             targetId: a.id,
             amount: p.damage,
             pos: { ...p.pos },
+            // Which missile it was. A champion whose abilities are missiles
+            // needs to tell its own skillshot landing apart from its basic
+            // attack landing, and the alternative — inferring it from damage
+            // or timing — is a guess that goes wrong the first time two
+            // numbers happen to match.
+            meta: p.id,
           });
           if (p.pierce) p.hitIds?.add(a.id);
           else p.life = p.maxLife + 1;

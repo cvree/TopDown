@@ -6,6 +6,7 @@ import type { Drill } from './base';
 import { DRILLS, type DrillId } from './catalog';
 import { CombosDrill } from './combos';
 import { DodgeDrill } from './dodge';
+import { EzrealDrill, isEzrealDrill } from './ezreal';
 import { KiteDrill } from './kite';
 import { LastHitDrill } from './lasthit';
 import { MovementDrill } from './movement';
@@ -21,6 +22,8 @@ export const createDrill = (id: DrillId, session: Session): Drill => {
   // The APM lab owns thirteen of the ids and builds them from one engine.
   const apm = createApmDrill(id, session);
   if (apm) return apm;
+  // The Ezreal path owns ten ids and builds them from one stage table.
+  if (isEzrealDrill(id)) return new EzrealDrill(session, id);
   switch (id) {
     case 'movement':
       return new MovementDrill(session);
@@ -70,6 +73,21 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
     // wall is a floor that measures the wall rather than your distance.
     case 'spacing':
       return { w: 2000, h: 1180 };
+    // Ezreal's missile reaches 1150 units on its own. A floor that cannot hold
+    // one at full stretch turns every max-range stage into a wall drill.
+    case 'ezQ':
+    case 'ezLead':
+    case 'ezWeave':
+      return { w: 2000, h: 1150 };
+    case 'ezStrafe':
+    case 'ezThread':
+    case 'ezKite':
+    case 'ezShift':
+    case 'ezSwitch':
+      return { w: 2200, h: 1260 };
+    case 'ezMaxRange':
+    case 'ezFight':
+      return { w: 2500, h: 1400 };
     // The lab is a bench, not a battlefield. A field the cursor can cross
     // without the camera moving, and no more floor than the console needs.
     case 'apmPulse':

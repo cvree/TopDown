@@ -57,6 +57,7 @@ const GROUPS: { id: DrillGroup; title: string; blurb: string }[] = [
   { id: 'COMBAT', title: 'Combat', blurb: 'All of it, against something that fights back' },
   { id: 'APM', title: 'The Lab', blurb: 'Pressing, isolated from the game — thirteen benches, ten levels each' },
   { id: 'VAYNE', title: 'Vayne', blurb: 'One champion, learned in order' },
+  { id: 'EZREAL', title: 'Ezreal', blurb: 'Aiming while your feet are busy — ten stages, isolated to a whole fight' },
 ];
 
 const metricFormat = (key: string): 'ms' | 'units' | 'pct' | 'int' =>

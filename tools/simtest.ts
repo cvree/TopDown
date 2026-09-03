@@ -19,6 +19,16 @@ import type { Actor, Vec2 } from '../src/engine/types';
 import { incomingDamage } from '../src/engine/lane';
 import type { VayneKit } from '../src/engine/vayne';
 import { VAYNE_STATS } from '../src/engine/vayne';
+import { EZREAL_STATS, type EzrealKit } from '../src/engine/ezreal';
+import { EZREAL_DRILL_IDS, ezrealStage, type EzrealDrillId } from '../src/drills/ezreal';
+import {
+  EZREAL_STAGES,
+  applyEzrealRun,
+  computeEzrealMastery,
+  emptyEzrealProgress,
+  ezStageUnlocked,
+  ezTitleFor,
+} from '../src/progression/ezreal';
 import {
   APM_LEVELS,
   APM_MODES,
@@ -53,6 +63,8 @@ type Policy =
   | 'wasdHold'
   | 'wasdMash'
   | 'wasdCommand'
+  | 'ezreal'
+  | 'ezStatic'
   | 'vayneTumble'
   | 'vayneBolts'
   | 'vayneCondemn'
@@ -424,6 +436,105 @@ const runDrill = (
             input.dir = { x: Math.cos(a), y: Math.sin(a) };
             break;
           }
+          case 'ezreal':
+          case 'ezStatic': {
+            // A competent Ezreal, and the same player with his feet nailed to
+            // the floor. Everything else about them is identical — the lead
+            // maths, the threading check, the weave timing — so any gap in the
+            // scores is a gap the *movement* weighting created, which is the
+            // one claim the whole path rests on.
+            reactTimer = 0.03;
+            const kit = (drill as unknown as { kit?: EzrealKit }).kit;
+            const priority = (drill as unknown as { priorityId?: number }).priorityId;
+            const champs = session.world.enemies().filter((e) => !e.isMinion);
+            const want =
+              (priority !== undefined && priority >= 0 ? session.world.byId(priority) : undefined) ??
+              (champs.length
+                ? champs.reduce((a, b) => (dist(p.pos, a.pos) <= dist(p.pos, b.pos) ? a : b))
+                : null);
+            if (!want || !want.alive) {
+              if (policy === 'ezreal') input.dir = { x: 0, y: 0 };
+              break;
+            }
+            session.cursorWorld = { x: want.pos.x, y: want.pos.y };
+
+            // Where it will be when the missile gets there, cast time included.
+            let leadT = EZREAL_STATS.qCastTime + dist(p.pos, want.pos) / EZREAL_STATS.qSpeed;
+            for (let i = 0; i < 3; i++) {
+              const at = { x: want.pos.x + want.vel.x * leadT, y: want.pos.y + want.vel.y * leadT };
+              leadT = EZREAL_STATS.qCastTime + dist(p.pos, at) / EZREAL_STATS.qSpeed;
+            }
+            const aim = { x: want.pos.x + want.vel.x * leadT, y: want.pos.y + want.vel.y * leadT };
+            const aimDir = norm(aim.x - p.pos.x, aim.y - p.pos.y);
+
+            // Would anything else eat it? Waiting for the gap is the correct
+            // play, so the policy waits rather than feeding the wave.
+            let blocked = false;
+            for (const other of session.world.actors) {
+              if (!other.alive || other.team === p.team || other.id === want.id) continue;
+              const rx = other.pos.x - p.pos.x;
+              const ry = other.pos.y - p.pos.y;
+              const along = rx * aimDir.x + ry * aimDir.y;
+              if (along <= 0 || along > dist(p.pos, aim)) continue;
+              if (Math.abs(rx * -aimDir.y + ry * aimDir.x) < other.radius + EZREAL_STATS.qRadius) blocked = true;
+            }
+
+            const qUp = kit ? kit.qCd <= 0.001 : false;
+            const inQ = dist(p.pos, aim) < EZREAL_STATS.qRange - 40;
+            // Never out of the windup: the auto is already paid for.
+            if (qUp && inQ && !blocked && p.phase !== 'windup') {
+              input.push({ kind: 'ability', slot: 'q', x: aim.x, y: aim.y, t: t * 1000 });
+            }
+            if (kit && kit.loadout.shift && kit.eCd <= 0.001) {
+              const near = champs.reduce(
+                (acc, e) => Math.min(acc, dist(p.pos, e.pos) - e.attack.range),
+                Infinity,
+              );
+              if (near < 40) {
+                // Sideways, not backwards. A blink straight away from the
+                // thing on you is safe and useless; a lateral one leaves its
+                // range while keeping it inside yours, which is the only
+                // version of this that a cooldown is worth spending on.
+                const away = norm(p.pos.x - want.pos.x, p.pos.y - want.pos.y);
+                const side = norm(-away.y, away.x);
+                const escape = norm(away.x * 0.45 + side.x * orbitDir, away.y * 0.45 + side.y * orbitDir);
+                input.push({ kind: 'ability', slot: 'e', x: p.pos.x + escape.x * 400, y: p.pos.y + escape.y * 400, t: t * 1000 });
+              }
+            }
+
+            const dq = dist(p.pos, want.pos);
+            if (p.attackCd <= 0.001 && p.phase !== 'windup' && dq - want.radius <= p.attack.range) {
+              input.push({ kind: 'move', x: want.pos.x, y: want.pos.y, t: t * 1000 });
+            }
+            if (policy === 'ezStatic') break;
+
+            // And the feet: hold the outer edge of the auto range, circling.
+            //
+            // Except on the stage that is explicitly about the outer quarter
+            // of the missile, where walking into auto range would be playing
+            // the wrong drill — the correct answer there is to stay out at
+            // poke distance and never take the trade.
+            if (p.phase === 'windup') {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const desiredE =
+              id === 'ezMaxRange' ? EZREAL_STATS.qRange * 0.86 + want.radius : p.attack.range * 0.9 + want.radius;
+            const radialE = norm(p.pos.x - want.pos.x, p.pos.y - want.pos.y);
+            const tangentE = { x: -radialE.y, y: radialE.x };
+            const corrE = Math.max(-1, Math.min(1, (desiredE - dq) / 170));
+            let gxE = radialE.x * corrE + tangentE.x * orbitDir * (0.8 * (1 - Math.abs(corrE)) + 0.2);
+            let gyE = radialE.y * corrE + tangentE.y * orbitDir * (0.8 * (1 - Math.abs(corrE)) + 0.2);
+            const marginE = 230;
+            if (p.pos.x < marginE || p.pos.x > bounds.w - marginE || p.pos.y < marginE || p.pos.y > bounds.h - marginE) {
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              orbitDir = tangentE.x * toCentre.x + tangentE.y * toCentre.y >= 0 ? 1 : -1;
+              gxE = tangentE.x * orbitDir;
+              gyE = tangentE.y * orbitDir;
+            }
+            input.dir = { x: gxE, y: gyE };
+            break;
+          }
           case 'wasdMash': {
             // Never lets go of the keys and mashes the attack command.
             //
@@ -713,6 +824,8 @@ const runDrill = (
       }
       const ownsCursor =
         policy === 'aim' ||
+        policy === 'ezreal' ||
+        policy === 'ezStatic' ||
         policy === 'vayneWasd' ||
         policy === 'vayneBolts' ||
         policy === 'vayneCondemn' ||
@@ -945,6 +1058,102 @@ line('\n=== WASD: the same rhythm with the other hand ===');
     Math.abs(wasdGood.out.performance - kiteGood.out.performance) < 0.25,
     `${pct(wasdGood.out.performance)} vs ${pct(kiteGood.out.performance)}`,
   );
+}
+
+line('\n=== EZREAL: the path, stage by stage ===');
+{
+  // Every stage is played three ways: properly, with the feet nailed down,
+  // and not at all. The path's entire claim is that the middle one is not
+  // good enough, so that is the comparison that has to hold everywhere.
+  for (const id of EZREAL_DRILL_IDS as unknown as DrillId[]) {
+    const good = runDrill(id, 'ezreal', 0.4, 4242, 'wasd');
+    const still = runDrill(id, 'ezStatic', 0.4, 4242, 'wasd');
+    const idle = runDrill(id, 'idle', 0.4, 4242, 'wasd');
+    const k = (r: ReturnType<typeof runDrill>, key: string) => r.out.keyMetrics.find((x) => x.id === key)?.value ?? 0;
+    line(
+      `  ${id.padEnd(11)} moving perf ${pct(good.out.performance)} (acc ${pct(k(good, 'qAcc'))} onMove ${pct(k(good, 'qMoving'))} hits ${k(good, 'qHits')})  |  static perf ${pct(still.out.performance)} (acc ${pct(k(still, 'qAcc'))} onMove ${pct(k(still, 'qMoving'))})  |  idle ${pct(idle.out.performance)}`,
+    );
+    expect(`${id}: playing it properly scores well`, good.out.performance > 0.5, pct(good.out.performance));
+    expect(`${id}: doing nothing scores near zero`, idle.out.performance < 0.3, pct(idle.out.performance));
+    if (ezrealStage(id as EzrealDrillId).stage !== 'LEARN') {
+      expect(
+        `${id}: standing still and aiming is not elite`,
+        still.out.performance < 0.62 && still.out.performance < good.out.performance,
+        `${pct(still.out.performance)} vs ${pct(good.out.performance)}`,
+      );
+    }
+  }
+}
+
+line('\n=== EZREAL: the mechanics behind the score are real ===');
+{
+  const kitOfRun = (r: ReturnType<typeof runDrill>) => (r.drill as unknown as { kit: EzrealKit }).kit;
+
+  // Threading: a policy that waits for the gap must feed the wave less than
+  // one that fires the instant the cooldown is up.
+  const patient = runDrill('ezThread', 'ezreal', 0.4, 555, 'wasd');
+  const greedy = runDrill('ezThread', 'ezStatic', 0.4, 555, 'wasd');
+  line(`  thread : waited blocked ${kitOfRun(patient).stats.qBlocked}  hits ${kitOfRun(patient).stats.qHits}  perf ${pct(patient.out.performance)}`);
+  line(`         : planted blocked ${kitOfRun(greedy).stats.qBlocked}  hits ${kitOfRun(greedy).stats.qHits}  perf ${pct(greedy.out.performance)}`);
+
+  // Weaving: Q out of the backswing costs no autos; Q out of the windup does.
+  const weave = runDrill('ezWeave', 'ezreal', 0.4, 909, 'wasd');
+  const wk = kitOfRun(weave);
+  line(`  weave  : cycles ${wk.stats.weaveCycles}  windups thrown away ${wk.stats.qWastedWindup}  autos ${wk.stats.attacksLanded}  perf ${pct(weave.out.performance)}`);
+  expect('weaving actually weaves', wk.stats.weaveCycles > 4, `${wk.stats.weaveCycles}`);
+  expect('a weaving player keeps its autos', wk.stats.qWastedWindup <= 2, `${wk.stats.qWastedWindup}`);
+  expect('a weaving player lands both halves', wk.stats.attacksLanded > 10 && wk.stats.qHits > 5, `${wk.stats.attacksLanded} autos, ${wk.stats.qHits} Qs`);
+
+  // Landing a Q must actually buy tempo back, or the champion is not Ezreal.
+  expect('landed Qs refund cooldowns', wk.stats.qRefunded > 5, `${wk.stats.qRefunded.toFixed(1)}s recovered`);
+
+  // Max range: the outer quarter has to be reachable by playing for it.
+  const long = runDrill('ezMaxRange', 'ezreal', 0.4, 313, 'wasd');
+  const lk = kitOfRun(long);
+  line(`  range  : long ${lk.stats.qHitsLong}/${lk.stats.qHits}  perf ${pct(long.out.performance)}`);
+  expect('max-range hits are achievable', lk.stats.qHitsLong > 2, `${lk.stats.qHitsLong}`);
+
+  // The blink is scored on where it lands, not on having been pressed.
+  const shift = runDrill('ezShift', 'ezreal', 0.4, 171, 'wasd');
+  const sk = kitOfRun(shift);
+  line(`  shift  : casts ${sk.stats.eCasts}  kept range ${sk.stats.eKeptRange}  into danger ${sk.stats.eIntoDanger}  perf ${pct(shift.out.performance)}`);
+}
+
+line('\n=== EZREAL: the path is gated, and mastery only ever climbs ===');
+{
+  const p = emptyEzrealProgress();
+  expect('the first stage is open and the second is not', ezStageUnlocked(p, EZREAL_STAGES[0]) && !ezStageUnlocked(p, EZREAL_STAGES[1]), 'gating');
+  expect('nothing is mastered to start with', computeEzrealMastery(p) === 0, `${computeEzrealMastery(p)}`);
+
+  // Clearing a stage opens exactly one more, and never more than one.
+  applyEzrealRun(p, 'ezQ', 0.8, 0.5, 1000);
+  expect('clearing a stage opens the next one', ezStageUnlocked(p, EZREAL_STAGES[1]), 'stage 2 still locked');
+  expect('and only the next one', !ezStageUnlocked(p, EZREAL_STAGES[2]), 'stage 3 opened early');
+
+  const after = computeEzrealMastery(p);
+  applyEzrealRun(p, 'ezQ', 0.2, 0.5, 10);
+  expect('a worse run cannot take mastery away', computeEzrealMastery(p) === after, `${computeEzrealMastery(p)} vs ${after}`);
+
+  // The whole path at the top difficulty is the only way to the last title.
+  for (const st of EZREAL_STAGES) applyEzrealRun(p, st.id, 0.95, 1, 5000);
+  const top = computeEzrealMastery(p);
+  expect('a perfect path at full difficulty reaches the last title', ezTitleFor(top).name === 'PRODIGAL EXPLORER', `${top.toFixed(0)} → ${ezTitleFor(top).name}`);
+
+  // And a perfect path at the *lowest* difficulty does not.
+  const easy = emptyEzrealProgress();
+  for (const st of EZREAL_STAGES) applyEzrealRun(easy, st.id, 0.95, 0, 5000);
+  const low = computeEzrealMastery(easy);
+  line(`  mastery: perfect@1.0 ${top.toFixed(0)}  perfect@0.0 ${low.toFixed(0)}  title ${ezTitleFor(low).name}`);
+  expect('the last title cannot be bought at the lowest difficulty', ezTitleFor(low).name !== 'PRODIGAL EXPLORER', `${low.toFixed(0)} → ${ezTitleFor(low).name}`);
+}
+
+line('\n=== EZREAL: the path gets harder, not just longer ===');
+{
+  const perf = (id: DrillId) => runDrill(id, 'ezreal', 0.45, 8080, 'wasd').out.performance;
+  const learn = perf('ezQ');
+  const test = perf('ezFight');
+  line(`  ezQ (LEARN) ${pct(learn)}  →  ezFight (TEST) ${pct(test)}`);
+  expect('the same player finds the test harder than the first stage', test < learn, `${pct(test)} vs ${pct(learn)}`);
 }
 
 line('\n=== Bots generate situations, not straight lines ===');
