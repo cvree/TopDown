@@ -3,10 +3,8 @@ import { audio } from '../engine/audio';
 import { clamp } from '../engine/math';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { formatMetric, type ProgressReport, type RunResult } from '../progression/profile';
-import { percentileForRating, rankFromRating } from '../progression/ranks';
-import { expectedRating } from '../progression/rating';
 import { AXIS_LABEL } from '../progression/skills';
-import { APM_LEVELS, CLEAR_AT, levelDifficulty } from '../progression/apm';
+import { APM_LEVELS, CLEAR_AT } from '../progression/apm';
 import { VAYNE_STAGES } from '../progression/vayne';
 import { WASD_MODULES } from '../progression/wasd';
 import { PathMap, ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
@@ -22,18 +20,38 @@ interface Props {
   nextLabel?: string;
 }
 
-const REVEAL = [0, 220, 520, 900, 1250, 1600];
-
+/**
+ * RESULTS.
+ *
+ * A coach, not a report. The screen used to be eight stacked panels and a
+ * scroll: a percentile badge, a five-row rating table, a two-column read, a
+ * per-track progression card, a path map, a rhythm timeline and a reaction
+ * histogram — roughly forty numbers, arriving in six timed waves, for a
+ * forty-five second drill.
+ *
+ * Every one of those numbers is still here. What changed is that four of them
+ * are on the first screen and the rest are behind one button, because the
+ * question a player has when a run ends is not "what were all my figures", it
+ * is:
+ *
+ *   how did I do?          — the score, and whether it beat you.
+ *   what specifically?     — three metrics, named.
+ *   what went wrong?       — one error, in a sentence, not a list.
+ *   what now?              — one button.
+ *
+ * The reveal is two beats rather than six. Six was a wait dressed as drama.
+ */
 export function Results({ result, report, bounds, onRetry, onExit, onNext, nextLabel }: Props) {
   const meta = DRILLS[result.drill];
   const [stage, setStage] = useState(0);
-  const score = useCountUp(result.score, 1100, 150);
+  const [detail, setDetail] = useState(false);
+  const score = useCountUp(result.score, 900, 120);
 
   useEffect(() => {
-    const timers = REVEAL.map((ms, i) => window.setTimeout(() => setStage(i + 1), ms));
+    const timers = [0, 320].map((ms, i) => window.setTimeout(() => setStage(i + 1), ms));
     const pb = window.setTimeout(() => {
       if (report.personalBests.length || report.newBestScore) audio.play('personalBest');
-    }, 900);
+    }, 700);
     return () => {
       timers.forEach(clearTimeout);
       clearTimeout(pb);
@@ -51,495 +69,245 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
       } else if (e.code === 'Space' && onNext) {
         e.preventDefault();
         onNext();
+      } else if (e.code === 'KeyD') {
+        e.preventDefault();
+        setDetail((d) => !d);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onRetry, onExit, onNext]);
 
-  const runRating = expectedRating(result.performance, result.difficulty);
-  const topPct = 1 - percentileForRating(runRating);
-  const head = result.keyMetrics[0];
-  const improvement = report.improvements[0];
-  const overallDelta = report.overallAfter - report.overallBefore;
+  const outcome =
+    result.endReason === 'death'
+      ? 'ELIMINATED'
+      : result.endReason === 'complete'
+        ? 'CLEARED'
+        : result.endReason === 'abort'
+          ? 'RESET'
+          : 'COMPLETE';
 
-  const outcomeLabel = useMemo(() => {
-    if (result.endReason === 'death') return 'ELIMINATED';
-    if (result.endReason === 'complete') return 'CLEARED';
-    if (result.endReason === 'abort') return 'RESET';
-    return 'COMPLETE';
-  }, [result.endReason]);
-
-  const pbIds = new Set(report.personalBests.map((p) => p.id));
   // A best that rounds to the same displayed value is still a best, but
   // announcing "82% was 82%" reads as a bug rather than an improvement.
   const visibleBests = report.personalBests.filter(
     (pb) => pb.previous === null || formatMetric(pb.value, pb.format) !== formatMetric(pb.previous, pb.format),
   );
+  const pbIds = new Set(report.personalBests.map((p) => p.id));
+  const scoreBest = report.newBestScore && report.previousBestScore !== null ? report.previousBestScore : null;
+
+  const overallDelta = report.overallAfter - report.overallBefore;
+  const driver = useMemo(
+    () =>
+      report.axisChanges.reduce<(typeof report.axisChanges)[number] | null>(
+        (acc, c) => (!acc || Math.abs(c.delta) > Math.abs(acc.delta) ? c : acc),
+        null,
+      ),
+    [report.axisChanges],
+  );
+
+  // The one thing that cost the run. The engine already ranks `hurt`, so the
+  // first entry is the primary error; the rest are detail, not headline.
+  const primaryError = result.hurt[0] ?? null;
+  const track = trackLine(report);
 
   return (
     <div className="results scroll">
-      <div className="results-inner">
-        <header className={`res-head ${stage >= 1 ? 'in' : ''}`}>
-          <div>
-            <div className="eyebrow" style={{ color: meta.accent }}>
-              {meta.name} · {outcomeLabel}
+      <div className="res-inner">
+        {/* ------------------------------------------------------ the verdict */}
+        <header className={`res-head${stage >= 1 ? ' in' : ''}`}>
+          <div className="eyebrow" style={{ color: meta.accent }}>
+            {meta.name} · {outcome}
+          </div>
+          <h1 className="res-score display">{Math.round(score).toLocaleString()}</h1>
+
+          {report.newBestScore || visibleBests.length > 0 ? (
+            <div className="res-pb">
+              <span className="res-pb-tag">New personal best</span>
+              {scoreBest !== null ? (
+                <span className="res-pb-move mono">
+                  {scoreBest.toLocaleString()} <i>→</i> {result.score.toLocaleString()}
+                  <em className="good">+{(result.score - scoreBest).toLocaleString()}</em>
+                </span>
+              ) : (
+                visibleBests[0] && (
+                  <span className="res-pb-move mono">
+                    {visibleBests[0].label} {formatMetric(visibleBests[0].value, visibleBests[0].format)}
+                    {visibleBests[0].previous !== null && (
+                      <i> was {formatMetric(visibleBests[0].previous, visibleBests[0].format)}</i>
+                    )}
+                  </span>
+                )
+              )}
             </div>
-            <h1 className="display res-score num">{Math.round(score).toLocaleString()}</h1>
-            <div className="res-sub">
-              <span className="mono">{result.metrics.duration.toFixed(1)}s</span>
-              <span className="sep" />
-              <span className="mono">DIFFICULTY {Math.round(result.difficulty * 100)}</span>
-              <span className="sep" />
-              <span className="mono">
-                RUN LEVEL {rankFromRating(runRating).label}
+          ) : (
+            <div className="res-pb quiet">
+              <span className="res-pb-move mono">
+                {report.previousBestScore !== null
+                  ? `Your best is ${report.previousBestScore.toLocaleString()}`
+                  : 'First run on this drill'}
               </span>
             </div>
-          </div>
-
-          <div className="res-top-badge">
-            <div className="eyebrow">THIS RUN</div>
-            {topPct <= 0.5 ? (
-              <>
-                <div className="res-top-num display">TOP {topPct < 0.01 ? '<1' : Math.round(topPct * 100)}%</div>
-                <div className="faint" style={{ fontSize: 11 }}>
-                  of trainer performances
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="res-top-num display" style={{ color: 'var(--text-2)' }}>
-                  {ordinal(Math.max(1, Math.round((1 - topPct) * 100)))}
-                </div>
-                <div className="faint" style={{ fontSize: 11 }}>
-                  percentile · room to climb
-                </div>
-              </>
-            )}
-          </div>
+          )}
         </header>
 
-        {(report.newBestScore || visibleBests.length > 0) && stage >= 3 && (
-          <div className="pb-strip scale-in">
-            <div className="pb-flash" />
-            <span className="pb-tag">NEW BEST</span>
-            <div className="pb-items">
-              {report.newBestScore && (
-                <span>
-                  SCORE <b>{result.score.toLocaleString()}</b>
-                  {report.previousBestScore !== null && (
-                    <i> was {report.previousBestScore.toLocaleString()}</i>
-                  )}
-                </span>
-              )}
-              {visibleBests.slice(0, 3).map((pb) => (
-                <span key={pb.id}>
-                  {pb.label} <b>{formatMetric(pb.value, pb.format)}</b>
-                  {pb.previous !== null && <i> was {formatMetric(pb.previous, pb.format)}</i>}
-                </span>
-              ))}
+        {/* ------------------------------------------------------ the numbers */}
+        <div className={`res-metrics${stage >= 1 ? ' in' : ''}`}>
+          {result.keyMetrics.slice(0, 4).map((m) => (
+            <div className={`stat${pbIds.has(m.id) ? ' pb' : ''}`} key={m.id}>
+              <span className="stat-k">{m.label}</span>
+              <span className="stat-v">{formatMetric(m.value, m.format)}</span>
+              {pbIds.has(m.id) && <span className="stat-s good">best</span>}
             </div>
-          </div>
-        )}
-
-        <div className={`res-hero ${stage >= 2 ? 'in' : ''}`}>
-          <div className="hero-metric">
-            <div className="eyebrow">{head?.label ?? meta.keyMetric}</div>
-            <div className="hero-value display">{head ? formatMetric(head.value, head.format) : '—'}</div>
-            {improvement &&
-              (() => {
-                const same =
-                  formatMetric(improvement.current, improvement.format) ===
-                  formatMetric(improvement.previous, improvement.format);
-                const better =
-                  improvement.direction === 'higher'
-                    ? improvement.current > improvement.previous
-                    : improvement.current < improvement.previous;
-                return (
-                  <div className={`hero-delta ${same ? '' : better ? 'up' : 'down'}`}>
-                    {same
-                      ? `held at ${formatMetric(improvement.previous, improvement.format)} from last run`
-                      : `${better ? '▲' : '▼'} from ${formatMetric(improvement.previous, improvement.format)} last run`}
-                  </div>
-                );
-              })()}
-          </div>
-
-          <div className="metric-grid">
-            {result.keyMetrics.slice(1, 5).map((m) => (
-              <div className={`metric-cell ${pbIds.has(m.id) ? 'pb' : ''}`} key={m.id}>
-                <div className="eyebrow">{m.label}</div>
-                <div className="metric-value display">{formatMetric(m.value, m.format)}</div>
-                {pbIds.has(m.id) && <span className="pb-dot">BEST</span>}
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
 
-        <div className={`res-rating ${stage >= 3 ? 'in' : ''}`}>
-          <div className="panel pad rating-panel">
-            <div className="panel-title">Mechanical rating</div>
-            <div className="rating-rows">
-              {report.axisChanges.map((c) => (
-                <div className="rating-row" key={c.axis}>
-                  <div className="rr-name">{AXIS_LABEL[c.axis]}</div>
-                  <div className="rr-bar">
-                    <span style={{ width: `${clamp(c.after / 3600, 0.01, 1) * 100}%` }} />
-                    <i
-                      style={{
-                        left: `${clamp(Math.min(c.before, c.after) / 3600, 0, 1) * 100}%`,
-                        width: `${(Math.abs(c.delta) / 3600) * 100}%`,
-                        background: c.delta >= 0 ? 'var(--good)' : 'var(--danger)',
-                      }}
-                    />
-                  </div>
-                  <div className="rr-rank">{c.rankAfter.label}</div>
-                  <div className={`rr-delta ${c.delta >= 0 ? 'up' : 'down'}`}>
-                    {c.delta >= 0 ? '+' : ''}
-                    {Math.round(c.delta)}
-                  </div>
-                  <div className="rr-promo-slot">
-                    {c.promoted && Math.round(c.delta) >= 1 && <span className="rr-promo">RANK UP</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="divider" />
-
-            <div className="row between" style={{ alignItems: 'flex-end', gap: 20 }}>
-              <div>
-                <div className="eyebrow">OVERALL</div>
-                <div className="display" style={{ fontSize: 26, letterSpacing: '0.1em' }}>
-                  {report.rankAfter.label}
-                </div>
-                <div className="faint mono" style={{ fontSize: 12, marginTop: 2 }}>
-                  {Math.round(report.overallAfter)} rating
-                  <span className={overallDelta >= 0 ? 'good' : 'bad'} style={{ marginLeft: 8 }}>
-                    {overallDelta >= 0 ? '+' : ''}
-                    {Math.round(overallDelta)}
-                  </span>
-                </div>
-              </div>
-              <div style={{ flex: 1, maxWidth: 340 }}>
-                <div className="rank-progress">
-                  <div className="row between" style={{ marginBottom: 6 }}>
-                    <span className="eyebrow">{report.rankAfter.label}</span>
-                    <span className="mono faint" style={{ fontSize: 11 }}>
-                      {report.rankAfter.nextAt
-                        ? `${Math.max(0, Math.round(report.rankAfter.nextAt - report.overallAfter))} to next`
-                        : 'PEAK'}
-                    </span>
-                  </div>
-                  <div className="rp-track">
-                    <span style={{ width: `${clamp(report.rankAfter.progress, 0, 1) * 100}%` }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {report.difficultyAfter !== report.difficultyBefore && (
-              <div className="diff-note">
-                Difficulty {report.difficultyAfter > report.difficultyBefore ? 'raised' : 'eased'} to{' '}
-                <b>{Math.round(report.difficultyAfter * 100)}</b> for your next {meta.name.toLowerCase()} run.
-              </div>
+        {/* -------------------------------------------------------- the read */}
+        <div className={`res-read${stage >= 2 ? ' in' : ''}`}>
+          <section className="res-error">
+            <span className="eyebrow">{primaryError ? 'Primary error' : 'What worked'}</span>
+            <b className="display">{primaryError ? errorTitle(primaryError) : cleanTitle(result.helped[0])}</b>
+            <p>{primaryError ?? result.helped[0] ?? 'Nothing went obviously wrong. Raise the difficulty.'}</p>
+            {primaryError && result.helped[0] && (
+              <p className="res-worked">
+                <span className="good">Worked</span> {result.helped[0]}
+              </p>
             )}
-          </div>
+          </section>
 
-          <div className="panel pad read-panel">
-            <div className="panel-title">The read</div>
-            {result.helped.length > 0 && (
-              <div className="read-block">
-                <div className="read-label good">WHAT WORKED</div>
-                {result.helped.map((h, i) => (
-                  <div className="read-line" key={i}>
-                    {h}
-                  </div>
-                ))}
-              </div>
-            )}
-            {result.hurt.length > 0 && (
-              <div className="read-block">
-                <div className="read-label bad">WHAT COST YOU</div>
-                {result.hurt.map((h, i) => (
-                  <div className="read-line" key={i}>
-                    {h}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="advice">
-              <div className="read-label" style={{ color: 'var(--accent)' }}>
-                DO THIS NEXT
-              </div>
-              <div className="advice-text">{result.advice}</div>
-            </div>
-          </div>
-        </div>
-
-        {report.vayne && (
-          <div className={`res-vayne ${stage >= 3 ? 'in' : ''}`}>
-            <div className="panel pad">
-              <div className="panel-title">The Vayne path</div>
-              <div className="rv-grid">
-                <div className="rv-stage">
-                  <span className="eyebrow">
-                    Stage {report.vayne.stage.step} / {VAYNE_STAGES.length} · {report.vayne.stage.title}
-                  </span>
-                  <div className="rv-stars">
-                    {[1, 2, 3].map((n) => (
-                      <span key={n} className={n <= report.vayne!.starsAfter ? 'on' : ''}>
-                        ★
-                      </span>
-                    ))}
-                    {report.vayne.starsAfter > report.vayne.starsBefore && (
-                      <b className="rv-gain">
-                        +{report.vayne.starsAfter - report.vayne.starsBefore}
-                      </b>
-                    )}
-                  </div>
-                  <div className="rv-best mono">
-                    BEST {Math.round(report.vayne.best * 100)}%
-                    {report.vayne.improved && report.vayne.previousBest > 0 && (
-                      <i className="good"> ▲ from {Math.round(report.vayne.previousBest * 100)}%</i>
-                    )}
-                    {!report.vayne.improved && <i className="faint"> · this run {Math.round(result.performance * 100)}%</i>}
-                  </div>
-                </div>
-
-                <div className="rv-mastery">
-                  <span className="eyebrow">Mastery</span>
-                  <div className="rv-num display">{Math.round(report.vayne.masteryAfter)}</div>
-                  {report.vayne.masteryAfter > report.vayne.masteryBefore && (
-                    <span className="good mono">
-                      +{(report.vayne.masteryAfter - report.vayne.masteryBefore).toFixed(1)}
-                    </span>
-                  )}
-                </div>
-
-                <div className="rv-title">
-                  <span className="eyebrow">Title</span>
-                  <b className="display">{report.vayne.titleAfter.name}</b>
-                  {report.vayne.titleAfter.name !== report.vayne.titleBefore.name && (
-                    <span className="rv-new">NEW</span>
-                  )}
-                  <p>{report.vayne.titleAfter.blurb}</p>
-                </div>
-              </div>
-
-              {report.vayne.unlocked && (
-                <div className="rv-unlock">
-                  Cleared. <b>{report.vayne.unlocked.title}</b> is now open — stage{' '}
-                  {report.vayne.unlocked.step} of the path.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* The academy reports the same three things the champion path does —
-            where the module stands, what mastery did, and what opened —
-            because they are the same kind of progress and should read alike. */}
-        {report.wasd && (
-          <div className={`res-vayne res-wasd ${stage >= 3 ? 'in' : ''}`}>
-            <div className="panel pad">
-              <div className="panel-title">The WASD academy</div>
-              <div className="rv-grid">
-                <div className="rv-stage">
-                  <span className="eyebrow">
-                    Module {report.wasd.module.step} / {WASD_MODULES.length} · {report.wasd.module.title}
-                  </span>
-                  <div className="rv-stars">
-                    {[1, 2, 3].map((n) => (
-                      <span key={n} className={n <= report.wasd!.starsAfter ? 'on' : ''}>
-                        ★
-                      </span>
-                    ))}
-                    {report.wasd.starsAfter > report.wasd.starsBefore && (
-                      <b className="rv-gain">+{report.wasd.starsAfter - report.wasd.starsBefore}</b>
-                    )}
-                  </div>
-                  <div className="rv-best mono">
-                    BEST {Math.round(report.wasd.best * 100)}%
-                    {report.wasd.improved && report.wasd.previousBest > 0 && (
-                      <i className="good"> ▲ from {Math.round(report.wasd.previousBest * 100)}%</i>
-                    )}
-                    {!report.wasd.improved && (
-                      <i className="faint"> · this run {Math.round(result.performance * 100)}%</i>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rv-mastery">
-                  <span className="eyebrow">Mastery</span>
-                  <div className="rv-num display">{Math.round(report.wasd.masteryAfter)}</div>
-                  {report.wasd.masteryAfter > report.wasd.masteryBefore && (
-                    <span className="good mono">
-                      +{(report.wasd.masteryAfter - report.wasd.masteryBefore).toFixed(1)}
-                    </span>
-                  )}
-                </div>
-
-                <div className="rv-title">
-                  <span className="eyebrow">Title</span>
-                  <b className="display">{report.wasd.titleAfter.name}</b>
-                  {report.wasd.titleAfter.name !== report.wasd.titleBefore.name && (
-                    <span className="rv-new">NEW</span>
-                  )}
-                  <p>{report.wasd.titleAfter.blurb}</p>
-                </div>
-              </div>
-
-              {report.wasd.unlocked && (
-                <div className="rv-unlock">
-                  Cleared. <b>{report.wasd.unlocked.title}</b> is now open — module{' '}
-                  {report.wasd.unlocked.step} of nine.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {report.apm && (
-          <div className={`res-apm ${stage >= 3 ? 'in' : ''}`}>
-            <div className="panel pad">
-              <div className="panel-title">The APM ladder</div>
-              <div className="ra-grid">
-                <div className="ra-level">
-                  <span className="eyebrow">
-                    Level {report.apm.level} / {APM_LEVELS} · difficulty{' '}
-                    {Math.round(levelDifficulty(report.apm.level) * 100)}
-                    {report.apm.endurance && ' · endurance'}
-                  </span>
-                  <div className="ra-stars">
-                    {[1, 2, 3].map((n) => (
-                      <span key={n} className={n <= report.apm!.starsAfter ? 'on' : ''}>
-                        ★
-                      </span>
-                    ))}
-                    {report.apm.starsAfter > report.apm.starsBefore && (
-                      <b className="ra-gain">+{report.apm.starsAfter - report.apm.starsBefore}</b>
-                    )}
-                  </div>
-                  <div className="ra-best mono">
-                    BEST {Math.round(report.apm.best * 100)}%
-                    {report.apm.best > report.apm.previousBest && report.apm.previousBest > 0 && (
-                      <i className="good"> ▲ from {Math.round(report.apm.previousBest * 100)}%</i>
-                    )}
-                    {report.apm.best <= report.apm.previousBest && (
-                      <i className="faint"> · this run {Math.round(result.performance * 100)}%</i>
-                    )}
-                  </div>
-                </div>
-
-                <div className="ra-rate">
-                  <span className="eyebrow">Correct actions / min</span>
-                  <div className="ra-num display">{Math.round(report.apm.apm)}</div>
-                  {report.apm.apmRecord ? (
-                    <span className="good mono">RATE RECORD ON THIS RUNG</span>
-                  ) : (
-                    <span className="faint mono">rung best {Math.round(report.apm.bestApm)}</span>
-                  )}
-                </div>
-
-                <div className="ra-title">
-                  <span className="eyebrow">Mastery</span>
-                  <b className="display">
-                    {Math.round(report.apm.masteryAfter)}
-                    {report.apm.masteryAfter > report.apm.masteryBefore && (
-                      <em className="good mono">
-                        {' '}
-                        +{(report.apm.masteryAfter - report.apm.masteryBefore).toFixed(1)}
-                      </em>
-                    )}
-                  </b>
-                  <p>
-                    {report.apm.titleAfter.name}
-                    {report.apm.titleAfter.name !== report.apm.titleBefore.name && (
-                      <span className="ra-new">NEW</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              {report.apm.unlockedTo !== null ? (
-                <div className="ra-unlock">
-                  {report.apm.skipped ? 'Taken outright.' : 'Cleared.'} <b>Level {report.apm.unlockedTo}</b> is
-                  now open
-                  {report.apm.skipped && ' — two rungs at once, because this one had nothing left to teach you'}
-                  .
-                </div>
+          <section className="res-next">
+            <span className="eyebrow">{onNext ? 'Next' : 'Do this next'}</span>
+            <b className="display">{onNext && nextLabel ? stripNext(nextLabel) : 'Same drill, one fix'}</b>
+            <p>{result.advice}</p>
+            <div className="res-actions">
+              {onNext ? (
+                <>
+                  <button className="btn primary lg" onClick={onNext}>
+                    Train next <span className="hint">SPACE</span>
+                  </button>
+                  <button className="btn" onClick={onRetry}>
+                    Run again <span className="hint">R</span>
+                  </button>
+                </>
               ) : (
-                <div className="ra-unlock quiet">
-                  {report.apm.cleared
-                    ? `Level ${report.apm.level} stays cleared. The ladder suggests level ${report.apm.nextLevel} next.`
-                    : `${Math.round((CLEAR_AT - result.performance) * 100)} points short of clearing level ${report.apm.level}.`}
-                </div>
+                <button className="btn primary lg" onClick={onRetry}>
+                  Run again <span className="hint">R</span>
+                </button>
               )}
+              <button className="btn ghost" onClick={onExit}>
+                Done <span className="hint">ESC</span>
+              </button>
             </div>
+          </section>
+        </div>
+
+        {/* ------------------------------------------------------ the ledger
+            One line, not a table: what the run did to your rating, and to the
+            track it belongs to if it belongs to one. */}
+        <div className={`res-ledger${stage >= 2 ? ' in' : ''}`}>
+          <span>
+            {report.rankAfter.label}
+            <b className="mono">{Math.round(report.overallAfter)}</b>
+            <i className={overallDelta >= 0 ? 'good' : 'bad'}>
+              {overallDelta >= 0 ? '+' : ''}
+              {Math.round(overallDelta)}
+            </i>
+          </span>
+          {driver && Math.round(driver.delta) !== 0 && (
+            <span>
+              {AXIS_LABEL[driver.axis]}
+              <b className="mono">{Math.round(driver.after)}</b>
+              <i className={driver.delta >= 0 ? 'good' : 'bad'}>
+                {driver.delta >= 0 ? '+' : ''}
+                {Math.round(driver.delta)}
+              </i>
+            </span>
+          )}
+          {track && (
+            <span>
+              {track.label}
+              <b className="mono">{track.value}</b>
+              {track.note && <i className={track.good ? 'good' : ''}>{track.note}</i>}
+            </span>
+          )}
+          <button className="link res-detail-toggle" onClick={() => setDetail((d) => !d)}>
+            {detail ? 'Hide breakdown' : 'Full breakdown'} <span className="kbd">D</span>
+          </button>
+        </div>
+
+        {/* ------------------------------------------------------- the detail
+            Everything the screen used to open with. Kept whole, moved behind
+            one press, because the fortieth run wants it and the fourth does
+            not. */}
+        {detail && (
+          <div className="res-detail fade-up">
+            <section>
+              <div className="sec-head">Mechanical rating</div>
+              <div className="rd-rows">
+                {report.axisChanges.map((c) => (
+                  <div className="rd-row" key={c.axis}>
+                    <span>{AXIS_LABEL[c.axis]}</span>
+                    <div className="meter">
+                      <span style={{ width: `${clamp(c.after / 3600, 0.01, 1) * 100}%` }} />
+                    </div>
+                    <em className="mono">{c.rankAfter.label}</em>
+                    <i className={`mono ${c.delta >= 0 ? 'good' : 'bad'}`}>
+                      {c.delta >= 0 ? '+' : ''}
+                      {Math.round(c.delta)}
+                    </i>
+                  </div>
+                ))}
+              </div>
+              {report.difficultyAfter !== report.difficultyBefore && (
+                <p className="rd-note">
+                  Difficulty {report.difficultyAfter > report.difficultyBefore ? 'raised' : 'eased'} to{' '}
+                  <b>{Math.round(report.difficultyAfter * 100)}</b> for your next{' '}
+                  {meta.name.toLowerCase()} run.
+                </p>
+              )}
+            </section>
+
+            {(result.helped.length > 0 || result.hurt.length > 1) && (
+              <section>
+                <div className="sec-head">Everything the run showed</div>
+                <div className="rd-lines">
+                  {result.helped.map((h, i) => (
+                    <p className="rd-line good" key={`h${i}`}>
+                      {h}
+                    </p>
+                  ))}
+                  {result.hurt.slice(1).map((h, i) => (
+                    <p className="rd-line bad" key={`x${i}`}>
+                      {h}
+                    </p>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section className="rd-viz">
+              <div>
+                <div className="sec-head">Movement path</div>
+                <PathMap path={result.metrics.path} cursor={result.metrics.cursorPath} bounds={bounds} width={380} />
+              </div>
+              <div className="rd-viz-wide">
+                <div className="sec-head">Attack rhythm</div>
+                <RhythmTimeline
+                  marks={result.metrics.timeline}
+                  duration={Math.max(1, result.metrics.duration)}
+                  width={560}
+                />
+                {result.metrics.reactionTimes.length > 2 && (
+                  <>
+                    <div className="sec-head" style={{ marginTop: 22 }}>
+                      Reaction distribution
+                    </div>
+                    <ReactionHistogram values={result.metrics.reactionTimes} width={520} height={80} />
+                  </>
+                )}
+              </div>
+            </section>
           </div>
         )}
-
-        <div className={`res-viz ${stage >= 4 ? 'in' : ''}`}>
-          <div className="panel pad">
-            <div className="panel-title">Movement path & cursor density</div>
-            <PathMap path={result.metrics.path} cursor={result.metrics.cursorPath} bounds={bounds} width={430} />
-            <div className="viz-legend">
-              <span>
-                <i style={{ background: 'var(--accent)' }} /> path, brightening over time
-              </span>
-              <span>
-                <i style={{ background: 'var(--warn)' }} /> cursor density
-              </span>
-            </div>
-          </div>
-
-          <div className="panel pad" style={{ flex: 1 }}>
-            <div className="panel-title">Attack rhythm</div>
-            <RhythmTimeline
-              marks={result.metrics.timeline}
-              duration={Math.max(1, result.metrics.duration)}
-              width={560}
-            />
-            <div className="viz-legend">
-              <span>
-                <i style={{ background: '#eafcff' }} /> attack landed
-              </span>
-              <span>
-                <i style={{ background: '#ff5f7e' }} /> cancelled
-              </span>
-              <span>
-                <i style={{ background: 'rgba(92,225,168,.7)' }} /> move command
-              </span>
-              <span>
-                <i style={{ background: '#ffcf6b' }} /> kill
-              </span>
-            </div>
-
-            {result.metrics.reactionTimes.length > 2 && (
-              <>
-                <div className="panel-title" style={{ marginTop: 22 }}>
-                  Reaction distribution
-                </div>
-                <ReactionHistogram values={result.metrics.reactionTimes} width={520} height={86} />
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className={`res-actions ${stage >= 5 ? 'in' : ''}`}>
-          <button className="btn primary lg" onClick={onRetry}>
-            Run again <span className="kbd">R</span>
-          </button>
-          {onNext && (
-            <button className="btn lg" onClick={onNext}>
-              {nextLabel ?? 'Next'} <span className="kbd">Space</span>
-            </button>
-          )}
-          <button className="btn ghost lg" onClick={onExit}>
-            Back <span className="kbd">Esc</span>
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -547,8 +315,90 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
 
 export const drillLabel = (id: DrillId): string => DRILLS[id].name;
 
-const ordinal = (n: number): string => {
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+/* -------------------------------------------------------------- helpers */
+
+/**
+ * The progression track this run fed, as one line.
+ *
+ * The three tracks — champion path, academy, APM ladder — each used to get a
+ * three-column panel of their own on this screen, and only ever one of them
+ * was present. They all say the same three things, so they all say them the
+ * same way now: where you are, and what moved.
+ */
+const trackLine = (
+  r: ProgressReport,
+): { label: string; value: string; note: string | null; good: boolean } | null => {
+  if (r.vayne) {
+    return {
+      label: `Path ${r.vayne.stage.step} / ${VAYNE_STAGES.length}`,
+      value: `${Math.round(r.vayne.masteryAfter)} mastery`,
+      note: r.vayne.unlocked
+        ? `${r.vayne.unlocked.title} unlocked`
+        : r.vayne.starsAfter > r.vayne.starsBefore
+          ? `+${r.vayne.starsAfter - r.vayne.starsBefore}★`
+          : null,
+      good: true,
+    };
+  }
+  if (r.wasd) {
+    return {
+      label: `Module ${r.wasd.module.step} / ${WASD_MODULES.length}`,
+      value: `${Math.round(r.wasd.best * 100)}% best`,
+      note: r.wasd.unlocked
+        ? `${r.wasd.unlocked.title} unlocked`
+        : r.wasd.starsAfter > r.wasd.starsBefore
+          ? `+${r.wasd.starsAfter - r.wasd.starsBefore}★`
+          : null,
+      good: true,
+    };
+  }
+  if (r.apm) {
+    return {
+      label: `Level ${r.apm.level} / ${APM_LEVELS}`,
+      value: `${Math.round(r.apm.apm)} APM`,
+      note:
+        r.apm.unlockedTo !== null
+          ? `level ${r.apm.unlockedTo} open`
+          : r.apm.cleared
+            ? 'cleared'
+            : `${Math.max(0, Math.round((CLEAR_AT - r.apm.best) * 100))} short of clearing`,
+      good: r.apm.unlockedTo !== null || r.apm.cleared,
+    };
+  }
+  return null;
 };
+
+/**
+ * A two-word name for an error, taken from its own sentence.
+ *
+ * The drills write their findings as prose ("You cancelled 3 attacks by
+ * moving just before the damage point"), which is the right thing to read
+ * second and the wrong thing to read first. This lifts the verb out so the
+ * screen can lead with EARLY MOVE and keep the sentence underneath it.
+ */
+const ERROR_NAMES: [RegExp, string][] = [
+  [/cancel|windup|wind-?up|before the (damage|point)|too soon|moved early/i, 'Early move'],
+  [/re-?click|clicking short|past the direct|wander|extra distance|travelled/i, 'Wasted pathing'],
+  [/overstep|too close|inside their|closed the gap|drift(ed)? in/i, 'Overstepping'],
+  [/too far|out of range|short of range|backed off/i, 'Standing off'],
+  [/slow|late|delay|reaction|reacted/i, 'Slow reaction'],
+  [/switch(ed|ing)?|wrong target|target/i, 'Target choice'],
+  [/miss(ed)?|off target|wide|wasted|threw away/i, 'Missed commands'],
+  [/stack|third hit|unfinished|finish/i, 'Unfinished stacks'],
+  [/idle|standing still|stopped|uptime|stood/i, 'Standing still'],
+  [/hit by|took .*damage|died|eliminated|walked into/i, 'Taking damage'],
+];
+
+const errorTitle = (sentence: string): string => {
+  for (const [re, name] of ERROR_NAMES) if (re.test(sentence)) return name;
+  return 'Execution';
+};
+
+const cleanTitle = (sentence: string | undefined): string => {
+  if (!sentence) return 'Clean run';
+  const first = sentence.split(/[.,—]/)[0].trim();
+  return first.length > 26 ? 'Clean run' : first;
+};
+
+/** "Next: Kite" → "Kite". The label carries its own heading now. */
+const stripNext = (label: string): string => label.replace(/^next:\s*/i, '');

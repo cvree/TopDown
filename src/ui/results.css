@@ -1,607 +1,346 @@
-.results {
+/* ============================================================
+   RESULTS
+
+   One screen, four bands: the verdict, the numbers, the read,
+   the ledger. The breakdown that used to be the screen is one
+   press below it.
+   ============================================================ */
+
+.results.scroll {
   position: fixed;
   inset: 0;
-  z-index: 6;
-  /* Opaque, so no backdrop-filter: blurring a full-screen WebGL canvas behind
-     a background you cannot see through costs a great deal and shows nothing. */
-  /* The arena is still there, frozen on the last frame of the run, and it
-     shows through. No backdrop-filter: blurring a full-screen WebGL canvas
-     costs a great deal for something this dark. */
+  z-index: 30;
   background:
-    radial-gradient(1000px 640px at 50% -12%, rgba(200, 170, 110, 0.12), transparent 66%),
-    radial-gradient(760px 520px at 82% 108%, rgba(10, 200, 185, 0.08), transparent 70%),
-    linear-gradient(180deg, rgba(3, 10, 18, 0.94), rgba(3, 10, 18, 0.97) 45%, rgba(3, 10, 18, 0.99));
-  overflow-y: auto;
-  animation: fadeIn 0.4s var(--ease) both;
+    radial-gradient(120% 90% at 50% -10%, rgba(14, 26, 42, 0.9), rgba(3, 6, 11, 0.97) 62%),
+    rgba(3, 6, 11, 0.97);
+  animation: fadeIn 0.25s var(--ease) both;
+  backdrop-filter: blur(10px);
 }
 
-.results-inner {
-  width: min(1240px, 100%);
-  margin: 0 auto;
-  padding: 52px 40px 80px;
+/* Centred when it fits, scrolling when the breakdown is open. A verdict
+   pinned to the top of a tall empty screen reads as a page that failed to
+   finish loading. */
+.results.scroll {
+  display: flex;
+  flex-direction: column;
+}
+.res-inner {
+  width: min(1080px, 100%);
+  margin: auto;
+  padding: var(--sp-7) var(--sp-7);
 }
 
-/* Every block enters on its own beat — the reveal is the reward. */
-.res-head,
-.res-hero,
-.res-rating,
-.res-viz,
-.res-actions {
+/* ------------------------------------------------------------ the verdict */
+.res-head {
+  text-align: center;
   opacity: 0;
-  transform: translateY(18px);
-  transition: opacity 0.55s var(--ease), transform 0.55s var(--ease);
+  transform: translateY(10px);
+  transition: opacity 0.4s var(--ease), transform 0.4s var(--ease);
 }
-.res-head.in,
-.res-hero.in,
-.res-rating.in,
-.res-viz.in,
-.res-actions.in {
+.res-head.in {
   opacity: 1;
   transform: none;
 }
 
-.res-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 40px;
-  margin-bottom: 26px;
-}
 .res-score {
-  font-size: clamp(56px, 8vw, 104px);
-  line-height: 0.9;
-  margin: 6px 0 10px;
-  letter-spacing: -0.02em;
-  background: linear-gradient(180deg, #fbf3df 8%, #e0c489 52%, #a2803e);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.res-sub {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--text-3);
-  letter-spacing: 0.1em;
-}
-.res-sub .sep {
-  width: 3px;
-  height: 3px;
-  border-radius: 99px;
-  background: var(--text-4);
-}
-
-.res-top-badge {
-  text-align: right;
-  padding: 16px 22px;
-  border: 1px solid var(--stroke-2);
-  border-radius: var(--r-lg);
-  background: var(--panel);
-}
-.res-top-num {
-  font-size: 34px;
-  line-height: 1;
-  margin: 4px 0 5px;
-  color: var(--accent);
-  letter-spacing: 0.02em;
-}
-
-/* ------------------------------------------------------------ PB strip */
-.pb-strip {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 14px 20px;
-  margin-bottom: 26px;
-  border-radius: var(--r);
-  border: 1px solid rgba(255, 207, 107, 0.36);
-  background: linear-gradient(90deg, rgba(255, 207, 107, 0.14), rgba(255, 207, 107, 0.03));
-  overflow: hidden;
-}
-.pb-flash {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.28), transparent);
-  transform: translateX(-120%);
-  animation: sweep 1.4s var(--ease) 0.25s both;
-}
-.pb-tag {
-  font-family: var(--display);
-  font-size: 11px;
-  letter-spacing: 0.28em;
-  color: var(--warn);
-  flex: none;
-}
-.pb-items {
-  display: flex;
-  gap: 26px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--text-2);
-  letter-spacing: 0.06em;
-}
-.pb-items b {
-  color: var(--text);
-  font-family: var(--display);
-  font-size: 14px;
-  margin-left: 5px;
-}
-.pb-items i {
-  color: var(--text-4);
-  font-style: normal;
-  margin-left: 7px;
-  font-size: 11px;
-}
-
-/* --------------------------------------------------------------- hero */
-.res-hero {
-  display: grid;
-  grid-template-columns: minmax(260px, 340px) 1fr;
-  gap: 20px;
-  margin-bottom: 20px;
-  transition-delay: 0.05s;
-}
-.hero-metric {
-  padding: 26px 28px;
-  border-radius: var(--r-lg);
-  border: 1px solid var(--stroke-2);
-  background: linear-gradient(160deg, rgba(88, 224, 255, 0.1), rgba(88, 224, 255, 0.02));
-}
-.hero-value {
-  font-size: 62px;
-  line-height: 1;
-  margin: 8px 0 6px;
-  color: #eafcff;
+  font-size: 108px;
+  line-height: 0.94;
+  margin: var(--sp-3) 0 0;
   letter-spacing: -0.01em;
-}
-.hero-delta {
-  font-size: 12px;
-  color: var(--text-3);
-  letter-spacing: 0.04em;
-}
-.hero-delta.up {
-  color: var(--good);
-}
-.hero-delta.down {
-  color: var(--danger);
-}
-
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-}
-.metric-cell {
-  position: relative;
-  padding: 18px 20px;
-  border-radius: var(--r);
-  border: 1px solid var(--stroke);
-  background: var(--panel);
-}
-.metric-cell.pb {
-  border-color: rgba(255, 207, 107, 0.4);
-  background: rgba(255, 207, 107, 0.06);
-}
-.metric-value {
-  font-size: 30px;
-  line-height: 1;
-  margin-top: 6px;
-}
-.pb-dot {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  font-family: var(--display);
-  font-size: 8.5px;
-  letter-spacing: 0.18em;
-  color: var(--warn);
-}
-
-/* ------------------------------------------------------------- rating */
-.res-rating {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 20px;
-  margin-bottom: 20px;
-  transition-delay: 0.1s;
-}
-.rating-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.rating-row {
-  display: grid;
-  grid-template-columns: 104px 1fr 92px 48px 62px;
-  align-items: center;
-  gap: 12px;
-}
-.rr-name {
-  font-size: 12px;
-  color: var(--text-2);
-  letter-spacing: 0.06em;
-}
-.rr-bar {
-  position: relative;
-  height: 7px;
-  border-radius: 99px;
-  background: rgba(200, 170, 110, 0.14);
-  overflow: hidden;
-}
-.rr-bar span {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
-  border-radius: 99px;
-  transition: width 0.9s var(--ease) 0.2s;
-}
-.rr-bar i {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  min-width: 2px;
-  opacity: 0.9;
-  animation: pulseGlow 1.4s ease-in-out 3;
-}
-.rr-rank {
-  font-family: var(--display);
-  font-size: 11.5px;
-  letter-spacing: 0.1em;
-  color: var(--text-2);
-  text-align: right;
-}
-.rr-delta {
-  font-family: var(--display);
-  font-size: 14px;
-  text-align: right;
+  color: var(--gold-hot);
   font-variant-numeric: tabular-nums;
-}
-.rr-delta.up {
-  color: var(--good);
-}
-.rr-delta.down {
-  color: var(--danger);
-}
-.rr-promo-slot {
-  min-height: 14px;
-}
-.rr-promo {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 3px;
-  border: 1px solid rgba(255, 207, 107, 0.45);
-  background: rgba(255, 207, 107, 0.1);
-  font-family: var(--display);
-  font-size: 8px;
-  letter-spacing: 0.16em;
-  color: var(--warn);
-  white-space: nowrap;
+  text-shadow: 0 0 70px rgba(200, 170, 110, 0.24);
 }
 
-.rp-track {
-  height: 8px;
-  border-radius: 99px;
-  background: rgba(200, 170, 110, 0.14);
-  overflow: hidden;
+/* The personal best. Restrained on purpose — a number that moved, drawn
+   large, is more convincing than confetti, and it is the number the player
+   came for. */
+.res-pb {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+  padding: var(--sp-2) var(--sp-5);
+  border: 1px solid var(--line-3);
+  background: rgba(200, 170, 110, 0.06);
+  animation: pbStrike 0.55s var(--ease-metal) 0.55s both;
 }
-.rp-track span {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
-  box-shadow: 0 0 18px rgba(88, 224, 255, 0.5);
-  transition: width 1s var(--ease) 0.35s;
+.res-pb.quiet {
+  border-color: transparent;
+  background: none;
+  animation: none;
+  padding-left: 0;
+  padding-right: 0;
 }
-
-.diff-note {
-  margin-top: 16px;
-  padding: 10px 14px;
-  border-radius: var(--r-sm);
-  background: rgba(88, 224, 255, 0.06);
-  border: 1px solid rgba(88, 224, 255, 0.16);
-  font-size: 12px;
-  color: var(--text-2);
+.res-pb-tag {
+  font-family: var(--ui);
+  font-size: var(--t-micro);
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--gold);
 }
-.diff-note b {
-  color: var(--accent);
-}
-
-.read-block {
-  margin-bottom: 16px;
-}
-.read-label {
-  font-family: var(--display);
-  font-size: 9.5px;
-  letter-spacing: 0.24em;
-  margin-bottom: 7px;
-}
-.read-line {
-  font-size: 12.5px;
-  color: var(--text-2);
-  line-height: 1.55;
-  padding-left: 13px;
-  position: relative;
-  margin-bottom: 5px;
-}
-.read-line::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 8px;
-  width: 5px;
-  height: 1px;
-  background: var(--text-4);
-}
-.advice {
-  margin-top: 18px;
-  padding: 15px 17px;
-  border-radius: var(--r);
-  background: rgba(88, 224, 255, 0.07);
-  border: 1px solid rgba(88, 224, 255, 0.2);
-}
-.advice-text {
-  font-size: 13.5px;
-  line-height: 1.55;
+.res-pb-move {
+  font-size: var(--t-md);
   color: var(--text);
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
 }
-
-/* ---------------------------------------------------------------- viz */
-.res-viz {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 28px;
-  flex-wrap: wrap;
-  transition-delay: 0.15s;
-}
-.viz-legend {
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-  margin-top: 12px;
-  font-size: 10.5px;
+.res-pb-move i {
+  font-style: normal;
   color: var(--text-3);
-  letter-spacing: 0.06em;
 }
-.viz-legend i {
-  display: inline-block;
-  width: 10px;
-  height: 2px;
-  border-radius: 99px;
-  margin-right: 6px;
-  vertical-align: middle;
+.res-pb-move em {
+  font-style: normal;
+  font-weight: 700;
 }
-
-.res-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  transition-delay: 0.2s;
-}
-.res-actions .kbd {
-  margin-left: 4px;
+.res-pb.quiet .res-pb-move {
+  font-size: var(--t-sm);
+  color: var(--text-3);
 }
 
-@media (max-width: 1080px) {
-  .res-hero,
-  .res-rating {
-    grid-template-columns: 1fr;
+@keyframes pbStrike {
+  0% {
+    opacity: 0;
+    transform: scale(1.07);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
   }
 }
 
-/* ------------------------------------------------------- the champion path
-   Shown only after a Vayne run. It sits between the rating and the charts
-   because it answers the question the rating cannot: did the champion get
-   better, not just the profile. */
-.res-vayne {
-  margin-top: 14px;
+/* ------------------------------------------------------------ the numbers */
+.res-metrics {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  margin-top: var(--sp-7);
+  padding: var(--sp-5) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
   opacity: 0;
-  transform: translateY(12px);
-  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
+  transition: opacity 0.4s var(--ease) 0.1s;
 }
-.res-vayne.in {
+.res-metrics.in {
+  opacity: 1;
+}
+.res-metrics .stat {
+  flex: 1;
+  align-items: center;
+  text-align: center;
+  padding: 0 var(--sp-5);
+  border-left: 1px solid var(--line);
+}
+.res-metrics .stat:first-child {
+  border-left: 0;
+}
+.res-metrics .stat-v {
+  font-size: var(--t-xl);
+}
+.res-metrics .stat.pb .stat-v {
+  color: var(--gold-lit);
+}
+.res-metrics .stat-s {
+  font-family: var(--ui);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------- the read */
+.res-read {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin-top: var(--sp-7);
+  background: var(--line);
+  border: 1px solid var(--line);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.4s var(--ease), transform 0.4s var(--ease);
+}
+.res-read.in {
   opacity: 1;
   transform: none;
 }
-.res-vayne .panel {
-  border-color: rgba(150, 90, 220, 0.4);
+.res-error,
+.res-next {
+  padding: var(--sp-5);
+  background: var(--s-0);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
-.rv-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) 120px minmax(0, 1.4fr);
-  gap: 26px;
-  align-items: start;
+.res-error {
+  border-left: 2px solid var(--danger);
 }
-.rv-stars {
+.res-next {
+  border-left: 2px solid var(--gold);
+  background: var(--s-1);
+}
+.res-error b,
+.res-next b {
+  font-size: var(--t-lg);
+  letter-spacing: 0.05em;
+  color: var(--text);
+  text-transform: uppercase;
+}
+.res-worked {
+  margin-top: auto !important;
+  padding-top: var(--sp-4);
+  font-size: var(--t-tiny) !important;
+  color: var(--text-3) !important;
+}
+.res-worked .good {
+  font-family: var(--ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-right: var(--sp-2);
+}
+
+.res-error p,
+.res-next p {
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--text-2);
+  line-height: 1.6;
+  max-width: 46ch;
+}
+
+.res-actions {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: auto;
+  padding-top: var(--sp-5);
+  flex-wrap: wrap;
+}
+
+/* ------------------------------------------------------------- the ledger */
+.res-ledger {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 20px;
-  color: rgba(255, 255, 255, 0.14);
-  margin: 6px 0 4px;
+  gap: var(--sp-6);
+  margin-top: var(--sp-5);
+  padding: var(--sp-3) var(--sp-1);
+  font-size: var(--t-tiny);
+  color: var(--text-3);
+  opacity: 0;
+  transition: opacity 0.4s var(--ease) 0.15s;
+  flex-wrap: wrap;
 }
-.rv-stars .on {
-  color: #c86bff;
-  text-shadow: 0 0 14px rgba(200, 110, 255, 0.5);
+.res-ledger.in {
+  opacity: 1;
 }
-.rv-gain {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--good);
-  margin-left: 6px;
+.res-ledger > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-family: var(--ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
-.rv-best {
-  font-size: 12px;
-  color: var(--text-2);
+.res-ledger b {
+  font-size: var(--t-sm);
+  color: var(--text);
+  letter-spacing: 0.02em;
 }
-.rv-best i {
+.res-ledger i {
   font-style: normal;
-  margin-left: 6px;
+  font-family: var(--mono);
+  letter-spacing: 0;
+  text-transform: none;
 }
-.rv-mastery {
-  text-align: center;
+.res-detail-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
 }
-.rv-num {
-  font-size: 40px;
-  line-height: 1.05;
-  color: #e7c8ff;
+
+/* ------------------------------------------------------------- the detail */
+.res-detail {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-6);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-7);
 }
-.rv-title b {
-  display: block;
-  font-size: 18px;
-  letter-spacing: 0.09em;
-  color: #e7c8ff;
-  margin-top: 4px;
+
+.rd-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
-.rv-title p {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--text-2);
-  line-height: 1.55;
-}
-.rv-new {
-  display: inline-block;
-  margin-top: 6px;
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  padding: 2px 7px;
-  color: #0a0710;
-  background: #c86bff;
-}
-.rv-unlock {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(150, 90, 220, 0.28);
-  font-size: 12px;
+.rd-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 90px 52px;
+  align-items: center;
+  gap: var(--sp-4);
+  font-size: var(--t-tiny);
   color: var(--text-2);
 }
-.rv-unlock b {
-  color: #e7c8ff;
+.rd-row em {
+  font-style: normal;
+  font-size: var(--t-micro);
+  letter-spacing: 0.14em;
+  color: var(--text-3);
+  text-align: right;
+}
+.rd-row i {
+  font-style: normal;
+  text-align: right;
+}
+.rd-note {
+  margin: var(--sp-4) 0 0;
+  font-size: var(--t-tiny);
+  color: var(--text-3);
+}
+
+.rd-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.rd-line {
+  margin: 0;
+  padding-left: var(--sp-4);
+  border-left: 2px solid var(--line-2);
+  font-size: var(--t-sm);
+  color: var(--text-2);
+}
+.rd-line.good {
+  border-left-color: var(--good);
+}
+.rd-line.bad {
+  border-left-color: var(--danger);
+}
+
+.rd-viz {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-6);
+  align-items: start;
+}
+.rd-viz-wide {
+  min-width: 0;
+  overflow-x: auto;
 }
 
 @media (max-width: 900px) {
-  .rv-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+  .res-read,
+  .rd-viz {
+    grid-template-columns: 1fr;
   }
-  .rv-mastery {
-    text-align: left;
+  .res-score {
+    font-size: 72px;
   }
-}
-
-/* The APM ladder block. Cyan, like the section it belongs to, so a rung
-   cleared never reads as a second rank-up. */
-.res-apm {
-  margin-top: 14px;
-  opacity: 0;
-  transform: translateY(12px);
-  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
-}
-.res-apm.in {
-  opacity: 1;
-  transform: none;
-}
-.res-apm .panel {
-  border-color: rgba(10, 200, 185, 0.4);
-}
-.ra-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) 215px minmax(0, 1fr);
-  gap: 26px;
-  align-items: start;
-}
-.ra-stars {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 20px;
-  color: rgba(255, 255, 255, 0.14);
-  margin: 6px 0 4px;
-}
-.ra-stars .on {
-  color: var(--accent-2);
-  text-shadow: 0 0 14px rgba(56, 224, 208, 0.5);
-}
-.ra-gain {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--good);
-  margin-left: 6px;
-}
-.ra-best {
-  font-size: 12px;
-  color: var(--text-2);
-}
-.ra-best i {
-  font-style: normal;
-  margin-left: 6px;
-}
-.ra-rate {
-  text-align: center;
-}
-.ra-num {
-  font-size: 40px;
-  line-height: 1.05;
-  color: #e8fbff;
-}
-.ra-rate span.mono {
-  font-size: 10px;
-  letter-spacing: 0.12em;
-}
-.ra-title b {
-  display: block;
-  font-size: 30px;
-  line-height: 1.1;
-  margin-top: 2px;
-}
-.ra-title b em {
-  font-style: normal;
-  font-size: 13px;
-}
-.ra-title p {
-  margin: 4px 0 0;
-  font-family: var(--ui);
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  color: var(--text-2);
-}
-.ra-new {
-  margin-left: 8px;
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  color: var(--accent-2);
-}
-.ra-unlock {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(10, 200, 185, 0.24);
-  font-size: 13px;
-  color: var(--text-2);
-}
-.ra-unlock.quiet {
-  color: var(--text-3);
-  font-size: 12px;
-}
-
-/* The academy's block reuses the champion path's layout — same kind of
-   progress, same shape — and only recolours it: cyan for the scheme, as
-   everywhere else in the client. */
-.res-wasd .panel {
-  border-color: rgba(60, 170, 210, 0.4);
-}
-.res-wasd .rv-stars .on,
-.res-wasd .rv-title b,
-.res-wasd .rv-num {
-  color: #bfeeff;
-}
-.res-wasd .rv-gain,
-.res-wasd .rv-new {
-  background: #58e0ff;
-  color: #04121a;
-}
-.res-wasd .rv-unlock {
-  border-left-color: #58e0ff;
+  .res-metrics {
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+  }
 }

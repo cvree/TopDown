@@ -288,6 +288,7 @@ export function GameView({
     const elCycleFill = q<HTMLDivElement>('[data-cycle-fill]');
     const elCycleLabel = q<HTMLDivElement>('[data-cycle-label]');
     const elFps = q<HTMLDivElement>('[data-fps]');
+    const elFpsWrap = q<HTMLDivElement>('[data-fps-wrap]');
     const elCam = q<HTMLDivElement>('[data-cam]');
     const elBanner = q<HTMLDivElement>('[data-banner]');
     const elCount = q<HTMLDivElement>('[data-count]');
@@ -394,7 +395,11 @@ export function GameView({
         if (name.textContent !== a.name) name.textContent = a.name;
       }
 
-      elFps.textContent = `${Math.round(snap.fps)}`;
+      // The frame rate is only worth a player's attention when it is a
+      // problem. Below fifty it appears; above it, the corner stays empty.
+      const fps = Math.round(snap.fps);
+      elFpsWrap.classList.toggle('show', fps < 50);
+      if (fps < 50) elFps.textContent = `${fps}`;
       elCam.classList.toggle('unlocked', !renderer.cameraLocked);
       elBanner.textContent = snap.banner ?? '';
       elBanner.style.opacity = snap.banner ? '1' : '0';
@@ -538,10 +543,13 @@ export function GameView({
       <canvas ref={overlayRef} className="game-overlay" />
 
       <div className="hud" ref={hudRef}>
-        <div className="hud-objective panel-rift">
+        {/* The objective. The brief is instruction, and instruction is only
+            useful before you start — after that it is a paragraph sitting on
+            the arena. It retires ten seconds in; the name stays, because
+            knowing which drill you are in is a fact, not a lesson. */}
+        <div className="hud-objective">
           {context && <div className="hud-context">{context}</div>}
           <div className="hud-name">{meta.name}</div>
-          <div className="hud-tag">{meta.tagline}</div>
           <div className="hud-brief">{meta.brief}</div>
         </div>
 
@@ -566,7 +574,9 @@ export function GameView({
               ))}
             </div>
           </div>
-          <div className="hud-fps">
+          {/* Only ever seen when it matters. A permanent frame counter is a
+              developer control wearing a player's HUD. */}
+          <div className="hud-fps" data-fps-wrap>
             <span data-fps>60</span> FPS
           </div>
         </div>
@@ -581,8 +591,12 @@ export function GameView({
           <span className="hud-chain-label">CLEAN CHAIN</span>
         </div>
 
+        {/* Three live numbers, not five. A drill can offer more and several
+            do, but a column of five running figures beside a live arena is a
+            column nobody reads — and everything below the third is on the
+            results screen forty-five seconds later anyway. */}
         <div className="hud-stats">
-          {[0, 1, 2, 3, 4].map((i) => (
+          {[0, 1, 2].map((i) => (
             <div className="hud-field" data-field key={i}>
               <div className="hud-field-label" data-fl />
               <div className="hud-field-value tone-neutral" data-fv />
@@ -593,7 +607,10 @@ export function GameView({
           ))}
         </div>
 
-        <div className="champ-frame">
+        {/* Health, the attack cycle and the ability bar, and only the parts
+            of them this drill has. A movement drill drawing six empty ability
+            slots and a health bar nothing can take is furniture. */}
+        <div className={`champ-frame${meta.abilities.length === 0 ? ' no-abilities' : ''}`}>
           <div className="cf-portrait" style={{ ['--c' as string]: meta.accent }}>
             <svg viewBox="0 0 48 48" aria-hidden>
               <path d="M24 5 L41 38 H7 Z" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
@@ -624,7 +641,13 @@ export function GameView({
             {ABILITY_BAR.map((s, i) => (
               <Fragment key={s}>
                 {i === 4 && <div className="ab-sep" />}
-                <div className={`ability${i >= 4 ? ' summoner' : ''}`} data-ability style={{ ['--cd' as string]: 0 }}>
+                <div
+                  className={`ability${i >= 4 ? ' summoner' : ''}${
+                    i < 4 && !meta.abilities.includes(s) ? ' unused' : ''
+                  }`}
+                  data-ability
+                  style={{ ['--cd' as string]: 0 }}
+                >
                   <span className="ab-face">
                     <span className="ab-glyph">{SLOT_GLYPH[s]}</span>
                     <span className="ab-sweep" />
@@ -659,7 +682,9 @@ export function GameView({
           <span>CAM</span>
         </div>
 
-        <div className="hud-minimap">
+        {/* Only where the arena is bigger than one screenful. Everywhere else
+            it is a picture of what you are already looking at. */}
+        <div className={`hud-minimap${(meta.zoom ?? 1) >= 1 ? ' hidden' : ''}`}>
           <canvas ref={minimapRef} />
         </div>
       </div>

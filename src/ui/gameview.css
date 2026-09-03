@@ -39,16 +39,15 @@
 }
 
 /* ---------------------------------------------------------- objective */
+/* Every HUD label sits on top of a live 3D scene that can be any colour,
+   so the type carries its own contrast rather than a plate to sit on. */
 .hud-objective {
   position: absolute;
   top: 18px;
-  left: 20px;
-  width: 292px;
-  padding: 14px 16px 15px;
-  background: linear-gradient(160deg, rgba(10, 20, 40, 0.9), rgba(4, 10, 19, 0.78));
-  border: 1px solid var(--stroke);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
-  backdrop-filter: blur(6px);
+  left: 22px;
+  width: 268px;
+  padding: 0 0 0 12px;
+  border-left: 2px solid var(--line-3);
 }
 .hud-context {
   font-size: 9px;
@@ -64,6 +63,7 @@
   letter-spacing: 0.1em;
   color: var(--gold-hot);
   line-height: 1.1;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95);
 }
 .hud-tag {
   font-size: 10px;
@@ -72,14 +72,18 @@
   color: var(--gold);
   margin-top: 3px;
 }
+/* Instruction, and instruction has a shelf life: it is the reason you
+   read the card before the countdown and the reason it is in the way
+   afterwards. Ten seconds, then gone, leaving the drill's name behind. */
 .hud-brief {
   font-family: var(--body);
   font-size: 11.5px;
   line-height: 1.45;
   color: var(--text-2);
-  margin-top: 9px;
-  padding-top: 9px;
-  border-top: 1px solid rgba(200, 170, 110, 0.16);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
+  margin-top: 7px;
+  max-width: 250px;
+  animation: hintFade 1s var(--ease) 10s both;
 }
 
 /* ---------------------------------------------------------- clock */
@@ -133,9 +137,11 @@
   text-align: right;
 }
 .hud-diff-label {
+  display: block;
   font-size: 9px;
   letter-spacing: 0.28em;
   color: var(--text-3);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95);
 }
 .diff-bars {
   display: flex;
@@ -281,26 +287,30 @@
 /* ---------------------------------------------------------- stats */
 .hud-stats {
   position: absolute;
-  left: 20px;
-  bottom: 22px;
+  left: 22px;
+  bottom: 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: 190px;
+  gap: 14px;
+  width: 180px;
 }
+/* No plate. The figures are legible against the arena on their own weight,
+   and three translucent slabs stacked in the corner were three more edges
+   competing with the thing being played. */
 .hud-field {
-  padding: 7px 11px;
-  background: linear-gradient(90deg, rgba(8, 16, 30, 0.85), rgba(8, 16, 30, 0.35));
-  border-left: 2px solid var(--gold-deep);
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--line-3);
 }
 .hud-field-label {
   font-size: 9px;
   letter-spacing: 0.24em;
-  color: var(--text-3);
+  color: var(--text-2);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95);
 }
 .hud-field-value {
   font-family: var(--display);
-  font-size: 21px;
+  font-size: 22px;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.9);
   font-weight: 700;
   line-height: 1.15;
   color: var(--gold-hot);
@@ -777,4 +787,42 @@
   .hud-hints {
     display: none;
   }
+}
+
+
+/* ---------------------------------------------------- HUD, trimmed down
+
+   Three rules, and between them they take roughly half the furniture off
+   the arena: a slot this drill cannot press is not drawn, a bar nothing
+   can move is not drawn, and a readout only a developer wants appears
+   only when it has bad news.
+   ------------------------------------------------------------------- */
+
+/* A slot outside `meta.abilities` is still in the DOM — the frame loop
+   indexes these positionally — but it is not on the screen. */
+.ability.unused {
+  visibility: hidden;
+}
+
+/* A drill with no abilities at all keeps the health bar and the attack
+   cycle, which are the two things it can still move, and drops the rest. */
+.champ-frame.no-abilities .cf-abilities,
+.champ-frame.no-abilities .ab-sep {
+  display: none;
+}
+.champ-frame.no-abilities {
+  min-width: 0;
+}
+
+.hud-fps {
+  opacity: 0;
+  transition: opacity 0.4s var(--ease);
+  color: var(--warn);
+}
+.hud-fps.show {
+  opacity: 1;
+}
+
+.hud-minimap.hidden {
+  display: none;
 }
