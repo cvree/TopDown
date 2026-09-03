@@ -19,6 +19,7 @@ import {
   applyTestRun,
 } from '../progression/profile';
 import { APM_LEVELS, isApmDrill, levelDifficulty, recommendedLevel, seedApmLadder } from '../progression/apm';
+import { buildPlan, planQueue } from '../progression/plan';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
 import type { TestId } from '../tests/catalog';
 import type { TestResult } from '../tests/types';
@@ -31,6 +32,8 @@ import { Apm } from './Apm';
 import { Daily } from './Daily';
 import { GameView } from './GameView';
 import { Home } from './Home';
+import { Academy } from './Academy';
+import { Today } from './Today';
 import { PlacementIntro, PlacementReveal } from './Placement';
 import { ProfileScreen } from './ProfileScreen';
 import { RankEmblem } from './components/RankEmblem';
@@ -43,10 +46,28 @@ import { Vayne } from './Vayne';
 import '../styles/global.css';
 import './app.css';
 
-type Route = 'home' | 'profile' | 'daily' | 'apm' | 'tests' | 'vayne' | 'settings';
+/**
+ * The sections.
+ *
+ * `today` is the home screen and answers "what should I train"; `drills` is the
+ * full catalogue for somebody who already knows. The order here is the order
+ * the navigation prints.
+ */
+type Route = 'today' | 'drills' | 'academy' | 'apm' | 'tests' | 'vayne' | 'daily' | 'profile' | 'settings';
+
+const NAV: { route: Route; label: string }[] = [
+  { route: 'today', label: 'TODAY' },
+  { route: 'drills', label: 'DRILLS' },
+  { route: 'academy', label: 'WASD' },
+  { route: 'apm', label: 'APM' },
+  { route: 'tests', label: 'TESTS' },
+  { route: 'vayne', label: 'VAYNE' },
+  { route: 'profile', label: 'PROFILE' },
+  { route: 'settings', label: 'SETTINGS' },
+];
 
 interface Flow {
-  kind: 'single' | 'placement' | 'daily';
+  kind: 'single' | 'placement' | 'daily' | 'session';
   index: number;
   queue: DrillId[];
   seed: number;
@@ -75,7 +96,7 @@ export function App() {
     rollDaily(p);
     return p;
   });
-  const [route, setRoute] = useState<Route>('home');
+  const [route, setRoute] = useState<Route>('today');
   // Which mode the APM section opens on, so a click in the drill rail lands on
   // the mode it named rather than on whatever was last selected.
   const [apmFocus, setApmFocus] = useState<DrillId | null>(null);
@@ -258,6 +279,24 @@ export function App() {
     setInterstitial({ drill: PLACEMENT_SEQUENCE[0], step: 1, total: PLACEMENT_SEQUENCE.length });
   }, []);
 
+  /**
+   * Today's whole session, as one queue.
+   *
+   * The point of the home screen is that starting practice is one click, so the
+   * plan is not a list of buttons — it is a run. Anything already finished
+   * today is skipped, and the queue is rebuilt from the live profile at the
+   * moment the button is pressed rather than from a stale render.
+   */
+  const startSession = useCallback(() => {
+    audio.unlock();
+    const queue = planQueue(buildPlan(profile));
+    const run = queue.length ? queue : buildPlan(profile).items.map((i) => i.drill);
+    if (!run.length) return;
+    setResults(null);
+    setFlow({ kind: 'session', index: 0, queue: run, seed: newSeed() });
+    setInterstitial({ drill: run[0], step: 1, total: run.length });
+  }, [profile]);
+
   const startDaily = useCallback(() => {
     audio.unlock();
     const remaining = DAILY_SEQUENCE.filter((d) => !profile.daily.completed.includes(d));
@@ -326,13 +365,23 @@ export function App() {
               Object.entries(prev.apm.modes).map(([k, v]) => [k, { ...v, levels: v.levels.map((l) => ({ ...l })) }]),
             ) as typeof prev.apm.modes,
           },
+          // And the academy, for the same reason: applyRun writes the module
+          // records in place, so they have to be copied before it runs or the
+          // previous state would move under React's feet.
+          wasd: {
+            ...prev.wasd,
+            modules: Object.fromEntries(
+              Object.entries(prev.wasd.modules).map(([k, v]) => [k, { ...v }]),
+            ) as typeof prev.wasd.modules,
+          },
+          recentBests: [...prev.recentBests],
         };
         report = applyRun(next, result, {
           placement: flow.kind === 'placement',
           level: flow.level,
           endurance: flow.endurance,
         });
-        if (flow.kind === 'daily' || flow.kind === 'single') markDailyComplete(next, result.drill);
+        if (flow.kind !== 'placement') markDailyComplete(next, result.drill);
         if (flow.kind === 'placement' && flow.index >= flow.queue.length - 1) {
           next.placed = true;
           next.placementRuns = flow.queue.length;
@@ -400,7 +449,7 @@ export function App() {
     if (!flow) return;
     if (flow.index >= flow.queue.length - 1) {
       exitToMenu();
-      setRoute(flow.kind === 'daily' ? 'daily' : 'home');
+      setRoute(flow.kind === 'daily' ? 'daily' : flow.kind === 'session' ? 'today' : 'today');
       return;
     }
     setResults(null);
@@ -410,7 +459,7 @@ export function App() {
 
   const finishPlacement = useCallback(() => {
     setPlacementReveal(false);
-    setRoute('home');
+    setRoute('today');
     audio.play('uiClick');
   }, []);
 
@@ -418,7 +467,7 @@ export function App() {
     resetProfile();
     const p = newProfile();
     setProfile(p);
-    setRoute('home');
+    setRoute('today');
   }, []);
 
   const rank = rankFromRating(profile.overall);
@@ -471,6 +520,8 @@ export function App() {
         ? `CALIBRATION ${flow.index + 1} / ${flow.queue.length}`
         : flow.kind === 'daily'
           ? `DAILY ${flow.index + 1} / ${flow.queue.length}`
+          : flow.kind === 'session'
+            ? `TODAY'S SESSION ${flow.index + 1} / ${flow.queue.length}`
           : // An APM run always says which rung it is, because the rung is the
             // whole claim the run makes.
             flow.level !== undefined && isApmDrill(currentDrill)
@@ -501,7 +552,8 @@ export function App() {
                   <i key={i} className={i < interstitial.step ? 'on' : ''} />
                 ))}
                 <span className="eyebrow">
-                  {flow.kind === 'placement' ? 'CALIBRATION' : 'DAILY'} {interstitial.step} / {interstitial.total}
+                  {flow.kind === 'placement' ? 'CALIBRATION' : flow.kind === 'session' ? 'SESSION' : 'DAILY'}{' '}
+                  {interstitial.step} / {interstitial.total}
                 </span>
               </div>
               <div className="int-name display">{DRILLS[interstitial.drill].name}</div>
@@ -549,25 +601,25 @@ export function App() {
       {!booted && <Boot ready={arenaReady} onEnter={() => setBooted(true)} />}
       <div className="shell">
         <header className="topbar">
-          <div className="logo" onClick={() => setRoute('home')}>
+          <div className="logo" onClick={() => setRoute('today')}>
             <Crest size={26} />
             APEX
             <span className="logo-sub">MECHANICS</span>
           </div>
 
           <nav className="nav">
-            {(['home', 'daily', 'apm', 'tests', 'vayne', 'profile', 'settings'] as Route[]).map((r) => (
+            {NAV.map((n) => (
               <button
-                key={r}
-                className={route === r ? 'on' : ''}
+                key={n.route}
+                className={route === n.route ? 'on' : ''}
                 onMouseEnter={() => audio.play('uiHover')}
                 onClick={() => {
                   audio.unlock();
                   audio.play('uiTab');
-                  setRoute(r);
+                  setRoute(n.route);
                 }}
               >
-                {r === 'home' ? 'TRAIN' : r.toUpperCase()}
+                {n.label}
               </button>
             ))}
           </nav>
@@ -587,7 +639,24 @@ export function App() {
           <GestureNotice onDismiss={() => patchSettings({ gestureNoticeDismissed: true })} />
         )}
 
-        {route === 'home' && (
+        {route === 'today' && (
+          <Today
+            profile={profile}
+            onStartSession={startSession}
+            onPlay={startSingle}
+            onPlacement={() => setPlacementIntro(true)}
+            onSection={(r) => setRoute(r)}
+          />
+        )}
+        {route === 'academy' && (
+          <Academy
+            profile={profile}
+            onPlay={startSingle}
+            onBack={() => setRoute('today')}
+            onAdoptKeys={() => patchSettings({ movementScheme: 'wasd' })}
+          />
+        )}
+        {route === 'drills' && (
           <Home
             profile={profile}
             onPlay={startSingle}
@@ -595,6 +664,7 @@ export function App() {
             onProfile={() => setRoute('profile')}
             onPlacement={() => setPlacementIntro(true)}
             onVayne={() => setRoute('vayne')}
+            onAcademy={() => setRoute('academy')}
             onApm={(id) => {
               setApmFocus(id ?? null);
               setRoute('apm');
@@ -606,18 +676,18 @@ export function App() {
             profile={profile}
             focus={apmFocus}
             onPlay={startApm}
-            onBack={() => setRoute('home')}
+            onBack={() => setRoute('today')}
             onPlacement={() => setPlacementIntro(true)}
           />
         )}
         {route === 'daily' && (
-          <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('home')} />
+          <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('today')} />
         )}
         {route === 'tests' && (
-          <Tests profile={profile} onRun={startTest} onBack={() => setRoute('home')} />
+          <Tests profile={profile} onRun={startTest} onBack={() => setRoute('today')} />
         )}
         {route === 'vayne' && (
-          <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('home')} />
+          <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('today')} />
         )}
         {route === 'profile' && (
           <ProfileScreen
@@ -628,7 +698,7 @@ export function App() {
           />
         )}
         {route === 'settings' && (
-          <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('home')} />
+          <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('today')} />
         )}
       </div>
     </div>

@@ -585,3 +585,23 @@
   color: var(--text-3);
   font-size: 12px;
 }
+
+/* The academy's block reuses the champion path's layout — same kind of
+   progress, same shape — and only recolours it: cyan for the scheme, as
+   everywhere else in the client. */
+.res-wasd .panel {
+  border-color: rgba(60, 170, 210, 0.4);
+}
+.res-wasd .rv-stars .on,
+.res-wasd .rv-title b,
+.res-wasd .rv-num {
+  color: #bfeeff;
+}
+.res-wasd .rv-gain,
+.res-wasd .rv-new {
+  background: #58e0ff;
+  color: #04121a;
+}
+.res-wasd .rv-unlock {
+  border-left-color: #58e0ff;
+}

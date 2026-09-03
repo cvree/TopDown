@@ -22,6 +22,14 @@ import {
   type VayneProgress,
   type VayneRunReport,
 } from './vayne';
+import {
+  applyWasdRun,
+  emptyWasdProgress,
+  isWasdModuleId,
+  normalizeWasdProgress,
+  type WasdProgress,
+  type WasdRunReport,
+} from './wasd';
 
 const STORAGE_KEY = 'apex.profile.v1';
 const PROFILE_VERSION = 1;
@@ -146,10 +154,34 @@ export interface Profile {
   vayne: VayneProgress;
   /** The APM trainer's own ladder: thirteen modes, ten explicit levels each. */
   apm: ApmProgress;
+  /** The WASD academy: nine modules, taken in order, played on the keys. */
+  wasd: WasdProgress;
   /** Overall rating recorded at the start of each local day, for trends. */
   dailyMarks: { date: string; overall: number }[];
   /** Skill test records, keyed by test. Independent of the drill ladder. */
   tests: Partial<Record<TestId, TestRecord>>;
+  /**
+   * Personal bests as they happened, newest last.
+   *
+   * The `bests` map already holds the *values*, but it cannot answer "what did
+   * I improve this week", which is the one question a home screen has to
+   * answer before anything else. So each beaten record is also appended here,
+   * with what it beat and when — a short, capped log rather than a second
+   * source of truth.
+   */
+  recentBests: RecentBest[];
+}
+
+/** One beaten record, kept so the home screen can say what got better. */
+export interface RecentBest {
+  drill: DrillId;
+  id: string;
+  label: string;
+  value: number;
+  previous: number;
+  format: KeyMetric['format'];
+  direction: MetricDirection;
+  at: number;
 }
 
 const zeroAxis = <T>(v: T): Record<SkillAxis, T> =>
@@ -202,8 +234,10 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   totalSeconds: 0,
   vayne: emptyVayneProgress(),
   apm: emptyApmProgress(),
+  wasd: emptyWasdProgress(),
   dailyMarks: [],
   tests: {},
+  recentBests: [],
 });
 
 export const loadProfile = (): Profile => {
@@ -232,8 +266,12 @@ export const loadProfile = (): Profile => {
       bests: parsed.bests ?? {},
       history: Array.isArray(parsed.history) ? parsed.history.slice(-400) : [],
       dailyMarks: Array.isArray(parsed.dailyMarks) ? parsed.dailyMarks.slice(-120) : [],
+      // Same for the academy: a profile written before it existed comes back
+      // with an empty course rather than a crash on modules.wasdMove.
+      wasd: normalizeWasdProgress(parsed.wasd),
       // A profile written before the tests existed simply has none yet.
       tests: parsed.tests ?? {},
+      recentBests: Array.isArray(parsed.recentBests) ? parsed.recentBests.slice(-60) : [],
     };
   } catch {
     return newProfile();
@@ -304,6 +342,8 @@ export interface ProgressReport {
   vayne: VayneRunReport | null;
   /** Present only for runs in the APM trainer. */
   apm: ApmRunReport | null;
+  /** Present only for runs in the WASD academy. */
+  wasd: WasdRunReport | null;
 }
 
 /** Where the adaptive system tries to keep you: challenged, not drowning. */
@@ -395,10 +435,21 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     // "personal best" would make the badge meaningless.
     if (improved) {
       personalBests.push({ id: km.id, label: km.label, value: km.value, previous: prev ?? null, format: km.format });
+      p.recentBests.push({
+        drill: result.drill,
+        id: km.id,
+        label: km.label,
+        value: km.value,
+        previous: prev as number,
+        format: km.format,
+        direction: km.direction,
+        at: Date.now(),
+      });
     }
   }
   // A double-length run accumulates a longer score by construction, so it is
   // allowed to set rate records and never a score record.
+  if (p.recentBests.length > 60) p.recentBests.splice(0, p.recentBests.length - 60);
   const newBestScore = !opts.endurance && prevBest !== null && result.score > prevBest.score;
   const previousBestScore = prevBest?.score ?? null;
   p.bests[result.drill] = {
@@ -461,6 +512,20 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
       })
     : null;
 
+  // The academy keeps the last run's headline numbers for the same reason the
+  // champion path does: so it can name the habit that is costing you rather
+  // than only the score that resulted from it.
+  const wasd = isWasdModuleId(result.drill)
+    ? applyWasdRun(
+        p.wasd,
+        result.drill,
+        result.performance,
+        result.difficulty,
+        result.score,
+        Object.fromEntries(result.keyMetrics.map((k) => [k.id, k.value])),
+      )
+    : null;
+
   adaptDifficulty(p, result.drill, result.performance);
   p.totalRuns++;
   p.totalSeconds += result.metrics.duration;
@@ -491,6 +556,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     advice: result.advice,
     vayne,
     apm,
+    wasd,
   };
 };
 

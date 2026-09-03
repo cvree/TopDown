@@ -19,6 +19,7 @@ import {
 import { rankFromRating } from '../progression/ranks';
 import { AXIS_LABEL, SKILL_AXES } from '../progression/skills';
 import { VAYNE_STAGES, isVayneStage, stageUnlocked } from '../progression/vayne';
+import { isWasdModuleId, moduleOf, moduleUnlocked } from '../progression/wasd';
 import { RankEmblem } from './components/RankEmblem';
 import { Sparkline } from './components/charts';
 import './home.css';
@@ -44,6 +45,8 @@ interface Props {
   onProfile: () => void;
   onPlacement: () => void;
   onVayne: () => void;
+  /** Opens the WASD academy, for a module that is still locked. */
+  onAcademy: () => void;
   /** Opens the APM section, on a named mode if one was clicked. */
   onApm: (id?: DrillId) => void;
 }
@@ -55,6 +58,7 @@ const GROUPS: { id: DrillGroup; title: string; blurb: string }[] = [
   { id: 'FOUNDATION', title: 'Foundation', blurb: 'The inputs everything else is built on' },
   { id: 'RHYTHM', title: 'Rhythm', blurb: 'Timing between your hands and the clock' },
   { id: 'COMBAT', title: 'Combat', blurb: 'All of it, against something that fights back' },
+  { id: 'WASD', title: 'WASD Academy', blurb: 'Nine modules on the keys, in the order the skills stack' },
   { id: 'APM', title: 'APM Trainer', blurb: 'Thirteen modes, ten levels each, counted in correct actions a minute' },
   { id: 'VAYNE', title: 'Vayne', blurb: 'One champion, learned in order' },
 ];
@@ -68,7 +72,7 @@ const metricFormat = (key: string): 'ms' | 'units' | 'pct' | 'int' =>
         ? 'units'
         : 'pct';
 
-export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne, onApm }: Props) {
+export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne, onAcademy, onApm }: Props) {
   const rank = rankFromRating(profile.overall);
   const best = bestAxis(profile);
   const priority = trainingPriority(profile);
@@ -132,6 +136,15 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne
                     LADDER
                   </button>
                 )}
+                {g.id === 'WASD' && (
+                  <button
+                    className="rgroup-link"
+                    onMouseEnter={() => audio.play('uiHover')}
+                    onClick={onAcademy}
+                  >
+                    COURSE
+                  </button>
+                )}
               </div>
               {DRILL_LIST.filter((d) => d.group === g.id).map((d) => {
                 const rec = profile.bests[d.id];
@@ -139,15 +152,26 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne
                 // A stage of the champion path is locked here exactly as it is
                 // locked there. One list saying "locked" while another happily
                 // launches it would make the course meaningless.
-                const locked = isVayneStage(d.id) && !stageUnlocked(profile.vayne, stageOf(d.id));
+                // A course locks the same way in both lists. One list saying
+                // "locked" while another happily launches it would make either
+                // course meaningless.
+                const locked =
+                  (isVayneStage(d.id) && !stageUnlocked(profile.vayne, stageOf(d.id))) ||
+                  (isWasdModuleId(d.id) && !moduleUnlocked(profile.wasd, moduleOf(d.id)));
                 return (
                   <button
                     key={d.id}
                     className={`rowitem${on ? ' on' : ''}${locked ? ' locked' : ''}`}
                     style={{ ['--c' as string]: d.accent }}
                     onMouseEnter={() => audio.play('uiHover')}
-                    onClick={() => (locked ? onVayne() : pick(d.id))}
-                    title={locked ? 'Locked — clear the previous stage on the Vayne path' : undefined}
+                    onClick={() => (locked ? (isWasdModuleId(d.id) ? onAcademy() : onVayne()) : pick(d.id))}
+                    title={
+                      locked
+                        ? isWasdModuleId(d.id)
+                          ? 'Locked — clear the previous module in the WASD academy'
+                          : 'Locked — clear the previous stage on the Vayne path'
+                        : undefined
+                    }
                   >
                     <span className="ri-bar" />
                     <span className="ri-name">{d.name}</span>
