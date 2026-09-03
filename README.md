@@ -5,12 +5,16 @@ thing that feels rewarding should be the thing that actually makes you better.
 
 It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
-drawn on the ground where the thing it is about actually is. Twenty-nine
-drills — including a thirteen-bench APM lab with ten explicit levels per
-mode — a ranked mechanical skill system driven by measured performance rather
-than time played, a champion path that teaches one champion properly, and a
-results screen designed so you can see exactly what you did and what it cost
-you.
+drawn on the ground where the thing it is about actually is. Thirty-eight
+drills — including a nine-module WASD academy and a thirteen-bench APM lab
+with ten explicit levels per mode — a ranked mechanical skill system driven by
+measured performance rather than time played, a champion path that teaches one
+champion properly, and a results screen designed so you can see exactly what
+you did and what it cost you.
+
+It opens on **Today**: one screen that answers what to train, what you are
+worst at, what improved, where your champion is, and what to do next — with
+today's ten-minute session already built and one click away.
 
 You pick a champion before you train. Seven of them, each a different
 silhouette, and none of them stronger than another — the choice reaches the
@@ -58,13 +62,14 @@ npm run build      # production bundle
 | **Target Switch** | Switch latency and accuracy | Retargeting mid-fight without freezing |
 | **Combos** | Sequence execution under a closing window | Ability order while your other hand is busy |
 | **1v1 / 1v2 / 1v3** | All of the above, against live AI | Priority, cooldown awareness, not panicking |
+| **WASD 01–09** | Nine modules, listed in their own section below | Learning the keys as a scheme rather than a setting |
 | **Tumble** | Tumble rhythm, windups thrown away | Q in the backswing — Vayne's whole movement game |
 | **Silver Bolts** | Bolt efficiency, stacks dropped | Finishing the third hit instead of switching at two |
 | **Condemn** | Wall stun rate, chances missed | Standing on the right side of the wall *before* the fight |
 | **Night Hunter** | Kit execution under a live 1v2 | Playing Vayne rather than an ADC who owns her abilities |
 
-The APM lab's thirteen benches are listed in their own section below, and the
-twelve skill tests in theirs.
+The APM lab's thirteen benches, the WASD academy's nine modules and the twelve
+skill tests are each listed in their own section below.
 
 ### Last Hit is a lane
 
@@ -275,6 +280,80 @@ rail on the home screen shows each bench's current rung instead of a score, and
 the results screen says which rung you played, what it did to your record, and
 what it opened.
 
+## The WASD academy
+
+Direct control is not clicking with extra steps. It is a different pair of
+hands, with a different set of things that are possible and a different set of
+things that are expensive — and the whole of its advantage is one sentence:
+**where you are going stops deciding where you are looking.**
+
+Nine modules teach that from the four keys upward, each gating the next,
+because the dependencies are real rather than pedagogical. You cannot learn to
+attack while moving until stopping is reliable; you cannot kite until you know
+which stretch of an attack a key is free in; you cannot multitask until each of
+the things being tasked runs without being watched.
+
+| Module | It teaches | What it could not measure under a mouse |
+| --- | --- | --- |
+| **01 · Movement** | Cardinals, diagonals, snap reversals, terrain, and stopping *inside* the node | A held key has no destination in it — the release is the destination |
+| **02 · Cursor independence** | Feet one way, cursor the other, for as much of the run as you can hold it | Under a mouse the two are one instruction; here they are two |
+| **03 · Strafing** | Across the shooter's line, on no rhythm anything can lead | Direction changes cost a key, so they can be irregular in a way clicking never is |
+| **04 · Aim while moving** | Acquire and commit without the pause, measured apart from accuracy | Your aiming hand is not your walking hand, so there is no reason left to stop |
+| **05 · Attack cadence** | The four stretches of an attack, and which of them a held key destroys | A key does not only cancel an attack, it prevents one |
+| **06 · Kiting** | The full cycle, scored on *when* each command landed | The step out of the backswing is a key — faster and far more repeatable |
+| **07 · Offensive kiting** | Following a runner at the outer edge of your range, never a step deeper | You can chase with your feet while the cursor stays pinned to something leaving |
+| **08 · Defensive kiting** | Damage dealt from outside their reach; the rest barely counts | Retreating and firing forward are one motion, not two competing clicks |
+| **09 · Multitasking** | Feet, attacks, two cooldowns, telegraphs and a moving priority target | Everything above, at once, which is the only state a real fight is in |
+
+**Every module is played on the keys whatever your profile is set to.** A
+module about moving one way while aiming the other is not a hard version of
+clicking — it is a sentence that does not parse under the click scheme — so the
+academy forces the scheme for its own runs and offers the switch for the rest
+of the client rather than assuming it.
+
+### The cadence bar
+
+Module 05 is the one everything after it depends on, and it is built around a
+single drawing: the attack, laid out over your champion as four stretches of
+time.
+
+```
+ATTACK START → [ WINDUP ] |release| [ BACKSWING ] [ READY ]
+                 red        seam       green        grey
+                committed              free        waiting
+```
+
+A held key in the red stretch destroys the attack outright and you get nothing
+for the time already spent. A fifth of a second later, in the green, the same
+key costs exactly nothing — the damage has already gone. Almost every
+mechanical mistake an ADC makes is a misunderstanding of that one asymmetry,
+and it is invisible in a real game: the attack simply does not happen and you
+assume you misclicked.
+
+So the module teaches it in four stages — watch the bar, move only on a cue,
+move without one, then hold the whole cycle against something that walks — and
+it names out loud which stretch every mistake happened in. Modules 06 to 09
+keep the bar on screen.
+
+### What the academy counts
+
+Four measurements are shared by every module, mean the same thing everywhere,
+and cannot be moved by an input that did not accomplish anything:
+
+- **movement uptime** — how much of the run your feet were doing anything.
+- **hands opposed** — the share of steered time your feet and cursor pointed
+  different ways. Structurally zero under a mouse; a player whose two hands
+  always agree has bought the scheme and left it in the box.
+- **cursor economy** — how far the mouse travelled per thing it actually did.
+- **irregularity** — whether the timing of your direction changes is readable.
+
+Each module then adds its own — stop precision, bait rate, acquisition time,
+free window used, step delay, trigger held, shots at max range, load carried —
+and mastery weights the later modules more heavily with difficulty folded in,
+so the number keeps moving for as long as there is a harder version of what you
+can already do. The read at the bottom of the section names the single habit
+costing you the most, in a sentence, with the module that fixes it attached.
+
 ## Skill tests
 
 Twelve short instruments that sit beside the drills rather than inside them.
@@ -431,6 +510,18 @@ depends on:
   clear opens one rung and an outright clear opens two, a worse run cannot
   lower a record, an endurance run can set a rate record but never a score, and
   calibration opens rungs without scoring any of them.
+- **Every academy module is driven with the keys, pays for playing it and
+  refuses to pay for standing there** — and every module is covered, so adding
+  one without a check fails the suite rather than shipping untested.
+- **The academy measures what it claims to.** A run whose hands point different
+  ways reads 60% opposed against 0% for one whose cursor rides along with its
+  feet; a run that respects the windup keeps every attack while one that never
+  releases the keys lands none; a careful run stops within 12 units of the node
+  centre; and holding max range while chasing is visible as its own number.
+- **An unmeasured thing scores nothing, not everything.** Every "lower is
+  better" figure in the academy — step delay, trigger held, wasted travel —
+  starts at zero, which would otherwise make a run in which nothing happened
+  look like a flawless one.
 
 `npm run test:drill <drill> <difficulty>` plays a single drill headlessly and
 prints a per-5-second trace — the fastest way to see why a tuning change
@@ -469,6 +560,10 @@ Two schemes, chosen in Settings. The default is League's.
 Under WASD the mouse only ever targets, so it can never cancel an attack; the
 keys are the only thing that moves you, and holding one is the same commitment
 a click is. Everything else — camera, zoom, reset, pause — is unchanged.
+
+The [WASD academy](#the-wasd-academy) runs on this scheme whatever your profile
+is set to, so the course is available before you commit to the switch — and the
+switch itself is one button at the top of that section, and reversible.
 
 **Dash aim** is a WASD-only setting, and Vayne's Tumble is the ability it
 decides: *the keys* (default — the dash goes where you are holding, and to the
@@ -596,16 +691,55 @@ gameplay state directly.
 
 ## The client
 
-The front end is not a page. There is no scrolling column of cards: a list down
-the left, the chosen drill standing in the live arena down the middle, your
-record down the right, and one large button along the bottom. The empty middle
-third is the point — the interface is a frame around a place rather than a
-surface covering one, and the arena behind it is the same terrain, lighting and
-champions you are about to play in, rendered live.
+### Today
 
-Screens that are genuinely pages of content — the daily programme, your
-profile, settings — sit on a darkened plate instead, so the arena shows through
-as depth rather than competing for the same pixels as the text.
+The home screen has one job: answer the five questions a player actually
+arrives with, in the order they arrive in, and then get out of the way.
+
+| | |
+| --- | --- |
+| What should I train today? | The session, built and sitting there |
+| What am I currently bad at? | Named, with the gap in rating and what it costs |
+| What improved recently? | The personal bests of the last week, and by how much |
+| What champion am I training? | Where the path is, and what is next on it |
+| What should I do next? | The button. One click, no choosing |
+
+**The session is a run, not a list of buttons.** Five or six pieces, ten to
+twenty minutes, in the order a coach would use: warm the hands, take the next
+thing you are learning, attack the thing you are worst at, keep the champion
+moving, then put it together against something that fights back. Every piece
+says why it is there — *"Last Hitting — 580 rating behind your overall"*, *"32%
+best, 56% to clear"* — because a plan you cannot argue with is a plan you will
+not follow. It is rebuilt after every run, so finishing a piece changes what
+the rest of it says, and any piece can also be run on its own.
+
+The rest of the screen is facts rather than decisions: your rating and its
+seven-day trend, your three weakest axes with what each one is, what got
+better, the academy and the champion path with their next step one click away,
+and a summary of your last sitting — including the drill that went worst, so
+you can start the next one with it.
+
+**The streak is deliberately quiet.** Fourteen days, one mark each, drawn as a
+record of what happened rather than as something you can lose — and the screen
+says so: *missing a day costs you nothing and takes nothing away.* A streak
+that punishes you for a day off is a retention mechanic wearing a training
+tool's clothes, and it makes people play tired, which is worse than not
+playing.
+
+### The catalogue
+
+The full drill browser is a tab away, and it is not a page either. There is no
+scrolling column of cards: a list down the left, the chosen drill standing in
+the live arena down the middle, your record down the right, and one large
+button along the bottom. The empty middle third is the point — the interface is
+a frame around a place rather than a surface covering one, and the arena behind
+it is the same terrain, lighting and champions you are about to play in,
+rendered live.
+
+Screens that are genuinely pages of content — Today, the academy, the daily
+programme, your profile, settings — sit on a darkened plate instead, so the
+arena shows through as depth rather than competing for the same pixels as the
+text.
 
 ## Versions and patch notes
 
@@ -634,10 +768,13 @@ src/engine/heroes.ts  the playable roster: one silhouette per champion, look onl
 src/gfx/        the 3D renderer: scene, terrain, walls, champions, decals, VFX
 src/drills/     one file per drill; each owns its rules and its scoring
 src/drills/apm/ the APM lab: one engine and one bench, thirteen modes over them
+src/drills/wasd/ the WASD academy: one engine, nine modules over it
 src/tests/      the twelve skill tests: one runner interface, one drawing kit
-src/progression/ rating maths, rank ladder, champion path, APM ladder, persistence
+src/progression/ rating maths, rank ladder, champion path, APM ladder, WASD course,
+                today's session planner, persistence
 src/patchnotes/ the release history: the client, the version number and CHANGELOG.md
-src/ui/         React shell, HUD, results, profile, rank-up, Vayne, tests, the lab
+src/ui/         React shell, HUD, Today, results, profile, rank-up, Vayne, academy,
+                tests, the lab
 src/ui/HeroSelect.tsx champion select: the first run, and the Champion tab in settings
 tools/          headless test harnesses
 docs/           research notes: the out-of-game practice landscape

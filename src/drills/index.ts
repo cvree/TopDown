@@ -1,6 +1,7 @@
 import type { Session } from '../engine/session';
 import { AimDrill } from './aim';
 import { createApmDrill } from './apm';
+import { createWasdDrill } from './wasd';
 import { ArenaDrill } from './arena';
 import type { Drill } from './base';
 import { DRILLS, type DrillId } from './catalog';
@@ -22,6 +23,9 @@ export const createDrill = (id: DrillId, session: Session): Drill => {
   // The APM lab owns thirteen of the ids and builds them from one engine.
   const apm = createApmDrill(id, session);
   if (apm) return apm;
+  // The academy owns nine more, all of them played on the keys.
+  const wasd = createWasdDrill(id, session);
+  if (wasd) return wasd;
   // The Ezreal path owns ten ids and builds them from one stage table.
   if (isEzrealDrill(id)) return new EzrealDrill(session, id);
   switch (id) {
@@ -117,6 +121,23 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
     case 'duel1v2':
     case 'duel1v3':
       return { w: 1800, h: 1050 };
+    // The academy. The movement modules want somewhere to run to, the aiming
+    // ones want a field the cursor can cross, and the last one wants a floor
+    // big enough for two opponents and a telegraph at the same time.
+    case 'wasdMove':
+      return { w: 1900, h: 1100 };
+    case 'wasdIndep':
+    case 'wasdStrafe':
+      return { w: 1820, h: 1050 };
+    case 'wasdAimMove':
+      return { w: 1700, h: 1000 };
+    case 'wasdCadence':
+    case 'wasdKite':
+    case 'wasdOffKite':
+    case 'wasdDefKite':
+      return { w: 1780, h: 1020 };
+    case 'wasdMulti':
+      return { w: 1900, h: 1100 };
     // The Vayne arenas are wider than they are tall and larger than the duel
     // floor: condemn needs somewhere to throw people, and terrain eats space.
     case 'vayneCondemn':

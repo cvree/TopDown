@@ -8,6 +8,7 @@ import { expectedRating } from '../progression/rating';
 import { AXIS_LABEL } from '../progression/skills';
 import { APM_LEVELS, CLEAR_AT, levelDifficulty } from '../progression/apm';
 import { VAYNE_STAGES } from '../progression/vayne';
+import { WASD_MODULES } from '../progression/wasd';
 import { PathMap, ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
 import './results.css';
 
@@ -330,6 +331,69 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
                 <div className="rv-unlock">
                   Cleared. <b>{report.vayne.unlocked.title}</b> is now open — stage{' '}
                   {report.vayne.unlocked.step} of the path.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* The academy reports the same three things the champion path does —
+            where the module stands, what mastery did, and what opened —
+            because they are the same kind of progress and should read alike. */}
+        {report.wasd && (
+          <div className={`res-vayne res-wasd ${stage >= 3 ? 'in' : ''}`}>
+            <div className="panel pad">
+              <div className="panel-title">The WASD academy</div>
+              <div className="rv-grid">
+                <div className="rv-stage">
+                  <span className="eyebrow">
+                    Module {report.wasd.module.step} / {WASD_MODULES.length} · {report.wasd.module.title}
+                  </span>
+                  <div className="rv-stars">
+                    {[1, 2, 3].map((n) => (
+                      <span key={n} className={n <= report.wasd!.starsAfter ? 'on' : ''}>
+                        ★
+                      </span>
+                    ))}
+                    {report.wasd.starsAfter > report.wasd.starsBefore && (
+                      <b className="rv-gain">+{report.wasd.starsAfter - report.wasd.starsBefore}</b>
+                    )}
+                  </div>
+                  <div className="rv-best mono">
+                    BEST {Math.round(report.wasd.best * 100)}%
+                    {report.wasd.improved && report.wasd.previousBest > 0 && (
+                      <i className="good"> ▲ from {Math.round(report.wasd.previousBest * 100)}%</i>
+                    )}
+                    {!report.wasd.improved && (
+                      <i className="faint"> · this run {Math.round(result.performance * 100)}%</i>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rv-mastery">
+                  <span className="eyebrow">Mastery</span>
+                  <div className="rv-num display">{Math.round(report.wasd.masteryAfter)}</div>
+                  {report.wasd.masteryAfter > report.wasd.masteryBefore && (
+                    <span className="good mono">
+                      +{(report.wasd.masteryAfter - report.wasd.masteryBefore).toFixed(1)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="rv-title">
+                  <span className="eyebrow">Title</span>
+                  <b className="display">{report.wasd.titleAfter.name}</b>
+                  {report.wasd.titleAfter.name !== report.wasd.titleBefore.name && (
+                    <span className="rv-new">NEW</span>
+                  )}
+                  <p>{report.wasd.titleAfter.blurb}</p>
+                </div>
+              </div>
+
+              {report.wasd.unlocked && (
+                <div className="rv-unlock">
+                  Cleared. <b>{report.wasd.unlocked.title}</b> is now open — module{' '}
+                  {report.wasd.unlocked.step} of nine.
                 </div>
               )}
             </div>

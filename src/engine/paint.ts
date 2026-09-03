@@ -41,7 +41,29 @@ export type Billboard =
   /** A thin horizontal progress bar, e.g. a closing reaction window. */
   | { kind: 'timerBar'; x: number; y: number; progress: number; color: string; width?: number; lift?: number }
   /** A downward caret marking the priority target. */
-  | { kind: 'caret'; x: number; y: number; color: string; lift?: number };
+  | { kind: 'caret'; x: number; y: number; color: string; lift?: number }
+  /**
+   * The attack cadence, drawn as the one bar the WASD academy is built around.
+   *
+   * A basic attack is not an event, it is four stretches of time, and only two
+   * of them behave the same way when you move. Drawing them as one segmented
+   * bar — committed, release, free, ready — is what turns "do not move too
+   * early" from advice into something you can watch happen.
+   */
+  | {
+      kind: 'cadence';
+      x: number;
+      y: number;
+      /** Share of the cycle spent winding up, and in backswing. */
+      windup: number;
+      backswing: number;
+      /** Where in the cycle the champion is, 0..1 from the attack starting. */
+      head: number;
+      phase: 'idle' | 'windup' | 'backswing' | 'ready';
+      /** True while a direction is held — the bar says what that is costing. */
+      moving: boolean;
+      note?: string;
+    };
 
 /**
  * An annotation drawn onto one unit's health bar.

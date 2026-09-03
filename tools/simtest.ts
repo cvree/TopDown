@@ -9,7 +9,8 @@ import { GameLoop, SIM_DT } from '../src/engine/loop';
 import { Session, type TumbleAim, type ViewProjection } from '../src/engine/session';
 import { createDrill, arenaFor } from '../src/drills';
 import { APM_DRILL_IDS, type LabSolution } from '../src/drills/apm';
-import { DRILLS, type DrillId } from '../src/drills/catalog';
+import { WASD_DRILL_IDS } from '../src/drills/wasd';
+import { DRILLS, WASD_SEQUENCE, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
 import { InputSystem, WASD_BINDINGS, type AbilitySlot, type InputEventKind, type MovementScheme } from '../src/engine/input';
 import { angleDelta, dist, norm } from '../src/engine/math';
@@ -82,7 +83,13 @@ type Policy =
   | 'vayneWasd'
   | 'apmOrbwalk'
   | 'lab'
-  | 'labWasd';
+  | 'labWasd'
+  /* --- the WASD academy. Every one of these drives the keys, not the mouse --- */
+  | 'acadMove'
+  | 'acadIndep'
+  | 'acadStrafe'
+  | 'acadAimMove'
+  | 'acadMulti';
 
 class FakeInput {
   cursor = { x: 0, y: 0 };
@@ -143,6 +150,11 @@ const runDrill = (
   let t = 0;
   let reactTimer = 0;
   let orbitDir = 1;
+  // Academy bookkeeping: which way the strafe policy is running, and whether
+  // it has already reacted to the telegraph currently on screen.
+  let strafeSide = 1;
+  let tellSeen = false;
+  let strafeFlipAt = 0;
   /** When the lab policy last issued an input, for its human rate limit. */
   let lastLabInput = -1;
   const maxT = (meta.duration > 0 ? meta.duration : 60) + 2;
@@ -583,6 +595,185 @@ const runDrill = (
               p.pos.y < margin ||
               p.pos.y > bounds.h - margin
             ) {
+              orbitDir *= -1;
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gx = toCentre.x;
+              gy = toCentre.y;
+            }
+            input.dir = { x: gx, y: gy };
+            break;
+          }
+          case 'acadMove': {
+            // The movement module, played the way it is taught: hold one
+            // heading to the node, release before arriving, stand still while
+            // it registers — and on the instrument phase, hold whatever
+            // heading the panel is asking for without looking at anything else.
+            reactTimer = 0.02;
+            const st = drill as unknown as {
+              node: { pos: { x: number; y: number }; radius: number } | null;
+              call: { dir: number } | null;
+            };
+            if (st.call) {
+              const a = (st.call.dir * Math.PI) / 4;
+              input.dir = { x: Math.cos(a), y: Math.sin(a) };
+              break;
+            }
+            const node = st.node;
+            if (!node) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const d = dist(p.pos, node.pos);
+            // Release well inside the ring. Stopping is the whole module, and
+            // a policy that only ever arrives would not be playing it.
+            if (d < node.radius * 0.3) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            input.dir = norm(node.pos.x - p.pos.x, node.pos.y - p.pos.y);
+            break;
+          }
+          case 'acadIndep': {
+            // Cursor pinned to the mark; feet solving whatever the drill is
+            // asking for. The two never agree, which is the point.
+            reactTimer = 0.02;
+            const st = drill as unknown as {
+              mark: { pos: { x: number; y: number }; radius: number; id: number } | null;
+              zone: { pos: { x: number; y: number }; radius: number } | null;
+              phaseIndex: number;
+            };
+            const mark = st.mark;
+            if (mark) session.cursorWorld = { x: mark.pos.x, y: mark.pos.y };
+            const zone = st.zone;
+            if (zone) {
+              const d = dist(p.pos, zone.pos);
+              // Only the last phase asks for a shot, and under the keys taking
+              // one means letting go for a beat. Doing it in the earlier
+              // phases would just be a policy that stands still.
+              if (st.phaseIndex >= 3 && mark && p.attackCd <= 0.001 && p.phase !== 'windup') {
+                const gap = dist(p.pos, mark.pos) - mark.radius;
+                if (gap <= p.attack.range) {
+                  input.dir = { x: 0, y: 0 };
+                  if (p.targetId !== mark.id) {
+                    input.push({ kind: 'move', x: mark.pos.x, y: mark.pos.y, t: t * 1000 });
+                  }
+                  break;
+                }
+              }
+              input.dir = d < zone.radius * 0.5 ? { x: 0, y: 0 } : norm(zone.pos.x - p.pos.x, zone.pos.y - p.pos.y);
+              break;
+            }
+            if (!mark) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            // The orbit phase: hold the band and keep going round.
+            const d = dist(p.pos, mark.pos);
+            const desired = 300;
+            const radial = norm(p.pos.x - mark.pos.x, p.pos.y - mark.pos.y);
+            const tangent = { x: -radial.y, y: radial.x };
+            const correction = Math.max(-1, Math.min(1, (desired - d) / 200));
+            input.dir = {
+              x: radial.x * correction + tangent.x * orbitDir * 0.8,
+              y: radial.y * correction + tangent.y * orbitDir * 0.8,
+            };
+            break;
+          }
+          case 'acadStrafe': {
+            // Lateral to the shooter, and the direction flips the moment a
+            // tell appears — which is precisely what makes the shot a bait.
+            reactTimer = 0.02;
+            const st = drill as unknown as {
+              shooter: { pos: { x: number; y: number } } | null;
+              shot: { telegraph: number } | null;
+            };
+            const sh = st.shooter;
+            if (!sh) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const hasTell = st.shot !== null;
+            if (hasTell && !tellSeen) {
+              tellSeen = true;
+              strafeSide *= -1;
+            } else if (!hasTell) {
+              tellSeen = false;
+            }
+            // And an irregular flip otherwise, so the run is not a metronome.
+            if (t > strafeFlipAt) {
+              strafeFlipAt = t + 0.35 + session.rng.next() * 0.9;
+              if (session.rng.next() > 0.55) strafeSide *= -1;
+            }
+            const radial = norm(p.pos.x - sh.pos.x, p.pos.y - sh.pos.y);
+            const tangent = { x: -radial.y, y: radial.x };
+            let gx = tangent.x * strafeSide;
+            let gy = tangent.y * strafeSide;
+            const margin = 200;
+            if (p.pos.x < margin || p.pos.x > bounds.w - margin || p.pos.y < margin || p.pos.y > bounds.h - margin) {
+              strafeSide *= -1;
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gx = toCentre.x;
+              gy = toCentre.y;
+            }
+            input.dir = { x: gx, y: gy };
+            break;
+          }
+          case 'acadAimMove': {
+            // Never stops. The keys stay down for the whole run and the
+            // cursor takes every mark on its own.
+            reactTimer = 0.05;
+            const st = drill as unknown as { marks: { actor: { pos: { x: number; y: number }; id: number } }[] };
+            const marks = st.marks ?? [];
+            if (marks.length) {
+              const want = marks.reduce((a, b) =>
+                dist(p.pos, a.actor.pos) <= dist(p.pos, b.actor.pos) ? a : b,
+              );
+              session.cursorWorld = { x: want.actor.pos.x, y: want.actor.pos.y };
+              input.push({ kind: 'move', x: want.actor.pos.x, y: want.actor.pos.y, t: t * 1000 });
+            }
+            // Keep moving, and keep moving *somewhere*: circling the middle
+            // leaves every telegraph behind without running into a wall.
+            const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+            const tangent = { x: -toCentre.y, y: toCentre.x };
+            const away = dist(p.pos, { x: bounds.w / 2, y: bounds.h / 2 }) > 320 ? 0.7 : -0.3;
+            input.dir = norm(toCentre.x * away + tangent.x * orbitDir, toCentre.y * away + tangent.y * orbitDir);
+            break;
+          }
+          case 'acadMulti': {
+            // The last module: orbwalk the called target, spend the bolt on it
+            // whenever it is up, and let the feet leave the telegraphs.
+            reactTimer = 0.03;
+            const st = drill as unknown as { priority: number | null; cd: Record<string, number> };
+            const want = session.world.byId(st.priority) ?? target;
+            if (!want) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            session.cursorWorld = { x: want.pos.x, y: want.pos.y };
+            if ((st.cd?.q ?? 1) <= 0) {
+              input.push({ kind: 'ability', slot: 'q', x: want.pos.x, y: want.pos.y, t: t * 1000 });
+            }
+            if (p.phase === 'windup') {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const d = dist(p.pos, want.pos);
+            const inRange = d - want.radius <= p.attack.range;
+            if (p.attackCd <= 0.001 && inRange) {
+              input.dir = { x: 0, y: 0 };
+              if (p.targetId !== want.id) {
+                input.push({ kind: 'move', x: want.pos.x, y: want.pos.y, t: t * 1000 });
+              }
+              break;
+            }
+            const desired = p.attack.range * 0.9 + want.radius;
+            const radial = norm(p.pos.x - want.pos.x, p.pos.y - want.pos.y);
+            const tangent = { x: -radial.y, y: radial.x };
+            const correction = Math.max(-1, Math.min(1, (desired - d) / 180));
+            let gx = radial.x * correction + tangent.x * orbitDir * 0.7;
+            let gy = radial.y * correction + tangent.y * orbitDir * 0.7;
+            const margin = 200;
+            if (p.pos.x < margin || p.pos.x > bounds.w - margin || p.pos.y < margin || p.pos.y > bounds.h - margin) {
               orbitDir *= -1;
               const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
               gx = toCentre.x;
@@ -1131,7 +1322,13 @@ const runDrill = (
         policy === 'vayneBolts' ||
         policy === 'vayneCondemn' ||
         policy === 'lab' ||
-        policy === 'labWasd';
+        policy === 'labWasd' ||
+        // The academy's aiming policies drive the cursor independently of the
+        // champion — which is the entire thing those modules measure, so
+        // pinning it back onto the player would zero the metric under test.
+        policy === 'acadIndep' ||
+        policy === 'acadAimMove' ||
+        policy === 'acadMulti';
       if (!ownsCursor) {
         session.cursorWorld = { x: p.pos.x, y: p.pos.y };
       }
@@ -1484,6 +1681,10 @@ line('\n=== CHEESE SWEEP: every drill against every bad idea ===');
     ['circle', 'circling', 'click'],
     ['stall', 'shuffling on the spot', 'click'],
   ];
+  // The academy is played on the keys, so its cheese has to be too — a
+  // click-scheme run of a WASD-only module is not a cheating player, it is a
+  // player who cannot move at all, and passing that proves nothing.
+  const WASD_ONLY = new Set<DrillId>(WASD_SEQUENCE);
   const SUBJECTS: DrillId[] = [
     'movement',
     'aim',
@@ -1500,6 +1701,7 @@ line('\n=== CHEESE SWEEP: every drill against every bad idea ===');
     'vayneBolts',
     'vayneCondemn',
     'vayneHunt',
+    ...WASD_SEQUENCE,
     ...(EZREAL_DRILL_IDS as unknown as DrillId[]),
   ];
   // The bar. A cheese run is allowed to be non-zero — a circling player does
@@ -1511,7 +1713,8 @@ line('\n=== CHEESE SWEEP: every drill against every bad idea ===');
   for (const id of SUBJECTS) {
     let top = 0;
     let topHow = '';
-    for (const [policy, label, scheme] of CHEESE) {
+    for (const [policy, label, baseScheme] of CHEESE) {
+      const scheme = WASD_ONLY.has(id) ? 'wasd' : baseScheme;
       const r = runDrill(id, policy, 0.4, 31337, scheme);
       if (r.out.performance > top) {
         top = r.out.performance;
@@ -1962,6 +2165,98 @@ for (const id of ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'] as D
   const r = runDrill(id, 'idle', 0.4);
   line(`  ${id.padEnd(13)} idle perf ${pct(r.out.performance)}  score ${r.out.score}`);
   expect(`${id} cannot be passed by doing nothing`, r.out.performance < 0.3, pct(r.out.performance));
+}
+
+line('\n=== WASD ACADEMY: every module is played on the keys and pays for playing it ===');
+{
+  const cases: [DrillId, Policy][] = [
+    ['wasdMove', 'acadMove'],
+    ['wasdIndep', 'acadIndep'],
+    ['wasdStrafe', 'acadStrafe'],
+    ['wasdAimMove', 'acadAimMove'],
+    ['wasdCadence', 'wasd'],
+    ['wasdKite', 'wasd'],
+    ['wasdOffKite', 'wasd'],
+    ['wasdDefKite', 'wasd'],
+    ['wasdMulti', 'acadMulti'],
+  ];
+  // Adding a module without adding it here would silently ship it untested.
+  expect(
+    'every academy module is covered by these checks',
+    WASD_DRILL_IDS.every((id) => cases.some(([c]) => c === id)) && cases.length === WASD_DRILL_IDS.length,
+    `${cases.length} cases for ${WASD_DRILL_IDS.length} modules`,
+  );
+  for (const [id, policy] of cases) {
+    const good = runDrill(id, policy, 0.35, 4242, 'wasd');
+    const idle = runDrill(id, 'idle', 0.35, 4242, 'wasd');
+    const finite = Number.isFinite(good.out.performance) && Number.isFinite(good.out.score);
+    line(
+      `  ${id.padEnd(13)} played ${pct(good.out.performance)}  score ${good.out.score}` +
+        `   idle ${pct(idle.out.performance)} score ${idle.out.score}`,
+    );
+    expect(`${id} produces finite, in-range results`, finite && good.out.performance >= 0 && good.out.performance <= 1, `perf=${good.out.performance}`);
+    expect(`${id} names its own numbers`, good.out.keyMetrics.length >= 4, `${good.out.keyMetrics.length} metrics`);
+    expect(`${id} cannot be passed by doing nothing`, idle.out.performance < 0.3, pct(idle.out.performance));
+    expect(
+      `${id} pays more for playing it than for standing there`,
+      good.out.performance > idle.out.performance + 0.12,
+      `${pct(good.out.performance)} vs ${pct(idle.out.performance)}`,
+    );
+  }
+}
+
+line('\n=== ACADEMY: the modules measure the thing they claim to measure ===');
+{
+  // Cursor independence, on the one number the whole section exists for: a
+  // player whose hands point different ways must out-read one whose cursor
+  // rides along with their feet, and the metric must be able to tell.
+  const split = runDrill('wasdIndep', 'acadIndep', 0.35, 99, 'wasd');
+  const together = runDrill('wasdIndep', 'wasd', 0.35, 99, 'wasd');
+  const indepOf = (r: ReturnType<typeof runDrill>) =>
+    r.out.keyMetrics.find((k) => k.id === 'independence')?.value ?? 0;
+  line(`  independence: split ${pct(indepOf(split))}  cursor-follows-feet ${pct(indepOf(together))}`);
+  expect('opposed hands are actually measured', indepOf(split) > 0.3, pct(indepOf(split)));
+  expect('splitting the hands beats dragging the cursor along', indepOf(split) > indepOf(together), `${pct(indepOf(split))} vs ${pct(indepOf(together))}`);
+
+  // The cadence module's whole thesis: a run that never moves during a windup
+  // keeps its attacks, and a run that holds the keys through everything has
+  // no attacks at all to keep.
+  const cadence = runDrill('wasdCadence', 'wasd', 0.35, 99, 'wasd');
+  const held = runDrill('wasdCadence', 'wasdHold', 0.35, 99, 'wasd');
+  line(`  cadence: attacks ${cadence.m.attacksCompleted}  cancels ${cadence.m.attacksCancelled}  freeWindow ${pct(cadence.d.moveEfficiency)}  perf ${pct(cadence.out.performance)}`);
+  line(`  keys held: attacks ${held.m.attacksCompleted}  perf ${pct(held.out.performance)}`);
+  expect('the cadence module actually produces attacks', cadence.m.attacksCompleted > 15, `${cadence.m.attacksCompleted}`);
+  expect('respecting the windup keeps the attacks', cadence.m.attacksCancelled <= 3, `${cadence.m.attacksCancelled} cancelled`);
+  // Holding the keys buys nothing on its own. It is not *quite* zero any more:
+  // the attack command means a click can buy a shot without letting go, and
+  // this policy incidentally clicks once each time its target changes. What
+  // has to hold is that the keys alone produce nothing and that a run playing
+  // the cadence lands an order of magnitude more.
+  expect(
+    'holding the keys is not a way of attacking',
+    held.m.attacksCompleted <= 2 && cadence.m.attacksCompleted > held.m.attacksCompleted * 8,
+    `${held.m.attacksCompleted} held vs ${cadence.m.attacksCompleted} played`,
+  );
+  expect('the cadence module prices held fire', cadence.out.performance > held.out.performance, `${pct(cadence.out.performance)} vs ${pct(held.out.performance)}`);
+
+  // Movement: stopping precisely is the module, so the number has to move when
+  // somebody stops precisely.
+  const move = runDrill('wasdMove', 'acadMove', 0.35, 99, 'wasd');
+  const stopErr = move.out.keyMetrics.find((k) => k.id === 'stopError')?.value ?? 999;
+  line(`  movement: stopError ${stopErr.toFixed(1)}u  nodes ${move.out.keyMetrics.find((k) => k.id === 'pathEff')?.value.toFixed(2)}  perf ${pct(move.out.performance)}`);
+  expect('a careful run stops close to the centre', stopErr < 40, `${stopErr.toFixed(1)}u`);
+
+  // Offensive kiting must pay for range and refuse to pay for diving.
+  const offEdge = runDrill('wasdOffKite', 'wasd', 0.35, 99, 'wasd');
+  const edge = offEdge.out.keyMetrics.find((k) => k.id === 'edgeShots')?.value ?? 0;
+  line(`  offensive kiting: shots at the edge ${pct(edge)}  perf ${pct(offEdge.out.performance)}`);
+  expect('holding the edge while chasing is measured', edge > 0.2, pct(edge));
+
+  // And the academy forces the keys whatever the profile says, which is the
+  // one thing the whole section depends on.
+  for (const id of WASD_DRILL_IDS) {
+    expect(`${id} is played on the keys whatever the profile says`, DRILLS[id].forceScheme === 'wasd', String(DRILLS[id].forceScheme));
+  }
 }
 
 line('\n=== THE LAB: every mode pays for correct play and nothing else ===');

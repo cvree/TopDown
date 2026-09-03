@@ -79,10 +79,19 @@ const SLOT_GLYPH: Record<string, ReactElement> = {
   ),
 };
 
-const schemeOf = (settings: AppSettings): MovementScheme => settings.movementScheme ?? 'click';
+/**
+ * Which scheme this run is played under.
+ *
+ * The profile decides, except where a drill only means anything under one of
+ * them. The academy is the whole of that exception: its modules are about the
+ * things two independent hands can do, and running them with a mouse would not
+ * be an easier version of the lesson, it would be a different lesson entirely.
+ */
+const schemeFor = (settings: AppSettings, drill: DrillId): MovementScheme =>
+  DRILLS[drill].forceScheme ?? settings.movementScheme ?? 'click';
 
-const bindingsFrom = (settings: AppSettings): Bindings => {
-  const scheme = schemeOf(settings);
+const bindingsFor = (settings: AppSettings, drill: DrillId): Bindings => {
+  const scheme = schemeFor(settings, drill);
   const out = { ...defaultsFor(scheme) };
   const overrides = scheme === 'wasd' ? settings.wasdBindings : settings.bindings;
   for (const [k, v] of Object.entries(overrides ?? {})) {
@@ -118,8 +127,8 @@ const HINTS: Record<MovementScheme, { key: string; label: string }[]> = {
 
 
 /** What is actually printed on the ability key, which the scheme decides. */
-const abilityKeyLabel = (settings: AppSettings, slot: AbilitySlot): string => {
-  const b = bindingsFrom(settings)[slot];
+const abilityKeyLabel = (settings: AppSettings, drill: DrillId, slot: AbilitySlot): string => {
+  const b = bindingsFor(settings, drill)[slot];
   return codeLabel(b.primary).toUpperCase();
 };
 
@@ -141,14 +150,14 @@ const VAYNE_SLOT_NAMES: Partial<Record<AbilitySlot, string>> = {
  * ability's own name next to it.
  */
 const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: string }[] => {
-  const scheme = schemeOf(settings);
+  const scheme = schemeFor(settings, drill);
   const base = HINTS[scheme];
   const meta = DRILLS[drill];
   if (meta.group !== 'VAYNE') return base;
   // Silver Bolts is a passive counter rather than a key, so it never appears.
   const kit = meta.abilities
     .filter((slot) => slot !== 'w' && VAYNE_SLOT_NAMES[slot])
-    .map((slot) => ({ key: abilityKeyLabel(settings, slot), label: VAYNE_SLOT_NAMES[slot] as string }));
+    .map((slot) => ({ key: abilityKeyLabel(settings, drill, slot), label: VAYNE_SLOT_NAMES[slot] as string }));
   // The row is only useful while it is short, so the champion's own keys push
   // out the generic ones rather than queueing behind them.
   const keep = scheme === 'wasd' ? ['move', 'attack', 'to shoot'] : ['move · attack', 'attack-move'];
@@ -204,9 +213,9 @@ export function GameView({
     const minimap = new Minimap(minimapCanvas);
     minimap.resize(158);
 
-    const scheme = schemeOf(settings);
+    const scheme = schemeFor(settings, drill);
     const input = new InputSystem({
-      bindings: bindingsFrom(settings),
+      bindings: bindingsFor(settings, drill),
       quickCast: settings.quickCast,
       activeSlots: new Set<AbilitySlot>(meta.abilities),
       scheme,
@@ -623,7 +632,7 @@ export function GameView({
                     <span className="ab-sweep" />
                     <span className="ab-shine" />
                   </span>
-                  <span className="ab-key">{abilityKeyLabel(settings, s)}</span>
+                  <span className="ab-key">{abilityKeyLabel(settings, drill, s)}</span>
                   <span className="ab-name" data-ab-name />
                 </div>
               </Fragment>

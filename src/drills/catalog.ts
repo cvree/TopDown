@@ -18,6 +18,16 @@ export type DrillId =
   | 'vayneBolts'
   | 'vayneCondemn'
   | 'vayneHunt'
+  /* --- the WASD academy. Nine modules, in the order they have to be taken --- */
+  | 'wasdMove'
+  | 'wasdIndep'
+  | 'wasdStrafe'
+  | 'wasdAimMove'
+  | 'wasdCadence'
+  | 'wasdKite'
+  | 'wasdOffKite'
+  | 'wasdDefKite'
+  | 'wasdMulti'
   /* --- the Ezreal path. Ten stages of aiming while busy --- */
   | 'ezQ'
   | 'ezLead'
@@ -44,7 +54,7 @@ export type DrillId =
   | 'apmSwitch'
   | 'apmSustain';
 
-export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'APM' | 'VAYNE' | 'EZREAL';
+export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'WASD' | 'APM' | 'VAYNE' | 'EZREAL';
 
 export interface DrillMeta {
   id: DrillId;
@@ -66,6 +76,16 @@ export interface DrillMeta {
    * for a drill whose arena is deliberately bigger than one screenful.
    */
   zoom?: number;
+  /**
+   * A drill that only means anything under one control scheme says so, and the
+   * run is played that way whatever the profile is set to.
+   *
+   * The academy is the only thing that uses it: "move left while aiming right"
+   * is not a hard version of clicking, it is a sentence that does not parse
+   * under the click scheme, and silently running it with a mouse would teach
+   * the opposite of the module's whole point.
+   */
+  forceScheme?: 'wasd' | 'click';
   order: number;
 }
 
@@ -241,6 +261,158 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     accent: '#ff4d6d',
     keyMetric: 'SURVIVAL',
     order: 12,
+  },
+  // ---------------------------------------------------------------- ACADEMY
+  //
+  // Nine modules, taken in order, every one of them played on the keys
+  // whatever the profile is set to. They are not "the drills, but harder":
+  // each one isolates a thing the WASD scheme makes possible and the click
+  // scheme cannot express, and the order is the order the skills stack in.
+  wasdMove: {
+    id: 'wasdMove',
+    name: 'WASD 01 · MOVEMENT',
+    tagline: 'The four keys, exactly',
+    brief:
+      'Cardinals, then diagonals, then snap changes, then terrain — and every node asks you to stop dead inside it, not near it.',
+    transfers: 'Going exactly where you meant, in one motion, without a correction afterwards.',
+    group: 'WASD',
+    axes: { movement: 1 },
+    duration: 90,
+    abilities: [],
+    accent: '#58e0ff',
+    keyMetric: 'STOP PRECISION',
+    forceScheme: 'wasd',
+    order: 13,
+  },
+  wasdIndep: {
+    id: 'wasdIndep',
+    name: 'WASD 02 · CURSOR INDEPENDENCE',
+    tagline: 'Two hands, two directions',
+    brief:
+      'Hold the cursor on the mark while your feet are sent the other way. The further apart they are, the more it pays.',
+    transfers: 'The entire advantage of the scheme: where you are going stops deciding where you are looking.',
+    group: 'WASD',
+    axes: { movement: 0.45, aim: 0.35, targeting: 0.2 },
+    duration: 80,
+    abilities: [],
+    accent: '#7cd4ff',
+    keyMetric: 'OPPOSED TIME',
+    forceScheme: 'wasd',
+    order: 14,
+  },
+  wasdStrafe: {
+    id: 'wasdStrafe',
+    name: 'WASD 03 · STRAFING',
+    tagline: 'Lateral, and unreadable',
+    brief:
+      'A shooter that leads you. Strafe across its line, change on no rhythm it can learn, and make it fire where you were.',
+    transfers: 'Being a hard target — the reason good players are missed by skillshots they never saw.',
+    group: 'WASD',
+    axes: { dodging: 0.45, movement: 0.4, spacing: 0.15 },
+    duration: 80,
+    abilities: [],
+    accent: '#ffcf6b',
+    keyMetric: 'BAIT RATE',
+    forceScheme: 'wasd',
+    order: 15,
+  },
+  wasdAimMove: {
+    id: 'wasdAimMove',
+    name: 'WASD 04 · AIM WHILE MOVING',
+    tagline: 'Never stop to shoot',
+    brief:
+      'Marks surface and die fast. Take them all — but a mark taken standing still is worth a fraction of one taken on the move.',
+    transfers: 'Acquiring a target without the half-second pause that gets you killed for taking it.',
+    group: 'WASD',
+    axes: { aim: 0.5, movement: 0.3, targeting: 0.2 },
+    duration: 70,
+    abilities: [],
+    accent: '#9fc4ff',
+    keyMetric: 'MOVING ACCURACY',
+    forceScheme: 'wasd',
+    order: 16,
+  },
+  wasdCadence: {
+    id: 'wasdCadence',
+    name: 'WASD 05 · ATTACK CADENCE',
+    tagline: 'Where the attack actually is',
+    brief:
+      'One dummy, one bar, four stretches of time. Learn by feel which part of an attack a held key destroys and which part it is free in.',
+    transfers: 'The law every other rhythm in the game is built on: committed, released, free, ready.',
+    group: 'WASD',
+    axes: { kiting: 0.55, tempo: 0.25, movement: 0.2 },
+    duration: 80,
+    abilities: [],
+    accent: '#ff9f5c',
+    keyMetric: 'FREE WINDOW USED',
+    forceScheme: 'wasd',
+    order: 17,
+  },
+  wasdKite: {
+    id: 'wasdKite',
+    name: 'WASD 06 · KITING',
+    tagline: 'Attack, move, attack — timed',
+    brief:
+      'The full cycle, scored on when each command arrived rather than on how many you sent. Early is a lost attack; late is a lost window.',
+    transfers: 'Orbwalking on the keys, with the timing graded instead of the input count.',
+    group: 'WASD',
+    axes: { kiting: 0.7, movement: 0.15, spacing: 0.15 },
+    duration: 75,
+    abilities: [],
+    accent: '#5ce1a8',
+    keyMetric: 'CYCLE TIMING',
+    forceScheme: 'wasd',
+    order: 18,
+  },
+  wasdOffKite: {
+    id: 'wasdOffKite',
+    name: 'WASD 07 · OFFENSIVE KITING',
+    tagline: 'Chase without closing',
+    brief:
+      'It runs. You follow at the outer edge of your range and keep firing — every step closer than you needed is damage you paid for with your life total.',
+    transfers: 'Finishing a fleeing target without walking into their team to do it.',
+    group: 'WASD',
+    axes: { kiting: 0.5, spacing: 0.35, movement: 0.15 },
+    duration: 75,
+    abilities: [],
+    accent: '#ffb45c',
+    keyMetric: 'RANGE HELD',
+    forceScheme: 'wasd',
+    order: 19,
+  },
+  wasdDefKite: {
+    id: 'wasdDefKite',
+    name: 'WASD 08 · DEFENSIVE KITING',
+    tagline: 'Backwards, still shooting',
+    brief:
+      'They come to you. Deal everything you can while never letting the gap close — the shot you take from inside their reach costs more than it earns.',
+    transfers: 'Kiting a diver down instead of trading with it and hoping.',
+    group: 'WASD',
+    axes: { kiting: 0.45, spacing: 0.3, dodging: 0.25 },
+    duration: 75,
+    abilities: [],
+    accent: '#4fd6c4',
+    keyMetric: 'SAFE DAMAGE',
+    forceScheme: 'wasd',
+    order: 20,
+  },
+  wasdMulti: {
+    id: 'wasdMulti',
+    name: 'WASD 09 · MULTITASKING',
+    tagline: 'A very small teamfight',
+    brief:
+      'Feet, attacks, two skillshots, telegraphs to leave and a priority target that keeps changing. All of it, at the same time.',
+    transfers: 'The actual load of a fight, at the size where you can still see what you dropped.',
+    group: 'WASD',
+    axes: { combat: 0.4, targeting: 0.2, dodging: 0.2, kiting: 0.2 },
+    duration: 90,
+    // Under the WASD layout these two sit on the physical Q and E — the pair
+    // your ring and middle finger can reach without leaving the movement keys.
+    abilities: ['q', 'w'],
+    accent: '#ff5f8f',
+    keyMetric: 'LOAD CARRIED',
+    forceScheme: 'wasd',
+    order: 21,
   },
   // ------------------------------------------------------------------- APM
   //
@@ -663,3 +835,18 @@ export const EZREAL_SEQUENCE: DrillId[] = [
 ];
 
 export const isVayneDrill = (id: DrillId): boolean => DRILLS[id].group === 'VAYNE';
+
+/** The academy course, in the order it has to be taken. */
+export const WASD_SEQUENCE: DrillId[] = [
+  'wasdMove',
+  'wasdIndep',
+  'wasdStrafe',
+  'wasdAimMove',
+  'wasdCadence',
+  'wasdKite',
+  'wasdOffKite',
+  'wasdDefKite',
+  'wasdMulti',
+];
+
+export const isWasdDrill = (id: DrillId): boolean => DRILLS[id].group === 'WASD';
