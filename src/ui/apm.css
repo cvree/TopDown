@@ -1,0 +1,583 @@
+/* The APM trainer.
+
+   Cyan where the champion path is violet and the ladder is gold: in this
+   client cyan is the colour of anything *live* — energy, cooldowns, rate — and
+   this whole section is a measurement of rate. The ladder is drawn as a real
+   ladder, top rung first, because that is the direction you are climbing. */
+
+.apm {
+  padding-top: 46px;
+  padding-bottom: 60px;
+  max-width: 1320px;
+}
+
+.apm-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  gap: 46px;
+  align-items: start;
+}
+.apm-h1 {
+  font-size: clamp(28px, 3.4vw, 46px);
+  letter-spacing: 0.05em;
+  margin: 6px 0 14px;
+  background: linear-gradient(180deg, #e8fbff 0%, #38e0d0 54%, #0a6a76 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.apm-lead {
+  max-width: 760px;
+  line-height: 1.65;
+  font-size: 14px;
+}
+
+/* ------------------------------------------------------------------ crest */
+
+.apm-crest {
+  border: 1px solid rgba(10, 200, 185, 0.34);
+  background: linear-gradient(180deg, rgba(4, 34, 42, 0.7), rgba(6, 8, 20, 0.75));
+  padding: 22px 20px 20px;
+  text-align: center;
+}
+.ac-ring {
+  width: 138px;
+  height: 138px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(6, 8, 20, 0.98) 61%, transparent 62%),
+    conic-gradient(var(--accent-2) 0 var(--m), rgba(60, 120, 130, 0.18) var(--m) 100%);
+  box-shadow: 0 0 40px -12px rgba(56, 224, 208, 0.6);
+}
+.ac-num {
+  font-size: 40px;
+  line-height: 1;
+  color: #e8fbff;
+}
+.ac-lab {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--text-3);
+  margin-top: 6px;
+}
+.ac-title {
+  font-size: 18px;
+  letter-spacing: 0.09em;
+  color: #b8f4ee;
+}
+.ac-blurb {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.55;
+  margin: 8px 0 0;
+}
+.ac-next {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(10, 200, 185, 0.24);
+  display: grid;
+  gap: 3px;
+}
+.ac-next b {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--text);
+}
+.ac-next i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ------------------------------------------------------------- stat strip */
+
+.apm-stats {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.apm-stats > div {
+  border: 1px solid var(--stroke);
+  border-top: 2px solid rgba(10, 200, 185, 0.5);
+  background: var(--panel);
+  padding: 12px 14px;
+  display: grid;
+  gap: 2px;
+}
+.apm-stats b {
+  font-size: 21px;
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+.apm-stats i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.apm-note {
+  margin-top: 14px;
+  border: 1px solid rgba(10, 200, 185, 0.34);
+  background: rgba(4, 34, 42, 0.4);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  line-height: 1.55;
+}
+.apm-note.quiet {
+  border-color: var(--stroke);
+  background: var(--panel);
+  color: var(--text-3);
+  font-size: 12px;
+}
+.apm-note .btn {
+  margin-left: auto;
+  flex: none;
+}
+
+/* ----------------------------------------------------------------- layout */
+
+.apm-layout {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+/* ------------------------------------------------------------------ modes */
+
+.apm-modes {
+  border: 1px solid var(--stroke);
+  background: var(--panel);
+  padding: 10px;
+  position: sticky;
+  top: 16px;
+}
+.apm-group + .apm-group {
+  margin-top: 16px;
+}
+.apm-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 8px;
+  font-family: var(--ui);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.apm-group-head i {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--stroke), transparent);
+}
+.apm-group-head em {
+  font-style: normal;
+  color: var(--text-4);
+  letter-spacing: 0.12em;
+}
+
+.amode {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'bar name through'
+    'bar pips pips';
+  align-items: center;
+  gap: 2px 10px;
+  padding: 8px 10px 9px;
+  text-align: left;
+  border: 1px solid transparent;
+  transition: background 0.16s var(--ease), border-color 0.16s var(--ease);
+}
+.amode:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+.amode.on {
+  border-color: var(--stroke-2);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 16%, transparent), transparent 70%);
+}
+.am-bar {
+  grid-area: bar;
+  align-self: stretch;
+  background: var(--c);
+  opacity: 0.75;
+}
+.am-name {
+  grid-area: name;
+  font-family: var(--ui);
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.am-through {
+  grid-area: through;
+  font-size: 10px;
+  color: var(--text-3);
+  justify-self: end;
+}
+.am-through.flag {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--accent-2);
+}
+.am-pips {
+  grid-area: pips;
+  display: flex;
+  gap: 2px;
+  margin-top: 3px;
+}
+.am-pips i {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.am-pips i.open {
+  background: rgba(255, 255, 255, 0.16);
+}
+.am-pips i.s1 {
+  background: color-mix(in srgb, var(--c) 45%, transparent);
+}
+.am-pips i.s2 {
+  background: color-mix(in srgb, var(--c) 72%, transparent);
+}
+.am-pips i.s3 {
+  background: var(--c);
+  box-shadow: 0 0 8px -1px var(--c);
+}
+
+/* ----------------------------------------------------------------- detail */
+
+.apm-detail {
+  border: 1px solid var(--stroke);
+  border-top: 2px solid var(--c);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 7%, transparent), var(--panel) 34%);
+  padding: 20px 22px 22px;
+}
+.ad-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.ad-name {
+  font-size: 30px;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  margin: 4px 0 2px;
+}
+.ad-tag {
+  font-size: 12.5px;
+  color: var(--c);
+  letter-spacing: 0.06em;
+}
+.ad-mastery {
+  text-align: right;
+  display: grid;
+  gap: 1px;
+}
+.ad-mastery b {
+  font-size: 30px;
+  color: var(--text);
+  line-height: 1.05;
+}
+.ad-mastery i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.ad-brief {
+  margin: 14px 0 0;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text-2);
+  max-width: 780px;
+}
+.ad-facts {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) 120px minmax(0, 0.9fr);
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--stroke);
+  border-bottom: 1px solid var(--stroke);
+}
+.ad-facts p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+.ad-facts p.mono {
+  font-size: 16px;
+  color: var(--text);
+}
+
+.ad-ladder-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 18px 0 8px;
+  font-size: 11px;
+}
+
+/* ----------------------------------------------------------------- ladder */
+
+.ad-ladder {
+  display: grid;
+  gap: 3px;
+}
+.rung {
+  display: grid;
+  grid-template-columns: 34px 40px 54px minmax(80px, 1fr) 50px 74px 96px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 12px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.rung:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+.rung.cleared {
+  border-left-color: color-mix(in srgb, var(--c) 70%, transparent);
+}
+.rung.on {
+  border-color: var(--stroke-2);
+  border-left-color: var(--c);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 15%, transparent), rgba(255, 255, 255, 0.02) 60%);
+}
+.rung.locked {
+  /* Dim, because it is not yours yet — but still readable: the rungs above
+     you are the point of showing the whole ladder at once. */
+  opacity: 0.62;
+  cursor: default;
+  background: rgba(255, 255, 255, 0.012);
+}
+.rung.locked .rg-n,
+.rung.locked .rg-best,
+.rung.locked .rg-apm {
+  color: var(--text-3);
+}
+.rg-n {
+  font-size: 17px;
+  color: var(--text);
+}
+.rung.on .rg-n {
+  color: var(--c);
+}
+.rg-diff {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.rg-stars {
+  display: flex;
+  gap: 2px;
+  font-size: 13px;
+}
+.rg-stars i {
+  font-style: normal;
+  color: rgba(255, 255, 255, 0.13);
+}
+.rg-stars i.on {
+  color: var(--c);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.rg-track {
+  position: relative;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.rg-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), var(--c));
+}
+.rg-gate {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--gold);
+  opacity: 0.85;
+}
+.rg-best {
+  font-size: 12px;
+  color: var(--text);
+}
+.rg-apm {
+  font-size: 11px;
+  color: var(--text-2);
+}
+.rg-tail {
+  justify-self: end;
+  font-size: 10px;
+}
+.rg-tail em {
+  font-style: normal;
+}
+.rg-rec {
+  font-family: var(--mono);
+  letter-spacing: 0.16em;
+  color: var(--accent-2);
+}
+.rg-lock {
+  font-family: var(--mono);
+  color: var(--text-3);
+  letter-spacing: 0.1em;
+}
+.rg-score {
+  color: var(--text-3);
+}
+
+/* ----------------------------------------------------------------- launch */
+
+.ad-launch {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--stroke);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 22px;
+  align-items: center;
+}
+.ad-endurance {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+  max-width: 460px;
+}
+.ad-endurance input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+.ad-endurance b {
+  display: block;
+  font-family: var(--ui);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--text-2);
+}
+.ad-endurance.on b {
+  color: var(--accent-2);
+}
+.ad-endurance i {
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+.ad-play {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.ad-play-meta {
+  text-align: right;
+}
+.ad-play-meta b {
+  display: block;
+  font-size: 19px;
+  letter-spacing: 0.07em;
+  color: var(--text);
+}
+.ad-play-meta em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.06em;
+}
+
+/* ----------------------------------------------------------------- titles */
+
+.apm-titles {
+  margin-top: 22px;
+}
+.at-rows {
+  display: grid;
+  gap: 2px;
+}
+.at-row {
+  display: grid;
+  grid-template-columns: 46px 150px minmax(0, 1fr);
+  gap: 14px;
+  align-items: baseline;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.015);
+  opacity: 0.55;
+}
+.at-row.held {
+  opacity: 1;
+  background: rgba(10, 200, 185, 0.07);
+}
+.at-at {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.at-name {
+  font-family: var(--ui);
+  font-size: 12.5px;
+  letter-spacing: 0.14em;
+  color: var(--text);
+}
+.at-row.held .at-name {
+  color: #b8f4ee;
+}
+.at-blurb {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.apm-foot-note {
+  margin: 14px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+.apm-foot {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (max-width: 1100px) {
+  .apm-head,
+  .apm-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .apm-modes {
+    position: static;
+  }
+  .apm-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ad-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .rung {
+    grid-template-columns: 30px 34px 48px minmax(60px, 1fr) 46px 66px;
+  }
+  .rg-tail {
+    display: none;
+  }
+}

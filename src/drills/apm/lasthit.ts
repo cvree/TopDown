@@ -9,7 +9,7 @@ import type { WorldEvent } from '../../engine/world';
 import type { KeyMetric } from '../../progression/profile';
 import type { SkillAxis } from '../../progression/skills';
 import { count, pct } from '../base';
-import { ApmDrill } from './engine';
+import { APM_TARGET_APM, ApmDrill } from './engine';
 
 /**
  * The lane modes.
@@ -299,7 +299,7 @@ abstract class ApmLaneDrill extends ApmDrill {
  * one attack timer can take.
  */
 export class ApmLastHitDrill extends ApmLaneDrill {
-  protected readonly targetApm = 110;
+  protected readonly targetApm = APM_TARGET_APM.apmLastHit;
   protected get targetRate(): number {
     // Two-thirds of a dense lane's minions. Nobody takes all of them.
     return 26;
@@ -334,7 +334,7 @@ export class ApmLastHitDrill extends ApmLaneDrill {
  * minion to somebody rather than to a turret, and the HUD keeps the score.
  */
 export class ApmLastHit2Drill extends ApmLaneDrill {
-  protected readonly targetApm = 130;
+  protected readonly targetApm = APM_TARGET_APM.apmLastHit2;
   protected get targetRate(): number {
     // Lower than the empty lane: some of this wave was never going to be yours.
     return 20;

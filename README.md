@@ -6,10 +6,11 @@ thing that feels rewarding should be the thing that actually makes you better.
 It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
 drawn on the ground where the thing it is about actually is. Twenty-nine
-drills — including a thirteen-mode APM trainer — a ranked mechanical skill
-system driven by measured performance rather than time played, a champion path
-that teaches one champion properly, and a results screen designed so you can
-see exactly what you did and what it cost you.
+drills — including a thirteen-mode APM trainer with ten explicit levels per
+mode — a ranked mechanical skill system driven by measured performance rather
+than time played, a champion path that teaches one champion properly, and a
+results screen designed so you can see exactly what you did and what it cost
+you.
 
 It can be driven either way: League's click-to-move, or WASD. Both obey the
 same windup law, so a run scores identically under either.
@@ -124,25 +125,64 @@ a real latency rather than a fudge factor.
 
 ## The APM trainer
 
-Thirteen modes over one engine (`src/drills/apm/`), all measured the same way:
-**correct commands per minute**. It is the part of the trainer you open when
-your hands are the thing you want to work on rather than your reads.
+Thirteen modes over one engine (`src/drills/apm/`), all measured the same way —
+**correct commands per minute** — and all played on a ladder of **ten explicit
+levels**. It is its own section of the client (`APM` in the nav), because it is
+the part of the trainer you open when your hands are the thing you want to work
+on rather than your reads, and it is run differently from everything else here.
 
-| Mode | The command it counts | What makes it hard |
-| --- | --- | --- |
-| **Aim** | A click on the mark | Nothing but the rate. This is the ceiling on everything else |
-| **Aim 2** | A click on the *lowest-numbered* mark | Speed now costs you a read |
-| **Aim + Map** | Clicks in the middle, D or F at the rim | Two screens, one pair of hands |
-| **Mouse Precision** | A click through the centre of a small drifting mark | Graded in pixels; the marks shrink as your chain grows |
-| **Key Coordination** | The front key of a rolling queue | No mouse at all, and the window shrinks as you speed up |
-| **Dodge** | A movement order | Charges pull you somewhere, telegraphs push you off it |
-| **Dodge + Cooldown** | A movement order, and four cooldowns spent on sight | Both hands, at once, neither allowed to wait |
-| **Kiting** | The attack *and* the step | Holding a full attack cycle without throwing a windup away |
-| **Defensive Kiting** | The same pair, running backwards | Every step now has a direction it has to be in |
-| **Last Hit** | An attack order on the right bar | The lane above, with the next wave already walking |
-| **Last Hit 2** | The same, contested | An enemy laner taking the same farm, and the HUD keeping score |
-| **Spacing** | A reposition, on the beat | Max range → step in → disengage, and the beat accelerates |
-| **Smite** | One key, in a window you do not control | Three objectives in three places and a rival reaching for the same key |
+### A level is a difficulty, not a suggestion
+
+Every other drill hides its difficulty: an axis carries a number, the number
+moves after each run, and you are never asked what you want to play at. That is
+right for a ladder — it holds you where a rating is measurable — and wrong for
+hand speed, where the activity *is* picking a rung and staying on it until it
+is easy.
+
+So the APM section inverts it. Ten rungs per mode, from difficulty 8 to 98,
+each with its own record: your best performance, your best *correct* rate, and
+your best score at standard length. Nothing adapts behind your back, so this
+run and the last one on that rung are comparable — which is the only way a rate
+record means anything.
+
+- **Clearing a rung opens the next.** 60% clears; 74% and 88% are the second
+  and third stars. Take a rung outright at 88% and it opens *two*, because
+  making somebody grind a level they have just three-starred is exactly the
+  busywork an explicit ladder exists to remove.
+- **Calibration decides where the ladder starts.** A placement is a general
+  mechanical reading, so it opens up to six rungs on every mode — nothing is
+  awarded, the records stay empty; you simply do not walk up to the interesting
+  part one run at a time.
+- **A worse run takes nothing away.** Records are ceilings. A bad run on a rung
+  you have already taken counts as a run, still feeds the general rating, and
+  leaves the ladder where it was.
+- **Mastery weights the top.** Three stars on level 10 is worth ten times three
+  stars on level 1, so the number keeps moving for exactly as long as there is
+  a harder rung left. Titles run UNMEASURED → **INHUMAN**.
+- **Endurance is the custom run.** A double-length run of any rung. It can set
+  a rate record — a rate is a rate — and never a score record, because a longer
+  run scores more by construction.
+
+Modes are split the way the drill is built rather than by theme: **isolated**
+modes ask one thing of one pair of hands, **combined** modes run two demands at
+once and are worth opening once the isolated version of each has stopped being
+interesting.
+
+| Mode | Kind | The command it counts | What makes it hard |
+| --- | --- | --- | --- |
+| **Aim** | isolated | A click on the mark | Nothing but the rate. This is the ceiling on everything else |
+| **Aim 2** | combined | A click on the *lowest-numbered* mark | Speed now costs you a read |
+| **Aim + Map** | combined | Clicks in the middle, D or F at the rim | Two screens, one pair of hands |
+| **Mouse Precision** | isolated | A click through the centre of a small drifting mark | Graded in pixels; the marks shrink as your chain grows |
+| **Key Coordination** | isolated | The front key of a rolling queue | No mouse at all, and the window shrinks as you speed up |
+| **Dodge** | isolated | A movement order | Charges pull you somewhere, telegraphs push you off it |
+| **Dodge + Cooldown** | combined | A movement order, and four cooldowns spent on sight | Both hands, at once, neither allowed to wait |
+| **Kiting** | isolated | The attack *and* the step | Holding a full attack cycle without throwing a windup away |
+| **Defensive Kiting** | combined | The same pair, running backwards | Every step now has a direction it has to be in |
+| **Last Hit** | isolated | An attack order on the right bar | The lane above, with the next wave already walking |
+| **Last Hit 2** | combined | The same, contested | An enemy laner taking the same farm, and the HUD keeping score |
+| **Spacing** | isolated | A reposition, on the beat | Max range → step in → disengage, and the beat accelerates |
+| **Smite** | isolated | One key, in a window you do not control | Three objectives in three places and a rival reaching for the same key |
 
 **Speed alone is not a score.** Every mode routes its inputs through three
 verbs — a hit, a fumble, or a stray — and the number the score is built on is
@@ -155,7 +195,7 @@ asserts it, and a random masher scores 2% where a player scores 100%. Repeating
 an order you already gave is not an action either, so a macro cannot inflate
 the count.
 
-**The flow ladder is the feel and the read at the same time.** Chained correct
+**The flow tiers are the feel and the read at the same time.** Chained correct
 actions climb five tiers — IN RHYTHM, HOT HANDS, BLAZING, TRANSCENDENT — each
 worth a bigger multiplier (×1.35 up to ×3.2) and each audibly different: the
 confirmation pitch rises with the chain, the arena bed swells, and from the
@@ -164,9 +204,10 @@ takes all of it away in one sound. You can tell how a run is going with your
 eyes shut, and the score is mostly made of the multiplier, so protecting a
 streak matters more than any single input.
 
-**The drill paces itself to you.** Spawn rates, prompt windows and target sizes
-read your current flow rather than a clock, so the mode sits just past the edge
-of whatever you are doing at the time.
+**Inside a rung, the drill paces itself to you.** Spawn rates, prompt windows
+and target sizes read your current flow rather than a clock, so the mode sits
+just past the edge of whatever you are doing at the time. The rung sets how far
+past that edge it sits; nothing about it moves between runs.
 
 **Both control schemes count.** Under WASD a movement command is a key going
 down and a heading changing rather than a click on the ground, so the movement
@@ -177,7 +218,18 @@ hand is actually on rather than the slot's name.
 Modes that ask you to survive something give you a deep health pool on purpose:
 the cost of standing in a telegraph here is your multiplier, not the run.
 Ratings from these modes feed a tenth skill axis, **APM**, alongside the nine
-the rest of the trainer already measured.
+the rest of the trainer already measured — the ladder is how you train it, the
+rank is what it is worth.
+
+**The section shows the whole ladder at once.** Modes down the left with their
+ten rungs compressed into ten pips; the open mode on the right with what it
+counts, what makes it hard, the par rate a strong run holds, and every rung
+laid out with its stars, its best, its rate and its score. The rung you have
+not cleared yet is marked START HERE; the ones above it are visible and locked,
+because seeing what is coming is half the reason to draw a ladder. The drill
+rail on the home screen shows each mode's current rung instead of a score, and
+the results screen says which rung you played, what it did to your record, and
+what it opened.
 
 ## The Vayne path
 
@@ -263,6 +315,11 @@ depends on:
   highest raw APM in the suite and scores 2%, against 100% for the same bot
   playing properly — the check that keeps an APM trainer from degenerating into
   a click-speed test.
+- **The APM ladder is monotonic and honest.** Rungs get harder in order, a
+  fresh ladder opens on level 1 only, a run short of the gate opens nothing, a
+  clear opens one rung and an outright clear opens two, a worse run cannot
+  lower a record, an endurance run can set a rate record but never a score, and
+  calibration opens rungs without scoring any of them.
 
 `npm run test:drill <drill> <difficulty>` plays a single drill headlessly and
 prints a per-5-second trace — the fastest way to see why a tuning change
@@ -403,8 +460,8 @@ src/engine/vayne.ts   the champion kit: tumble, bolts, condemn, final hour
 src/gfx/        the 3D renderer: scene, terrain, walls, champions, decals, VFX
 src/drills/     one file per drill; each owns its rules and its scoring
 src/drills/apm/ the APM trainer: one engine, thirteen modes over it
-src/progression/ rating maths, rank ladder, champion path, profile persistence
-src/ui/         React shell, HUD, results, profile, rank-up, the Vayne path
+src/progression/ rating maths, rank ladder, champion path, APM ladder, persistence
+src/ui/         React shell, HUD, results, profile, rank-up, Vayne path, APM ladder
 tools/          headless test harnesses
 ```
 

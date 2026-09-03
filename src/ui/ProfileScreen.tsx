@@ -10,6 +10,7 @@ import {
 } from '../progression/profile';
 import { percentileForRating, rankFromRating } from '../progression/ranks';
 import { AXIS_BLURB, AXIS_LABEL, SKILL_AXES } from '../progression/skills';
+import { apmTitleFor } from '../progression/apm';
 import { titleFor } from '../progression/vayne';
 import { RankEmblem } from './components/RankEmblem';
 import { SkillRadar, Sparkline } from './components/charts';
@@ -103,12 +104,21 @@ export function ProfileScreen({ profile, onRename, onReset, onPlay }: Props) {
               <b>{profile.totalRuns}</b>
               <i>{formatDuration(profile.totalSeconds)}</i>
             </div>
-            {/* The champion path is a separate claim from the rank, so it is
-                stated separately rather than folded into the ladder. */}
+            {/* The champion path and the APM ladder are separate claims from
+                the rank, so they are stated separately rather than folded into
+                the ladder. */}
             <div className="pc">
               <span className="eyebrow">Vayne path</span>
               <b style={{ color: '#e7c8ff' }}>{titleFor(profile.vayne.peak).name}</b>
               <i>{Math.round(profile.vayne.mastery)} mastery</i>
+            </div>
+            <div className="pc">
+              <span className="eyebrow">APM ladder</span>
+              <b style={{ color: '#b8f4ee' }}>{apmTitleFor(profile.apm.peak).name}</b>
+              <i>
+                {Math.round(profile.apm.mastery)} mastery ·{' '}
+                {profile.apm.bestApm > 0 ? `${Math.round(profile.apm.bestApm)} APM best` : 'no runs yet'}
+              </i>
             </div>
           </div>
         </section>

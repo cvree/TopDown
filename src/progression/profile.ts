@@ -1,6 +1,16 @@
 import { clamp, mean } from '../engine/math';
 import type { DerivedMetrics, RunMetrics } from '../engine/metrics';
 import { DRILLS, type DrillId } from '../drills/catalog';
+import {
+  applyApmRun,
+  emptyApmProgress,
+  isApmDrill,
+  levelDifficulty,
+  normalizeApmProgress,
+  recommendedLevel,
+  type ApmProgress,
+  type ApmRunReport,
+} from './apm';
 import { isDemotion, isPromotion, rankFromRating, type RankInfo } from './ranks';
 import { distribute, overallRating, updateRating } from './rating';
 import { AXIS_LABEL, SKILL_AXES, type SkillAxis } from './skills';
@@ -108,6 +118,8 @@ export interface Profile {
   totalSeconds: number;
   /** The champion track. Separate from the general ladder on purpose. */
   vayne: VayneProgress;
+  /** The APM trainer's own ladder: thirteen modes, ten explicit levels each. */
+  apm: ApmProgress;
   /** Overall rating recorded at the start of each local day, for trends. */
   dailyMarks: { date: string; overall: number }[];
 }
@@ -160,6 +172,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   totalRuns: 0,
   totalSeconds: 0,
   vayne: emptyVayneProgress(),
+  apm: emptyApmProgress(),
   dailyMarks: [],
 });
 
@@ -183,6 +196,9 @@ export const loadProfile = (): Profile => {
       vayne: parsed.vayne
         ? { ...p.vayne, ...parsed.vayne, stages: { ...p.vayne.stages, ...parsed.vayne.stages } }
         : p.vayne,
+      // The APM ladder is repaired rather than merged: a profile written
+      // before it existed, or before a mode did, has to come back playable.
+      apm: normalizeApmProgress(parsed.apm),
       bests: parsed.bests ?? {},
       history: Array.isArray(parsed.history) ? parsed.history.slice(-400) : [],
       dailyMarks: Array.isArray(parsed.dailyMarks) ? parsed.dailyMarks.slice(-120) : [],
@@ -254,12 +270,18 @@ export interface ProgressReport {
   advice: string;
   /** Present only for runs on the Vayne path. */
   vayne: VayneRunReport | null;
+  /** Present only for runs in the APM trainer. */
+  apm: ApmRunReport | null;
 }
 
 /** Where the adaptive system tries to keep you: challenged, not drowning. */
 const TARGET_BAND: [number, number] = [0.6, 0.78];
 
 export const drillDifficulty = (p: Profile, drill: DrillId): number => {
+  // The APM trainer does not infer a difficulty: a level is chosen, and the
+  // level is the difficulty. Asked without one, it answers with the rung the
+  // section would put you on.
+  if (isApmDrill(drill)) return levelDifficulty(recommendedLevel(p.apm, drill));
   const axes = Object.entries(DRILLS[drill].axes) as [SkillAxis, number][];
   let sum = 0;
   let w = 0;
@@ -272,6 +294,10 @@ export const drillDifficulty = (p: Profile, drill: DrillId): number => {
 
 /** Difficulty moves per axis, independently, based on how the run went. */
 const adaptDifficulty = (p: Profile, drill: DrillId, performance: number): void => {
+  // Nothing adapts under an APM mode. Its ladder is explicit, and a system
+  // quietly moving the rung under a player who chose it would make every
+  // per-level record incomparable with the last one.
+  if (isApmDrill(drill)) return;
   const axes = Object.entries(DRILLS[drill].axes) as [SkillAxis, number][];
   for (const [axis, weight] of axes) {
     if (!weight) continue;
@@ -285,7 +311,15 @@ const adaptDifficulty = (p: Profile, drill: DrillId, performance: number): void 
 const fmtCompare = (a: number, b: number, dir: MetricDirection): boolean =>
   dir === 'higher' ? a > b : a < b;
 
-export const applyRun = (p: Profile, result: RunResult, opts: { placement?: boolean } = {}): ProgressReport => {
+export interface RunContext {
+  placement?: boolean;
+  /** The APM ladder rung this run was played at. */
+  level?: number;
+  /** A double-length APM run, which may set rate records but never a score. */
+  endurance?: boolean;
+}
+
+export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): ProgressReport => {
   const overallBefore = p.overall;
   const rankBefore = rankFromRating(overallBefore);
   const difficultyBefore = drillDifficulty(p, result.drill);
@@ -331,10 +365,12 @@ export const applyRun = (p: Profile, result: RunResult, opts: { placement?: bool
       personalBests.push({ id: km.id, label: km.label, value: km.value, previous: prev ?? null, format: km.format });
     }
   }
-  const newBestScore = prevBest !== null && result.score > prevBest.score;
+  // A double-length run accumulates a longer score by construction, so it is
+  // allowed to set rate records and never a score record.
+  const newBestScore = !opts.endurance && prevBest !== null && result.score > prevBest.score;
   const previousBestScore = prevBest?.score ?? null;
   p.bests[result.drill] = {
-    score: Math.max(result.score, prevBest?.score ?? 0),
+    score: opts.endurance ? (prevBest?.score ?? 0) : Math.max(result.score, prevBest?.score ?? 0),
     metrics: bestMetrics,
     at: Date.now(),
   };
@@ -369,6 +405,20 @@ export const applyRun = (p: Profile, result: RunResult, opts: { placement?: bool
     ? applyVayneRun(p.vayne, result.drill, result.performance, result.difficulty, result.score)
     : null;
 
+  // The rate the ladder records is the *correct* one — the number the mode's
+  // score is built on — rather than the raw headline rate, so a level record
+  // can never be set by mashing.
+  const apm = isApmDrill(result.drill)
+    ? applyApmRun(p.apm, {
+        drill: result.drill,
+        level: opts.level ?? recommendedLevel(p.apm, result.drill),
+        performance: result.performance,
+        score: result.score,
+        apm: result.keyMetrics.find((m) => m.id === 'correctApm')?.value ?? 0,
+        endurance: opts.endurance ?? false,
+      })
+    : null;
+
   adaptDifficulty(p, result.drill, result.performance);
   p.totalRuns++;
   p.totalSeconds += result.metrics.duration;
@@ -398,6 +448,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: { placement?: bool
     difficultyAfter: drillDifficulty(p, result.drill),
     advice: result.advice,
     vayne,
+    apm,
   };
 };
 

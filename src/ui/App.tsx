@@ -16,12 +16,14 @@ import {
   type ProgressReport,
   type RunResult,
 } from '../progression/profile';
+import { APM_LEVELS, isApmDrill, levelDifficulty, recommendedLevel, seedApmLadder } from '../progression/apm';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
 import type { SkillAxis } from '../progression/skills';
 import { ArenaBackdrop } from './components/ArenaBackdrop';
 import { Boot } from './Boot';
 import { Crest } from './components/Crest';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
+import { Apm } from './Apm';
 import { Daily } from './Daily';
 import { GameView } from './GameView';
 import { Home } from './Home';
@@ -35,13 +37,17 @@ import { Vayne } from './Vayne';
 import '../styles/global.css';
 import './app.css';
 
-type Route = 'home' | 'profile' | 'daily' | 'vayne' | 'settings';
+type Route = 'home' | 'profile' | 'daily' | 'apm' | 'vayne' | 'settings';
 
 interface Flow {
   kind: 'single' | 'placement' | 'daily';
   index: number;
   queue: DrillId[];
   seed: number;
+  /** The APM ladder rung this run was launched at, if it is an APM mode. */
+  level?: number;
+  /** A double-length APM run. */
+  endurance?: boolean;
 }
 
 interface ResultState {
@@ -57,6 +63,9 @@ export function App() {
     return p;
   });
   const [route, setRoute] = useState<Route>('home');
+  // Which mode the APM section opens on, so a click in the drill rail lands on
+  // the mode it named rather than on whatever was last selected.
+  const [apmFocus, setApmFocus] = useState<DrillId | null>(null);
   const [flow, setFlow] = useState<Flow | null>(null);
   const [results, setResults] = useState<ResultState | null>(null);
   const [rankUp, setRankUp] = useState<{
@@ -96,6 +105,21 @@ export function App() {
     if (!booted || inGame || profile.settings.muted) audio.stopAmbience();
     else audio.startAmbience();
   }, [booted, inGame, profile.settings.muted]);
+
+  // A profile that was calibrated before the APM ladder existed still gets its
+  // starting rung set — once, the first time the section is opened.
+  useEffect(() => {
+    if (route !== 'apm' || !profile.placed || profile.apm.seeded) return;
+    setProfile((p) => {
+      if (p.apm.seeded) return p;
+      const apm = { ...p.apm, modes: { ...p.apm.modes } };
+      for (const id of Object.keys(apm.modes) as (keyof typeof apm.modes)[]) {
+        apm.modes[id] = { ...apm.modes[id], levels: apm.modes[id].levels.map((l) => ({ ...l })) };
+      }
+      seedApmLadder(apm, p.overall);
+      return { ...p, apm };
+    });
+  }, [route, profile.placed, profile.apm.seeded]);
 
   const patchSettings = useCallback((patch: Partial<AppSettings>) => {
     setProfile((p) => ({ ...p, settings: { ...p.settings, ...patch } }));
@@ -143,10 +167,33 @@ export function App() {
 
   // ------------------------------------------------------------- flow start
 
-  const startSingle = useCallback((id: DrillId) => {
+  // Launching an APM mode from anywhere but the section itself plays the rung
+  // the section would have put you on, so a quick run from the drill rail and
+  // a deliberate one from the ladder are the same run.
+  const startSingle = useCallback(
+    (id: DrillId) => {
+      audio.unlock();
+      setResults(null);
+      // The section remembers the last mode you touched, wherever you started
+      // it from, so coming back from a run lands on its ladder.
+      if (isApmDrill(id)) setApmFocus(id);
+      setFlow({
+        kind: 'single',
+        index: 0,
+        queue: [id],
+        seed: newSeed(),
+        level: isApmDrill(id) ? recommendedLevel(profile.apm, id) : undefined,
+      });
+    },
+    [profile.apm],
+  );
+
+  /** One APM mode, at a rung the player chose. */
+  const startApm = useCallback((id: DrillId, level: number, endurance: boolean) => {
     audio.unlock();
+    setApmFocus(id);
     setResults(null);
-    setFlow({ kind: 'single', index: 0, queue: [id], seed: newSeed() });
+    setFlow({ kind: 'single', index: 0, queue: [id], seed: newSeed(), level, endurance });
   }, []);
 
   const startPlacement = useCallback(() => {
@@ -175,10 +222,16 @@ export function App() {
 
   const currentDrill = flow ? flow.queue[flow.index] : null;
   const difficulty = useMemo(
-    () => (currentDrill ? drillDifficulty(profile, currentDrill) : 0.35),
+    () =>
+      currentDrill
+        ? // An APM rung *is* the difficulty. Everything else is adaptive.
+          flow?.level !== undefined && isApmDrill(currentDrill)
+          ? levelDifficulty(flow.level)
+          : drillDifficulty(profile, currentDrill)
+        : 0.35,
     // Difficulty is read once per run; recomputing mid-run would be wrong.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentDrill, flow?.seed],
+    [currentDrill, flow?.seed, flow?.level],
   );
 
   // ---------------------------------------------------------- run finished
@@ -211,12 +264,27 @@ export function App() {
               Object.entries(prev.vayne.stages).map(([k, v]) => [k, { ...v }]),
             ) as typeof prev.vayne.stages,
           },
+          // Same for the APM ladder, one level deeper: the per-level records
+          // are the things applyRun writes.
+          apm: {
+            ...prev.apm,
+            modes: Object.fromEntries(
+              Object.entries(prev.apm.modes).map(([k, v]) => [k, { ...v, levels: v.levels.map((l) => ({ ...l })) }]),
+            ) as typeof prev.apm.modes,
+          },
         };
-        report = applyRun(next, result, { placement: flow.kind === 'placement' });
+        report = applyRun(next, result, {
+          placement: flow.kind === 'placement',
+          level: flow.level,
+          endurance: flow.endurance,
+        });
         if (flow.kind === 'daily' || flow.kind === 'single') markDailyComplete(next, result.drill);
         if (flow.kind === 'placement' && flow.index >= flow.queue.length - 1) {
           next.placed = true;
           next.placementRuns = flow.queue.length;
+          // Calibration also opens the APM ladder somewhere sensible. A player
+          // who placed high has already shown what the bottom rungs teach.
+          seedApmLadder(next.apm, next.overall);
         }
         return next;
       });
@@ -334,7 +402,11 @@ export function App() {
         ? `CALIBRATION ${flow.index + 1} / ${flow.queue.length}`
         : flow.kind === 'daily'
           ? `DAILY ${flow.index + 1} / ${flow.queue.length}`
-          : undefined;
+          : // An APM run always says which rung it is, because the rung is the
+            // whole claim the run makes.
+            flow.level !== undefined && isApmDrill(currentDrill)
+            ? `APM · LEVEL ${flow.level} / ${APM_LEVELS}${flow.endurance ? ' · ENDURANCE' : ''}`
+            : undefined;
     return (
       <>
         <GameView
@@ -344,6 +416,7 @@ export function App() {
           seed={flow.seed}
           settings={profile.settings}
           context={context}
+          durationScale={flow.endurance ? 2 : 1}
           onComplete={handleComplete}
           onExit={exitToMenu}
           onRetry={retry}
@@ -414,7 +487,7 @@ export function App() {
           </div>
 
           <nav className="nav">
-            {(['home', 'daily', 'vayne', 'profile', 'settings'] as Route[]).map((r) => (
+            {(['home', 'daily', 'apm', 'vayne', 'profile', 'settings'] as Route[]).map((r) => (
               <button
                 key={r}
                 className={route === r ? 'on' : ''}
@@ -425,7 +498,7 @@ export function App() {
                   setRoute(r);
                 }}
               >
-                {r === 'home' ? 'TRAIN' : r === 'vayne' ? 'VAYNE' : r.toUpperCase()}
+                {r === 'home' ? 'TRAIN' : r.toUpperCase()}
               </button>
             ))}
           </nav>
@@ -453,6 +526,19 @@ export function App() {
             onProfile={() => setRoute('profile')}
             onPlacement={() => setPlacementIntro(true)}
             onVayne={() => setRoute('vayne')}
+            onApm={(id) => {
+              setApmFocus(id ?? null);
+              setRoute('apm');
+            }}
+          />
+        )}
+        {route === 'apm' && (
+          <Apm
+            profile={profile}
+            focus={apmFocus}
+            onPlay={startApm}
+            onBack={() => setRoute('home')}
+            onPlacement={() => setPlacementIntro(true)}
           />
         )}
         {route === 'daily' && (
