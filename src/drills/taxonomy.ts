@@ -53,8 +53,17 @@ export const CATEGORIES: { id: Category; name: string; blurb: string }[] = [
  */
 export type Phase = 'learn' | 'isolated' | 'combined' | 'pressure' | 'transfer' | 'test';
 
+/**
+ * The phases, and the ramp they are drawn in.
+ *
+ * The colours are a sequence rather than six labels that happen to have hues:
+ * cool where the game is switched off and you are being taught, warming as it
+ * comes back on, violet where it is a whole champion, gold where nothing is
+ * being trained at all. Learn and Isolated used to be two shades of the same
+ * cyan, which made the two most common tags on the screen indistinguishable.
+ */
 export const PHASE: Record<Phase, { label: string; blurb: string; color: string }> = {
-  learn: { label: 'Learn', blurb: 'Taught, at your own pace, with nothing at stake', color: '#7ceaff' },
+  learn: { label: 'Learn', blurb: 'Taught, at your own pace, with nothing at stake', color: '#8fb4ff' },
   isolated: { label: 'Isolated', blurb: 'One mechanic, alone, measured', color: '#58e0ff' },
   combined: { label: 'Combined', blurb: 'Two mechanics that interfere with each other', color: '#26d7c6' },
   pressure: { label: 'Pressure', blurb: 'The same thing, with something answering', color: '#f0c247' },
