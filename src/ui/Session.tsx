@@ -43,6 +43,14 @@ export function DrillBreak({
   const limiter = report.limiter;
   const improvement = report.improvements[0];
 
+  // The card arriving is a beat in the session, so it gets one sound: the
+  // reveal, or the record cue when there is a record to announce.
+  useEffect(() => {
+    const hasBest = report.newBestScore || report.personalBests.length > 0;
+    const t = window.setTimeout(() => audio.play(hasBest ? 'personalBest' : 'resultsReveal'), 120);
+    return () => window.clearTimeout(t);
+  }, [report]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'Enter' || e.code === 'Space') {
@@ -188,8 +196,13 @@ export function SessionComplete({ profile, onDone, onProgress, onPlay }: Summary
   const overallDelta = profile.overall - d.startOverall;
   const elapsed = Math.max(d.seconds, (Date.now() - startedAt) / 1000);
 
+  // One cue, and it tells the truth: the record sound only where a record was
+  // actually beaten. A reward for having been present is how a trainer starts
+  // meaning nothing.
   useEffect(() => {
-    audio.play('personalBest');
+    audio.play(bestsToday.length ? 'personalBest' : 'resultsReveal');
+    // Fired once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

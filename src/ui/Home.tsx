@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { audio } from '../engine/audio';
+import { tuningFor } from '../engine/ai';
 import { DRILL_LIST, DRILLS, type DrillGroup, type DrillId } from '../drills/catalog';
 import {
   bestAxis,
@@ -59,6 +60,26 @@ const GROUPS: { id: DrillGroup; title: string; blurb: string }[] = [
   { id: 'APM', title: 'The Lab', blurb: 'Pressing, isolated from the game — thirteen benches, ten levels each' },
   { id: 'VAYNE', title: 'Vayne', blurb: 'One champion, learned in order' },
 ];
+
+/**
+ * The drills whose difficulty is an opponent rather than a clock.
+ *
+ * Only these can honestly print a behaviour read-out, because only these run
+ * a tuned brain. A movement drill's difficulty changes its node timing, and
+ * claiming it changed an enemy's reaction would be a lie with a nice layout.
+ */
+const TUNED_DRILLS = new Set<DrillId>([
+  'kite',
+  'spacing',
+  'combos',
+  'duel1v1',
+  'duel1v2',
+  'duel1v3',
+  'vayneTumble',
+  'vayneBolts',
+  'vayneCondemn',
+  'vayneHunt',
+]);
 
 const metricFormat = (key: string): 'ms' | 'units' | 'pct' | 'int' =>
   key.includes('APM') || key.includes('SECURED') || key.includes('TAKEN') || key.includes('CS')
@@ -397,6 +418,7 @@ function DrillHero({
               </button>
             </div>
           )}
+          {TUNED_DRILLS.has(id) && <LevelDetail difficulty={diff} />}
           {d.abilities.length > 0 && (
             <div className="hero-keys">
               <span className="eyebrow">Uses</span>
@@ -411,6 +433,67 @@ function DrillHero({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * WHAT THIS LEVEL MEANS.
+ *
+ * "Level 6" is meaningless on its own, and "Hard" is worse. Every value here
+ * is read from the same tuning curve the simulation uses, and the right-hand
+ * column is what the next level actually changes — so a player can see the
+ * difficulty as a set of behaviours rather than a number that went up.
+ */
+function LevelDetail({ difficulty }: { difficulty: number }) {
+  const level = Math.max(1, Math.min(10, Math.round(difficulty * 10)));
+  const now = tuningFor(difficulty);
+  const next = tuningFor(Math.min(1, (level + 1) / 10));
+  const rows: { label: string; now: string; next: string | null }[] = [
+    {
+      label: 'Reaction',
+      now: `${Math.round(now.reactionDelay * 1000)}ms`,
+      next: level < 10 ? `${Math.round(next.reactionDelay * 1000)}ms` : null,
+    },
+    {
+      label: 'Aim error',
+      now: `${Math.round(now.aimError)}u`,
+      next: level < 10 ? `${Math.round(next.aimError)}u` : null,
+    },
+    {
+      label: 'Prediction',
+      now: `${Math.round(now.prediction * 100)}%`,
+      next: level < 10 ? `${Math.round(next.prediction * 100)}%` : null,
+    },
+    {
+      label: 'Dodges',
+      now: `${Math.round(now.dodgeSkill * 100)}%`,
+      next: level < 10 ? `${Math.round(next.dodgeSkill * 100)}%` : null,
+    },
+    {
+      label: 'Holds spacing',
+      now: `${Math.round(now.spacingDiscipline * 100)}%`,
+      next: level < 10 ? `${Math.round(next.spacingDiscipline * 100)}%` : null,
+    },
+  ];
+
+  return (
+    <div className="hero-level">
+      <span className="eyebrow">At level {level} the opponent</span>
+      <div className="hl-rows">
+        {rows.map((r) => (
+          <div className="hl-row" key={r.label}>
+            <span>{r.label}</span>
+            <b className="mono">{r.now}</b>
+            {r.next && r.next !== r.now && <i className="mono">→ {r.next}</i>}
+          </div>
+        ))}
+      </div>
+      <p className="hl-note faint">
+        {level < 10
+          ? 'The right-hand column is what level ' + (level + 1) + ' changes. Difficulty moves on its own, one axis at a time, to hold you between 60 and 78%.'
+          : 'Top of the curve. Nothing about this opponent gets harder from here.'}
+      </p>
     </div>
   );
 }

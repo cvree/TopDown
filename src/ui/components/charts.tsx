@@ -5,10 +5,20 @@ import { AXIS_SHORT, SKILL_AXES, type SkillAxis } from '../../progression/skills
 import { rankFromRating, RATING_MAX } from '../../progression/ranks';
 import type { Vec2 } from '../../engine/types';
 
+/** True when the viewer has asked their system for less motion. */
+const prefersReducedMotion = (): boolean =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
 /** Counts a number up when it enters, because numbers arriving feel earned. */
 export function useCountUp(target: number, duration = 900, delay = 0): number {
   const [v, setV] = useState(0);
   useEffect(() => {
+    // A rating that races up the screen is motion like any other. Somebody who
+    // has asked for less of it gets the number, immediately.
+    if (prefersReducedMotion()) {
+      setV(target);
+      return;
+    }
     let raf = 0;
     let start = 0;
     const tick = (t: number) => {
@@ -45,6 +55,10 @@ export function SkillRadar({ ratings, samples, size = 320, compare = null }: Rad
   const [t, setT] = useState(0);
 
   useEffect(() => {
+    if (prefersReducedMotion()) {
+      setT(1);
+      return;
+    }
     let raf = 0;
     let start = 0;
     const tick = (now: number) => {
