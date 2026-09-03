@@ -1,3 +1,4 @@
+import { DEFAULT_HERO, type HeroId } from '../engine/heroes';
 import { clamp, mean } from '../engine/math';
 import type { DerivedMetrics, RunMetrics } from '../engine/metrics';
 import { DRILLS, type DrillId } from '../drills/catalog';
@@ -102,6 +103,12 @@ export interface DailyState {
 }
 
 export interface AppSettings {
+  /**
+   * The champion you wear in every drill that does not name its own. Look
+   * only — see `src/engine/heroes.ts` for why nothing in the simulation is
+   * allowed to read it.
+   */
+  hero: HeroId;
   quickCast: boolean;
   /** Click-to-move (League) or WASD. */
   movementScheme: 'click' | 'wasd';
@@ -120,6 +127,10 @@ export interface AppSettings {
   /** Rebinds that apply only under the WASD scheme; the two never collide. */
   wasdBindings: Record<string, { primary: string; secondary?: string }>;
   reduceShake: boolean;
+  /** Pushing the cursor to the screen edge slides the camera, League-style. */
+  edgePan: boolean;
+  /** Champion name plates above units. Health bars are never hidden. */
+  showNames: boolean;
   /** The browser-gesture warning has been read and dismissed. */
   gestureNoticeDismissed: boolean;
 }
@@ -130,6 +141,8 @@ export interface Profile {
   createdAt: number;
   placed: boolean;
   placementRuns: number;
+  /** The first-run flow — champion select — has been completed. */
+  onboarded: boolean;
   ratings: Record<SkillAxis, number>;
   samples: Record<SkillAxis, number>;
   overall: number;
@@ -168,6 +181,7 @@ const yesterdayKey = (): string => {
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  hero: DEFAULT_HERO,
   quickCast: true,
   movementScheme: 'click',
   tumbleAim: 'hands',
@@ -180,6 +194,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   bindings: {},
   wasdBindings: {},
   reduceShake: false,
+  // Off by default: it moves the camera without being asked, and a player who
+  // has never met it should not discover it mid-run.
+  edgePan: false,
+  showNames: true,
   gestureNoticeDismissed: false,
 };
 
@@ -189,6 +207,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   createdAt: Date.now(),
   placed: false,
   placementRuns: 0,
+  onboarded: false,
   ratings: zeroAxis(0),
   samples: zeroAxis(0),
   overall: 0,
@@ -221,6 +240,10 @@ export const loadProfile = (): Profile => {
       samples: { ...p.samples, ...parsed.samples },
       difficulty: { ...p.difficulty, ...parsed.difficulty },
       settings: { ...p.settings, ...parsed.settings },
+      // A profile written before champion select existed is not dragged back
+      // through onboarding if it has already been placed — it simply keeps the
+      // default body until its owner goes and changes it.
+      onboarded: parsed.onboarded ?? Boolean(parsed.placed),
       daily: { ...p.daily, ...parsed.daily },
       // A profile written before the champion track existed simply starts it.
       vayne: parsed.vayne

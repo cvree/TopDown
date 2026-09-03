@@ -209,6 +209,7 @@ export function GameView({
         abilities: meta.abilities,
         scheme,
         tumbleAim: settings.tumbleAim ?? 'hands',
+        hero: settings.hero,
       },
       input,
       renderer,
@@ -406,6 +407,11 @@ export function GameView({
           dimmed: session.phase === 'paused' ? 0.55 : session.dimmed,
           hitFeedback: session.hitFeedback,
           lowFx: settings.lowFx,
+          reduceShake: settings.reduceShake,
+          showNames: settings.showNames,
+          // Only while the run is live: a camera that slides during the
+          // countdown or after the buzzer is a camera nobody asked to move.
+          allowEdgePan: settings.edgePan && session.phase === 'running',
           paint,
           idle: session.phase === 'countdown',
         });

@@ -1,17 +1,247 @@
 .settings {
   padding-top: 46px;
-  max-width: 1120px;
+  max-width: 1460px;
 }
 .set-h1 {
   font-size: clamp(30px, 4vw, 46px);
   letter-spacing: 0.16em;
-  margin: 10px 0 28px;
+  margin: 10px 0 0;
 }
-.set-grid {
+
+/* --------------------------------------------------------------- the top
+   Title on the left, search on the right. Search is the fastest route to
+   any control on this screen, so it is never more than one glance away. */
+.set-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 26px;
+}
+.set-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(380px, 100%);
+  padding: 9px 12px;
+  border: 1px solid var(--stroke);
+  background: rgba(4, 9, 17, 0.72);
+  transition: border-color 0.18s;
+}
+.set-search:focus-within {
+  border-color: var(--gold-deep);
+}
+.set-search svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: var(--text-3);
+}
+.set-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+}
+.set-search input::placeholder {
+  color: var(--text-4);
+}
+.ss-clear {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.ss-clear:hover {
+  color: var(--gold-hot);
+}
+
+/* ------------------------------------------------------------- the shell */
+.set-shell {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 232px 1fr;
   gap: 20px;
   align-items: start;
+}
+
+.set-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 12px;
+}
+.sn-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  text-align: left;
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  border: 1px solid transparent;
+  border-left: 2px solid var(--stroke);
+  background: rgba(4, 9, 17, 0.4);
+  transition: color 0.16s, background 0.16s, border-color 0.16s;
+}
+.sn-item:hover {
+  color: var(--gold-hot);
+  background: rgba(200, 170, 110, 0.07);
+}
+.sn-item.on {
+  color: var(--gold-hot);
+  border-left-color: var(--gold);
+  background: linear-gradient(90deg, rgba(200, 170, 110, 0.17), rgba(4, 9, 17, 0.35) 70%);
+}
+.sn-name {
+  flex: 1;
+}
+/* One dot, meaning "you have changed something in here". It is the whole
+   answer to "what did I touch?" without opening six sections. */
+.sn-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 99px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.sn-hero {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.sn-hero-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--stroke);
+  border-left: 3px solid var(--c);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 16%, transparent), rgba(4, 9, 17, 0.6) 70%);
+  color: var(--c);
+  transition: border-color 0.16s, background 0.16s;
+}
+.sn-hero-card:hover {
+  border-color: var(--c);
+}
+.sn-hero-card b {
+  flex: 1;
+  text-align: left;
+  font-family: var(--ui);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--text);
+}
+.sn-hero-card em {
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--text-4);
+}
+.sn-hero-card:hover em {
+  color: var(--gold);
+}
+
+.sn-reset {
+  margin-top: 18px;
+  justify-content: center;
+}
+
+.set-body {
+  min-width: 0;
+}
+
+.set-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 16px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--stroke);
+}
+.set-blurb {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-3);
+  max-width: 74ch;
+}
+
+/* A block is a row that needs more than a switch: a pair of cards, the
+   binding table, the roster. */
+.set-block {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--stroke);
+}
+.set-block:last-child {
+  border-bottom: none;
+}
+.set-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+/* The changed-from-default mark, on the row it belongs to. */
+.chg-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 8px;
+  vertical-align: middle;
+  border-radius: 99px;
+  background: var(--accent);
+  box-shadow: 0 0 7px var(--accent);
+}
+
+/* --------------------------------------------------------- search results
+   A result is the real control, not a link to it: found is fixed. */
+.set-result {
+  padding: 6px 0 2px;
+  border-bottom: 1px solid var(--stroke);
+}
+.set-result:last-child {
+  border-bottom: none;
+}
+.set-result-in {
+  font-family: var(--ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--text-4);
+  padding: 4px 0 0;
+}
+.set-result-in:hover {
+  color: var(--gold);
+}
+.set-result .opt-row:last-child,
+.set-result .set-block {
+  border-bottom: none;
+}
+
+.bind-row.rebound span {
+  color: var(--text);
+}
+.bind-row.rebound .bind-key {
+  border-color: var(--gold-deep);
+  color: var(--gold-lit);
 }
 
 .bind-list {
@@ -159,9 +389,21 @@ input[type='range']::-moz-range-thumb {
   cursor: pointer;
 }
 
-@media (max-width: 980px) {
-  .set-grid {
+@media (max-width: 1080px) {
+  .set-shell {
     grid-template-columns: 1fr;
+  }
+  .set-nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .sn-item {
+    flex: 1 1 130px;
+  }
+  .sn-hero,
+  .sn-reset {
+    margin-top: 0;
   }
 }
 

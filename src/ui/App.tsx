@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
+import { heroFor, type HeroId } from '../engine/heroes';
 import { newSeed } from '../engine/rng';
 import { DAILY_SEQUENCE, DRILLS, PLACEMENT_SEQUENCE, type DrillId } from '../drills/catalog';
 import {
@@ -27,6 +28,8 @@ import { ArenaBackdrop } from './components/ArenaBackdrop';
 import { Boot } from './Boot';
 import { Crest } from './components/Crest';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
+import { HeroSelect } from './HeroSelect';
+import { HeroSigil } from './components/HeroSigil';
 import { Apm } from './Apm';
 import { Daily } from './Daily';
 import { GameView } from './GameView';
@@ -414,10 +417,16 @@ export function App() {
     audio.play('uiClick');
   }, []);
 
+  const chooseHero = useCallback((hero: HeroId) => {
+    setProfile((p) => ({ ...p, onboarded: true, settings: { ...p.settings, hero } }));
+  }, []);
+
   const doReset = useCallback(() => {
     resetProfile();
     const p = newProfile();
     setProfile(p);
+    // A wiped profile is a new player: `onboarded` is false again, so the
+    // next thing they see is champion select.
     setRoute('home');
   }, []);
 
@@ -543,94 +552,128 @@ export function App() {
     );
   }
 
+  // The first-run flow. It waits for the boot gate — champion select is the
+  // payoff for pressing the key, not something behind it — and it is the same
+  // screen the settings page opens later, so a player only ever learns it once.
+  const onboarding = booted && !profile.onboarded;
+
   return (
     <div className="app">
-      <ArenaBackdrop enabled={!profile.settings.lowFx} onReady={() => setArenaReady(true)} />
+      <ArenaBackdrop
+        enabled={!profile.settings.lowFx}
+        hero={profile.settings.hero}
+        onReady={() => setArenaReady(true)}
+      />
       {!booted && <Boot ready={arenaReady} onEnter={() => setBooted(true)} />}
-      <div className="shell">
-        <header className="topbar">
-          <div className="logo" onClick={() => setRoute('home')}>
-            <Crest size={26} />
-            APEX
-            <span className="logo-sub">MECHANICS</span>
-          </div>
+      {onboarding && (
+        <HeroSelect initial={profile.settings.hero} lowFx={profile.settings.lowFx} onConfirm={chooseHero} />
+      )}
+      {/* The client is unmounted, not merely covered, while the boot gate or
+          champion select is up. Both of those are driven by bare keypresses,
+          and so is the client — Enter plays the selected drill — so leaving it
+          alive underneath means one Enter both locks in a champion and
+          launches calibration. */}
+      {booted && !onboarding && (
+        <div className="shell">
+          <header className="topbar">
+            <div className="logo" onClick={() => setRoute('home')}>
+              <Crest size={26} />
+              APEX
+              <span className="logo-sub">MECHANICS</span>
+            </div>
 
-          <nav className="nav">
-            {(['home', 'daily', 'apm', 'tests', 'vayne', 'profile', 'settings'] as Route[]).map((r) => (
+            <nav className="nav">
+              {(['home', 'daily', 'apm', 'tests', 'vayne', 'profile', 'settings'] as Route[]).map((r) => (
+                <button
+                  key={r}
+                  className={route === r ? 'on' : ''}
+                  onMouseEnter={() => audio.play('uiHover')}
+                  onClick={() => {
+                    audio.unlock();
+                    audio.play('uiTab');
+                    setRoute(r);
+                  }}
+                >
+                  {r === 'home' ? 'TRAIN' : r.toUpperCase()}
+                </button>
+              ))}
+            </nav>
+
+            <div className="topbar-right">
+              {/* Who you are, always on screen, one click from changing it. A
+                  champion you picked and then never see again is a form field. */}
               <button
-                key={r}
-                className={route === r ? 'on' : ''}
+                className="hero-chip"
+                style={{ ['--c' as string]: heroFor(profile.settings.hero).accent }}
+                title={`Playing as ${heroFor(profile.settings.hero).name} — click to change`}
                 onMouseEnter={() => audio.play('uiHover')}
                 onClick={() => {
-                  audio.unlock();
                   audio.play('uiTab');
-                  setRoute(r);
+                  setRoute('settings');
                 }}
               >
-                {r === 'home' ? 'TRAIN' : r.toUpperCase()}
+                <HeroSigil hero={profile.settings.hero} size={22} />
+                <span>{heroFor(profile.settings.hero).name}</span>
               </button>
-            ))}
-          </nav>
-
-          <div className="topbar-right">
-            <div className="rank-chip" onClick={() => setRoute('profile')}>
-              <RankEmblem tier={rank.tier} size={30} />
-              <div>
-                <div className="rc-label">{profile.placed ? rank.label : 'UNRANKED'}</div>
-                <div className="rc-rating mono">{profile.placed ? Math.round(profile.overall) : '—'}</div>
+              <div className="rank-chip" onClick={() => setRoute('profile')}>
+                <RankEmblem tier={rank.tier} size={30} />
+                <div>
+                  <div className="rc-label">{profile.placed ? rank.label : 'UNRANKED'}</div>
+                  <div className="rc-rating mono">{profile.placed ? Math.round(profile.overall) : '—'}</div>
+                </div>
               </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        {showGestureNotice && (
-          <GestureNotice onDismiss={() => patchSettings({ gestureNoticeDismissed: true })} />
-        )}
+          {showGestureNotice && (
+            <GestureNotice onDismiss={() => patchSettings({ gestureNoticeDismissed: true })} />
+          )}
 
-        {route === 'home' && (
-          <Home
-            profile={profile}
-            onPlay={startSingle}
-            onDaily={() => setRoute('daily')}
-            onProfile={() => setRoute('profile')}
-            onPlacement={() => setPlacementIntro(true)}
-            onVayne={() => setRoute('vayne')}
-            onApm={(id) => {
-              setApmFocus(id ?? null);
-              setRoute('apm');
-            }}
-          />
-        )}
-        {route === 'apm' && (
-          <Apm
-            profile={profile}
-            focus={apmFocus}
-            onPlay={startApm}
-            onBack={() => setRoute('home')}
-            onPlacement={() => setPlacementIntro(true)}
-          />
-        )}
-        {route === 'daily' && (
-          <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('home')} />
-        )}
-        {route === 'tests' && (
-          <Tests profile={profile} onRun={startTest} onBack={() => setRoute('home')} />
-        )}
-        {route === 'vayne' && (
-          <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('home')} />
-        )}
-        {route === 'profile' && (
-          <ProfileScreen
-            profile={profile}
-            onRename={(name) => setProfile((p) => ({ ...p, name }))}
-            onReset={doReset}
-            onPlay={startSingle}
-          />
-        )}
-        {route === 'settings' && (
-          <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('home')} />
-        )}
-      </div>
+          {route === 'home' && (
+            <Home
+              profile={profile}
+              onPlay={startSingle}
+              onDaily={() => setRoute('daily')}
+              onProfile={() => setRoute('profile')}
+              onPlacement={() => setPlacementIntro(true)}
+              onVayne={() => setRoute('vayne')}
+              onApm={(id) => {
+                setApmFocus(id ?? null);
+                setRoute('apm');
+              }}
+            />
+          )}
+          {route === 'apm' && (
+            <Apm
+              profile={profile}
+              focus={apmFocus}
+              onPlay={startApm}
+              onBack={() => setRoute('home')}
+              onPlacement={() => setPlacementIntro(true)}
+            />
+          )}
+          {route === 'daily' && (
+            <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('home')} />
+          )}
+          {route === 'tests' && (
+            <Tests profile={profile} onRun={startTest} onBack={() => setRoute('home')} />
+          )}
+          {route === 'vayne' && (
+            <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('home')} />
+          )}
+          {route === 'profile' && (
+            <ProfileScreen
+              profile={profile}
+              onRename={(name) => setProfile((p) => ({ ...p, name }))}
+              onReset={doReset}
+              onPlay={startSingle}
+            />
+          )}
+          {route === 'settings' && (
+            <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('home')} />
+          )}
+        </div>
+      )}
     </div>
   );
 }

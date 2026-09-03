@@ -1,3 +1,4 @@
+import { DEFAULT_HERO, type HeroId } from './heroes';
 import { clamp, dist, distToSegment, norm, v2 } from './math';
 import { Rng } from './rng';
 import type { Actor, AttackProfile, Hazard, Projectile, Team, Vec2, Wall } from './types';
@@ -56,6 +57,13 @@ export class World {
   walls: Wall[] = [];
   events: WorldEvent[] = [];
   playerId = -1;
+  /**
+   * Which body the player wears. Cosmetic in the strictest sense — the
+   * renderer is the only thing that ever reads it, and `spawnPlayer` stamps it
+   * onto the actor so a drill that spawns its own champion (the Vayne path)
+   * can overrule it without the world caring.
+   */
+  playerHero: HeroId = DEFAULT_HERO;
 
   private nextId = 1;
 
@@ -139,6 +147,7 @@ export class World {
       attack: { ...PLAYER_ATTACK, ...overrides },
       label: 'YOU',
     });
+    p.visual = this.playerHero;
     this.playerId = p.id;
     return p;
   }

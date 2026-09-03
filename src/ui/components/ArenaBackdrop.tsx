@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { ChampionRig } from '../../gfx/champions';
+import { DEFAULT_HERO, heroFor, type HeroId } from '../../engine/heroes';
+import { ChampionRig, type RigSpec } from '../../gfx/champions';
 import { RiftScene } from '../../gfx/scene';
 
 /**
@@ -18,24 +19,57 @@ import { RiftScene } from '../../gfx/scene';
 const BOUNDS = { w: 1500, h: 900 };
 
 /* Three champions, staged like a splash: the hero forward and centre, two
-   more behind and apart so the group has depth rather than a line. */
+   more behind and apart so the group has depth rather than a line.
+
+   The one in front is *your* champion, taken straight off the roster and
+   swapped the moment you change it. A menu that shows a stock knight while you
+   have been playing a hooded archer for a month is a menu about somebody
+   else's game. The two behind are enemy archetypes, in enemy red. */
 const FIGURES = [
-  { x: 760, y: 470, primary: '#4e9ee0', secondary: '#e2c77a', accent: '#9ff2ff', skin: '#e6c2a0', weapon: 'sword', headgear: 'helm', cape: true, build: 'medium', radius: 34, ring: '#5fe0ff' },
-  { x: 930, y: 340, primary: '#c25a34', secondary: '#43201a', accent: '#ff9257', skin: '#b98763', weapon: 'greatsword', headgear: 'horns', cape: false, build: 'heavy', radius: 36, ring: '#ff4d42' },
-  { x: 600, y: 330, primary: '#46a37e', secondary: '#1d4436', accent: '#6dffb4', skin: '#c9a583', weapon: 'bow', headgear: 'hood', cape: true, build: 'lean', radius: 32, ring: '#ff4d42' },
+  // `look: null` means "whoever the player is", filled in from the roster.
+  { x: 760, y: 470, radius: 34, ring: '#5fe0ff', look: null },
+  {
+    x: 930,
+    y: 340,
+    radius: 36,
+    ring: '#ff4d42',
+    look: { build: 'heavy', primary: '#c25a34', secondary: '#43201a', accent: '#ff9257', skin: '#b98763', weapon: 'greatsword', headgear: 'horns', cape: false },
+  },
+  {
+    x: 600,
+    y: 330,
+    radius: 32,
+    ring: '#ff4d42',
+    look: { build: 'lean', primary: '#46a37e', secondary: '#1d4436', accent: '#6dffb4', skin: '#c9a583', weapon: 'bow', headgear: 'hood', cape: true },
+  },
 ] as const;
+
+/** The rig spec for one staged figure; index 0 is whoever the player picked. */
+const figureSpec = (i: number, hero: HeroId): RigSpec => {
+  const f = FIGURES[i];
+  const look = f.look ?? heroFor(hero).look;
+  return { ...look, height: f.radius * 5.4, radius: f.radius, ringColor: f.ring };
+};
 
 export function ArenaBackdrop({
   enabled = true,
+  hero = DEFAULT_HERO,
   onReady,
 }: {
   enabled?: boolean;
+  /** The champion standing front and centre. */
+  hero?: HeroId;
   /** Fires once the arena has actually put a frame on screen. */
   onReady?: () => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const readyRef = useRef(onReady);
   readyRef.current = onReady;
+  // The live scene, so changing champion can swap one body rather than tear
+  // down and regenerate the terrain, the shaders and the sky behind the menus.
+  const liveRef = useRef<{ scene: RiftScene; rigs: ChampionRig[] } | null>(null);
+  const heroRef = useRef(hero);
+  heroRef.current = hero;
 
   useEffect(() => {
     const canvas = ref.current;
@@ -61,24 +95,13 @@ export function ArenaBackdrop({
     scene.renderScale = 0.8;
     scene.setQuality('medium');
 
-    const rigs = FIGURES.map((f) => {
-      const rig = new ChampionRig({
-        height: f.radius * 5.4,
-        radius: f.radius,
-        build: f.build,
-        primary: f.primary,
-        secondary: f.secondary,
-        accent: f.accent,
-        skin: f.skin,
-        weapon: f.weapon,
-        headgear: f.headgear,
-        cape: f.cape,
-        ringColor: f.ring,
-      });
+    const rigs = FIGURES.map((f, i) => {
+      const rig = new ChampionRig(figureSpec(i, heroRef.current));
       rig.setPosition(f.x, f.y);
       scene.world.add(rig.group);
       return rig;
     });
+    liveRef.current = { scene, rigs };
 
     const resize = () => {
       const r = canvas.getBoundingClientRect();
@@ -190,10 +213,23 @@ export function ArenaBackdrop({
       cancelAnimationFrame(raf);
       window.removeEventListener('pointermove', onPointer);
       ro.disconnect();
+      liveRef.current = null;
       for (const rig of rigs) rig.dispose();
       scene.dispose();
     };
   }, [enabled]);
+
+  // Champion changed: rebuild the one body it belongs to, in place.
+  useEffect(() => {
+    const live = liveRef.current;
+    if (!live) return;
+    const old = live.rigs[0];
+    const rig = new ChampionRig(figureSpec(0, hero));
+    rig.setPosition(FIGURES[0].x, FIGURES[0].y);
+    live.scene.world.add(rig.group);
+    live.rigs[0] = rig;
+    old.dispose();
+  }, [hero]);
 
   if (!enabled) return <div className="atmos atmos-static" aria-hidden />;
   return (

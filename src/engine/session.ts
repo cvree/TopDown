@@ -1,5 +1,6 @@
 import { audio } from './audio';
 import { FxSystem } from './fx';
+import { DEFAULT_HERO, type HeroId } from './heroes';
 import type { AbilitySlot, InputSystem, MovementScheme } from './input';
 import { clamp, dist } from './math';
 import { MetricsRecorder } from './metrics';
@@ -111,6 +112,12 @@ export interface SessionConfig {
   scheme?: MovementScheme;
   /** Where a dash points under WASD. Meaningless under the click scheme. */
   tumbleAim?: TumbleAim;
+  /**
+   * The body the player wears. Purely a silhouette: the simulation reads it
+   * nowhere, which is what keeps a score set behind one champion comparable
+   * with a score set behind another.
+   */
+  hero?: HeroId;
 }
 
 /**
@@ -163,6 +170,7 @@ export class Session {
     this.config = config;
     this.rng = new Rng(config.seed);
     this.world = new World(config.arena, this.rng);
+    this.world.playerHero = config.hero ?? DEFAULT_HERO;
   }
 
   attachDrill(d: DrillBase): void {

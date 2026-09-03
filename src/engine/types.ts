@@ -1,4 +1,6 @@
 export type { Vec2 } from './math';
+
+import type { HeroId } from './heroes';
 import type { Vec2 } from './math';
 
 /** Arena coordinates are "units", sized to feel like League distances. */
@@ -93,7 +95,7 @@ export interface Actor {
   /** Per-actor accent colour index for rendering. */
   tint?: number;
   /** Overrides the silhouette the renderer picks for this actor. */
-  visual?: 'nightHunter';
+  visual?: HeroId;
   /** Seconds this actor is untargetable — Vayne's Final Hour tumble. */
   invisibleFor?: number;
   /** Active knockback: direction, remaining distance, speed. */

@@ -12,6 +12,12 @@ than time played, a champion path that teaches one champion properly, and a
 results screen designed so you can see exactly what you did and what it cost
 you.
 
+You pick a champion before you train. Seven of them, each a different
+silhouette, and none of them stronger than another — the choice reaches the
+renderer and stops there, so a rating earned behind one is worth exactly a
+rating earned behind another. It is the first thing you do on a new profile and
+it is changeable forever after from a settings screen you can search.
+
 It can be driven either way: League's click-to-move, or WASD. Both obey the
 same windup law, so a run scores identically under either — and the champion
 path knows which hand you are using, because the mistakes are not the same
@@ -374,6 +380,39 @@ A few design rules hold across all twelve:
   bottom of the ladder rather than being quietly discarded, so one lucky fast
   round cannot outrank eight dead ones.
 
+## Champion select
+
+The first thing a new player does here, before calibration and before anything
+is measured: pick the body they train in. Seven champions, each one a different
+silhouette from the same procedural rig — sword and helm, hammer, longbow,
+staff and crown, twin daggers, greatsword and horns, and the Night Hunter the
+Vayne path spawns. The one you pick stands turning on the select screen at full
+height, animated by the same code that will draw it in the arena, running the
+same windup and backswing poses.
+
+| Champion | Role | Silhouette |
+| --- | --- | --- |
+| **Sentinel** | Fighter | Upright, caped, one-handed blade |
+| **Warden** | Vanguard | Broad, low, two-handed hammer |
+| **Huntress** | Marksman | Lean, hooded, longbow |
+| **Arcanist** | Mage | Tall, crowned, staff held high |
+| **Revenant** | Assassin | Compact, uncovered, paired daggers |
+| **Berserker** | Juggernaut | Horned, massive, two-handed greatsword |
+| **Night Hunter** | Marksman | Lean, hooded, cloaked, crossbow |
+
+**No champion here is stronger than another, and that is deliberate.** Every one
+of them moves at the same speed, attacks on the same windup, has the same range
+and takes the same damage — the choice reaches the renderer and stops there.
+Anything else would make a rating earned behind one champion incomparable with
+a rating earned behind another, and the ladder exists to measure your hands.
+The Vayne path is the single exception, and it overrides in the other
+direction: those drills are about one champion with her own numbers, so they
+always spawn her whatever the roster says.
+
+The choice is never locked and never earned. It is changeable forever after
+from **Settings → Champion**, which renders the same screen, and the champion
+you are playing sits in the top bar of the client with a click to change it.
+
 ## The ranked system
 
 **This is a trainer rank.** It measures mechanical execution in these drills. It
@@ -458,7 +497,7 @@ Two schemes, chosen in Settings. The default is League's.
 | `S` | Stop |
 | `Space` | Centre the camera on your champion |
 | `Y` | Toggle camera lock. Unlocked, the camera stays where you leave it |
-| Screen edge | Edge pan, in both modes — in locked mode the offset springs back |
+| Screen edge | Edge pan, if it is switched on in Settings — in locked mode the offset springs back |
 | Mouse wheel | Zoom. The camera follows your champion once you are zoomed past the arena bounds |
 | `` ` `` / `Enter` | Instant reset |
 | `Esc` | Pause |
@@ -485,6 +524,45 @@ cursor when nothing is held) or *the cursor* (League's literal behaviour). See
 All bindings are remappable in Settings, along with quick cast, and each scheme
 keeps its own rebinds so switching never breaks a layout you tuned. In drills
 with no ultimate bound, `R` also acts as instant reset.
+
+## Settings
+
+One subject on screen at a time, listed down the left in the order a player
+meets them — **Champion**, **Movement**, **Controls**, **Gameplay**, **Camera &
+video**, **Audio** — rather than every control in the app in three tall columns,
+which is how the previous version managed to make a volume slider and a keybind
+list neighbours.
+
+The whole screen is built from a registry rather than from markup, and three
+things fall out of that:
+
+- **Search.** Type anything (or press `/` from anywhere on the page) and the
+  sections collapse into a flat list of matching controls. Each result is the
+  real, fully operable control — not a link to it — still labelled with the
+  section it came from, so nobody has to remember whether "shake" is a video
+  setting or a gameplay one. It matches labels, explanations, option text,
+  binding names and champion names.
+- **Changed-from-default marks.** Every row knows its own default, so a changed
+  setting carries a dot, a section carries one in the nav when anything inside
+  it has moved, and both a single section and the entire screen can be put back
+  exactly as they shipped.
+- **Honest scope.** Each row says what it does *and* what it does not: the
+  camera and video controls state outright that they never touch the
+  simulation, so scores stay comparable across machines.
+
+| Setting | What it does |
+| --- | --- |
+| **Champion** | The body you train in. Look only — see [Champion select](#champion-select) |
+| **Movement scheme** | Click to move, or WASD |
+| **Dash aim** | WASD only: a dash goes where your keys are held, or to the cursor |
+| **Bindings** | Every action, per scheme — the two never collide |
+| **Quick cast** | Abilities fire at the cursor on press, rather than press-then-confirm |
+| **Show attack range** | The dashed range ring and the attack timer arc |
+| **Show unit names** | Name plates above champions. Health bars are never hidden |
+| **Edge pan** | Pushing the cursor to the screen edge slides the camera. Off by default |
+| **Reduced camera motion** | Stops shake, punch-in and impact kick. Anything you drive stays |
+| **Reduced effects** | No shadows, no bloom, no live arena behind the menus |
+| **Audio** | Mute, plus master, effects and ambience buses |
 
 ## The arena
 
@@ -580,12 +658,14 @@ as depth rather than competing for the same pixels as the text.
 ```
 src/engine/     simulation: world, combat, AI, metrics, audio, input, paint
 src/engine/vayne.ts   the champion kit: tumble, bolts, condemn, final hour
+src/engine/heroes.ts  the playable roster: one silhouette per champion, look only
 src/gfx/        the 3D renderer: scene, terrain, walls, champions, decals, VFX
 src/drills/     one file per drill; each owns its rules and its scoring
 src/drills/apm/ the APM trainer: one engine, thirteen modes over it
 src/tests/      the twelve skill tests: one runner interface, one drawing kit
 src/progression/ rating maths, rank ladder, champion path, APM ladder, persistence
 src/ui/         React shell, HUD, results, profile, rank-up, Vayne, tests, APM ladder
+src/ui/HeroSelect.tsx champion select: the first run, and the Champion tab in settings
 tools/          headless test harnesses
 docs/           research notes: the out-of-game practice landscape
 ```
