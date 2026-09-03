@@ -365,7 +365,7 @@ export function Settings({ settings, onChange, onBack }: Props) {
 
   return (
     <div className="scroll">
-      <div className="wrap settings fade-up">
+      <div className="wrap wide settings fade-up">
         <div className="set-top">
           <div>
             <div className="eyebrow">Configuration</div>

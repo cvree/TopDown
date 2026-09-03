@@ -1,18 +1,18 @@
+import { useMemo, useState } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { codeLabel, defaultsFor, type ActionId } from '../engine/input';
-import { drillDifficulty, type Profile } from '../progression/profile';
+import { type Profile } from '../progression/profile';
 import {
   WASD_MODULES,
   WASD_TITLES,
   diagnoseWasd,
   moduleStars,
   moduleUnlocked,
-  nextWasdModule,
   nextWasdTitle,
   wasdTitleFor,
-  type WasdModule,
 } from '../progression/wasd';
+import { CoursePath, type CourseNode } from './components/CoursePath';
 import './academy.css';
 
 interface Props {
@@ -39,58 +39,56 @@ export function Academy({ profile, onPlay, onBack, onAdoptKeys }: Props) {
   const w = profile.wasd;
   const title = wasdTitleFor(w.peak);
   const next = nextWasdTitle(w.peak);
-  const recommended = nextWasdModule(w);
   const cleared = WASD_MODULES.filter((m) => w.modules[m.id].best >= m.gate).length;
   const onKeys = profile.settings.movementScheme === 'wasd';
 
+  const nodes = useMemo(() => buildCourse(profile), [profile]);
+  const current = Math.max(0, nodes.findIndex((n) => n.state === 'current'));
+  const [picked, setPicked] = useState<number | null>(null);
+  const [reference, setReference] = useState(false);
+
   return (
     <div className="scroll">
-      <div className="wrap acad fade-up">
-        <div className="acad-head">
+      <div className="wrap wide acad fade-up">
+        <div className="page-head">
           <div>
-            <div className="eyebrow">Control scheme</div>
-            <h1 className="display acad-h1">WASD ACADEMY</h1>
-            <p className="dim acad-lead">
-              Direct control is not clicking with extra steps. It is a different pair of hands, and the whole
-              of its advantage is one thing: <b>where you are going stops deciding where you are looking</b>.
-              Nine modules teach that from the four keys upward — movement, then independence, then strafing,
-              then aiming on the move, then the attack cadence everything else is built on, then kiting three
-              ways, then all of it at once. Each one opens the next.
+            <button className="link" onClick={onBack}>
+              ← Train
+            </button>
+            <h1 className="display">WASD ACADEMY</h1>
+            <p>
+              Direct control is not clicking with extra steps. Its whole advantage is one thing:{' '}
+              <b>where you are going stops deciding where you are looking</b>. Nine modules, each one
+              opening the next.
             </p>
           </div>
-
-          <aside className="acad-crest">
-            <div className="ac-ring" style={{ ['--m' as string]: `${w.mastery}%` }}>
-              <span className="ac-num mono">{Math.round(w.mastery)}</span>
-              <span className="ac-lab">MASTERY</span>
-            </div>
-            <div className="ac-title display">{title.name}</div>
-            <p className="ac-blurb">{title.blurb}</p>
+          <div className="acad-mastery">
+            <span className="eyebrow">Mastery</span>
+            <b className="display">{Math.round(w.mastery)}</b>
+            <i>{title.name}</i>
             {next && (
-              <div className="ac-next">
-                <span className="eyebrow">Next</span>
-                <b>{next.name}</b>
-                <i className="mono">{Math.max(0, Math.ceil(next.at - w.peak))} to go</i>
-              </div>
+              <span className="acad-mastery-next mono">
+                {Math.max(0, Math.ceil(next.at - w.peak))} to {next.name}
+              </span>
             )}
-          </aside>
+          </div>
         </div>
 
-        {/* The scheme notice. Every module forces the keys for its own run, so
-            this is an offer about the rest of the client rather than a gate. */}
-        <section className={`panel pad acad-scheme${onKeys ? ' on' : ''}`}>
-          <div className="as-mark mono">{onKeys ? 'WASD' : 'RMB'}</div>
-          <div className="as-body">
-            <b>{onKeys ? 'Your profile is on the keys.' : 'Your profile is still on click-to-move.'}</b>
-            <p>
-              {onKeys
-                ? 'Every drill in the client is driven with the keys, and the academy is where the specific skills that scheme unlocks are trained one at a time.'
-                : 'The academy runs on the keys regardless — a module about moving one way while aiming the other cannot be played with a mouse. Switching the rest of the client over is a separate decision, and it is reversible.'}
-            </p>
-          </div>
-          {!onKeys && (
+        {/* Every module forces the keys for its own run, so this is an offer
+            about the rest of the client rather than a gate on the course. */}
+        {!onKeys && (
+          <section className="acad-scheme">
+            <div className="as-mark mono">RMB</div>
+            <div className="as-body">
+              <b>Your profile is still on click-to-move.</b>
+              <p>
+                The academy runs on the keys regardless — a module about moving one way while aiming the
+                other cannot be played with a mouse. Switching the rest of the client over is a separate
+                decision, and it is reversible.
+              </p>
+            </div>
             <button
-              className="btn primary"
+              className="btn"
               onMouseEnter={() => audio.play('uiHover')}
               onClick={() => {
                 audio.play('uiClick');
@@ -99,155 +97,94 @@ export function Academy({ profile, onPlay, onBack, onAdoptKeys }: Props) {
             >
               Use the keys everywhere
             </button>
-          )}
-        </section>
+          </section>
+        )}
 
-        <Laws profile={profile} />
+        <CoursePath
+          nodes={nodes}
+          selected={picked ?? current}
+          onSelect={setPicked}
+          onRun={(i) => onPlay(nodes[i].module)}
+          aside={<Read profile={profile} onPlay={onPlay} />}
+        />
 
-        <div className="acad-modules">
-          {WASD_MODULES.map((m) => (
-            <ModuleCard
-              key={m.id}
-              module={m}
-              profile={profile}
-              recommended={recommended.id === m.id}
-              onPlay={onPlay}
-            />
-          ))}
-        </div>
-
-        <Read profile={profile} onPlay={onPlay} />
-
-        <section className="panel pad acad-ladder">
-          <div className="panel-title">Titles</div>
-          <div className="al-rows">
-            {WASD_TITLES.map((t) => {
-              const held = w.peak >= t.at;
-              return (
-                <div className={`al-row${held ? ' held' : ''}`} key={t.name}>
-                  <span className="al-at mono">{t.at}</span>
-                  <b className="al-name">{t.name}</b>
-                  <span className="al-blurb">{t.blurb}</span>
-                </div>
-              );
-            })}
-          </div>
-          <p className="set-note">
-            These titles are a claim about <b>these nine modules</b> at the difficulty you cleared them at. They
-            are a statement about your hands, not about anybody’s ranked ladder.
-          </p>
-        </section>
-
-        <div className="acad-foot">
+        {/* The laws and the titles were both permanently on screen and neither
+            is read twice. They are reference, so they read as reference. */}
+        <section className="acad-ref">
           <span className="mono faint">
             {cleared} / {WASD_MODULES.length} modules cleared
           </span>
-          <button className="btn ghost lg" onClick={onBack}>
-            Back
+          <button className="link" onClick={() => setReference((r) => !r)}>
+            {reference ? 'Hide reference' : 'Four things nobody tells you, and the titles'}
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ModuleCard({
-  module,
-  profile,
-  recommended,
-  onPlay,
-}: {
-  module: WasdModule;
-  profile: Profile;
-  recommended: boolean;
-  onPlay: (id: DrillId) => void;
-}) {
-  const meta = DRILLS[module.id];
-  const rec = profile.wasd.modules[module.id];
-  const unlocked = moduleUnlocked(profile.wasd, module);
-  const stars = moduleStars(module, rec);
-  const diff = drillDifficulty(profile, module.id);
-  const prev = WASD_MODULES[module.step - 2];
-
-  return (
-    <div
-      className={`amod${unlocked ? '' : ' locked'}${recommended && unlocked ? ' rec' : ''}`}
-      style={{ ['--c' as string]: meta.accent }}
-    >
-      <div className="am-step mono">{String(module.step).padStart(2, '0')}</div>
-
-      <div className="am-body">
-        <div className="am-titles">
-          <b className="am-name display">{module.title.toUpperCase()}</b>
-          {recommended && unlocked && <span className="am-flag">START HERE</span>}
-          <span className="am-len mono">{meta.duration}s</span>
-        </div>
-        <p className="am-purpose">{module.purpose}</p>
-        {/* The one sentence that says why this module could not exist under a
-            mouse. It is the reason the section is a course and not a filter. */}
-        <p className="am-only">
-          <span className="eyebrow">Only on the keys</span>
-          {module.onlyHere}
-        </p>
-
-        <div className="am-stats">
-          <div>
-            <span className="eyebrow">Best</span>
-            <b className="mono">{rec.runs ? `${Math.round(rec.best * 100)}%` : '—'}</b>
-          </div>
-          <div>
-            <span className="eyebrow">To clear</span>
-            <b className="mono">{Math.round(module.gate * 100)}%</b>
-          </div>
-          <div>
-            <span className="eyebrow">Runs</span>
-            <b className="mono">{rec.runs}</b>
-          </div>
-          <div>
-            <span className="eyebrow">Level</span>
-            <div className="diffbars">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <i key={i} className={i < Math.round(diff * 10) ? 'on' : ''} />
-              ))}
+          {reference && (
+            <div className="acad-ref-body fade-up">
+              <Laws profile={profile} />
+              <div>
+                <div className="sec-head">Titles</div>
+                <div className="acad-titles">
+                  {WASD_TITLES.map((t) => (
+                    <div className={`acad-title${w.peak >= t.at ? ' held' : ''}`} key={t.name}>
+                      <span className="mono">{t.at}</span>
+                      <b>{t.name}</b>
+                      <p>{t.blurb}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="acad-note">
+                  A claim about <b>these nine modules</b> at the difficulty you cleared them at — about your
+                  hands, not about anybody's ranked ladder.
+                </p>
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div className="am-track">
-          <span className="am-fill" style={{ width: `${Math.round(Math.min(1, rec.best) * 100)}%` }} />
-          <i className="am-gate" style={{ left: `${Math.round(module.gate * 100)}%` }} />
-        </div>
-      </div>
-
-      <div className="am-right">
-        <div className="am-stars">
-          {[1, 2, 3].map((n) => (
-            <span key={n} className={n <= stars ? 'on' : ''}>
-              ★
-            </span>
-          ))}
-        </div>
-        {unlocked ? (
-          <button
-            className={`btn ${recommended ? 'primary' : ''}`}
-            onMouseEnter={() => audio.play('uiHover')}
-            onClick={() => {
-              audio.play('uiClick');
-              onPlay(module.id);
-            }}
-          >
-            {rec.runs ? 'Run it' : 'Begin'}
-          </button>
-        ) : (
-          <div className="am-lock">
-            <span>LOCKED</span>
-            <i>Clear {prev.title}</i>
-          </div>
-        )}
+          )}
+        </section>
       </div>
     </div>
   );
 }
+
+/* ------------------------------------------------------------- the course */
+
+type CourseModuleNode = CourseNode & { module: DrillId };
+
+/**
+ * The nine modules as course nodes.
+ *
+ * Every figure here already existed on the nine cards this replaces; what
+ * changes is that only the one you are looking at is printed, so the rail can
+ * be the shape of the course rather than nine copies of a stat block.
+ */
+const buildCourse = (p: Profile): CourseModuleNode[] => {
+  const w = p.wasd;
+  const nodes: CourseModuleNode[] = WASD_MODULES.map((m) => {
+    const rec = w.modules[m.id];
+    const unlocked = moduleUnlocked(w, m);
+    const cleared = rec.best >= m.gate;
+    const prev = WASD_MODULES[m.step - 2];
+    return {
+      key: m.id,
+      module: m.id,
+      kind: `0${m.step}`,
+      name: m.title.toUpperCase(),
+      // The one sentence that says why this module could not exist under a
+      // mouse is the reason the section is a course rather than a filter, so
+      // it is on the detail panel rather than buried on a card.
+      purpose: `${m.purpose} ${m.onlyHere}`,
+      accent: DRILLS[m.id].accent,
+      state: cleared ? 'done' : !unlocked ? 'locked' : 'open',
+      stars: moduleStars(m, rec),
+      runs: rec.runs,
+      progress: { value: rec.best, gate: m.gate },
+      lockNote: prev ? `Clear ${prev.title} first.` : '',
+      transfers: DRILLS[m.id].transfers,
+    };
+  });
+
+  // Exactly one node is "you are here": the first that is not finished.
+  const first = nodes.findIndex((n) => n.state === 'open');
+  return nodes.map((n, i) => (i === first ? { ...n, state: 'current' } : n));
+};
 
 /**
  * THE READ.
@@ -262,14 +199,14 @@ function Read({ profile, onPlay }: { profile: Profile; onPlay: (id: DrillId) => 
   if (!d) {
     const anyRuns = WASD_MODULES.some((m) => profile.wasd.modules[m.id].runs > 0);
     return (
-      <section className="panel pad acad-read empty">
-        <div className="panel-title">The read</div>
+      <aside className="acad-read empty">
+        <span className="eyebrow">The read</span>
         <p className="ar-none">
           {anyRuns
             ? 'Nothing is standing out. Every habit the academy measures is at or near where it needs to be — raise the difficulty until one of them breaks.'
             : 'Run a module and this becomes the one thing worth fixing, named out loud, with the module that fixes it attached.'}
         </p>
-      </section>
+      </aside>
     );
   }
 
@@ -278,42 +215,29 @@ function Read({ profile, onPlay }: { profile: Profile; onPlay: (id: DrillId) => 
   const fmt = (v: number) => (lower ? `${Math.round(v)}` : `${Math.round(v * 100)}`);
 
   return (
-    <section className="panel pad acad-read" style={{ ['--c' as string]: meta.accent }}>
-      <div className="panel-title">The read</div>
-      <div className="ar-body">
-        <div className="ar-num">
-          <b className="mono">{fmt(d.value)}</b>
-          <i className="mono">{lower ? `target ${Math.round(d.habit.good)}` : `/ ${Math.round(d.habit.good * 100)}`}</i>
-          <span className="eyebrow">{d.habit.label}</span>
-        </div>
-        <div className="ar-text">
-          <p className="ar-fix">{d.habit.fix}</p>
-          <div className="ar-track">
-            <span
-              className="ar-fill"
-              style={{
-                width: `${Math.round(clampPct(lower ? 1 - d.gap : Math.min(1, d.value)) * 100)}%`,
-              }}
-            />
-            <i className="ar-gate" style={{ left: `${lower ? 100 : Math.round(d.habit.good * 100)}%` }} />
-          </div>
-        </div>
-        <button
-          className="btn primary"
-          onMouseEnter={() => audio.play('uiHover')}
-          onClick={() => {
-            audio.play('uiClick');
-            onPlay(d.habit.module);
-          }}
-        >
-          {meta.name.replace('WASD ', '').replace(/^\d+ · /, '')}
-        </button>
+    <aside className="acad-read" style={{ ['--c' as string]: meta.accent }}>
+      <span className="eyebrow">The read</span>
+      <div className="ar-num">
+        <b className="display">{fmt(d.value)}</b>
+        <i className="mono">
+          {lower ? `target ${Math.round(d.habit.good)}` : `needs ${Math.round(d.habit.good * 100)}`}
+        </i>
       </div>
-    </section>
+      <span className="ar-label">{d.habit.label}</span>
+      <p>{d.habit.fix}</p>
+      <button
+        className="btn sm"
+        onMouseEnter={() => audio.play('uiHover')}
+        onClick={() => {
+          audio.play('uiClick');
+          onPlay(d.habit.module);
+        }}
+      >
+        Train {meta.name.replace('WASD ', '').replace(/^\d+ · /, '')}
+      </button>
+    </aside>
   );
 }
-
-const clampPct = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /**
  * THE LAWS.
@@ -332,8 +256,8 @@ function Laws({ profile }: { profile: Profile }) {
   const aim = profile.settings.tumbleAim ?? 'hands';
 
   return (
-    <section className="panel pad acad-laws">
-      <div className="panel-title">Four things nobody tells you</div>
+    <div className="acad-laws">
+      <div className="sec-head">Four things nobody tells you</div>
       <div className="alaw-grid">
         <div>
           <span className="eyebrow">01</span>
@@ -386,6 +310,6 @@ function Laws({ profile }: { profile: Profile }) {
           </div>
         ))}
       </div>
-    </section>
+    </div>
   );
 }

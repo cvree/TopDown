@@ -9,11 +9,11 @@ import {
   VAYNE_TITLES,
   diagnose,
   nextTitle,
-  nextVayneStage,
   stageStars,
   stageUnlocked,
   titleFor,
 } from '../progression/vayne';
+import { CoursePath, type CourseNode } from './components/CoursePath';
 import { HeroSigil } from './components/HeroSigil';
 import './champions.css';
 
@@ -46,14 +46,13 @@ export function Champions({ profile, onPlay, onRoster }: Props) {
   const hero = heroFor(profile.settings.hero);
   const title = titleFor(v.peak);
   const next = nextTitle(v.peak);
-  const recommended = nextVayneStage(v);
   const nodes = useMemo(() => buildPath(profile), [profile]);
   const currentIndex = Math.max(
     0,
     nodes.findIndex((n) => n.state === 'current'),
   );
   const [picked, setPicked] = useState<number | null>(null);
-  const node = nodes[picked ?? currentIndex] ?? nodes[0];
+  const selected = picked ?? currentIndex;
   const onKeys = profile.settings.movementScheme === 'wasd';
   const [reference, setReference] = useState(false);
 
@@ -84,106 +83,13 @@ export function Champions({ profile, onPlay, onRoster }: Props) {
         </div>
 
         {/* --------------------------------------------------------- path */}
-        <section className="ch-path">
-          {nodes.map((n, i) => (
-            <button
-              key={n.key}
-              className={`ch-node ${n.state}${(picked ?? currentIndex) === i ? ' sel' : ''}`}
-              style={{ ['--c' as string]: n.accent }}
-              onMouseEnter={() => audio.play('uiHover')}
-              onClick={() => {
-                audio.play('uiTab');
-                setPicked(i);
-              }}
-            >
-              <span className="ch-node-dot">
-                {n.state === 'done' ? '✓' : n.state === 'locked' ? '🔒' : String(i + 1)}
-              </span>
-              <span className="ch-node-kind">{n.kind}</span>
-              <span className="ch-node-name">{n.name}</span>
-              {n.stars !== null && n.stars > 0 && (
-                <span className="ch-node-stars">
-                  {[1, 2, 3].map((s) => (
-                    <i key={s} className={s <= n.stars! ? 'on' : ''}>
-                      ★
-                    </i>
-                  ))}
-                </span>
-              )}
-            </button>
-          ))}
-        </section>
-
-        {/* ------------------------------------------------------- detail */}
-        <section className="ch-detail" style={{ ['--c' as string]: node.accent }}>
-          <div className="ch-detail-l">
-            <span className="eyebrow">
-              {node.state === 'done'
-                ? 'Cleared'
-                : node.state === 'current'
-                  ? 'You are here'
-                  : node.state === 'locked'
-                    ? 'Locked'
-                    : 'Open'}
-            </span>
-            <h2 className="display">{node.name}</h2>
-            <p>{node.purpose}</p>
-
-            {node.progress && (
-              <div className="ch-track" title={`Gate at ${Math.round(node.progress.gate * 100)}%`}>
-                <span style={{ width: `${Math.round(Math.min(1, node.progress.value) * 100)}%` }} />
-                <i style={{ left: `${Math.round(node.progress.gate * 100)}%` }} />
-              </div>
-            )}
-            {node.progress && (
-              <div className="ch-track-legend mono">
-                <span>
-                  BEST {node.progress.value > 0 ? `${Math.round(node.progress.value * 100)}%` : '—'}
-                </span>
-                <span>CLEARS AT {Math.round(node.progress.gate * 100)}%</span>
-                {node.runs !== null && <span>{node.runs} RUNS</span>}
-              </div>
-            )}
-
-            {node.transfers && (
-              <p className="ch-transfers">
-                <span className="eyebrow">Transfers to</span>
-                {node.transfers}
-              </p>
-            )}
-
-            <div className="ch-detail-act">
-              {node.state === 'locked' ? (
-                <span className="ch-locked-note">{node.lockNote}</span>
-              ) : (
-                <button
-                  className="btn primary lg"
-                  onMouseEnter={() => audio.play('uiHover')}
-                  onClick={() => {
-                    audio.play('uiClick');
-                    onPlay(node.drill);
-                  }}
-                >
-                  {node.state === 'done' ? 'Run it again' : node.runs ? 'Continue' : 'Begin'}
-                </button>
-              )}
-              {node.drill !== recommended.id && node.state !== 'current' && (
-                <button
-                  className="link"
-                  onClick={() => {
-                    audio.play('uiTab');
-                    setPicked(nodes.findIndex((n) => n.state === 'current'));
-                  }}
-                >
-                  Take me to where I am →
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* The one habit worth fixing, on the champion, right now. */}
-          <Read profile={profile} onPlay={onPlay} />
-        </section>
+        <CoursePath
+          nodes={nodes}
+          selected={selected}
+          onSelect={setPicked}
+          onRun={(i) => onPlay(drillFor(nodes[i]))}
+          aside={<Read profile={profile} onPlay={onPlay} />}
+        />
 
         {/* -------------------------------------------------------- roster */}
         <section className="ch-roster">
@@ -281,24 +187,10 @@ function Read({ profile, onPlay }: { profile: Profile; onPlay: (id: DrillId) => 
 
 /* ------------------------------------------------------------------ path */
 
-type NodeState = 'done' | 'current' | 'open' | 'locked';
+/** A course node, plus the drill it launches. */
+type PathNode = CourseNode & { drill: DrillId };
 
-interface PathNode {
-  key: string;
-  /** FOUNDATION / KIT / COMBAT / MASTERY — what kind of step this is. */
-  kind: string;
-  name: string;
-  purpose: string;
-  drill: DrillId;
-  accent: string;
-  state: NodeState;
-  stars: number | null;
-  runs: number | null;
-  progress: { value: number; gate: number } | null;
-  lockNote: string;
-  /** The League habit this step is for. */
-  transfers: string;
-}
+const drillFor = (n: PathNode): DrillId => n.drill;
 
 /**
  * The path, as six nodes.

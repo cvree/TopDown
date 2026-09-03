@@ -2,341 +2,12 @@
    ladder is gold: this is a section about *state* — where your hands are, what
    they are doing — and cyan is the colour this client reserves for that. */
 
-.acad {
-  padding-top: 46px;
-  padding-bottom: 60px;
-  max-width: 1180px;
-}
-
-.acad-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 46px;
-  align-items: start;
-}
-.acad-h1 {
-  font-size: clamp(34px, 4.4vw, 58px);
-  letter-spacing: 0.05em;
-  margin: 6px 0 14px;
-  background: linear-gradient(180deg, #e8fbff 0%, #58e0ff 52%, #1a6c8c 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.acad-lead {
-  max-width: 740px;
-  line-height: 1.65;
-  font-size: 14px;
-}
-.acad-lead b {
-  color: var(--text);
-}
-
-/* ------------------------------------------------------------------ crest */
-
-.acad-crest {
-  border: 1px solid rgba(60, 170, 210, 0.4);
-  background: linear-gradient(180deg, rgba(8, 34, 50, 0.7), rgba(6, 8, 20, 0.75));
-  padding: 22px 20px 20px;
-  text-align: center;
-  position: sticky;
-  top: 46px;
-}
-.ac-ring {
-  width: 148px;
-  height: 148px;
-  margin: 0 auto 16px;
-  border-radius: 50%;
-  display: grid;
-  place-content: center;
-  background:
-    radial-gradient(circle at 50% 50%, rgba(6, 8, 20, 0.98) 61%, transparent 62%),
-    conic-gradient(#58e0ff 0 var(--m), rgba(90, 140, 170, 0.18) var(--m) 100%);
-  box-shadow: 0 0 40px -10px rgba(88, 224, 255, 0.5);
-}
-.ac-num {
-  font-size: 42px;
-  line-height: 1;
-  color: #e8fbff;
-}
-.ac-lab {
-  display: block;
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  color: var(--text-3);
-  margin-top: 6px;
-}
-.ac-title {
-  font-size: 19px;
-  letter-spacing: 0.08em;
-  color: #bfeeff;
-}
-.ac-blurb {
-  font-size: 12px;
-  color: var(--text-2);
-  line-height: 1.55;
-  margin: 8px 0 0;
-}
-.ac-next {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(60, 170, 210, 0.28);
-  display: grid;
-  gap: 3px;
-}
-.ac-next b {
-  font-size: 13px;
-  letter-spacing: 0.1em;
-  color: var(--text);
-}
-.ac-next i {
-  font-style: normal;
-  font-size: 11px;
-  color: var(--text-3);
-}
-
 /* ----------------------------------------------------------- scheme notice */
-
-.acad-scheme {
-  margin-top: 26px;
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
-  gap: 20px;
-  align-items: center;
-  border-left: 2px solid var(--warn);
-}
-.acad-scheme.on {
-  border-left-color: #58e0ff;
-}
-.as-mark {
-  font-size: 15px;
-  letter-spacing: 0.06em;
-  text-align: center;
-  padding: 10px 0;
-  color: #04121a;
-  background: var(--warn);
-}
-.acad-scheme.on .as-mark {
-  background: #58e0ff;
-}
-.as-body b {
-  display: block;
-  font-family: var(--ui);
-  letter-spacing: 0.05em;
-  margin-bottom: 5px;
-}
-.as-body p {
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--text-2);
-}
-
-/* ----------------------------------------------------------------- modules */
-
-.acad-modules {
-  margin-top: 26px;
-  display: grid;
-  gap: 12px;
-}
-
-.amod {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 160px;
-  gap: 18px;
-  align-items: center;
-  padding: 18px 20px;
-  border: 1px solid var(--stroke);
-  border-left: 3px solid var(--c);
-  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 9%, transparent), rgba(4, 8, 16, 0.72) 42%);
-  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
-}
-.amod.rec {
-  border-color: var(--stroke-2);
-  box-shadow: 0 0 34px -18px var(--c);
-}
-.amod.locked {
-  opacity: 0.46;
-  filter: saturate(0.4);
-}
-.am-step {
-  font-size: 26px;
-  color: var(--c);
-  text-align: center;
-}
-.am-titles {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.am-name {
-  font-size: 20px;
-  letter-spacing: 0.08em;
-  color: var(--text);
-}
-.am-len {
-  font-size: 11px;
-  color: var(--text-4);
-}
-.am-flag {
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  padding: 3px 7px;
-  color: #04121a;
-  background: var(--c);
-}
-.am-purpose {
-  margin: 7px 0 8px;
-  font-size: 13px;
-  color: var(--text-2);
-  line-height: 1.55;
-  max-width: 660px;
-}
-/* The "only on the keys" line. Indented and keylined so it reads as a
-   footnote to the module rather than as more of its description. */
-.am-only {
-  margin: 0 0 12px;
-  padding-left: 12px;
-  border-left: 1px solid var(--stroke);
-  font-size: 12px;
-  color: var(--text-3);
-  line-height: 1.55;
-  max-width: 660px;
-}
-.am-only .eyebrow {
-  display: block;
-  margin-bottom: 3px;
-}
-.am-stats {
-  display: flex;
-  gap: 26px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-.am-stats b {
-  display: block;
-  font-size: 15px;
-  color: var(--text);
-  margin-top: 2px;
-}
-.am-track {
-  position: relative;
-  height: 6px;
-  margin-top: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  max-width: 660px;
-}
-.am-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, #ffffff), var(--c));
-}
-.am-gate {
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
-  width: 2px;
-  background: var(--gold-lit);
-  opacity: 0.85;
-}
-.am-right {
-  display: grid;
-  gap: 10px;
-  justify-items: end;
-}
-.am-stars {
-  display: flex;
-  gap: 3px;
-  font-size: 17px;
-  color: rgba(255, 255, 255, 0.14);
-}
-.am-stars .on {
-  color: var(--c);
-  text-shadow: 0 0 12px color-mix(in srgb, var(--c) 60%, transparent);
-}
-.am-lock {
-  text-align: right;
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  color: var(--text-3);
-}
-.am-lock i {
-  display: block;
-  font-style: normal;
-  letter-spacing: 0.04em;
-  margin-top: 3px;
-  color: var(--text-4);
-}
-
-/* -------------------------------------------------------------- the read */
-
-.acad-read {
-  margin-top: 22px;
-  border-left: 2px solid var(--c, #58e0ff);
-}
-.acad-read.empty {
-  border-left-color: var(--stroke-2);
-}
-.ar-none {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--text-3);
-}
-.ar-body {
-  display: grid;
-  grid-template-columns: 138px minmax(0, 1fr) auto;
-  gap: 20px;
-  align-items: center;
-}
-.ar-num {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.ar-num b {
-  font-size: 40px;
-  line-height: 1;
-  color: var(--c, #58e0ff);
-}
-.ar-num i {
-  font-size: 11px;
-  font-style: normal;
-  color: var(--text-4);
-}
-.ar-num .eyebrow {
-  margin-top: 6px;
-}
-.ar-fix {
-  margin: 0 0 12px;
-  font-size: 13px;
-  line-height: 1.62;
-  color: var(--text-2);
-}
-.ar-track {
-  position: relative;
-  height: 5px;
-  background: rgba(255, 255, 255, 0.07);
-}
-.ar-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--c, #58e0ff);
-  opacity: 0.75;
-}
-.ar-gate {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 2px;
-  background: var(--text-2);
-}
 
 /* ---------------------------------------------------------------- the laws */
 
 .acad-laws {
-  margin-top: 22px;
+  margin-top: 0;
 }
 .alaw-grid {
   display: grid;
@@ -400,46 +71,6 @@
 
 /* ----------------------------------------------------------------- ladder */
 
-.acad-ladder {
-  margin-top: 30px;
-}
-.al-rows {
-  display: grid;
-  gap: 2px;
-}
-.al-row {
-  display: grid;
-  grid-template-columns: 46px 190px minmax(0, 1fr);
-  gap: 14px;
-  align-items: center;
-  padding: 9px 10px;
-  border-left: 2px solid transparent;
-  color: var(--text-3);
-  font-size: 12px;
-}
-.al-row.held {
-  border-left-color: #58e0ff;
-  background: rgba(40, 130, 170, 0.12);
-  color: var(--text-2);
-}
-.al-row.held .al-name {
-  color: #bfeeff;
-}
-.al-name {
-  font-family: var(--ui);
-  letter-spacing: 0.12em;
-  font-size: 12px;
-  color: var(--text-4);
-}
-
-.acad-foot {
-  margin-top: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-}
-
 @media (max-width: 940px) {
   .acad-head {
     grid-template-columns: minmax(0, 1fr);
@@ -463,5 +94,180 @@
   }
   .al-blurb {
     display: none;
+  }
+}
+
+
+/* ------------------------------------------------------- academy, rebuilt
+   The nine module cards are a shared course path now (see coursepath.css);
+   what is left here is the page's own furniture. */
+.acad-mastery {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: none;
+  text-align: right;
+}
+.acad-mastery b {
+  font-size: var(--t-2xl);
+  line-height: 1;
+  color: var(--gold-hot);
+}
+.acad-mastery i {
+  font-style: normal;
+  font-family: var(--ui);
+  font-size: var(--t-tiny);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--accent);
+}
+.acad-mastery-next {
+  font-size: var(--t-micro);
+  color: var(--text-4);
+  letter-spacing: 0.1em;
+}
+
+.acad-scheme {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--warn);
+  margin-bottom: var(--sp-5);
+}
+.acad-scheme .as-mark {
+  padding: 6px 10px;
+  border: 1px solid var(--line-2);
+  background: none;
+  color: var(--warn);
+  font-size: var(--t-tiny);
+  letter-spacing: 0.14em;
+  flex: none;
+}
+.acad-scheme .as-body b {
+  display: block;
+  font-family: var(--ui);
+  font-size: var(--t-sm);
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+.acad-scheme .as-body p {
+  margin: 4px 0 0;
+  font-size: var(--t-tiny);
+  color: var(--text-3);
+  max-width: 76ch;
+}
+.acad-scheme .btn {
+  margin-left: auto;
+  flex: none;
+}
+
+/* The read, as the aside of the shared detail panel. */
+.cp-detail > .acad-read {
+  padding: var(--sp-5);
+  background: var(--s-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.acad-read .ar-num {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+.acad-read .ar-num b {
+  font-size: var(--t-2xl);
+  line-height: 1;
+  color: var(--warn);
+}
+.acad-read .ar-num i {
+  font-style: normal;
+  font-size: var(--t-tiny);
+  color: var(--text-3);
+}
+.acad-read .ar-label {
+  font-family: var(--ui);
+  font-size: var(--t-tiny);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.acad-read p {
+  margin: 0;
+  font-size: var(--t-tiny);
+  color: var(--text-2);
+  line-height: 1.6;
+}
+.acad-read .btn {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+/* ------------------------------------------------------------- reference */
+.acad-ref {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  flex-wrap: wrap;
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--line);
+}
+.acad-ref > .mono {
+  font-size: var(--t-micro);
+  letter-spacing: 0.14em;
+}
+.acad-ref-body {
+  flex-basis: 100%;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--sp-7);
+  margin-top: var(--sp-4);
+}
+
+.acad-titles {
+  display: flex;
+  flex-direction: column;
+}
+.acad-title {
+  display: grid;
+  grid-template-columns: 40px 130px 1fr;
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--line);
+  opacity: 0.45;
+}
+.acad-title.held {
+  opacity: 1;
+}
+.acad-title span {
+  font-size: var(--t-micro);
+  color: var(--text-4);
+}
+.acad-title b {
+  font-family: var(--ui);
+  font-size: var(--t-tiny);
+  letter-spacing: 0.18em;
+  color: var(--gold);
+}
+.acad-title p {
+  margin: 0;
+  font-size: var(--t-tiny);
+  color: var(--text-3);
+}
+.acad-note {
+  margin: var(--sp-4) 0 0;
+  font-size: var(--t-tiny);
+  color: var(--text-3);
+}
+
+@media (max-width: 1100px) {
+  .acad-ref-body {
+    grid-template-columns: 1fr;
   }
 }

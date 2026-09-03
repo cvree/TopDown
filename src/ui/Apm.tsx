@@ -104,7 +104,7 @@ export function Apm({ profile, focus, onPlay, onBack, onPlacement }: Props) {
 
   return (
     <div className="scroll">
-      <div className="wrap apm fade-up">
+      <div className="wrap wide apm fade-up">
         <header className="apm-head">
           <div>
             <div className="eyebrow">The lab · APM trainer</div>

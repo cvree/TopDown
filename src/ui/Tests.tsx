@@ -116,7 +116,7 @@ export function Tests({ profile, onRun, onBack }: Props) {
 
   return (
     <div className="scroll">
-      <div className="wrap tests fade-up">
+      <div className="wrap wide tests fade-up">
         {/* -------------------------------------------------------- header */}
         <header className="tests-head">
           <div className="tests-head-l">
