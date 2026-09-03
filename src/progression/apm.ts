@@ -11,7 +11,7 @@ import { DRILLS } from '../drills/catalog';
  * measurable — and it is wrong for a hand-speed trainer, where the whole
  * activity is *choosing a rung and holding it until it is easy*.
  *
- * So the APM section is built the other way round: thirteen modes, ten
+ * So the APM section is built the other way round: thirteen lab modes, ten
  * explicit levels each, one record per level. A level is a place you go back
  * to, beat, and leave behind. Your best on level 6 cannot be taken away by a
  * bad run on level 7, and nothing about the ladder is inferred — the number
@@ -69,82 +69,82 @@ export interface ApmMode {
  */
 const MODE_TABLE: Omit<ApmMode, 'par' | 'order'>[] = [
   {
-    id: 'apmAim',
+    id: 'apmPulse',
     kind: 'isolated',
-    counts: 'A click on the mark.',
-    pressure: 'Nothing but the rate. This is the ceiling on everything else you do with a mouse.',
+    counts: 'A key, on the pad that is lit.',
+    pressure: 'Nothing but cadence — except that the light repeats, so a hand on autopilot answers the wrong pad.',
   },
   {
-    id: 'apmPrecision',
-    kind: 'isolated',
-    counts: 'A click through the centre of a small drifting mark.',
-    pressure: 'Graded in pixels, and the marks shrink as the chain grows.',
-  },
-  {
-    id: 'apmKeys',
+    id: 'apmSequence',
     kind: 'isolated',
     counts: 'The front key of a rolling queue.',
     pressure: 'No mouse at all, and the window shrinks as you speed up.',
   },
   {
-    id: 'apmDodge',
+    id: 'apmChord',
     kind: 'isolated',
-    counts: 'A movement order.',
-    pressure: 'Charges pull you somewhere, telegraphs push you off it, and standing still expires.',
+    counts: 'A pair of keys, landed together.',
+    pressure: 'Graded on the gap between your two fingers, down to under fifty milliseconds.',
   },
   {
-    id: 'apmKite',
+    id: 'apmGate',
     kind: 'isolated',
-    counts: 'The attack and the step out of it.',
-    pressure: 'Holding a full attack cycle for a minute without throwing a windup away.',
+    counts: 'A key on a live pad — and the stillness on a barred one.',
+    pressure: 'Half the prompts are asking you not to press, and pressing them costs the chain.',
   },
   {
-    id: 'apmSpacing',
+    id: 'apmBuffer',
     kind: 'isolated',
-    counts: 'A reposition, on the beat.',
-    pressure: 'Max range, step in, disengage — and the beat accelerates with your flow.',
+    counts: 'One key, inside the last fraction of a second before a window opens.',
+    pressure: 'Early is eaten, late is only reacting. The clock is visible and slightly irregular.',
   },
   {
-    id: 'apmLastHit',
+    id: 'apmCancel',
     kind: 'isolated',
-    counts: 'An attack order on the right bar.',
-    pressure: 'A live lane with the next wave already walking, and swinging at a healthy minion is a stray.',
+    counts: 'A start, and the cut that follows it.',
+    pressure: 'The second press only means anything relative to the first, and its window closes to a tenth of a second.',
   },
   {
-    id: 'apmSmite',
+    id: 'apmVector',
     kind: 'isolated',
-    counts: 'One key, inside a window you do not control.',
-    pressure: 'Three objectives in three places, and being stood on the camp early is the whole skill.',
+    counts: 'A movement command, in the called direction.',
+    pressure: 'Nothing to dodge and nowhere to be — only how fast a decision becomes a heading.',
   },
   {
-    id: 'apmAim2',
-    kind: 'combined',
-    counts: 'A click on the lowest-numbered mark.',
-    pressure: 'Speed now costs you a read, every single time.',
+    id: 'apmField',
+    kind: 'isolated',
+    counts: 'A click inside a pad.',
+    pressure: 'Graded in units from the centre, and the pads shrink as the chain grows.',
   },
   {
-    id: 'apmAimMap',
+    id: 'apmHandoff',
     kind: 'combined',
-    counts: 'Clicks in the middle, D or F at the rim.',
-    pressure: 'Two screens and one pair of hands, neither allowed to wait for the other.',
+    counts: 'A click, then a key, then a click.',
+    pressure: 'Never twice with the same hand, and the seam between them is the measurement.',
   },
   {
-    id: 'apmDodgeCd',
+    id: 'apmSplit',
     kind: 'combined',
-    counts: 'A movement order, and four cooldowns spent on sight.',
-    pressure: 'Both hands at once — your feet are never a reason to sit on an ability.',
+    counts: 'The centre queue, and the rim alerts on their own keys.',
+    pressure: 'Two demands, one pair of hands, and neither allowed to wait for the other.',
   },
   {
-    id: 'apmDefKite',
+    id: 'apmUpkeep',
     kind: 'combined',
-    counts: 'The attack and the step, running backwards.',
-    pressure: 'Every step now has a direction it has to be in, with a diver closing.',
+    counts: 'A wheel spent inside its grace period.',
+    pressure: 'Self-paced: nothing prompts you, four clocks run at rates that do not divide, and one of them is locked.',
   },
   {
-    id: 'apmLastHit2',
+    id: 'apmSwitch',
     kind: 'combined',
-    counts: 'An attack order on the right bar, contested.',
-    pressure: 'An enemy laner taking the same farm, and the HUD keeping score of the race.',
+    counts: 'A key or a click, in whichever bank was called.',
+    pressure: 'The prompt keeps changing hand shape, and the mode prints what that costs you.',
+  },
+  {
+    id: 'apmSustain',
+    kind: 'combined',
+    counts: 'A key, on a beat that never stops getting faster.',
+    pressure: 'Drop two beats inside one step and the run ends where your hands actually end.',
   },
 ];
 

@@ -6,7 +6,7 @@ thing that feels rewarding should be the thing that actually makes you better.
 It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
 drawn on the ground where the thing it is about actually is. Twenty-nine
-drills — including a thirteen-mode APM trainer with ten explicit levels per
+drills — including a thirteen-bench APM lab with ten explicit levels per
 mode — a ranked mechanical skill system driven by measured performance rather
 than time played, a champion path that teaches one champion properly, and a
 results screen designed so you can see exactly what you did and what it cost
@@ -57,8 +57,8 @@ npm run build      # production bundle
 | **Condemn** | Wall stun rate, chances missed | Standing on the right side of the wall *before* the fight |
 | **Night Hunter** | Kit execution under a live 1v2 | Playing Vayne rather than an ADC who owns her abilities |
 
-The APM trainer's thirteen modes are listed in their own section below, and
-the twelve skill tests in theirs.
+The APM lab's thirteen benches are listed in their own section below, and the
+twelve skill tests in theirs.
 
 ### Last Hit is a lane
 
@@ -126,13 +126,37 @@ health bar.
 The AI perceives you through a delayed snapshot buffer, so its reaction time is
 a real latency rather than a fudge factor.
 
-## The APM trainer
+## The APM lab
 
-Thirteen modes over one engine (`src/drills/apm/`), all measured the same way —
-**correct commands per minute** — and all played on a ladder of **ten explicit
-levels**. It is its own section of the client (`APM` in the nav), because it is
-the part of the trainer you open when your hands are the thing you want to work
-on rather than your reads, and it is run differently from everything else here.
+Thirteen benches over one engine (`src/drills/apm/`), all measured the same way
+— **correct commands per minute** — and all played on a ladder of **ten
+explicit levels**. It is its own section of the client (`APM` in the nav)
+because it is run differently from everything else here, and because it is
+deliberately *not the game*.
+
+### Why it left the Rift
+
+The APM trainer used to be the game with a stopwatch on it: a lane to farm,
+camps to smite, a duelist to kite. That taught the game a second time and
+measured hands only incidentally — every mode carried minions, health bars,
+range checks and pathing, and every one of those is noise in a measurement of
+whether your fingers went down at the right moment.
+
+So the section moved out. There is no champion to fight, nothing to kill and
+nowhere to be: a bench of pads, gates, wheels and clocks, hit-tested as
+geometry rather than spawned as units, with the body that the simulation needs
+hidden outright in every mode but one. What is left in the measurement is the
+thing the section is named after — **pressing**. How fast two fingers trade
+off. How far apart your hands are when they think they are simultaneous. How
+early you can commit to a window that has not opened. What it costs you to move
+your hand from one bank of keys to another.
+
+Distance from the game is the point; applicability is bought back a different
+way. Every bench names the moment it is a slice of, and the transfer is stated
+rather than simulated: a gate that eats an early press is the cast you buffer
+into, a barred pad you have to leave alone is the cooldown you do not spend on
+a bait, a hand change measured in milliseconds is the summoner key mid-combo.
+The lab never shows you the moment. It drills the press the moment is made of.
 
 ### A level is a difficulty, not a suggestion
 
@@ -166,168 +190,93 @@ record means anything.
   a rate record — a rate is a rate — and never a score record, because a longer
   run scores more by construction.
 
-Modes are split the way the drill is built rather than by theme: **isolated**
-modes ask one thing of one pair of hands, **combined** modes run two demands at
-once and are worth opening once the isolated version of each has stopped being
-interesting.
+Benches are split the way the drill is built rather than by theme: **isolated**
+benches ask one thing of one pair of hands, **combined** benches run two demands
+at once and are worth opening once the isolated version of each has stopped
+being interesting.
 
-| Mode | Kind | The command it counts | What makes it hard |
-| --- | --- | --- | --- |
-| **Aim** | isolated | A click on the mark | Nothing but the rate. This is the ceiling on everything else |
-| **Aim 2** | combined | A click on the *lowest-numbered* mark | Speed now costs you a read |
-| **Aim + Map** | combined | Clicks in the middle, D or F at the rim | Two screens, one pair of hands |
-| **Mouse Precision** | isolated | A click through the centre of a small drifting mark | Graded in pixels; the marks shrink as your chain grows |
-| **Key Coordination** | isolated | The front key of a rolling queue | No mouse at all, and the window shrinks as you speed up |
-| **Dodge** | isolated | A movement order | Charges pull you somewhere, telegraphs push you off it |
-| **Dodge + Cooldown** | combined | A movement order, and four cooldowns spent on sight | Both hands, at once, neither allowed to wait |
-| **Kiting** | isolated | The attack *and* the step | Holding a full attack cycle without throwing a windup away |
-| **Defensive Kiting** | combined | The same pair, running backwards | Every step now has a direction it has to be in |
-| **Last Hit** | isolated | An attack order on the right bar | The lane above, with the next wave already walking |
-| **Last Hit 2** | combined | The same, contested | An enemy laner taking the same farm, and the HUD keeping score |
-| **Spacing** | isolated | A reposition, on the beat | Max range → step in → disengage, and the beat accelerates |
-| **Smite** | isolated | One key, in a window you do not control | Three objectives in three places and a rival reaching for the same key |
+| Bench | Kind | What it isolates | Why it is hard | What it is a slice of |
+| --- | --- | --- | --- | --- |
+| **Pulse** | isolated | Cadence, with one bit of choice | The light repeats about a third of the time, so a hand on autopilot answers the wrong pad | The trill under a combo: two abilities, two fingers, nothing travelling |
+| **Sequence** | isolated | Ordered recall | Six keys roll, only the front one is legal, and the window shrinks as you speed up | A long combo arriving in order when you are not thinking about it |
+| **Chord** | isolated | Simultaneity | Both keys inside a tolerance that closes to under 50ms; a split pair scores nothing | Flash plus an ability — the pairs that only work on one frame |
+| **Go / No-Go** | isolated | Inhibition | Barred pads want *nothing*, and pressing one costs the chain | The cooldown you do not spend on a bait |
+| **Buffer** | isolated | Anticipation | Be pressing before the window opens: early is eaten, late is only reacting | Queueing the next cast into the tail of the current one |
+| **Cancel** | isolated | The second half of a pair | The cut has to land after the commit and before the tail ends, in a tenth of a second | Cutting a backswing the instant it is free |
+| **Vector** | isolated | The movement command | A heading, on call, held long enough to mean it — nothing to dodge, nowhere to be | One aimed reposition instead of two corrections |
+| **Field** | isolated | Cursor placement | Graded in units from the centre, and the pads shrink as you chain | The ceiling on every command that starts with the cursor being somewhere |
+| **Handoff** | combined | The seam between your hands | Click, key, click, key — never twice in a row | Cast, then reposition: the pair that overlaps rather than queues |
+| **Split** | combined | Divided attention | A centre queue that never stops and rim alerts on their own keys | Answering the minimap without the combo falling apart |
+| **Upkeep** | combined | Self-paced pressing | Four clocks that do not divide into each other, nothing prompting you, and one of them locked | Never sitting on a cooldown because your attention was elsewhere |
+| **Switch** | combined | The cost of a hand change | The prompt keeps moving between near bank, far bank and mouse | The summoner key mid-combo — a different hand shape, and the shape is the cost |
+| **Sustain** | combined | The rate you can be *held* to | The beat accelerates every twelve seconds; two dropped inside one step ends the run | Minute three of a fight rather than second three of one |
 
-**Speed alone is not a score.** Every mode routes its inputs through three
-verbs — a hit, a fumble, or a stray — and the number the score is built on is
-*correct* actions per minute, not raw ones. The lane modes are the clearest
-case: they run the same lane the Rhythm drill does, and an attack thrown at a
-healthy minion is recorded as a stray, because pushing the wave for free is
-precisely an input that meant nothing. Mashing the field raises the rate
+**Speed alone is not a score.** Every bench routes its inputs through four
+verbs — a hit, a **hold**, a fumble, or a stray — and the number the score is
+built on is *correct* actions per minute, not raw ones. Mashing raises the rate
 on the HUD and leaves the scored rate exactly where it was; the headless suite
-asserts it, and a random masher scores 2% where a player scores 100%. Repeating
-an order you already gave is not an action either, so a macro cannot inflate
-the count.
+asserts it, and a random masher scores under 5% where a bot playing properly
+scores 100%. Repeating an order you already gave is not an action either, so a
+macro cannot inflate the count.
+
+**Restraint is paid for, and is not a rate.** `hold()` is the verb the lab
+added, and it exists because a mode about withholding cannot pay for it with a
+hit: that would put a number in "correct actions per minute" that no finger
+produced. So a barred pad ridden out pays score, protects the chain, counts
+towards how much of what was asked you answered — and moves the rate not one
+action. In Go / No-Go a player who presses everything is very fast and scores
+close to nothing, which is the correct outcome rather than a punishment.
 
 **The flow tiers are the feel and the read at the same time.** Chained correct
 actions climb five tiers — IN RHYTHM, HOT HANDS, BLAZING, TRANSCENDENT — each
 worth a bigger multiplier (×1.35 up to ×3.2) and each audibly different: the
-confirmation pitch rises with the chain, the arena bed swells, and from the
-second tier a metronome appears and accelerates with you. Losing the chain
-takes all of it away in one sound. You can tell how a run is going with your
-eyes shut, and the score is mostly made of the multiplier, so protecting a
-streak matters more than any single input.
+confirmation pitch rises with the chain, the bed swells, and from the second
+tier a metronome appears and accelerates with you. Losing the chain takes all
+of it away in one sound. You can tell how a run is going with your eyes shut,
+and the score is mostly made of the multiplier, so protecting a streak matters
+more than any single input.
 
-**Inside a rung, the drill paces itself to you.** Spawn rates, prompt windows
-and target sizes read your current flow rather than a clock, so the mode sits
-just past the edge of whatever you are doing at the time. The rung sets how far
-past that edge it sits; nothing about it moves between runs.
+**Inside a rung, the bench paces itself to you.** Prompt windows, tolerances,
+pad sizes and clock rates read your current flow rather than a wall clock, so
+the mode sits just past the edge of whatever you are doing at the time. The
+rung sets how far past that edge it sits; nothing about it moves between runs.
 
-**Both control schemes count.** Under WASD a movement command is a key going
-down and a heading changing rather than a click on the ground, so the movement
-modes count those instead — the step out of a backswing scores identically
-whichever hand took it, and the key-coordination prompt prints the key your
-hand is actually on rather than the slot's name.
+**Both control schemes count.** The prompts print the key your hand is actually
+on, read from your live bindings, and Vector — the one bench with a body to
+steer — is judged on the heading a command sends you along, whether that
+command was a click on the ground or a key going down. A WASD command deferred
+by the engine's rate limit is now counted late rather than dropped, which it
+previously was.
 
-Modes that ask you to survive something give you a deep health pool on purpose:
-the cost of standing in a telegraph here is your multiplier, not the run.
-Ratings from these modes feed a tenth skill axis, **APM**, alongside the nine
+**Every bench can say what correct play is.** Each one implements a `solution()`
+that names the keys, the click or the heading a perfect player would produce
+this instant — including the modes where the answer is *nothing*. The headless
+suite plays all thirteen through that one interface at a human-capped cadence,
+so a new bench is covered the moment it exists, and a bench that cannot state
+what correct play is does not ship.
+
+Ratings from these benches feed a tenth skill axis, **APM**, alongside the nine
 the rest of the trainer already measured — the ladder is how you train it, the
 rank is what it is worth.
 
-**The section shows the whole ladder at once.** Modes down the left with their
-ten rungs compressed into ten pips; the open mode on the right with what it
-counts, what makes it hard, the par rate a strong run holds, and every rung
-laid out with its stars, its best, its rate and its score. The rung you have
-not cleared yet is marked START HERE; the ones above it are visible and locked,
+**The section shows the whole ladder at once.** Benches down the left with
+their ten rungs compressed into ten pips; the open one on the right with what
+it counts, what makes it hard, the par rate a strong run holds, and every rung
+laid out with its stars, its best, its rate and its score. The rung you have not
+cleared yet is marked START HERE; the ones above it are visible and locked,
 because seeing what is coming is half the reason to draw a ladder. The drill
-rail on the home screen shows each mode's current rung instead of a score, and
+rail on the home screen shows each bench's current rung instead of a score, and
 the results screen says which rung you played, what it did to your record, and
 what it opened.
-
-## The Vayne path
-
-The ladder above rates ten general axes and does not care which champion you
-play. The champion path is the other thing: one champion, four stages in the
-order they actually have to be learned, each gating the next.
-
-| Stage | It teaches | Cleared at |
-| --- | --- | --- |
-| **1 · Tumble** | Q in the backswing, every time it is up, without throwing an attack away | 55% |
-| **2 · Silver Bolts** | Finish every stack. Switching at two is the mistake that defines a bad Vayne | 58% |
-| **3 · Condemn** | Position so terrain is behind them, then turn a knockback into a 1.5s stun | 58% |
-| **4 · Night Hunter** | All of it at once, with Final Hour, against two opponents and real walls | 60% |
-
-**The kit is modelled, not gestured at.** Tumble is a dash whose entire skill is
-*when* you press it — mid-windup it throws the attack away and is counted
-against you, in the backswing it is free distance and an empowered shot. Silver
-Bolts is a counter that only pays on three consecutive hits against the *same*
-target, and every stack you abandon is recorded. Condemn knocks a target 430
-units along the line from you and only stuns if terrain is waiting at the end
-of it, which makes it a question about where you chose to stand. Final Hour
-shortens the tumble, adds damage, and hides you for a second on each tumble.
-
-**It tells you which habit to go and fix.** Four stages produce twenty numbers
-between them, and twenty numbers teach nothing. The path screen reads your
-*last* run on each stage — deliberately the last rather than the best, because
-"what should I work on" is a question about how you are playing now — measures
-every habit against the value at which it stops costing you anything, and shows
-the one that is furthest off, in a sentence, with the drill that fixes it
-attached to a button.
-
-**Mastery is a ceiling, not a total.** Each stage stores your *best* run and
-the difficulty you played it at; mastery is the weighted blend of those, so a
-worse run never costs you anything and grinding at a level you have already
-beaten converges and stops. Titles run from RECRUIT to **THE GREATEST VAYNE**,
-which needs every stage at three stars at a difficulty with nothing left to
-teach you — and the screen that awards it says plainly that it is a claim
-about these drills, not about anybody's ranked ladder.
-
-### Playing her on WASD
-
-Vayne is the champion the two control schemes disagree about, so the trainer
-takes a position rather than leaving it to chance.
-
-**Your keys aim the tumble.** Under click-to-move the question never arises:
-the cursor is already where you asked to walk, so aiming a dash at it is the
-same instruction twice. Under WASD it is a real fork — the mouse is holding
-your *target* and the keys are holding your *direction*, and those point
-opposite ways at exactly the moment it matters, which is while you are kiting
-something. So by default the keys win: Tumble goes where you are holding, and
-falls back to the cursor when your hand is off the keys. League's literal
-behaviour is one setting away for anyone who wants the transfer to be exact —
-**Settings → Dash aim** — and it changes nothing about scoring. The headless
-suite runs the same seed both ways: with the cursor parked on the pursuer
-throughout, every tumble under `cursor` goes into the fight and every tumble
-under `hands` goes out of it.
-
-**You can see where the dash ends.** While Tumble is up, a lane and a landing
-ring lie on the floor showing where you would arrive, clipped by whatever
-terrain would stop you first. It brightens in the backswing — the window the
-whole champion is built on — and disappears the moment the cooldown starts, so
-it never becomes furniture.
-
-**The trigger is measured.** Under direct control the champion refuses to
-attack while a direction is held, which means WASD has a mistake clicking
-cannot make: holding the keys past the moment the shot was ready. Every one of
-those seconds is damage a click player would already have dealt, and it is
-completely invisible unless something counts it. So the HUD carries a
-**TRIGGER** figure — milliseconds of held fire per attack — the floor says
-`LET GO` when a hold outlasts a comfortable reaction time, and the results
-screen prices it against your attack cycle. A clean release reads under 20ms;
-never releasing at all scores zero, and the suite asserts both.
-
-**The coaching knows which hand you are using.** The same lost attack is "you
-clicked through the windup" with a mouse and "you never let go of the key" with
-a keyboard, and only one of those sentences is any use to the person reading
-it. Windups broken by a direction are counted separately from windups broken by
-a click, tumbles that closed the gap instead of opening it are counted at all,
-and the advice line names the fix that applies to your hands.
-
-**Her kit is on different keys, and the client says so.** W, A, S and D are
-spoken for, so the ability row moves one seat over: Condemn is on `R`, Final
-Hour on `F`. A champion drill prints the key each ability is *actually* bound
-to rather than a generic "abilities" hint, and the path screen carries the
-whole row — read from your live bindings, so a rebound layout says what it
-really is — alongside the three laws that scheme adds.
 
 ## Skill tests
 
 Twelve short instruments that sit beside the drills rather than inside them.
 
 The trainer now asks about your hands three different ways, on purpose. A
-**drill** trains a habit over sixty seconds in the arena. The **APM trainer**
-measures how much correct work those hands can sustain while the arena keeps
-moving. A **test** measures a single event on a bare field with nothing else
+**drill** trains a habit over sixty seconds in the arena. The **APM lab**
+measures the press itself with the game taken away — how much correct work your
+hands sustain on a bare bench. A **test** measures a single event on a bare field with nothing else
 happening — twenty to sixty seconds, one number, nowhere to hide. Reaction,
 prediction, recall and arithmetic under a closing window: the parts of the game
 nobody practises because nobody measures them.
@@ -428,11 +377,16 @@ depends on:
 - 1v1 is winnable; 1v2 and 1v3 cost progressively more health; all three are
   winnable, averaged across seeds.
 - The same policy performs worse at higher difficulty.
-- **Every APM mode rewards playing it, refuses to reward idling, and reports a
-  real actions-per-minute figure.** A bot that clicks at random produces the
-  highest raw APM in the suite and scores 2%, against 100% for the same bot
-  playing properly — the check that keeps an APM trainer from degenerating into
-  a click-speed test.
+- **Every lab bench rewards playing it, refuses to reward idling, and reports a
+  real actions-per-minute figure.** One policy plays all thirteen off each
+  bench's own `solution()`, so a new bench is covered the moment it exists. A
+  bot that mashes at random produces the highest raw APM in the suite and
+  scores under 5%, against 100% for the same bot playing properly — the check
+  that keeps an APM trainer from degenerating into a click-speed test.
+- **Restraint is measured and is not a rate.** In Go / No-Go a bot that holds
+  the barred pads scores 100% at 127 APM; a bot that presses everything reaches
+  nearly 500 APM and scores under 5%, and the held prompts are reported
+  separately from the pressed ones.
 - **The APM ladder is monotonic and honest.** Rungs get harder in order, a
   fresh ladder opens on level 1 only, a run short of the gate opens nothing, a
   clear opens one rung and an outright clear opens two, a worse run cannot
@@ -582,10 +536,10 @@ src/engine/     simulation: world, combat, AI, metrics, audio, input, paint
 src/engine/vayne.ts   the champion kit: tumble, bolts, condemn, final hour
 src/gfx/        the 3D renderer: scene, terrain, walls, champions, decals, VFX
 src/drills/     one file per drill; each owns its rules and its scoring
-src/drills/apm/ the APM trainer: one engine, thirteen modes over it
+src/drills/apm/ the APM lab: one engine and one bench, thirteen modes over them
 src/tests/      the twelve skill tests: one runner interface, one drawing kit
 src/progression/ rating maths, rank ladder, champion path, APM ladder, persistence
-src/ui/         React shell, HUD, results, profile, rank-up, Vayne, tests, APM ladder
+src/ui/         React shell, HUD, results, profile, rank-up, Vayne, tests, the lab
 tools/          headless test harnesses
 docs/           research notes: the out-of-game practice landscape
 ```

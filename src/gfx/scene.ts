@@ -6,7 +6,7 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { RiftCamera } from './camera';
 import { GradeShader } from './postfx';
-import { buildArena, type Arena } from './terrain';
+import { buildArena, type Arena, type ArenaStyle } from './terrain';
 
 /**
  * Owns the WebGL context, the lighting rig and the post chain. Everything that
@@ -53,8 +53,15 @@ export class RiftScene {
   private time = 0;
   private disposed = false;
 
-  constructor(canvas: HTMLCanvasElement, bounds: { w: number; h: number }, accent = '#58e0ff', seed = 7) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    bounds: { w: number; h: number },
+    accent = '#58e0ff',
+    seed = 7,
+    style: ArenaStyle = 'rift',
+  ) {
     this.bounds = bounds;
+    const lab = style === 'lab';
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -70,12 +77,15 @@ export class RiftScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    this.scene.fog = new THREE.Fog(0x1b2c4a, 3100, 8200);
+    // The bench sits in the dark. The stadium sits in dusk.
+    this.scene.fog = lab ? new THREE.Fog(0x070a11, 2200, 6200) : new THREE.Fog(0x1b2c4a, 3100, 8200);
 
     // ------------------------------------------------------------- lighting
     // Warm key from the upper left, cool bounce from behind. Two lights and a
     // hemisphere is all a stylised look needs; more just muddies the read.
-    this.sun = new THREE.DirectionalLight(0xffd6a0, 3.4);
+    // Instrument light rather than sunset: cool, overhead, and much flatter,
+    // so a pad's own colour is the only thing on the floor that means anything.
+    this.sun = new THREE.DirectionalLight(lab ? 0xdfeaff : 0xffd6a0, lab ? 2.1 : 3.4);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0016;
@@ -92,11 +102,11 @@ export class RiftScene {
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
 
-    this.rim = new THREE.DirectionalLight(0x7fb4ff, 1.45);
+    this.rim = new THREE.DirectionalLight(lab ? 0x6f90c8 : 0x7fb4ff, lab ? 0.8 : 1.45);
     this.rim.position.set(bounds.w * 0.5 + 1400, 900, bounds.h * 0.5 - 1600);
     this.scene.add(this.rim);
 
-    this.hemi = new THREE.HemisphereLight(0x8fb6e8, 0x4a4030, 0.95);
+    this.hemi = new THREE.HemisphereLight(lab ? 0x9fc0e8 : 0x8fb6e8, lab ? 0x141a24 : 0x4a4030, lab ? 0.7 : 0.95);
     this.scene.add(this.hemi);
 
     // ------------------------------------------------------------------ sky
@@ -107,9 +117,9 @@ export class RiftScene {
         depthWrite: false,
         fog: false,
         uniforms: {
-          uTop: { value: new THREE.Color('#0e1c33') },
-          uMid: { value: new THREE.Color('#2b4a72') },
-          uBottom: { value: new THREE.Color('#6a7a76') },
+          uTop: { value: new THREE.Color(lab ? '#04060b' : '#0e1c33') },
+          uMid: { value: new THREE.Color(lab ? '#080d16' : '#2b4a72') },
+          uBottom: { value: new THREE.Color(lab ? '#0c1220' : '#6a7a76') },
           uGlow: { value: new THREE.Color(accent) },
         },
         vertexShader: `
@@ -136,7 +146,7 @@ export class RiftScene {
     this.scene.add(this.sky);
 
     // ---------------------------------------------------------------- arena
-    this.arena = buildArena(bounds.w, bounds.h, seed, accent);
+    this.arena = buildArena(bounds.w, bounds.h, seed, accent, style);
     this.world.add(this.arena.group);
     this.scene.add(this.world);
 

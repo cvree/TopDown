@@ -107,6 +107,7 @@ export class OverlayHud {
     // bar: a permanently full one would only compete for the eye with the
     // bars that actually matter.
     if (a.unitKind === 'turret') return;
+    if (a.hidden) return;
     const isPlayer = a.id === opts.playerId;
     const minion = !!a.isMinion;
     const ally = a.team === 'player';

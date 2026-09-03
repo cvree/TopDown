@@ -187,7 +187,16 @@ export function GameView({
     doneRef.current = false;
 
     const bounds = arenaFor(drill);
-    const renderer = new RiftRenderer(canvas, overlay, bounds, meta.accent, seed % 997);
+    // The APM section is played on the bench rather than in the stadium: the
+    // same floor, with everything that belongs to the game switched off.
+    const renderer = new RiftRenderer(
+      canvas,
+      overlay,
+      bounds,
+      meta.accent,
+      seed % 997,
+      meta.group === 'APM' ? 'lab' : 'rift',
+    );
     renderer.setQuality(settings.lowFx ? 'low' : 'high');
     if (meta.zoom !== undefined) renderer.setZoom(meta.zoom);
     const minimap = new Minimap(minimapCanvas);
@@ -295,10 +304,15 @@ export function GameView({
 
       elScore.textContent = snap.score.toLocaleString();
 
+      // A drill with no health pool — the lab benches, where nothing can hurt
+      // you and there is no body to hurt — shows no bar at all. A permanently
+      // full one is a question the mode never asks.
+      const pooled = snap.maxHp > 1;
+      elHp.parentElement?.classList.toggle('empty', !pooled);
       const hpPct = Math.max(0, (snap.hp / Math.max(1, snap.maxHp)) * 100);
-      elHp.style.width = `${hpPct}%`;
-      elHp.classList.toggle('low', hpPct < 30);
-      elHpText.textContent = snap.maxHp > 1 ? `${Math.round(snap.hp)} / ${Math.round(snap.maxHp)}` : '—';
+      elHp.style.width = `${pooled ? hpPct : 0}%`;
+      elHp.classList.toggle('low', pooled && hpPct < 30);
+      elHpText.textContent = pooled ? `${Math.round(snap.hp)} / ${Math.round(snap.maxHp)}` : 'NO POOL';
 
       // The attack-cycle bar. This is the drill's whole thesis made visible:
       // amber means committed, green means the backswing is yours to cancel.

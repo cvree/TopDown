@@ -35,14 +35,14 @@ interface Props {
 }
 
 /**
- * THE APM TRAINER.
+ * THE LAB — the APM trainer's own screen.
  *
  * The rest of the client hides difficulty on purpose: it holds you in the band
  * where a rating is measurable and never asks you to choose. That is the right
  * shape for a ladder and the wrong shape for hand speed, where the activity
  * *is* choosing a rung and staying on it until it stops being hard.
  *
- * So this screen is the opposite of the drill rail. Thirteen modes down the
+ * So this screen is the opposite of the drill rail. Thirteen benches down the
  * left, split by whether they ask one thing of your hands or two. One mode
  * open on the right, with its ten levels laid out as a ladder you can see the
  * whole of: what you scored on each, how fast you were, how many stars you
@@ -107,13 +107,16 @@ export function Apm({ profile, focus, onPlay, onBack, onPlacement }: Props) {
       <div className="wrap apm fade-up">
         <header className="apm-head">
           <div>
-            <div className="eyebrow">APM trainer</div>
-            <h1 className="display apm-h1">THIRTEEN MODES, TEN LEVELS EACH</h1>
+            <div className="eyebrow">The lab · APM trainer</div>
+            <h1 className="display apm-h1">PRESSING, WITH THE GAME TAKEN AWAY</h1>
             <p className="dim apm-lead">
-              Every mode counts the same thing — <b>correct</b> commands per minute — and every mode has ten
-              explicit levels. A level is a difficulty, not a suggestion: the rung you pick is the rung the
-              drill is played at, your record on it is kept separately, and clearing it opens the next one.
-              Nothing here adapts behind your back, so this run and the last one are comparable.
+              No minions, no camps, nothing fighting back — a bench of pads, gates and clocks, because what
+              is being measured here is your hands and everything else on the screen was noise in the
+              measurement. Each mode isolates one property of a press: cadence, order, simultaneity,
+              restraint, anticipation, the second half of a pair, the cost of moving your hand. Every one of
+              them counts the same thing — <b>correct</b> commands per minute — and every one names the
+              moment in a real game it is a slice of. A level is a difficulty, not a suggestion: the rung you
+              pick is the rung it is played at, and nothing adapts behind your back.
             </p>
           </div>
 
@@ -141,7 +144,7 @@ export function Apm({ profile, focus, onPlay, onBack, onPlacement }: Props) {
             <i>{bestApmMode ? `in ${bestApmMode}` : 'correct actions a minute'}</i>
           </div>
           <div>
-            <span className="eyebrow">Modes opened</span>
+            <span className="eyebrow">Benches opened</span>
             <b className="mono">
               {started} / {APM_MODES.length}
             </b>
@@ -329,7 +332,8 @@ export function Apm({ profile, focus, onPlay, onBack, onPlacement }: Props) {
           <p className="apm-foot-note">
             Mastery weights the top of each ladder: three stars on level 10 is worth ten times three stars on
             level 1, because it is. These runs also feed the <b>APM</b> axis of the general rating — the
-            ladder is how you train it, the rank is what it is worth.
+            ladder is how you train it, the rank is what it is worth. The lab is deliberately not the game:
+            what transfers is the press, and every bench says which press it is.
           </p>
         </section>
 

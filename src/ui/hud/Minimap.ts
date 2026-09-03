@@ -64,7 +64,7 @@ export class Minimap {
     }
 
     for (const a of world.actors) {
-      if (!a.alive) continue;
+      if (!a.alive || a.hidden) continue;
       const isPlayer = a.id === world.playerId;
       const ally = a.team === 'player';
       const turret = a.unitKind === 'turret';
