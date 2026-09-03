@@ -11,7 +11,7 @@ import { createDrill, arenaFor } from '../src/drills';
 import { APM_DRILL_IDS, type LabSolution } from '../src/drills/apm';
 import { DRILLS, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
-import type { InputEventKind, InputSystem, MovementScheme } from '../src/engine/input';
+import { InputSystem, WASD_BINDINGS, type AbilitySlot, type InputEventKind, type MovementScheme } from '../src/engine/input';
 import { dist, norm } from '../src/engine/math';
 import { incomingDamage } from '../src/engine/lane';
 import type { VayneKit } from '../src/engine/vayne';
@@ -48,6 +48,8 @@ type Policy =
   | 'lastHit'
   | 'wasd'
   | 'wasdHold'
+  | 'wasdMash'
+  | 'wasdCommand'
   | 'vayneTumble'
   | 'vayneBolts'
   | 'vayneCondemn'
@@ -395,6 +397,56 @@ const runDrill = (
             }
             const a = session.rng.angle();
             input.dir = { x: Math.cos(a), y: Math.sin(a) };
+            break;
+          }
+          case 'wasdMash': {
+            // Never lets go of the keys and mashes the attack command.
+            //
+            // The premise of the whole scheme is on trial here: an attack
+            // command plants your feet until the shot leaves, so a command
+            // fired half a cycle early buys nothing but standing still. If
+            // mashing outscored timing, the attack command would be a cheat
+            // code rather than a mechanic.
+            reactTimer = 0.06;
+            if (!target) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            input.push({ kind: 'attackMove', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+            const away = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            input.dir = { x: -away.y, y: away.x };
+            break;
+          }
+          case 'wasdCommand': {
+            // The other legitimate WASD rhythm: keep the keys down the whole
+            // run and buy every attack with a command timed onto the tick.
+            // It should land in the same band as releasing the keys — it is
+            // the same skill, expressed with the other hand — and it must not
+            // beat it, because nothing about it is harder.
+            reactTimer = 0.02;
+            if (!target) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const dC = dist(p.pos, target.pos);
+            const inRangeC = dC - target.radius <= p.attack.range;
+            if (p.attackCd <= 0.001 && p.phase !== 'windup' && inRangeC) {
+              input.push({ kind: 'attackMove', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+            }
+            const desiredC = p.attack.range * 0.92 + target.radius;
+            const radialC = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            const tangentC = { x: -radialC.y, y: radialC.x };
+            const corrC = Math.max(-1, Math.min(1, (desiredC - dC) / 180));
+            let gxC = radialC.x * corrC + tangentC.x * orbitDir * 0.6;
+            let gyC = radialC.y * corrC + tangentC.y * orbitDir * 0.6;
+            const marginC = 190;
+            if (p.pos.x < marginC || p.pos.x > bounds.w - marginC || p.pos.y < marginC || p.pos.y > bounds.h - marginC) {
+              orbitDir *= -1;
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gxC = toCentre.x;
+              gyC = toCentre.y;
+            }
+            input.dir = { x: gxC, y: gyC };
             break;
           }
           case 'vayneTumble': {
@@ -854,8 +906,8 @@ line('\n=== WASD: the same rhythm with the other hand ===');
   expect('WASD orbwalking uses its free window', wasdGood.d.moveEfficiency > 0.5, pct(wasdGood.d.moveEfficiency));
   expect('WASD orbwalking scores well', wasdGood.out.performance > 0.5, pct(wasdGood.out.performance));
   expect(
-    'never releasing the keys never attacks',
-    wasdHold.m.attacksCompleted === 0 && wasdGood.out.performance > wasdHold.out.performance * 1.5,
+    'holding the keys without commanding a shot never attacks',
+    wasdHold.m.attacksCompleted <= 1 && wasdGood.out.performance > wasdHold.out.performance * 1.5,
     `${wasdHold.m.attacksCompleted} attacks, perf ${pct(wasdHold.out.performance)}`,
   );
   expect('WASD cannot be passed by doing nothing', wasdIdle.out.performance < 0.3, pct(wasdIdle.out.performance));
@@ -864,6 +916,119 @@ line('\n=== WASD: the same rhythm with the other hand ===');
     Math.abs(wasdGood.out.performance - kiteGood.out.performance) < 0.25,
     `${pct(wasdGood.out.performance)} vs ${pct(kiteGood.out.performance)}`,
   );
+}
+
+line('\n=== A direction change is instant, not a stand-still ===');
+{
+  // Rolling A into D must turn you around on the frame D goes down. Summing
+  // the axis instead would cancel to zero for as long as both keys are held,
+  // which is a quarter-second of standing still in the middle of every
+  // direction change — the exact moment a diver catches you.
+  const input = new InputSystem({
+    bindings: WASD_BINDINGS,
+    quickCast: true,
+    activeSlots: new Set<AbilitySlot>(),
+    scheme: 'wasd',
+  });
+  const down = (code: string) => (input as unknown as { press(c: string): void }).press(code);
+  const up = (code: string) => (input as unknown as { release(c: string): void }).release(code);
+
+  down('KeyA');
+  const left = input.moveVector();
+  down('KeyD');
+  const rolled = input.moveVector();
+  up('KeyD');
+  const backToLeft = input.moveVector();
+  up('KeyA');
+  const stopped = input.moveVector();
+
+  expect('A alone walks left', left.x === -1, `${left.x}`);
+  expect('rolling A into D turns you right immediately', rolled.x === 1, `${rolled.x} (summing would give 0)`);
+  expect('releasing D hands the axis straight back to A', backToLeft.x === -1, `${backToLeft.x}`);
+  expect('releasing both stops you', stopped.x === 0 && stopped.y === 0, `${stopped.x},${stopped.y}`);
+
+  // Diagonals stay unit length once the world normalises them.
+  down('KeyW');
+  down('KeyD');
+  const diag = input.moveVector();
+  const world = new World({ w: 1000, h: 1000 }, new Rng(9));
+  const body = world.spawnPlayer({ x: 500, y: 500 });
+  world.setMoveDir(body, diag.x, diag.y);
+  const speedOf = (v: { x: number; y: number }) => Math.hypot(v.x, v.y);
+  world.step(1 / 240);
+  const diagSpeed = speedOf(body.vel);
+  world.setMoveDir(body, 1, 0);
+  world.step(1 / 240);
+  const straightSpeed = speedOf(body.vel);
+  expect(
+    'a diagonal is exactly as fast as a straight line',
+    Math.abs(diagSpeed - straightSpeed) < 0.001,
+    `${diagSpeed.toFixed(2)} vs ${straightSpeed.toFixed(2)}`,
+  );
+}
+
+line('\n=== The attack command: timing beats mashing ===');
+{
+  const cmd = runDrill('kite', 'wasdCommand', 0.45, 12345, 'wasd');
+  const mash = runDrill('kite', 'wasdMash', 0.45, 12345, 'wasd');
+  const rel = runDrill('kite', 'wasd', 0.45, 12345, 'wasd');
+  line(
+    `  commanded : attacks ${cmd.m.attacksCompleted}  late ${cmd.d.attackLatency.toFixed(0)}ms  early ${cmd.m.earlyCommands}/${cmd.m.attackCommands}  halt ${cmd.m.haltTime.toFixed(1)}s  moveEff ${pct(cmd.d.moveEfficiency)}  timing ${pct(cmd.d.attackTiming)}  perf ${pct(cmd.out.performance)}`,
+  );
+  line(
+    `  mashing   : attacks ${mash.m.attacksCompleted}  late ${mash.d.attackLatency.toFixed(0)}ms  early ${mash.m.earlyCommands}/${mash.m.attackCommands}  halt ${mash.m.haltTime.toFixed(1)}s  moveEff ${pct(mash.d.moveEfficiency)}  timing ${pct(mash.d.attackTiming)}  perf ${pct(mash.out.performance)}`,
+  );
+  line(
+    `  released  : attacks ${rel.m.attacksCompleted}  late ${rel.d.attackLatency.toFixed(0)}ms  moveEff ${pct(rel.d.moveEfficiency)}  timing ${pct(rel.d.attackTiming)}  perf ${pct(rel.out.performance)}`,
+  );
+  expect('a commanded shot is a real way to attack', cmd.m.attacksCompleted > 20, `${cmd.m.attacksCompleted}`);
+  expect('timing the command beats mashing it', cmd.out.performance > mash.out.performance * 1.4, `${pct(cmd.out.performance)} vs ${pct(mash.out.performance)}`);
+  expect('mashing buys nothing but standing still', mash.m.haltTime > 6 && mash.d.moveEfficiency < cmd.d.moveEfficiency, `halt ${mash.m.haltTime.toFixed(1)}s, moveEff ${pct(mash.d.moveEfficiency)} vs ${pct(cmd.d.moveEfficiency)}`);
+  expect('a timed command wastes almost no commands', cmd.m.earlyCommands / Math.max(1, cmd.m.attackCommands) < 0.25, `${cmd.m.earlyCommands}/${cmd.m.attackCommands}`);
+  expect('commanding and releasing land in the same band', Math.abs(cmd.out.performance - rel.out.performance) < 0.2, `${pct(cmd.out.performance)} vs ${pct(rel.out.performance)}`);
+  expect('mashing is punished by the timing read', mash.d.attackTiming < cmd.d.attackTiming, `${pct(mash.d.attackTiming)} vs ${pct(cmd.d.attackTiming)}`);
+}
+
+line('\n=== Attack timing is measured, not guessed ===');
+{
+  // A player who takes every shot the instant it comes up, versus one who
+  // waits half a cycle every time. Same attack count is impossible — that is
+  // the point — but the *latency* is what has to separate them.
+  const sharp = runDrill('kite', 'orbwalk', 0.35);
+  const slow = runDrill('kite', 'standStill', 0.35);
+  line(`  sharp     : late ${sharp.d.attackLatency.toFixed(0)}ms  punctuality ${pct(sharp.d.attackPunctuality)}  backswingUse ${pct(sharp.d.backswingUse)}  downtime ${pct(sharp.d.downtimeRate)}  timing ${pct(sharp.d.attackTiming)}`);
+  line(`  standing  : late ${slow.d.attackLatency.toFixed(0)}ms  punctuality ${pct(slow.d.attackPunctuality)}  backswingUse ${pct(slow.d.backswingUse)}  downtime ${pct(slow.d.downtimeRate)}  timing ${pct(slow.d.attackTiming)}`);
+  expect('an orbwalker takes its shots on time', sharp.d.attackPunctuality > 0.7, pct(sharp.d.attackPunctuality));
+  expect('an orbwalker spends its backswing moving', sharp.d.backswingUse > 0.7, pct(sharp.d.backswingUse));
+  expect('standing still throws the backswing away', slow.d.backswingUse < 0.35, pct(slow.d.backswingUse));
+  expect('the timing read separates the two', sharp.d.attackTiming > slow.d.attackTiming + 0.15, `${pct(sharp.d.attackTiming)} vs ${pct(slow.d.attackTiming)}`);
+}
+
+line('\n=== An attack command plants the feet, and pays for being early ===');
+{
+  const world = new World({ w: 2000, h: 2000 }, new Rng(3));
+  const p = world.spawnPlayer({ x: 500, y: 500 });
+  p.directControl = true;
+  const e = world.spawnActor({ pos: { x: 900, y: 500 }, team: 'enemy' });
+  world.issueAttackHere(p, e.id);
+  world.setMoveDir(p, 0, -1);
+
+  // Ready: the command is free and the shot leaves immediately.
+  const freeCost = world.requestFire(p);
+  world.step(1 / 240);
+  expect('a command on the tick costs nothing', freeCost === 0 && p.phase === 'windup', `cost ${freeCost}, phase ${p.phase}`);
+
+  // Mid-cooldown: the command is refused, and the champion stands still for it.
+  for (let i = 0; i < 240 && p.phase !== 'idle'; i++) world.step(1 / 240);
+  const before = { ...p.pos };
+  const earlyCost = world.requestFire(p);
+  for (let i = 0; i < 24; i++) world.step(1 / 240);
+  const travelled = dist(before, p.pos);
+  expect('an early command costs real distance', earlyCost > 0.2 && travelled < 4, `cost ${earlyCost.toFixed(2)}, moved ${travelled.toFixed(1)}u`);
+
+  // And the halt is bounded: it never swallows a whole cooldown.
+  for (let i = 0; i < 240 && (p.fireRequest ?? 0) > 0; i++) world.step(1 / 240);
+  expect('the halt is bounded', (p.fireRequest ?? 0) === 0, `${p.fireRequest}`);
 }
 
 line('\n=== A held direction obeys the windup law, exactly as a click does ===');

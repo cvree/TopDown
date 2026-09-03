@@ -73,6 +73,18 @@ export interface Actor {
    * player, and only under the WASD scheme.
    */
   directControl?: boolean;
+  /**
+   * Seconds left on a live attack command, and what it is costing.
+   *
+   * Under direct control an attack normally waits for you to let go of the
+   * keys. This is the other way to ask for one: a command that says *shoot
+   * now*, which the champion honours by planting its feet until the shot
+   * actually starts. Pressed on the frame the timer comes up it costs
+   * nothing. Pressed early it costs every millisecond of standing still
+   * between the press and the shot — which is precisely what mashing buys
+   * you in League, and precisely why mashing loses races.
+   */
+  fireRequest?: number;
 
   /** Visual/analysis bookkeeping. */
   lastAttackAt: number;

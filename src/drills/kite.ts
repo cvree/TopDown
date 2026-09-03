@@ -3,7 +3,7 @@ import { PALETTE } from '../engine/palette';
 import type { DrillPaint } from '../engine/paint';
 import { derive } from '../engine/metrics';
 import type { HudField } from '../engine/session';
-import { Drill, band, count, pct, secs, type DrillOutcome } from './base';
+import { Drill, band, count, ms, pct, secs, type DrillOutcome } from './base';
 import type { Actor } from '../engine/types';
 
 /**
@@ -122,6 +122,15 @@ export class KiteDrill extends Drill {
         bar: d.orbwalkEfficiency,
         tone: d.orbwalkEfficiency > 0.75 ? 'good' : d.orbwalkEfficiency > 0.55 ? 'warn' : 'bad',
       },
+      // The number a kiting drill should lead with is not how much damage you
+      // did — it is how late each shot was. Damage is the consequence; this is
+      // the cause, and it is the only one of the two you can act on mid-run.
+      {
+        label: 'LATE',
+        value: `${Math.round(d.attackLatency)}ms`,
+        bar: d.attackPunctuality,
+        tone: d.attackLatency < 90 ? 'good' : d.attackLatency < 220 ? 'warn' : 'bad',
+      },
       {
         label: 'CANCELS',
         value: `${this.s.metrics.m.attacksCancelled}`,
@@ -151,15 +160,21 @@ export class KiteDrill extends Drill {
     const hpRetained = d.hpRetained;
     const damageRate = band(m.damageDealt / Math.max(1, this.s.elapsed), 12, 42);
 
+    // The timing read carries almost as much as the efficiency read, and the
+    // two fail differently: efficiency notices that you are not attacking or
+    // not moving, timing notices *when* in the cycle you are losing it. A run
+    // can be efficient and badly timed — every shot a beat late, every
+    // backswing stood through — and it should not score like a clean one.
     const performance = clamp(
-      d.orbwalkEfficiency * 0.4 +
-        cleanliness * 0.14 +
-        damageRate * 0.12 +
-        hpRetained * 0.24 +
-        chainScore * 0.1,
+      d.orbwalkEfficiency * 0.28 +
+        d.attackTiming * 0.24 +
+        cleanliness * 0.1 +
+        damageRate * 0.1 +
+        hpRetained * 0.2 +
+        chainScore * 0.08,
       0,
       1,
-    );
+    ) * (0.86 + 0.14 * d.commandDiscipline);
 
     const helped: string[] = [];
     const hurt: string[] = [];
@@ -170,9 +185,19 @@ export class KiteDrill extends Drill {
     if (d.moveEfficiency < 0.55) hurt.push('You stood still through much of your free movement window.');
     if (d.attackEfficiency < 0.6) hurt.push('You missed attack windows — the timer came up while you were out of range.');
     if (d.hpLostCapped > 250) hurt.push(`${Math.round(d.hpLostCapped)} health given up to a slower opponent.`);
+    if (d.attackLatency < 70 && m.attacksCompleted > 12) helped.push(`Every shot taken within ${Math.round(d.attackLatency)}ms of coming up.`);
+    if (d.attackLatency > 220) hurt.push(`Each attack went out ${Math.round(d.attackLatency)}ms after it was available — that is a fifth of your damage.`);
+    if (d.backswingUse < 0.5 && m.backswingTime > 3) hurt.push('You stood through your backswings. That half of the cycle is free movement.');
+    if (m.haltTime > 4) hurt.push(`${m.haltTime.toFixed(1)}s spent stood still by attack commands fired before the timer was up.`);
 
     const advice =
-      d.cancelRate > 0.1
+      m.haltTime > 5
+        ? 'Stop mashing the attack command. Each one plants your feet until the shot leaves — pressed early it buys you nothing but standing still.'
+        : d.backswingUse < 0.5 && m.backswingTime > 3
+        ? 'The damage is already done when the projectile leaves. Move the instant it does — the backswing is free.'
+        : d.attackLatency > 220
+        ? 'Your shots are landing late. Watch the cooldown ring, not the enemy: the attack goes out the frame it closes.'
+        : d.cancelRate > 0.1
         ? 'Wait for the hit to register before you click away. The damage happens at the end of the windup, not the start.'
         : d.moveEfficiency < 0.6
           ? 'After each attack lands, move immediately — every frame you stand still there is free distance lost.'
@@ -191,6 +216,8 @@ export class KiteDrill extends Drill {
       keyMetrics: [
         pct('orbwalk', 'ORBWALK EFFICIENCY', d.orbwalkEfficiency),
         count('cancels', 'ATTACK CANCELS', m.attacksCancelled, 'lower'),
+        ms('latency', 'ATTACK LATENCY', d.attackLatency),
+        pct('backswing', 'BACKSWING USED', d.backswingUse),
         pct('uptime', 'DPS UPTIME', d.dpsUptime),
         count('chain', 'BEST CHAIN', m.maxChain),
         secs('danger', 'DANGER EXPOSURE', m.dangerExposure, 'lower'),

@@ -148,6 +148,16 @@ export class InputSystem {
   /** Raw event queue drained by the simulation each step. */
   private queue: InputEventKind[] = [];
   private held = new Set<string>();
+  /**
+   * Held codes in the order they were pressed, most recent last.
+   *
+   * Only the movement resolver reads it, and it reads it for one reason:
+   * rolling A into D has to turn you around *now*. Summing the axis instead
+   * would cancel to zero for as long as both keys are down, which is a
+   * quarter-second of standing still in the middle of a direction change —
+   * the exact moment a diver catches you.
+   */
+  private pressOrder: string[] = [];
   private armed: AbilitySlot | null = null;
   private opts: InputOptions;
   private el: HTMLElement | null = null;
@@ -192,14 +202,36 @@ export class InputSystem {
   moveVector(): { x: number; y: number } {
     if (this.opts.scheme !== 'wasd') return ZERO;
     const b = this.opts.bindings;
-    let x = 0;
-    let y = 0;
-    if (this.matchesHeld(b.moveLeft)) x -= 1;
-    if (this.matchesHeld(b.moveRight)) x += 1;
-    if (this.matchesHeld(b.moveUp)) y -= 1;
-    if (this.matchesHeld(b.moveDown)) y += 1;
+    const x = this.axis(b.moveLeft, b.moveRight);
+    const y = this.axis(b.moveUp, b.moveDown);
     if (x === 0 && y === 0) return ZERO;
     return { x, y };
+  }
+
+  /**
+   * One axis, resolved by last input rather than by sum.
+   *
+   * Both directions down means the newer press wins: A→D turns you right on
+   * the frame D goes down, and releasing D hands the axis straight back to A
+   * without a keystroke. It is how every fighting game and every shooter with
+   * a keyboard resolves this, and it is the difference between a direction
+   * change that feels instant and one that feels like it has a hitch in it.
+   */
+  private axis(negative: Binding, positive: Binding): number {
+    const neg = this.matchesHeld(negative);
+    const pos = this.matchesHeld(positive);
+    if (!neg && !pos) return 0;
+    if (neg && !pos) return -1;
+    if (pos && !neg) return 1;
+    // Both down: the one pressed more recently owns the axis.
+    return this.pressedAt(positive) >= this.pressedAt(negative) ? 1 : -1;
+  }
+
+  /** How recently a binding's key went down, as an index into the press order. */
+  private pressedAt(b: Binding): number {
+    const a = this.pressOrder.lastIndexOf(b.primary);
+    const c = b.secondary !== undefined ? this.pressOrder.lastIndexOf(b.secondary) : -1;
+    return Math.max(a, c);
   }
 
   private matchesHeld(b: Binding): boolean {
@@ -257,6 +289,7 @@ export class InputSystem {
     this.el = null;
     this.attached = false;
     this.held.clear();
+    this.pressOrder.length = 0;
     this.armed = null;
   }
 
@@ -304,7 +337,7 @@ export class InputSystem {
     this.updateCursor(e);
     (this.el as HTMLElement | null)?.focus?.();
     const code = this.codeFor(e);
-    this.held.add(code);
+    this.press(code);
     this.totalClicks++;
     const t = e.timeStamp;
     const { x, y } = this.cursor;
@@ -340,7 +373,7 @@ export class InputSystem {
 
   private onPointerUp = (e: PointerEvent): void => {
     this.updateCursor(e);
-    this.held.delete(this.codeFor(e));
+    this.release(this.codeFor(e));
   };
 
   private onKeyDown = (e: KeyboardEvent): void => {
@@ -352,7 +385,7 @@ export class InputSystem {
     // Let the browser keep its own shortcuts.
     if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-    this.held.add(code);
+    this.press(code);
     const t = e.timeStamp;
     const { x, y } = this.cursor;
 
@@ -414,11 +447,26 @@ export class InputSystem {
   };
 
   private onKeyUp = (e: KeyboardEvent): void => {
-    this.held.delete(e.code);
+    this.release(e.code);
   };
+
+  /** Marks a code down, keeping the press order honest about repeats. */
+  private press(code: string): void {
+    if (this.held.has(code)) return;
+    this.held.add(code);
+    this.pressOrder.push(code);
+    if (this.pressOrder.length > 24) this.pressOrder.shift();
+  }
+
+  private release(code: string): void {
+    this.held.delete(code);
+    const i = this.pressOrder.lastIndexOf(code);
+    if (i >= 0) this.pressOrder.splice(i, 1);
+  }
 
   private onBlur = (): void => {
     this.held.clear();
+    this.pressOrder.length = 0;
     this.armed = null;
     this.queue.push({ kind: 'blur', t: performance.now() });
   };

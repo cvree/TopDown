@@ -64,6 +64,7 @@ export type Micro =
   | 'MISSED CS'
   | 'SWITCHED'
   | 'TOO CLOSE'
+  | 'TOO EARLY'
   | 'PERFECT SPACING';
 
 /**
@@ -509,6 +510,15 @@ export class Session {
    */
   private issueAttackStance(player: Actor, at: Vec2, targetId: number | undefined): void {
     this.world.issueAttackHere(player, targetId);
+    // The command half: plant and shoot. Timed onto the tick it is free, and
+    // early it buys nothing but standing still — so the feedback for a
+    // premature one has to be legible, not silent.
+    const cost = this.world.requestFire(player);
+    this.metrics.noteFireCommand(cost);
+    if (cost > 0.06 && player.moveDir) {
+      this.fx.ring(player.pos.x, player.pos.y, player.radius + 2, player.radius + 22, 0.26, PALETTE.textDim, 2, 'pulse');
+      if (cost > 0.14) this.micro('TOO EARLY', player.pos, PALETTE.textDim);
+    }
     audio.play('moveCommand', { pan: this.panOf(at) });
     this.fx.ring(at.x, at.y, 2, 26, 0.32, PALETTE.warn, 2, 'pulse');
   }
