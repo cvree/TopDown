@@ -89,6 +89,14 @@ export interface Actor {
   unitKind?: UnitKind;
   /** Nothing shoves this actor: structures hold their ground. */
   immovable?: boolean;
+  /**
+   * Not drawn at all — no body, no bar, no indicators.
+   *
+   * The APM lab needs a player actor because input, metrics and the camera all
+   * hang off one, but it does not want a champion standing in the middle of a
+   * bench of pads. This is how a run has a body without showing one.
+   */
+  hidden?: boolean;
   goldValue?: number;
   /** Set when a unit was killed by the player this frame. */
   killedByPlayer?: boolean;

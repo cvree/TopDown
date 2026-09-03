@@ -150,7 +150,7 @@ export function PatchNotes({ seen, onRead, onBack }: Props) {
         </div>
 
         <p className="patch-fine">
-          Versions before 1.1.0 are assigned retroactively from the commit history — the project shipped
+          Versions before 1.2.0 are assigned retroactively from the commit history — the project shipped
           continuously before it started numbering itself, and inventing a paper trail would be worse than
           saying so. Your progress is stored in your browser under <b className="mono">apex.profile.v1</b>{' '}
           and is carried forward across every release on this list.

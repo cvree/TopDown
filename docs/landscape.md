@@ -342,8 +342,10 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
 - Twelve isolated skill tests including **Map Recall** and **Cooldown Tracker** —
   the gaze and working-memory findings in §4 say these matter, and essentially
   nobody else trains them.
-- A thirteen-mode APM trainer that scores *correct* actions per minute and proves
-  a random masher scores 2% — precisely the critique CHI 2024 makes of raw APM.
+- A thirteen-bench APM lab that leaves the game behind entirely — pads, gates
+  and clocks rather than minions and camps — and scores *correct* actions per
+  minute, with a verb for the press you were right not to make. A random masher
+  scores under 5%: precisely the critique CHI 2024 makes of raw APM.
 - Deterministic 240Hz simulation, so a 60Hz laptop and a 240Hz monitor score the
   same. No competitor makes this claim.
 - No client contact, no account, no network during play: entirely outside Riot's
@@ -368,7 +370,7 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
   a published pilot study however soft (Skill Gap). APEX has none of the three.
 - **Session framing.** Skill Gap's Isolated / Combined / Warm-Up taxonomy is a
   better shelf for a drill library than a flat list, and APEX now has 29 drills
-  + 13 APM modes + 12 tests to shelve.
+  + 13 lab benches + 12 tests to shelve.
 
 **What I would do next, in order:**
 
@@ -383,7 +385,7 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
 3. **Stay mechanics, deliberately.** Not macro puzzles, not MOBA Trainer's
    pattern map — a different product for a different part of the ladder. Spend
    the effort macro would have cost on depth in the lane already staked out:
-   more skill tests, a wider APM roster, a second champion path (§6.5). Every
+   more skill tests, a wider lab roster, a second champion path (§6.5). Every
    drill, test and mode in APEX is something your hands do against a clock;
    keep it that way and be the best version of that, rather than a worse
    version of two products at once.

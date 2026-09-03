@@ -55,7 +55,7 @@ const GROUPS: { id: DrillGroup; title: string; blurb: string }[] = [
   { id: 'FOUNDATION', title: 'Foundation', blurb: 'The inputs everything else is built on' },
   { id: 'RHYTHM', title: 'Rhythm', blurb: 'Timing between your hands and the clock' },
   { id: 'COMBAT', title: 'Combat', blurb: 'All of it, against something that fights back' },
-  { id: 'APM', title: 'APM Trainer', blurb: 'Thirteen modes, ten levels each, counted in correct actions a minute' },
+  { id: 'APM', title: 'The Lab', blurb: 'Pressing, isolated from the game — thirteen benches, ten levels each' },
   { id: 'VAYNE', title: 'Vayne', blurb: 'One champion, learned in order' },
 ];
 

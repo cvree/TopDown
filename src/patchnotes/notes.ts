@@ -10,7 +10,7 @@
  * notice. Refactors, build plumbing and test harnesses do not belong here
  * unless they changed what happens on screen.
  *
- * Versions before 1.1.0 are assigned retroactively from the commit history —
+ * Versions before 1.2.0 are assigned retroactively from the commit history —
  * the project shipped continuously before it started numbering itself, and
  * inventing a paper trail would be worse than saying so.
  */
@@ -41,7 +41,7 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
-    version: '1.1.0',
+    version: '1.2.0',
     name: 'CHAMPION SELECT',
     date: '2026-09-03',
     headline:
@@ -73,6 +73,38 @@ export const PATCH_NOTES: PatchEntry[] = [
           'Reduced camera motion did nothing. The setting existed and was saved, but was never handed to the renderer — shake, punch-in and impact kick all played anyway.',
           'Unit name plates and edge panning were likewise wired up to nothing.',
           'One keypress at the boot gate both entered the arena and launched calibration: the client stayed mounted underneath the title card, so its Enter handler fired alongside the gate’s. The client is now unmounted rather than covered while a full-screen screen is up.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '1.1.0',
+    name: 'THE APM LAB',
+    date: '2026-09-03',
+    headline:
+      'The APM section leaves the Rift: thirteen benches of pads, gates, wheels and clocks, measuring hands rather than teaching the game a second time.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'Thirteen new modes replacing thirteen old ones — PULSE, SEQUENCE, CHORD, GO / NO-GO, BUFFER, CANCEL, VECTOR, FIELD, HANDOFF, SPLIT, UPKEEP, SWITCH and SUSTAIN. Eight isolate one thing; five combine.',
+          'A fourth engine verb: the command you were right *not* to make. Withholding pays score and protects the chain without putting a number into “correct actions per minute” that no finger produced — so a mode about restraint can finally reward restraint.',
+          'Every bench says which in-game moment it is a slice of. Applicability is bought back by naming it rather than by simulating a lane around it.',
+          'A lab arena: the same floor and kerb — the geometry must not move — with the terraces, props, torches and banners not drawn, cold instrument lighting, and a measured grid where the rune ring was.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'The old APM modes were the game with a stopwatch on it: a lane to farm, camps to smite, a duelist to kite. Minions, health bars, range checks and pathing are all noise in a measurement of whether a finger went down at the right moment, so they are gone from the section.',
+          'A bench with no health pool prints no health bar rather than a permanently full one.',
+          'The ladder, the records and the flow tiers are untouched: your rungs and your bests carry straight over.',
+        ],
+      },
+      {
+        tag: 'fixed',
+        items: [
+          'A WASD command arriving inside the engine’s rate limit was dropped rather than deferred, which silently lost every command a mode asked for in quick succession.',
         ],
       },
     ],

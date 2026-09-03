@@ -23,7 +23,7 @@ const lines: string[] = [
   '',
   `Currently shipping **v${VERSION}**.`,
   '',
-  'Versions before 1.1.0 are assigned retroactively from the commit history: the project',
+  'Versions before 1.2.0 are assigned retroactively from the commit history: the project',
   'shipped continuously before it started numbering itself.',
   '',
 ];

@@ -197,6 +197,8 @@ export class UnitLayer {
       // Structures are drawn by their own layer; a turret is not a body with
       // legs and no amount of rig tuning makes it read as one.
       if (a.unitKind === 'turret') continue;
+      // A hidden actor is a hook the simulation needs and the eye does not.
+      if (a.hidden) continue;
       let e = this.entries.get(a.id);
       const visual = visualKeyFor(a, world.playerId);
       const key = `${visual}:${a.team}`;

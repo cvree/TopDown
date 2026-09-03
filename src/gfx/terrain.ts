@@ -13,6 +13,18 @@ import { pavingSurface, rockSurface, runeRing, tiled, turfSurface } from './text
  * instead of a picture of a floor.
  */
 
+/**
+ * Which arena a drill is played on.
+ *
+ * `rift` is the trainer's stadium: stone, terraces, torches, cliffs behind.
+ * `lab` is the APM section's bench — the same floor with everything that
+ * belongs to the game switched off, because a mode built to isolate pressing
+ * should not be surrounded by scenery that says "match in progress". Nothing
+ * about the geometry changes, so pads, decals and the camera all still land
+ * exactly where they land everywhere else.
+ */
+export type ArenaStyle = 'rift' | 'lab';
+
 export interface Arena {
   /** Everything, positioned so child coordinates are raw world units. */
   group: THREE.Group;
@@ -173,8 +185,9 @@ const frameShape = (outerW: number, outerH: number, band: number, r: number): TH
   return shape;
 };
 
-export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): Arena => {
+export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff', style: ArenaStyle = 'rift'): Arena => {
   const group = new THREE.Group();
+  const lab = style === 'lab';
   const disposables: Array<{ dispose(): void }> = [];
   const track = <T extends { dispose(): void }>(x: T): T => {
     disposables.push(x);
@@ -231,6 +244,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(w / 2, 0, h / 2);
   floor.receiveShadow = true;
+  floor.name = 'floor';
   group.add(floor);
 
   // The engraved ring. Additive, so it glows without lighting the stone.
@@ -249,6 +263,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
   rune.rotation.x = -Math.PI / 2;
   rune.position.set(w / 2, 0.6, h / 2);
   rune.renderOrder = 1;
+  rune.name = 'rune';
   group.add(rune);
 
   // ------------------------------------------------------- kerb + terraces
@@ -294,11 +309,11 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
   };
 
   // Kerb, flush with the floor.
-  addFrame(KERB, KERB, STEP_H * 0.42, STEP_H * 0.42, stoneMat);
+  addFrame(KERB, KERB, STEP_H * 0.42, STEP_H * 0.42, stoneMat).name = 'kerb';
   // Three terraces climbing back to ground level.
   for (let i = 0; i < STEPS; i++) {
     const inset = KERB + STEP_W * (i + 1);
-    addFrame(STEP_W, inset, STEP_H * (i + 1), STEP_H, i % 2 === 0 ? stoneDarkMat : stoneMat);
+    addFrame(STEP_W, inset, STEP_H * (i + 1), STEP_H, i % 2 === 0 ? stoneDarkMat : stoneMat).name = 'terrace';
   }
 
   // A thin emissive inlay on the inner lip. The boundary is information.
@@ -318,6 +333,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
     m.position.set(x, 0.9, z);
     m.scale.set(sx, sz, 1);
     m.renderOrder = 2;
+    m.name = 'lip';
     group.add(m);
   }
 
@@ -338,6 +354,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
   land.rotation.x = -Math.PI / 2;
   land.position.set(w / 2, 0, h / 2);
   land.receiveShadow = true;
+  land.name = 'land';
   group.add(land);
 
   // ------------------------------------------------------------------ props
@@ -399,6 +416,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
   }
   boulders.count = bi;
   boulders.instanceMatrix.needsUpdate = true;
+  boulders.name = 'boulders';
   group.add(boulders);
 
   // Grass tufts: crossed billboards that catch the rim light.
@@ -447,6 +465,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
   }
   grass.count = gi;
   grass.instanceMatrix.needsUpdate = true;
+  grass.name = 'grass';
   group.add(grass);
 
   // ------------------------------------------------------- braziers & banners
@@ -471,19 +490,23 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
     pillar.position.set(px, base + 75, pz);
     pillar.castShadow = true;
     pillar.receiveShadow = true;
+    pillar.name = 'decor';
     group.add(pillar);
 
     const bowl = new THREE.Mesh(bowlGeo, metalMat);
     bowl.position.set(px, base + 158, pz);
     bowl.castShadow = true;
+    bowl.name = 'decor';
     group.add(bowl);
 
     const flame = new THREE.Mesh(flameGeo, flameMat);
     flame.position.set(px, base + 176, pz);
+    flame.name = 'decor';
     group.add(flame);
 
     const light = new THREE.PointLight(0xffa445, 2.2, 1150, 1.8);
     light.position.set(px, base + 192, pz);
+    light.name = 'decor';
     group.add(light);
     braziers.push({ light, flame, phase: rand() * 10 });
   }
@@ -516,6 +539,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
     const pole = new THREE.Mesh(poleGeo, metalMat);
     pole.position.set(px, GROUND + 130, pz);
     pole.castShadow = true;
+    pole.name = 'decor';
     group.add(pole);
     const cloth = new THREE.Mesh(clothGeo, clothMat);
     // Cloth hangs from the top of the pole, facing the arena floor.
@@ -523,6 +547,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
     cloth.position.set(px + (facingZ ? 0 : (px < w / 2 ? 7 : -7)), GROUND + 178, pz + (facingZ ? (pz < h / 2 ? 7 : -7) : 0));
     cloth.rotation.y = facingZ ? 0 : Math.PI / 2;
     cloth.castShadow = true;
+    cloth.name = 'decor';
     group.add(cloth);
     banners.push(cloth);
   }
@@ -572,6 +597,40 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff'): 
     }),
   );
   group.add(new THREE.Points(moteGeo, moteMat));
+
+  // ------------------------------------------------------------------- lab
+  //
+  // Everything above builds the stadium. The bench is that stadium with the
+  // game switched off: the floor and its kerb stay — the playfield is where
+  // the pads are hit-tested, so its geometry must not move — and the
+  // terraces, the land behind them, the boulders, the grass, the torches and
+  // the banners are all simply not drawn. An invisible light contributes
+  // nothing in three.js, so the braziers stop lighting the scene as well as
+  // stop being in it, which is most of the change in mood.
+  if (lab) {
+    const decor = new Set(['rune', 'terrace', 'land', 'boulders', 'grass', 'decor']);
+    for (const child of group.children) if (decor.has(child.name)) child.visible = false;
+    // Cold, unlit stone instead of warm flagstones, and no pool of light in
+    // the middle: nothing is happening in the middle except your hands.
+    floorMat.color = new THREE.Color(0x2f3742);
+    floorMat.metalness = 0.05;
+    // A measured grid in place of the engraved rune ring. It reads as a
+    // workbench rather than as a summoning circle, and it gives the eye a
+    // scale for how far a pad actually is.
+    const cell = 120;
+    const gridSize = Math.max(w, h);
+    // Slate, not the drill's accent: the grid is the bench, and a bench that
+    // changes colour per mode competes with the pads for the same read.
+    const gridColor = new THREE.Color(0x8fb0d4);
+    const grid = track(new THREE.GridHelper(gridSize, Math.round(gridSize / cell), gridColor, gridColor));
+    const gridMat = grid.material as THREE.Material;
+    gridMat.transparent = true;
+    gridMat.opacity = 0.06;
+    gridMat.depthWrite = false;
+    grid.position.set(w / 2, 0.7, h / 2);
+    grid.renderOrder = 1;
+    group.add(grid);
+  }
 
   return {
     group,
