@@ -303,8 +303,9 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
 5. **Macro is a one-horse race.** MOBA Trainer's 51-pattern map plus daily
    puzzles is the only serious macro-training product, it is pro-endorsed, and it
    addresses the part of the ladder where mechanics stop deciding games. APEX has
-   nothing here. It is the biggest hole in *our* product and the biggest single
-   competitor.
+   nothing here, and — see §6 — that is a deliberate scope decision, not an
+   oversight: it is a different product built on decision review, not the arena
+   simulation this trainer is.
 6. **Settings fidelity as a feature.** The standing objection to browser trainers
    is that the feel doesn't match the client. Nobody has answered it properly —
    mirroring in-game sensitivity, camera zoom and scale, resolution, attack-move
@@ -350,7 +351,14 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
 
 **Where the field is ahead of us:**
 
-- **Macro.** MOBA Trainer, comprehensively (§5.5).
+- **Macro** — MOBA Trainer, comprehensively (§5.5), and **out of scope on
+  purpose.** Macro puzzles are a decision-review product: a static game state,
+  a multiple-choice question, an explanation. APEX is a real-time arena
+  simulation measuring what your hands do under a clock. Bolting a puzzle
+  screen onto it would not close the gap, it would build a second, worse
+  product next to a good one. Leave macro to the tool built for it and stay
+  the best answer to "make me mechanically better," which is a full lane on
+  its own.
 - **Champion breadth.** Skill Gap advertises 14 champion styles; EloAscend has
   three champions; APEX has one champion path (Vayne).
 - **Distribution.** LoL Dodge Game's Overwolf build lets players drill *inside
@@ -372,11 +380,13 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
 2. **Say the spacing finding out loud, in the product.** The daily programme
    already exists; give it a stop point, and cite the 162k-player result on the
    screen where it stops. Cheap, honest, differentiating.
-3. **Take the smallest macro beachhead, not the whole thing.** Don't fight the
-   51-pattern map. Take the two macro skills that are actually *mechanical
-   inference* and already fit the test format: jungle-camp tracking from partial
-   information, and wave-state reading from a still frame. Both are gradable;
-   both extend the existing test rack rather than requiring a new product.
+3. **Stay mechanics, deliberately.** Not macro puzzles, not MOBA Trainer's
+   pattern map — a different product for a different part of the ladder. Spend
+   the effort macro would have cost on depth in the lane already staked out:
+   more skill tests, a wider APM roster, a second champion path (§6.5). Every
+   drill, test and mode in APEX is something your hands do against a clock;
+   keep it that way and be the best version of that, rather than a worse
+   version of two products at once.
 4. **Generalise the Smiterino trick.** Real recorded scenarios beat synthetic
    ones for credibility. Objective-contest decisions under a closing window sit
    next to Execute Check in the existing rack.
