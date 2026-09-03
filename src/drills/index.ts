@@ -65,6 +65,11 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
     case 'aim':
     case 'targetswitch':
       return { w: 1500, h: 900 };
+    // Spacing needs somewhere to be spaced. The pocket is over five hundred
+    // units wide on its own, and a floor that lets a partner pin you against a
+    // wall is a floor that measures the wall rather than your distance.
+    case 'spacing':
+      return { w: 2000, h: 1180 };
     // The lab is a bench, not a battlefield. A field the cursor can cross
     // without the camera moving, and no more floor than the console needs.
     case 'apmPulse':

@@ -220,6 +220,7 @@ export class KiteDrill extends Drill {
         pct('backswing', 'BACKSWING USED', d.backswingUse),
         pct('uptime', 'DPS UPTIME', d.dpsUptime),
         count('chain', 'BEST CHAIN', m.maxChain),
+        pct('advantage', 'ADVANTAGEOUS SPACING', d.advantageousSpacing),
         secs('danger', 'DANGER EXPOSURE', m.dangerExposure, 'lower'),
       ],
       helped,

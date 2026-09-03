@@ -29,6 +29,24 @@ export interface RunMetrics {
   // --- spacing --------------------------------------------------------
   spacingSamples: number;
   spacingErrorSum: number;
+  /**
+   * The free-trade pocket, in seconds: close enough to hit them, far enough
+   * that they cannot hit you.
+   *
+   * This is the whole of spacing reduced to one number. Every other spacing
+   * figure — average error, time too close, distance held — describes where
+   * you were standing. This one says whether standing there was *profitable*,
+   * which is the only question a lane ever asks.
+   */
+  advantageTime: number;
+  /** Seconds inside their reach: they can trade back, so the trade is not free. */
+  overstepTime: number;
+  /** Seconds out of your own reach, doing nothing to anybody. */
+  passiveTime: number;
+  /** Seconds with a live enemy on the field at all — the denominator. */
+  engagedTime: number;
+  /** Seconds spent in the pocket while actually attacking from it. */
+  advantageTrading: number;
   /** Seconds spent inside the nearest enemy's attack range. */
   dangerExposure: number;
   /** Seconds spent inside an active or telegraphed hazard. */
@@ -125,6 +143,11 @@ export const emptyMetrics = (): RunMetrics => ({
   committedTime: 0,
   spacingSamples: 0,
   spacingErrorSum: 0,
+  advantageTime: 0,
+  overstepTime: 0,
+  passiveTime: 0,
+  engagedTime: 0,
+  advantageTrading: 0,
   dangerExposure: 0,
   hazardExposure: 0,
   projectilesFaced: 0,
@@ -174,6 +197,15 @@ export interface DerivedMetrics {
   cancelRate: number; // cancelled / started
   dpsUptime: number; // 0..1
   avgSpacingError: number; // units
+  /**
+   * Share of the engaged run spent where you could hit them and they could
+   * not hit you. APEX's core spacing number.
+   */
+  advantageousSpacing: number;
+  /** Share of the engaged run spent inside their reach. */
+  overstepRate: number;
+  /** Of the time held in the pocket, how much of it was spent trading from it. */
+  pocketUse: number;
   dodgeRate: number; // 0..1
   accuracy: number; // 0..1
   avgReaction: number; // ms
@@ -272,6 +304,11 @@ export const derive = (m: RunMetrics, maxHp = 720): DerivedMetrics => {
     cancelRate,
     dpsUptime: attackEfficiency,
     avgSpacingError: m.spacingSamples > 0 ? m.spacingErrorSum / m.spacingSamples : 0,
+    advantageousSpacing: m.engagedTime > 0.5 ? clamp(m.advantageTime / m.engagedTime, 0, 1) : 0,
+    overstepRate: m.engagedTime > 0.5 ? clamp(m.overstepTime / m.engagedTime, 0, 1) : 0,
+    // Holding the pocket and never firing from it is not spacing, it is
+    // hiding at a flattering distance. This is the term that says so.
+    pocketUse: m.advantageTime > 0.5 ? clamp(m.advantageTrading / m.advantageTime, 0, 1) : 0,
     dodgeRate: m.projectilesFaced > 0 ? clamp(m.projectilesDodged / m.projectilesFaced, 0, 1) : 1,
     accuracy: m.shotsFired > 0 ? clamp(m.shotsHit / m.shotsFired, 0, 1) : 0,
     avgReaction: rt.length ? median(rt) : 0,
@@ -480,7 +517,23 @@ export class MetricsRecorder {
       const ideal = player.attack.range + nearest.radius - 20;
       m.spacingSamples++;
       m.spacingErrorSum += Math.abs(nd - ideal);
-      if (nd <= nearest.attack.range + player.radius) m.dangerExposure += dt;
+      const theirReach = nearest.attack.range + player.radius;
+      const myReach = player.attack.range + nearest.radius;
+      if (nd <= theirReach) m.dangerExposure += dt;
+
+      // The pocket. Measured against the nearest live threat only, because a
+      // second enemy behind you is a different mistake with its own name.
+      m.engagedTime += dt;
+      if (nd <= theirReach) {
+        m.overstepTime += dt;
+      } else if (nd <= myReach) {
+        m.advantageTime += dt;
+        // Trading from it means the attack cycle is running, not that a shot
+        // happens to be in the air this instant.
+        if (player.phase !== 'idle' || player.attackCd > 0.05) m.advantageTrading += dt;
+      } else {
+        m.passiveTime += dt;
+      }
     }
     for (const h of world.hazards) {
       if (h.team !== 'enemy') continue;

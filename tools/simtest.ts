@@ -277,8 +277,14 @@ const runDrill = (
             break;
           }
           case 'hold': {
-            // Disciplined spacing: attack when ready, otherwise sit at the
-            // outer edge of your own range and match their movement.
+            // Disciplined spacing: attack when ready, otherwise hold the outer
+            // edge of your own range and match their movement.
+            //
+            // The correction is radial *and* tangential, and it turns before
+            // it reaches the floor edge. Backing away in a straight line is
+            // how a real player gets cornered and it is not what competent
+            // spacing looks like — a policy that did it would be testing the
+            // arena's walls rather than the drill's scoring.
             reactTimer = 0.05;
             if (!target) break;
             const d = dist(p.pos, target.pos);
@@ -288,11 +294,27 @@ const runDrill = (
               break;
             }
             if (p.phase === 'windup') break;
-            if (Math.abs(d - want) < 26) break;
             const radial = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
-            const sign = d < want ? 1 : -1;
-            const gx = p.pos.x + radial.x * sign * 300;
-            const gy = p.pos.y + radial.y * sign * 300;
+            const tangent = { x: -radial.y, y: radial.x };
+            // Inside their reach is an emergency, not a small error: leave
+            // first and re-space afterwards. Correcting proportionally from in
+            // there means strolling out of a threat range, which is how a real
+            // player eats four autos deciding what to do.
+            const danger = target.attack.range + p.radius + 50;
+            const correction = d < danger ? 1 : Math.max(-1, Math.min(1, (want - d) / 140));
+            const tw = 0.7 * (1 - Math.abs(correction));
+            let gx = p.pos.x + (radial.x * correction + tangent.x * orbitDir * tw) * 300;
+            let gy = p.pos.y + (radial.y * correction + tangent.y * orbitDir * tw) * 300;
+            // Pinned: go *around* them rather than into the wall. Walking to
+            // the middle of the floor would be walking at the thing you are
+            // spacing against, which no competent player does.
+            const margin = 220;
+            if (gx < margin || gx > bounds.w - margin || gy < margin || gy > bounds.h - margin) {
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              orbitDir = tangent.x * toCentre.x + tangent.y * toCentre.y >= 0 ? 1 : -1;
+              gx = p.pos.x + tangent.x * orbitDir * 320;
+              gy = p.pos.y + tangent.y * orbitDir * 320;
+            }
             input.push({
               kind: 'move',
               x: Math.max(50, Math.min(bounds.w - 50, gx)),
@@ -823,10 +845,14 @@ expect('clicking targets beats idling', aimGood.out.performance > aimIdle.out.pe
 line('\n=== SPACING: holding the band vs. drifting ===');
 const spaceGood = runDrill('spacing', 'hold', 0.4);
 const spaceIdle = runDrill('spacing', 'idle', 0.4);
-line(`  holding : inBand ${pct(spaceGood.out.keyMetrics[0].value)}  spacingErr ${spaceGood.d.avgSpacingError.toFixed(0)}u  hp ${pct(spaceGood.d.hpRetained)}  perf ${pct(spaceGood.out.performance)}`);
-line(`  idle    : inBand ${pct(spaceIdle.out.keyMetrics[0].value)}  perf ${pct(spaceIdle.out.performance)}`);
-expect('holding the band scores well', spaceGood.out.performance > 0.6, pct(spaceGood.out.performance));
+const spaceBlind = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'blind')?.value ?? 0;
+line(`  holding : advantage ${pct(spaceGood.out.keyMetrics[0].value)}  blind ${pct(spaceBlind(spaceGood))}  pocketUse ${pct(spaceGood.d.pocketUse)}  overstep ${pct(spaceGood.d.overstepRate)}  hp ${pct(spaceGood.d.hpRetained)}  perf ${pct(spaceGood.out.performance)}`);
+line(`  idle    : advantage ${pct(spaceIdle.out.keyMetrics[0].value)}  perf ${pct(spaceIdle.out.performance)}`);
+expect('holding the pocket scores well', spaceGood.out.performance > 0.6, pct(spaceGood.out.performance));
 expect('holding beats drifting', spaceGood.out.performance > spaceIdle.out.performance * 1.8, `${pct(spaceGood.out.performance)} vs ${pct(spaceIdle.out.performance)}`);
+expect('a competent player holds the pocket most of the run', spaceGood.out.keyMetrics[0].value > 0.6, pct(spaceGood.out.keyMetrics[0].value));
+expect('and still holds it once the ranges are hidden', spaceBlind(spaceGood) > 0.55, pct(spaceBlind(spaceGood)));
+expect('and trades from it rather than waiting in it', spaceGood.d.pocketUse > 0.5, pct(spaceGood.d.pocketUse));
 
 line('\n=== SKILLSHOT: leading a juking target vs. idle ===');
 const shotGood = runDrill('skillshot', 'lead', 0.35);

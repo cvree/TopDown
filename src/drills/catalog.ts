@@ -118,15 +118,16 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
   spacing: {
     id: 'spacing',
     name: 'SPACING',
-    tagline: 'Hold the edge',
-    brief: 'Stay at the outer edge of your range. Too close is punished, too far wastes damage.',
-    transfers: 'Trading from max range instead of drifting into the enemy threat range.',
+    tagline: 'The pocket, then the pocket blind',
+    brief:
+      'Hold the ground where you can hit them and they cannot hit you — and keep holding it as the range rings fade and then disappear.',
+    transfers: 'Knowing where the edge of your range is without anything drawing it, which is the only way it exists in a game.',
     group: 'RHYTHM',
     axes: { spacing: 0.8, movement: 0.2 },
     duration: 60,
     abilities: [],
     accent: '#5ce1a8',
-    keyMetric: 'SPACING ERROR',
+    keyMetric: 'ADVANTAGEOUS SPACING',
     order: 5,
   },
   kite: {
