@@ -27,6 +27,20 @@ export const AXIS_LABEL: Record<SkillAxis, string> = {
   tempo: 'APM',
 };
 
+/** Short forms, for places where the label has to fit a fixed slot. */
+export const AXIS_SHORT: Record<SkillAxis, string> = {
+  movement: 'MOVEMENT',
+  aim: 'AIM',
+  skillshot: 'SKILLSHOT',
+  dodging: 'DODGING',
+  kiting: 'KITING',
+  spacing: 'SPACING',
+  targeting: 'TARGETING',
+  combat: 'COMBAT',
+  lastHitting: 'FARMING',
+  tempo: 'APM',
+};
+
 export const AXIS_BLURB: Record<SkillAxis, string> = {
   movement: 'Path efficiency, click precision and how little distance you waste.',
   aim: 'How fast and how accurately you put a command on the right point.',

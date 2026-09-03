@@ -1,0 +1,231 @@
+/* ============================================================
+   RECORDS — every number that has been beaten, and what it beat.
+   ============================================================ */
+
+.records {
+  padding-top: 34px;
+}
+
+.rec-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 30px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.rec-h1 {
+  font-size: clamp(30px, 3.4vw, 46px);
+  margin: 4px 0 0;
+  color: var(--gold-hot);
+}
+.rec-summary {
+  display: flex;
+  gap: 34px;
+}
+.rec-summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.rec-summary b {
+  font-size: 22px;
+  color: var(--text);
+}
+
+.rec-cats {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(120, 90, 40, 0.28);
+}
+.rec-cat {
+  padding: 7px 14px;
+  font-family: var(--ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  border: 1px solid transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.rec-cat:hover {
+  color: var(--gold-hot);
+}
+.rec-cat.on {
+  color: var(--gold-hot);
+  border-color: var(--gold-deep);
+  background: rgba(200, 170, 110, 0.09);
+}
+
+.rec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.rec-card {
+  position: relative;
+  text-align: left;
+  padding: 16px 18px 14px;
+  background: linear-gradient(160deg, rgba(9, 18, 32, 0.8), rgba(3, 8, 16, 0.8));
+  border: 1px solid rgba(120, 90, 40, 0.36);
+  border-left: 2px solid var(--c, var(--gold));
+  transition: border-color 0.18s, transform 0.12s var(--ease), box-shadow 0.18s;
+}
+.rec-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--stroke-2);
+  border-left-color: var(--c);
+  box-shadow: 0 12px 30px -18px #000, 0 0 22px -14px var(--c);
+}
+.rc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.rc-name {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: var(--c, var(--text));
+}
+.rc-when {
+  font-size: 10px;
+}
+.rc-best {
+  font-size: 32px;
+  line-height: 1.1;
+  margin-top: 6px;
+  color: var(--text);
+}
+.rc-prev {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 11px;
+  min-height: 16px;
+}
+.rc-metric {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(120, 90, 40, 0.2);
+}
+.rc-metric b {
+  font-size: 13px;
+  color: var(--text);
+}
+.rc-trend {
+  margin-top: 10px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+.rc-trend span {
+  font-size: 10px;
+}
+
+/* -------------------------------------------------------------- lines */
+.rec-extra {
+  margin-bottom: 16px;
+}
+.rec-line-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.rec-line {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 88px 110px;
+  gap: 14px;
+  align-items: center;
+  font-size: 12.5px;
+}
+.rl-name {
+  font-family: var(--ui);
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rl-bar {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.rl-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold-deep), var(--gold-lit));
+}
+.rl-val {
+  text-align: right;
+  color: var(--text);
+}
+.rl-note {
+  font-size: 11px;
+}
+.rl-stars {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.rl-stars i {
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  border: 1px solid rgba(200, 170, 110, 0.45);
+}
+.rl-stars i.on {
+  background: var(--gold-lit);
+  border-color: var(--gold-lit);
+  box-shadow: 0 0 8px rgba(200, 170, 110, 0.8);
+}
+
+/* ------------------------------------------------------------- tables */
+.rec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.rec-table th {
+  text-align: left;
+  font-family: var(--ui);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  padding: 0 12px 10px 0;
+  border-bottom: 1px solid rgba(120, 90, 40, 0.36);
+  font-weight: 700;
+}
+.rec-table td {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid rgba(120, 90, 40, 0.14);
+  color: var(--text-2);
+}
+.rt-name {
+  color: var(--text);
+  font-family: var(--ui);
+  letter-spacing: 0.06em;
+}
+.rec-table .strong {
+  color: var(--text);
+  font-size: 14px;
+}
+.rt-unit {
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--text-3);
+  margin-left: 4px;
+}

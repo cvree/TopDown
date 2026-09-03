@@ -94,15 +94,15 @@ export const planSession = (p: Profile): SessionPlan => {
   const warmCandidates = DRILL_LIST.filter(
     (d) => pressureOf(d.id) === 'isolated' && !isApmDrill(d.id) && d.duration > 0 && playable(p, d.id),
   );
-  const warm =
-    (strong && warmCandidates.find((d) => d.axes[strong] !== undefined)) ?? warmCandidates[0] ?? DRILL_LIST[0];
+  const onStrength = strong ? warmCandidates.find((d) => d.axes[strong] !== undefined) : undefined;
+  const warm = onStrength ?? warmCandidates[0] ?? DRILL_LIST[0];
   take(
     'WARMUP',
     warm.id,
     'Warmup',
-    strong
+    onStrength && strong
       ? `Opens on ${AXIS_LABEL[strong].toLowerCase()}, your strongest axis — hands first, diagnosis second.`
-      : 'A short, clean opener before anything is measured seriously.',
+      : `Opens on ${AXIS_LABEL[primaryAxis(warm.id)].toLowerCase()}, isolated and short. Hands first, diagnosis second.`,
   );
 
   // ---- the primary. Whatever the coach says is most wrong today.

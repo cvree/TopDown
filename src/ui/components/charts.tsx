@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { clamp } from '../../engine/math';
 import { PALETTE } from '../../engine/palette';
-import { AXIS_LABEL, SKILL_AXES, type SkillAxis } from '../../progression/skills';
+import { AXIS_SHORT, SKILL_AXES, type SkillAxis } from '../../progression/skills';
 import { rankFromRating, RATING_MAX } from '../../progression/ranks';
 import type { Vec2 } from '../../engine/types';
 
@@ -25,6 +25,9 @@ export function useCountUp(target: number, duration = 900, delay = 0): number {
 }
 
 /* -------------------------------------------------------------- radar */
+
+/** Room around the web for the axis labels and their ranks. */
+const RADAR_PAD = 46;
 
 interface RadarProps {
   ratings: Record<SkillAxis, number>;
@@ -71,7 +74,14 @@ export function SkillRadar({ ratings, samples, size = 320, compare = null }: Rad
   const rings = [800, 1600, 2400, 2800, RATING_MAX];
 
   return (
-    <svg width={size} height={size} style={{ overflow: 'visible' }}>
+    // The labels sit outside the web, and every panel in the app clips its
+    // children, so the box is padded rather than trusting overflow.
+    <svg
+      width={size}
+      height={size}
+      viewBox={`${-RADAR_PAD} ${-RADAR_PAD} ${size + RADAR_PAD * 2} ${size + RADAR_PAD * 2}`}
+      style={{ overflow: 'visible' }}
+    >
       <defs>
         <radialGradient id="radar-fill">
           <stop offset="0%" stopColor={PALETTE.accent} stopOpacity="0.35" />
@@ -126,7 +136,7 @@ export function SkillRadar({ ratings, samples, size = 320, compare = null }: Rad
               fontWeight="600"
               letterSpacing="0.12em"
             >
-              {AXIS_LABEL[axis].toUpperCase()}
+              {AXIS_SHORT[axis]}
             </text>
             <text
               x={lx}

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { audio } from '../engine/audio';
-import { DAILY_SEQUENCE, DRILL_LIST, DRILLS, type DrillGroup, type DrillId } from '../drills/catalog';
+import { DRILL_LIST, DRILLS, type DrillGroup, type DrillId } from '../drills/catalog';
 import {
   bestAxis,
+  dailyComplete,
   drillDifficulty,
   formatMetric,
   recentImprovement,
@@ -73,8 +74,11 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne
   const best = bestAxis(profile);
   const priority = trainingPriority(profile);
   const improvement = recentImprovement(profile);
-  const dailyDone = profile.daily.completed.length;
-  const dailyLeft = DAILY_SEQUENCE.length - dailyDone;
+  // Today's session, as planned this morning — not a fixed list. The bar is a
+  // shortcut to the Today screen, so it has to agree with it exactly.
+  const plan = profile.daily.plan;
+  const sessionDone = dailyComplete(profile);
+  const dailyLeft = plan.filter((d) => !profile.daily.completed.includes(d)).length;
 
   // Nothing is selected until you are placed: an unplaced player is shown
   // calibration, and picking a drill is what overrides that.
@@ -275,11 +279,13 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne
       <footer className="playbar">
         <button className="bar-daily" onClick={onDaily} onMouseEnter={() => audio.play('uiHover')}>
           <div className="bar-daily-l">
-            <span className="eyebrow">Daily mechanics</span>
-            <b className="display">{dailyLeft <= 0 ? 'COMPLETE' : `${dailyLeft} DRILLS LEFT`}</b>
+            <span className="eyebrow">{profile.daily.focus || "Today's session"}</span>
+            <b className="display">
+              {!plan.length ? 'NOT PLANNED YET' : sessionDone ? 'COMPLETE' : `${dailyLeft} DRILLS LEFT`}
+            </b>
           </div>
           <div className="bar-pips">
-            {DAILY_SEQUENCE.map((d) => (
+            {plan.map((d) => (
               <i key={d} className={profile.daily.completed.includes(d) ? 'on' : ''} title={DRILLS[d].name} />
             ))}
           </div>

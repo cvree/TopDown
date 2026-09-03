@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
 import { heroFor, type HeroId } from '../engine/heroes';
 import { newSeed } from '../engine/rng';
-import { DAILY_SEQUENCE, DRILLS, PLACEMENT_SEQUENCE, type DrillId } from '../drills/catalog';
+import { DRILLS, PLACEMENT_SEQUENCE, type DrillId } from '../drills/catalog';
 import {
   applyRun,
+  dailyComplete,
   drillDifficulty,
+  ensureDailyPlan,
   loadProfile,
   markDailyComplete,
   newProfile,
+  recordSession,
   resetProfile,
   rollDaily,
   saveProfile,
@@ -32,12 +35,14 @@ import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNoti
 import { HeroSelect } from './HeroSelect';
 import { HeroSigil } from './components/HeroSigil';
 import { Apm } from './Apm';
-import { Daily } from './Daily';
+import { DrillBreak, SessionComplete } from './Session';
 import { GameView } from './GameView';
 import { Home } from './Home';
+import { Records } from './Records';
+import { Today } from './Today';
 import { PatchNotes } from './PatchNotes';
 import { PlacementIntro, PlacementReveal } from './Placement';
-import { ProfileScreen } from './ProfileScreen';
+import { Progress } from './Progress';
 import { RankEmblem } from './components/RankEmblem';
 import { RankUp } from './RankUp';
 import { Results } from './Results';
@@ -48,7 +53,26 @@ import { Vayne } from './Vayne';
 import '../styles/global.css';
 import './app.css';
 
-type Route = 'home' | 'profile' | 'daily' | 'apm' | 'tests' | 'vayne' | 'settings' | 'patch';
+type Route =
+  | 'today'
+  | 'home'
+  | 'progress'
+  | 'records'
+  | 'apm'
+  | 'tests'
+  | 'vayne'
+  | 'settings'
+  | 'patch';
+
+/** The top bar, in order. Everything else is reached from inside a screen. */
+const NAV: { id: Route; label: string }[] = [
+  { id: 'today', label: 'TODAY' },
+  { id: 'home', label: 'TRAIN' },
+  { id: 'vayne', label: 'CHAMPION' },
+  { id: 'tests', label: 'TEST' },
+  { id: 'progress', label: 'PROGRESS' },
+  { id: 'records', label: 'RECORDS' },
+];
 
 interface Flow {
   kind: 'single' | 'placement' | 'daily';
@@ -78,9 +102,16 @@ export function App() {
   const [profile, setProfile] = useState<Profile>(() => {
     const p = loadProfile();
     rollDaily(p);
+    // A placed profile always has a session waiting when it opens. An unplaced
+    // one does not get planned around numbers that do not exist yet.
+    if (p.placed) ensureDailyPlan(p);
     return p;
   });
-  const [route, setRoute] = useState<Route>('home');
+  const [route, setRoute] = useState<Route>('today');
+  /** The full breakdown, opened from the between-drill card on request. */
+  const [breakDetails, setBreakDetails] = useState(false);
+  /** The end-of-session screen, shown once the last block is finished. */
+  const [sessionDone, setSessionDone] = useState(false);
   // Which mode the APM section opens on, so a click in the drill rail lands on
   // the mode it named rather than on whatever was last selected.
   const [apmFocus, setApmFocus] = useState<DrillId | null>(null);
@@ -140,6 +171,18 @@ export function App() {
       return { ...p, apm };
     });
   }, [route, profile.placed, profile.apm.seeded]);
+
+  // Calibration is what makes planning possible, so the first session is
+  // drawn the moment it finishes rather than on the next cold start.
+  useEffect(() => {
+    if (!profile.placed || profile.daily.plan.length > 0) return;
+    setProfile((p) => {
+      if (!p.placed || p.daily.plan.length > 0) return p;
+      const next: Profile = { ...p, daily: { ...p.daily, completed: [...p.daily.completed] } };
+      ensureDailyPlan(next);
+      return next;
+    });
+  }, [profile.placed, profile.daily.plan.length]);
 
   const patchSettings = useCallback((patch: Partial<AppSettings>) => {
     setProfile((p) => ({ ...p, settings: { ...p.settings, ...patch } }));
@@ -263,13 +306,16 @@ export function App() {
     setInterstitial({ drill: PLACEMENT_SEQUENCE[0], step: 1, total: PLACEMENT_SEQUENCE.length });
   }, []);
 
+  /** Today's plan, from wherever it was left off. */
   const startDaily = useCallback(() => {
     audio.unlock();
-    const remaining = DAILY_SEQUENCE.filter((d) => !profile.daily.completed.includes(d));
+    const remaining = profile.daily.plan.filter((d) => !profile.daily.completed.includes(d));
     if (remaining.length === 0) return;
     setResults(null);
+    setBreakDetails(false);
+    setSessionDone(false);
     setFlow({ kind: 'daily', index: 0, queue: remaining, seed: newSeed() });
-  }, [profile.daily.completed]);
+  }, [profile.daily.plan, profile.daily.completed]);
 
   // Placement moves through its drills without stopping at a results screen —
   // the reveal at the end is the payoff, and breaking it up would blunt it.
@@ -365,6 +411,7 @@ export function App() {
           return;
         }
 
+        setBreakDetails(false);
         setResults({ result, report: rep, bounds });
         if (rep.promoted) {
           const driver = rep.axisChanges.reduce<{ axis: SkillAxis; delta: number } | null>(
@@ -404,12 +451,26 @@ export function App() {
   const nextInFlow = useCallback(() => {
     if (!flow) return;
     if (flow.index >= flow.queue.length - 1) {
+      const wasSession = flow.kind === 'daily';
       exitToMenu();
-      setRoute(flow.kind === 'daily' ? 'daily' : 'home');
+      setRoute('today');
+      // A finished session is filed and then shown. Both happen here rather
+      // than inside applyRun, because "the session ended" is a fact about the
+      // flow, not about the last run in it.
+      if (wasSession) {
+        setProfile((p) => {
+          if (!dailyComplete(p)) return p;
+          const next: Profile = { ...p, daily: { ...p.daily }, sessions: [...p.sessions] };
+          recordSession(next);
+          return next;
+        });
+        setSessionDone(true);
+      }
       return;
     }
     setResults(null);
     setRankUp(null);
+    setBreakDetails(false);
     setFlow({ ...flow, index: flow.index + 1, seed: newSeed() });
   }, [flow, exitToMenu]);
 
@@ -535,7 +596,22 @@ export function App() {
             </div>
           </div>
         )}
-        {results && (
+        {/* Inside a session the seam is a card, not a page: score, the one
+            thing that cost you, what is next. The full breakdown is still
+            there on request, and is the whole screen everywhere else. */}
+        {results && flow.kind === 'daily' && !breakDetails && (
+          <DrillBreak
+            result={results.result}
+            report={results.report}
+            step={flow.index + 1}
+            total={flow.queue.length}
+            nextDrill={flow.index < flow.queue.length - 1 ? flow.queue[flow.index + 1] : null}
+            onContinue={nextInFlow}
+            onRetry={retry}
+            onDetails={() => setBreakDetails(true)}
+          />
+        )}
+        {results && (flow.kind !== 'daily' || breakDetails) && (
           <Results
             result={results.result}
             report={results.report}
@@ -595,18 +671,19 @@ export function App() {
             </div>
 
             <nav className="nav">
-              {(['home', 'daily', 'apm', 'tests', 'vayne', 'profile', 'settings'] as Route[]).map((r) => (
+              {NAV.map((n) => (
                 <button
-                  key={r}
-                  className={route === r ? 'on' : ''}
+                  key={n.id}
+                  className={route === n.id ? 'on' : ''}
                   onMouseEnter={() => audio.play('uiHover')}
                   onClick={() => {
                     audio.unlock();
                     audio.play('uiTab');
-                    setRoute(r);
+                    setSessionDone(false);
+                    setRoute(n.id);
                   }}
                 >
-                  {r === 'home' ? 'TRAIN' : r.toUpperCase()}
+                  {n.label}
                 </button>
               ))}
             </nav>
@@ -634,6 +711,23 @@ export function App() {
               {/* Who you are, always on screen, one click from changing it. A
                   champion you picked and then never see again is a form field. */}
               <button
+                className={`gear-chip${route === 'settings' ? ' on' : ''}`}
+                title="Settings, controls and calibration"
+                aria-label="Settings"
+                onMouseEnter={() => audio.play('uiHover')}
+                onClick={() => {
+                  audio.play('uiTab');
+                  setSessionDone(false);
+                  setRoute('settings');
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <circle cx="12" cy="12" r="3.2" />
+                  <path d="M12 2.6v3M12 18.4v3M2.6 12h3M18.4 12h3M5.4 5.4l2.1 2.1M16.5 16.5l2.1 2.1M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1" />
+                </svg>
+                <span>SETUP</span>
+              </button>
+              <button
                 className="hero-chip"
                 style={{ ['--c' as string]: heroFor(profile.settings.hero).accent }}
                 title={`Playing as ${heroFor(profile.settings.hero).name} — click to change`}
@@ -646,7 +740,7 @@ export function App() {
                 <HeroSigil hero={profile.settings.hero} size={22} />
                 <span>{heroFor(profile.settings.hero).name}</span>
               </button>
-              <div className="rank-chip" onClick={() => setRoute('profile')}>
+              <div className="rank-chip" onClick={() => setRoute('progress')}>
                 <RankEmblem tier={rank.tier} size={30} />
                 <div>
                   <div className="rc-label">{profile.placed ? rank.label : 'UNRANKED'}</div>
@@ -660,12 +754,36 @@ export function App() {
             <GestureNotice onDismiss={() => patchSettings({ gestureNoticeDismissed: true })} />
           )}
 
-          {route === 'home' && (
+          {sessionDone && (
+            <SessionComplete
+              profile={profile}
+              onDone={() => setSessionDone(false)}
+              onProgress={() => {
+                setSessionDone(false);
+                setRoute('progress');
+              }}
+              onPlay={(id) => {
+                setSessionDone(false);
+                startSingle(id);
+              }}
+            />
+          )}
+          {!sessionDone && route === 'today' && (
+            <Today
+              profile={profile}
+              onStartSession={startDaily}
+              onPlay={startSingle}
+              onCalibrate={() => setPlacementIntro(true)}
+              onOpenProgress={() => setRoute('progress')}
+              onOpenSummary={() => setSessionDone(true)}
+            />
+          )}
+          {!sessionDone && route === 'home' && (
             <Home
               profile={profile}
               onPlay={startSingle}
-              onDaily={() => setRoute('daily')}
-              onProfile={() => setRoute('profile')}
+              onDaily={() => setRoute('today')}
+              onProfile={() => setRoute('progress')}
               onPlacement={() => setPlacementIntro(true)}
               onVayne={() => setRoute('vayne')}
               onApm={(id) => {
@@ -674,7 +792,7 @@ export function App() {
               }}
             />
           )}
-          {route === 'apm' && (
+          {!sessionDone && route === 'apm' && (
             <Apm
               profile={profile}
               focus={apmFocus}
@@ -683,27 +801,33 @@ export function App() {
               onPlacement={() => setPlacementIntro(true)}
             />
           )}
-          {route === 'daily' && (
-            <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('home')} />
-          )}
-          {route === 'tests' && (
+
+          {!sessionDone && route === 'tests' && (
             <Tests profile={profile} onRun={startTest} onBack={() => setRoute('home')} />
           )}
-          {route === 'vayne' && (
+          {!sessionDone && route === 'vayne' && (
             <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('home')} />
           )}
-          {route === 'profile' && (
-            <ProfileScreen
+          {!sessionDone && route === 'records' && (
+            <Records
+              profile={profile}
+              onPlay={startSingle}
+              onTests={() => setRoute('tests')}
+              onTrain={() => setRoute('home')}
+            />
+          )}
+          {!sessionDone && route === 'progress' && (
+            <Progress
               profile={profile}
               onRename={(name) => setProfile((p) => ({ ...p, name }))}
               onReset={doReset}
               onPlay={startSingle}
             />
           )}
-          {route === 'settings' && (
+          {!sessionDone && route === 'settings' && (
             <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('home')} />
           )}
-          {route === 'patch' && (
+          {!sessionDone && route === 'patch' && (
             <PatchNotes
               seen={profile.seenVersion}
               onRead={markPatchRead}

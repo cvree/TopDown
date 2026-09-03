@@ -1,0 +1,359 @@
+/* ============================================================
+   PROGRESS — the analytical page. Additions to profile.css.
+   ============================================================ */
+
+.thirty {
+  min-width: 420px;
+  flex: 1;
+}
+.th-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+.th-grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.th-grid b {
+  font-family: var(--ui);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.th-grid i {
+  font-style: normal;
+  font-size: 11px;
+}
+
+/* ---------------------------------------------------------- the read */
+.style-read {
+  margin-bottom: 16px;
+}
+.style-read p {
+  margin: 0 0 9px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-2);
+  max-width: 96ch;
+}
+.style-read p:last-child {
+  margin-bottom: 0;
+}
+.style-read .sr-lead {
+  font-size: 15px;
+  color: var(--text);
+}
+
+/* --------------------------------------------------------- pressure */
+.prof-pressure {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.pp-lead {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  max-width: 88ch;
+}
+.pp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.pp-row {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr) 108px 52px;
+  gap: 14px;
+  align-items: center;
+  font-size: 12px;
+}
+.pp-name {
+  font-family: var(--ui);
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+.pp-track {
+  position: relative;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.pp-track span {
+  position: absolute;
+  left: 0;
+  height: 7px;
+}
+.pp-iso {
+  top: 0;
+  background: linear-gradient(90deg, rgba(10, 200, 185, 0.35), var(--accent-2));
+}
+.pp-live {
+  top: 7px;
+  background: linear-gradient(90deg, rgba(240, 194, 71, 0.35), var(--warn));
+}
+.pp-nums {
+  font-size: 11px;
+  text-align: right;
+}
+.pp-ret {
+  text-align: right;
+  font-size: 14px;
+  font-weight: 700;
+}
+.pp-legend {
+  display: flex;
+  gap: 20px;
+  margin-top: 6px;
+  font-size: 10.5px;
+}
+.pp-legend span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.pp-legend i {
+  width: 16px;
+  height: 4px;
+  display: block;
+}
+.pp-key-iso {
+  background: var(--accent-2);
+}
+.pp-key-live {
+  background: var(--warn);
+}
+
+/* --------------------------------------------------------- transfer */
+.tr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tr-row {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr) 96px;
+  gap: 12px;
+  align-items: center;
+  font-size: 11px;
+}
+.tr-stage {
+  font-family: var(--ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--text-2);
+}
+.tr-row.done .tr-stage {
+  color: var(--good);
+}
+.tr-row.empty-row .tr-stage {
+  color: var(--text-4);
+}
+.tr-track {
+  position: relative;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.tr-track > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-deep), var(--accent-2));
+  transition: width 0.6s var(--ease);
+}
+.tr-row.done .tr-track > span {
+  background: linear-gradient(90deg, rgba(79, 212, 124, 0.4), var(--good));
+}
+.tr-track i {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: rgba(240, 230, 210, 0.55);
+}
+.tr-row b {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+.tr-foot {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+}
+
+/* ----------------------------------------------------------- errors */
+.prof-errors {
+  margin-bottom: 16px;
+}
+.err-list {
+  display: flex;
+  flex-direction: column;
+}
+.err-item {
+  border-bottom: 1px solid rgba(120, 90, 40, 0.16);
+}
+.err-item:last-child {
+  border-bottom: none;
+}
+.err-head {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 190px 56px 46px 20px;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 12px 2px;
+  text-align: left;
+  transition: background 0.16s;
+}
+.err-head:hover {
+  background: rgba(200, 170, 110, 0.045);
+}
+.err-rank {
+  color: var(--text-4);
+  font-size: 12px;
+}
+.err-name {
+  font-family: var(--ui);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text);
+  text-transform: uppercase;
+}
+.err-count {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.err-count em {
+  font-style: normal;
+  color: var(--text-3);
+  font-size: 10.5px;
+  margin-left: 4px;
+}
+.err-rate {
+  font-size: 13px;
+  color: var(--text);
+  text-align: right;
+}
+.err-trend {
+  font-size: 11px;
+  text-align: right;
+}
+.err-chev {
+  text-align: center;
+  color: var(--gold);
+  font-size: 14px;
+}
+.err-body {
+  padding: 4px 2px 20px 36px;
+  animation: fadeUp 0.3s var(--ease) both;
+}
+.err-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.err-cols p {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+.err-weeks {
+  margin-bottom: 18px;
+}
+.ew-bars {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin-top: 10px;
+}
+.ew-col {
+  width: 82px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.ew-bar {
+  width: 100%;
+  height: 74px;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(255, 255, 255, 0.04);
+}
+.ew-bar span {
+  width: 100%;
+  background: linear-gradient(180deg, var(--danger), rgba(232, 64, 87, 0.35));
+}
+.ew-bar span.none {
+  background: rgba(255, 255, 255, 0.12);
+}
+.ew-col b {
+  font-size: 11px;
+  color: var(--text);
+}
+.ew-col span:last-child {
+  font-size: 10px;
+}
+.err-fix {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid rgba(120, 90, 40, 0.2);
+}
+.err-fix b {
+  font-family: var(--display);
+  font-size: 15px;
+  letter-spacing: 0.1em;
+}
+.err-fix .faint {
+  font-size: 11.5px;
+}
+
+/* ----------------------------------------------------------- tracks */
+.prof-tracks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.prof-tracks .panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.prof-tracks b {
+  font-size: 19px;
+}
+.prof-tracks span:last-child {
+  font-size: 11px;
+}
+
+.ai-delta {
+  font-size: 11px;
+  margin-left: 8px;
+}
+
+@media (max-width: 1180px) {
+  .prof-pressure {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .th-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.th-new {
+  margin: 16px 0 0;
+  font-size: 11.5px;
+}
+.th-new b {
+  color: var(--text-2);
+}

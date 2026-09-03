@@ -305,7 +305,10 @@ export const axisGains = (p: Profile, days = 30): AxisGain[] => {
   for (const axis of SKILL_AXES) {
     const from = base.ratings?.[axis] ?? 0;
     const to = p.ratings[axis];
-    if (from === 0 && to === 0) continue;
+    // An axis that was unrated at the baseline has not grown by its whole
+    // rating — it was measured for the first time. Reporting 0 → 1846 as
+    // "+1846 growth" is the single easiest way to make a progress page lie.
+    if (from <= 0 || to <= 0) continue;
     out.push({ axis, label: AXIS_LABEL[axis], from, to, delta: to - from });
   }
   return out.sort((a, b) => b.delta - a.delta);

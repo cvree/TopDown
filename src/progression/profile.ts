@@ -142,6 +142,8 @@ export interface DailyState {
   streak: number;
   lastCompletedDate: string | null;
   startOverall: number;
+  /** Per-axis ratings as the day opened, so a session can report what moved. */
+  startRatings?: Record<SkillAxis, number>;
   /**
    * Today's session, drawn up once and then left alone.
    *
@@ -301,6 +303,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
     streak: 0,
     lastCompletedDate: null,
     startOverall: 0,
+    startRatings: undefined,
     plan: [],
     focus: '',
     seconds: 0,
@@ -684,6 +687,7 @@ export const rollDaily = (p: Profile): void => {
     streak: p.daily.streak,
     lastCompletedDate: p.daily.lastCompletedDate,
     startOverall: p.overall,
+    startRatings: { ...p.ratings },
     // A new day gets a new plan, drawn the first time it is asked for.
     plan: [],
     focus: '',
