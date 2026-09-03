@@ -56,7 +56,8 @@ npm run build      # production bundle
 | **Condemn** | Wall stun rate, chances missed | Standing on the right side of the wall *before* the fight |
 | **Night Hunter** | Kit execution under a live 1v2 | Playing Vayne rather than an ADC who owns her abilities |
 
-The APM trainer's thirteen modes are listed in their own section below.
+The APM trainer's thirteen modes are listed in their own section below, and
+the twelve skill tests in theirs.
 
 ### Last Hit is a lane
 
@@ -267,6 +268,60 @@ to rather than a generic "abilities" hint, and the path screen carries the
 whole row — read from your live bindings, so a rebound layout says what it
 really is — alongside the three laws that scheme adds.
 
+## Skill tests
+
+Twelve short instruments that sit beside the drills rather than inside them.
+
+The trainer now asks about your hands three different ways, on purpose. A
+**drill** trains a habit over sixty seconds in the arena. The **APM trainer**
+measures how much correct work those hands can sustain while the arena keeps
+moving. A **test** measures a single event on a bare field with nothing else
+happening — twenty to sixty seconds, one number, nowhere to hide. Reaction,
+prediction, recall and arithmetic under a closing window: the parts of the game
+nobody practises because nobody measures them.
+
+| Test | Measures | Why it matters in a game |
+| --- | --- | --- |
+| **Flash Reaction** | Simple visual reaction, median ms | Burning Flash on a hook you only just saw |
+| **Sound Cue** | Auditory reaction with decoys | Recognising an ultimate by its audio and moving before it renders |
+| **Cast Reflex** | Choice reaction across Q/W/E/R/D/F | Casting the ability you meant, not the one next to it |
+| **Dodge Read** | Spatial choice reaction, correct axis | Sidestepping *across* a skillshot instead of running down its line |
+| **Flick** | Target acquisition, median ms | Right-clicking the champion rather than the minion beside them |
+| **Prediction** | Skillshot hit rate against travel time | Leading a moving target instead of aiming at where they are |
+| **Last Hit Clock** | Attack timing error against your own windup | CS under pressure, reading a falling bar against your animation |
+| **Tracking** | Percentage of time the cursor holds a juking target | Keeping the cursor where your next command has to go |
+| **Map Recall** | Positional recall from a shrinking glance | The minimap glance — you photograph it and play off the photograph |
+| **Cooldown Tracker** | Correct up/down calls with nothing counting down | Knowing their Flash is down for forty more seconds |
+| **Execute Check** | Kill/no-kill calls inside a closing window | The all-in decision, before the window shuts |
+| **Combo Memory** | Sequence execution time, broken combos scored as broken | Casting your combo while your eyes are on the fight |
+
+Every test grades onto the same Iron → Challenger ladder as the drills, so
+"Gold reaction, Diamond recall" is a sentence the app can say and mean. Your
+**benchmark** is the mean of your best grade across the tests you have actually
+attempted — a test you have never run reads as absent, not as zero, and the
+page says how many are in the number.
+
+**Tests do not move your drill rating.** A twenty-second reaction instrument
+should not be able to promote you on a ladder that measures playing — not the
+nine mechanical axes, and not the APM axis either — so they keep their own
+bests, their own grades and their own trend lines. Each test
+records every attempt, shows the shape of the run trial by trial, and tells you
+the value you would need to reach the next tier in the test's own unit.
+
+A few design rules hold across all twelve:
+
+- **Anticipating is not reacting.** A key pressed before the cue is a false
+  start; it costs the trial and is added back onto your score.
+- **Nothing that leaks the cue.** Sound Cue's screen is identical before and
+  after the sound fires, because the moment it is not, it stops being an ear
+  test.
+- **Windows shrink through a run.** Dodge Read, Last Hit Clock, Execute Check
+  and Map Recall all tighten as they go, so the last trials are the ones worth
+  reading.
+- **Failure is scored as failure.** A dropped combo enters the median at the
+  bottom of the ladder rather than being quietly discarded, so one lucky fast
+  round cannot outrank eight dead ones.
+
 ## The ranked system
 
 **This is a trainer rank.** It measures mechanical execution in these drills. It
@@ -471,8 +526,9 @@ src/engine/vayne.ts   the champion kit: tumble, bolts, condemn, final hour
 src/gfx/        the 3D renderer: scene, terrain, walls, champions, decals, VFX
 src/drills/     one file per drill; each owns its rules and its scoring
 src/drills/apm/ the APM trainer: one engine, thirteen modes over it
+src/tests/      the twelve skill tests: one runner interface, one drawing kit
 src/progression/ rating maths, rank ladder, champion path, profile persistence
-src/ui/         React shell, HUD, results, profile, rank-up, the Vayne path
+src/ui/         React shell, HUD, results, profile, rank-up, Vayne, the test rack
 tools/          headless test harnesses
 ```
 
@@ -487,6 +543,13 @@ node", "a caret over the priority target" — as ground markers and billboards
 (`src/engine/paint.ts`), and the renderer decides how that is realised. That is
 what let the original flat 2D canvas renderer be replaced wholesale without
 touching a line of scoring.
+
+A test is a class with an `update(frame)` and nothing else — no React, no
+simulation, no renderer. The shell in `src/ui/TestRun.tsx` owns the countdown,
+the canvas and its device-pixel scaling, the input plumbing and the results
+card, so adding a thirteenth test means writing one class and one catalogue
+entry. The twelve live card previews in the gallery share a single animation
+frame between them.
 
 React renders menus and the results screens. It never touches the simulation
 during play: the game loop owns the canvas, and the HUD is written to through
