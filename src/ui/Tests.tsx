@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { audio } from '../engine/audio';
 import { benchmarkRating, testsAttempted, type Profile } from '../progression/profile';
-import { rankFromRating, percentileForRating } from '../progression/ranks';
+import { rankFromRating } from '../progression/ranks';
 import {
   formatTestValue,
   TEST_GROUPS,
@@ -28,10 +28,9 @@ import './tests.css';
 interface Props {
   profile: Profile;
   onRun: (id: TestId) => void;
-  onBack: () => void;
 }
 
-export function Tests({ profile, onRun, onBack }: Props) {
+export function Tests({ profile, onRun }: Props) {
   const canvases = useRef(new Map<TestId, HTMLCanvasElement>());
   const dims = useRef(new Map<TestId, { w: number; h: number }>());
   const gridRef = useRef<HTMLDivElement>(null);
@@ -117,54 +116,40 @@ export function Tests({ profile, onRun, onBack }: Props) {
   return (
     <div className="scroll">
       <div className="wrap wide tests fade-up">
-        {/* -------------------------------------------------------- header */}
-        <header className="tests-head">
-          <div className="tests-head-l">
-            <div className="eyebrow">Skill tests</div>
-            <h1 className="display tests-h1">BENCHMARK</h1>
-            <p className="dim tests-lead">
-              Twelve instruments, twenty to sixty seconds each. A drill trains a habit and the APM trainer
-              measures what your hands can sustain; a test measures one event on a bare field and hands you a
-              number. Reaction, prediction, recall, arithmetic under a closing window — the parts of the game
+        <div className="page-head">
+          <div>
+            <span className="eyebrow">Benchmark</span>
+            <h1 className="display">TWELVE INSTRUMENTS</h1>
+            <p>
+              A drill trains a habit; a test measures one event on a bare field and hands you a number.
+              Reaction, prediction, recall, arithmetic under a closing window — the parts of the game
               nobody practises because nobody measures them.
             </p>
-            <div className="tests-actions">
-              <button className="btn ghost sm" onClick={onBack} onMouseEnter={() => audio.play('uiHover')}>
-                ← Back to drills
+            {weakest && (
+              <button
+                className="btn sm tests-weakest"
+                onClick={() => onRun(weakest.id)}
+                onMouseEnter={() => audio.play('uiHover')}
+              >
+                Run your weakest: {weakest.name}
               </button>
-              {weakest && (
-                <button
-                  className="btn sm"
-                  onClick={() => onRun(weakest.id)}
-                  onMouseEnter={() => audio.play('uiHover')}
-                >
-                  Run your weakest: {weakest.name}
-                </button>
-              )}
-            </div>
+            )}
           </div>
 
-          <div className="tests-score panel">
-            <i className="brk tl" />
-            <i className="brk tr" />
-            <i className="brk bl" />
-            <i className="brk br" />
-            <RankEmblem tier={benchRank.tier} size={78} />
-            <div className="ts-tier display">{attempted > 0 ? benchRank.label : 'UNTESTED'}</div>
-            <div className="ts-rating mono">
-              {attempted > 0 ? `${Math.round(bench)} BENCHMARK` : 'RUN ANY TEST'}
-            </div>
-            <div className="ts-meter">
-              <span style={{ width: `${Math.round(benchRank.progress * 100)}%` }} />
-            </div>
-            <div className="ts-sub">
-              <span>
-                {attempted} / {TEST_LIST.length} tested
+          <div className="tests-score">
+            <RankEmblem tier={benchRank.tier} size={44} />
+            <div>
+              <b className="display">{attempted > 0 ? benchRank.label : 'UNTESTED'}</b>
+              <span className="mono">
+                {attempted > 0 ? `${Math.round(bench)} benchmark` : 'run any test'} · {attempted} /{' '}
+                {TEST_LIST.length}
               </span>
-              {attempted > 0 && <span>top {Math.max(1, Math.round((1 - percentileForRating(bench)) * 100))}%</span>}
+              <div className="meter">
+                <span style={{ width: `${Math.round(attempted > 0 ? benchRank.progress * 100 : 0)}%` }} />
+              </div>
             </div>
           </div>
-        </header>
+        </div>
 
         {/* --------------------------------------------------------- groups */}
         <div ref={gridRef}>

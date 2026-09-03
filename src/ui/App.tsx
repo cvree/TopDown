@@ -779,9 +779,7 @@ export function App() {
           {route === 'daily' && (
             <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('train')} />
           )}
-          {route === 'test' && (
-            <Tests profile={profile} onRun={startTest} onBack={() => setRoute('today')} />
-          )}
+          {route === 'test' && <Tests profile={profile} onRun={startTest} />}
           {route === 'champions' && (
             <Champions profile={profile} onPlay={startSingle} onRoster={() => setRoute('settings')} />
           )}

@@ -12,85 +12,7 @@
 }
 
 /* ------------------------------------------------------------- header */
-.tests-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 288px;
-  gap: 40px;
-  align-items: start;
-  padding-bottom: 34px;
-  border-bottom: 1px solid var(--stroke);
-  margin-bottom: 34px;
-}
-
-.tests-h1 {
-  font-size: clamp(38px, 5vw, 62px);
-  margin: 6px 0 12px;
-  letter-spacing: 0.06em;
-  background: var(--foil);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.85));
-}
-
-.tests-lead {
-  max-width: 66ch;
-  font-size: 14.5px;
-  line-height: 1.65;
-  margin: 0 0 20px;
-}
-
-.tests-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
 /* The benchmark plate. One number, the way the rank chip does it. */
-.tests-score {
-  padding: 22px 20px 18px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.ts-tier {
-  font-size: 19px;
-  letter-spacing: 0.12em;
-  color: var(--gold-hot);
-  margin-top: 8px;
-}
-.ts-rating {
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  color: var(--text-3);
-}
-.ts-meter {
-  width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.07);
-  margin: 12px 0 10px;
-  position: relative;
-  overflow: hidden;
-}
-.ts-meter span {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: linear-gradient(90deg, var(--gold-deep), var(--gold-hot));
-  box-shadow: 0 0 14px rgba(200, 170, 110, 0.7);
-  transition: width 0.6s var(--ease);
-}
-.ts-sub {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--text-3);
-}
-
 /* -------------------------------------------------------------- groups */
 .tests-group {
   margin-bottom: 46px;
@@ -288,4 +210,33 @@
   .tests-head {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* The benchmark rank, beside the page header rather than framed in its own
+   bracketed panel. It is a fact about the section, not the point of it. */
+.tests-score {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex: none;
+}
+.tests-score b {
+  display: block;
+  font-size: var(--t-md);
+  letter-spacing: 0.14em;
+  color: var(--gold-hot);
+}
+.tests-score .mono {
+  font-size: var(--t-micro);
+  color: var(--text-3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.tests-score .meter {
+  width: 150px;
+  margin-top: 6px;
+}
+.tests-weakest {
+  margin-top: var(--sp-4);
 }

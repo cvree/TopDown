@@ -105,70 +105,65 @@ export function Apm({ profile, focus, onPlay, onBack, onPlacement }: Props) {
   return (
     <div className="scroll">
       <div className="wrap wide apm fade-up">
-        <header className="apm-head">
+        <div className="page-head">
           <div>
-            <div className="eyebrow">The lab · APM trainer</div>
-            <h1 className="display apm-h1">PRESSING, WITH THE GAME TAKEN AWAY</h1>
-            <p className="dim apm-lead">
-              No minions, no camps, nothing fighting back — a bench of pads, gates and clocks, because what
-              is being measured here is your hands and everything else on the screen was noise in the
-              measurement. Each mode isolates one property of a press: cadence, order, simultaneity,
-              restraint, anticipation, the second half of a pair, the cost of moving your hand. Every one of
-              them counts the same thing — <b>correct</b> commands per minute — and every one names the
-              moment in a real game it is a slice of. A level is a difficulty, not a suggestion: the rung you
-              pick is the rung it is played at, and nothing adapts behind your back.
+            <button className="link" onClick={onBack}>
+              ← Train
+            </button>
+            <h1 className="display">THE LAB</h1>
+            <p>
+              Pressing, with the game taken away. No minions, no camps, nothing fighting back — thirteen
+              benches, each isolating one property of a press, all counting the same thing:{' '}
+              <b>correct</b> commands a minute. A level is a difficulty, not a suggestion.
             </p>
           </div>
-
-          <aside className="apm-crest">
-            <div className="ac-ring" style={{ ['--m' as string]: `${Math.round(mastery)}%` }}>
-              <span className="ac-num mono">{Math.round(mastery)}</span>
-              <span className="ac-lab">MASTERY</span>
-            </div>
-            <div className="ac-title display">{title.name}</div>
-            <p className="ac-blurb">{title.blurb}</p>
+          <div className="apm-mastery">
+            <span className="eyebrow">Mastery</span>
+            <b className="display">{Math.round(mastery)}</b>
+            <i>{title.name}</i>
             {next && (
-              <div className="ac-next">
-                <span className="eyebrow">Next</span>
-                <b>{next.name}</b>
-                <i className="mono">{Math.max(1, Math.ceil(next.at - p.peak))} mastery to go</i>
-              </div>
+              <span className="apm-mastery-next mono">
+                {Math.max(1, Math.ceil(next.at - p.peak))} to {next.name}
+              </span>
             )}
-          </aside>
-        </header>
-
-        <div className="apm-stats">
-          <div>
-            <span className="eyebrow">Best sustained</span>
-            <b className="mono">{p.bestApm > 0 ? `${Math.round(p.bestApm)} APM` : '—'}</b>
-            <i>{bestApmMode ? `in ${bestApmMode}` : 'correct actions a minute'}</i>
-          </div>
-          <div>
-            <span className="eyebrow">Benches opened</span>
-            <b className="mono">
-              {started} / {APM_MODES.length}
-            </b>
-            <i>eight isolated, five combined</i>
-          </div>
-          <div>
-            <span className="eyebrow">Levels cleared</span>
-            <b className="mono">
-              {totalCleared} / {APM_MODES.length * APM_LEVELS}
-            </b>
-            <i>at {Math.round(CLEAR_AT * 100)}% or better</i>
-          </div>
-          <div>
-            <span className="eyebrow">Stars</span>
-            <b className="mono">
-              {totalStars} / {APM_MODES.length * APM_LEVELS * 3}
-            </b>
-            <i>
-              {Math.round(STAR_AT[0] * 100)} · {Math.round(STAR_AT[1] * 100)} ·{' '}
-              {Math.round(STAR_AT[2] * 100)}%
-            </i>
           </div>
         </div>
 
+        <div className="stat-row apm-stats">
+          <div className="stat">
+            <span className="stat-k">Best sustained</span>
+            <span className="stat-v">{p.bestApm > 0 ? `${Math.round(p.bestApm)} APM` : '—'}</span>
+            <span className="stat-s">{bestApmMode ? `in ${bestApmMode}` : 'correct actions a minute'}</span>
+          </div>
+          <div className="stat">
+            <span className="stat-k">Benches opened</span>
+            <span className="stat-v">
+              {started} / {APM_MODES.length}
+            </span>
+            <span className="stat-s">eight isolated, five combined</span>
+          </div>
+          <div className="stat">
+            <span className="stat-k">Levels cleared</span>
+            <span className="stat-v">
+              {totalCleared} / {APM_MODES.length * APM_LEVELS}
+            </span>
+            <span className="stat-s">at {Math.round(CLEAR_AT * 100)}% or better</span>
+          </div>
+          <div className="stat">
+            <span className="stat-k">Stars</span>
+            <span className="stat-v">
+              {totalStars} / {APM_MODES.length * APM_LEVELS * 3}
+            </span>
+            <span className="stat-s">
+              {Math.round(STAR_AT[0] * 100)} · {Math.round(STAR_AT[1] * 100)} ·{' '}
+              {Math.round(STAR_AT[2] * 100)}%
+            </span>
+          </div>
+        </div>
+
+        {/* Calibration is the only thing that changes what this screen can do,
+            so it is the only notice that survived. The "your calibration opened
+            levels 1-N" explainer is now the seeded rungs looking seeded. */}
         {!profile.placed && (
           <div className="apm-note">
             The ladder opens at level 1 until you calibrate. Five short drills read where your hands
@@ -176,12 +171,6 @@ export function Apm({ profile, focus, onPlay, onBack, onPlacement }: Props) {
             <button className="btn sm" onClick={onPlacement}>
               Calibrate
             </button>
-          </div>
-        )}
-        {profile.placed && p.seeded && p.seededTo > 1 && (
-          <div className="apm-note quiet">
-            Your calibration opened levels 1–{p.seededTo} on every mode. Nothing was awarded — the records
-            are still empty. You simply do not have to walk up to the interesting part one run at a time.
           </div>
         )}
 

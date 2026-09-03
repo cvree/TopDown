@@ -11,35 +11,8 @@
   max-width: 1320px;
 }
 
-.apm-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 290px;
-  gap: 46px;
-  align-items: start;
-}
-.apm-h1 {
-  font-size: clamp(28px, 3.4vw, 46px);
-  letter-spacing: 0.05em;
-  margin: 6px 0 14px;
-  background: linear-gradient(180deg, #e8fbff 0%, #38e0d0 54%, #0a6a76 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.apm-lead {
-  max-width: 760px;
-  line-height: 1.65;
-  font-size: 14px;
-}
-
 /* ------------------------------------------------------------------ crest */
 
-.apm-crest {
-  border: 1px solid rgba(10, 200, 185, 0.34);
-  background: linear-gradient(180deg, rgba(4, 34, 42, 0.7), rgba(6, 8, 20, 0.75));
-  padding: 22px 20px 20px;
-  text-align: center;
-}
 .ac-ring {
   width: 138px;
   height: 138px;
@@ -94,31 +67,6 @@
 }
 
 /* ------------------------------------------------------------- stat strip */
-
-.apm-stats {
-  margin-top: 26px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-.apm-stats > div {
-  border: 1px solid var(--stroke);
-  border-top: 2px solid rgba(10, 200, 185, 0.5);
-  background: var(--panel);
-  padding: 12px 14px;
-  display: grid;
-  gap: 2px;
-}
-.apm-stats b {
-  font-size: 21px;
-  color: var(--text);
-  letter-spacing: 0.04em;
-}
-.apm-stats i {
-  font-style: normal;
-  font-size: 11px;
-  color: var(--text-3);
-}
 
 .apm-note {
   margin-top: 14px;
@@ -580,4 +528,42 @@
   .rg-tail {
     display: none;
   }
+}
+
+
+/* ------------------------------------------------------------ lab header
+   The page header is the shared `.page-head` now; what is left is the
+   mastery column beside it and the stat row under it. */
+.apm-mastery {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: none;
+  text-align: right;
+}
+.apm-mastery b {
+  font-size: var(--t-2xl);
+  line-height: 1;
+  color: var(--gold-hot);
+}
+.apm-mastery i {
+  font-style: normal;
+  font-family: var(--ui);
+  font-size: var(--t-tiny);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--accent);
+}
+.apm-mastery-next {
+  font-size: var(--t-micro);
+  color: var(--text-4);
+  letter-spacing: 0.1em;
+}
+
+.stat-row.apm-stats {
+  padding: var(--sp-5) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--sp-6);
 }
