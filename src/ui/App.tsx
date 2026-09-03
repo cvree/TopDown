@@ -40,14 +40,14 @@ import { Academy } from './Academy';
 import { PatchNotes } from './PatchNotes';
 import { Today } from './Today';
 import { PlacementIntro, PlacementReveal } from './Placement';
-import { ProfileScreen } from './ProfileScreen';
+import { Progress } from './Progress';
 import { RankEmblem } from './components/RankEmblem';
 import { RankUp } from './RankUp';
 import { Results } from './Results';
 import { Settings } from './Settings';
 import { TestRun } from './TestRun';
 import { Tests } from './Tests';
-import { Vayne } from './Vayne';
+import { Champions } from './Champions';
 import '../styles/global.css';
 import './app.css';
 
@@ -783,10 +783,10 @@ export function App() {
             <Tests profile={profile} onRun={startTest} onBack={() => setRoute('today')} />
           )}
           {route === 'champions' && (
-            <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('today')} />
+            <Champions profile={profile} onPlay={startSingle} onRoster={() => setRoute('settings')} />
           )}
           {route === 'progress' && (
-            <ProfileScreen
+            <Progress
               profile={profile}
               onRename={(name) => setProfile((p) => ({ ...p, name }))}
               onReset={doReset}

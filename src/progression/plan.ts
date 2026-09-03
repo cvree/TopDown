@@ -278,7 +278,13 @@ export interface AxisReading {
  * Only rated axes appear: an axis with no runs behind it is not a weakness,
  * it is an unknown, and the home screen says that separately.
  */
-export const axisReadings = (p: Profile): { strengths: AxisReading[]; weaknesses: AxisReading[]; unrated: SkillAxis[] } => {
+export const axisReadings = (p: Profile): {
+  strengths: AxisReading[];
+  weaknesses: AxisReading[];
+  unrated: SkillAxis[];
+  /** Every rated axis, in catalogue order. What Progress draws. */
+  all: AxisReading[];
+} => {
   const rated = SKILL_AXES.filter((a) => p.samples[a] > 0);
   const unrated = SKILL_AXES.filter((a) => p.samples[a] === 0);
   const readings: AxisReading[] = rated.map((axis) => ({
@@ -292,7 +298,33 @@ export const axisReadings = (p: Profile): { strengths: AxisReading[]; weaknesses
     strengths: byGap.slice(0, 3).filter((r) => r.gap > 0 || readings.length < 4),
     weaknesses: [...byGap].reverse().slice(0, 3),
     unrated,
+    all: readings,
   };
+};
+
+/**
+ * Rating change over a window of days, read from the daily marks.
+ *
+ * The marks are one overall rating per local day, written the first time
+ * anything is run that day, so the oldest mark inside the window is the
+ * rating you started the window on. A profile with fewer marks than the
+ * window asks for answers over what it has rather than refusing.
+ */
+export const changeOverDays = (
+  p: Profile,
+  days = 30,
+): { delta: number; from: number; to: number; days: number } | null => {
+  if (p.dailyMarks.length < 2) return null;
+  const cutoff = Date.now() - days * 86400000;
+  const inWindow = p.dailyMarks.filter((m) => new Date(m.date).getTime() >= cutoff);
+  const marks = inWindow.length >= 2 ? inWindow : p.dailyMarks;
+  const from = marks[0].overall;
+  const to = p.overall;
+  const spanned = Math.max(
+    1,
+    Math.round((Date.now() - new Date(marks[0].date).getTime()) / 86400000),
+  );
+  return { delta: to - from, from, to, days: Math.min(days, spanned) };
 };
 
 /**

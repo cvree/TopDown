@@ -1,0 +1,299 @@
+/* ============================================================
+   PROGRESS
+
+   Two bands answer the whole question — what changed, and what
+   the profile looks like now. The record is one press below.
+   ============================================================ */
+
+.prog-name {
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+  color: var(--gold-hot);
+  font-size: var(--t-xl);
+  letter-spacing: 0.06em;
+  padding: 0 0 2px;
+  margin: var(--sp-2) 0 0;
+  width: 260px;
+  outline: none;
+}
+.page-head h1 {
+  cursor: text;
+}
+
+.prog-rank {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex: none;
+}
+.prog-rank b {
+  display: block;
+  font-size: var(--t-md);
+  letter-spacing: 0.14em;
+  color: var(--gold-hot);
+}
+.prog-rank .mono {
+  font-size: var(--t-micro);
+  color: var(--text-3);
+  letter-spacing: 0.1em;
+}
+
+/* ------------------------------------------------------- 30-day change */
+.prog-window-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+.prog-window-row > .stat {
+  padding: var(--sp-5);
+  background: var(--s-0);
+  gap: 5px;
+}
+.prog-window-row .stat-v {
+  font-size: var(--t-xl);
+}
+.prog-window-row .stat-s {
+  max-width: 30ch;
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------- mechanical profile */
+.prog-profile {
+  margin-top: var(--sp-7);
+}
+.prog-axes {
+  display: flex;
+  flex-direction: column;
+}
+.prog-axis {
+  display: grid;
+  grid-template-columns: 140px 1fr 60px 96px;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-2);
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  transition: background 0.14s;
+}
+.prog-axis:hover {
+  background: var(--s-1);
+}
+.pa-name {
+  font-family: var(--ui);
+  font-size: var(--t-sm);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.prog-axis.unrated .pa-name {
+  color: var(--text-4);
+}
+
+.pa-bar {
+  position: relative;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.pa-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--text-3);
+  transition: width 0.6s var(--ease);
+}
+/* The overall-rating mark. Everything left of it is holding you back, which
+   is the only comparison this screen is actually asking you to make. */
+.pa-bar em {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 1px;
+  background: var(--gold-lit);
+  opacity: 0.75;
+}
+.pa-rating {
+  font-size: var(--t-tiny);
+  color: var(--text-3);
+  text-align: right;
+}
+
+/* Three axes are named out loud. Everything else is context for them. */
+.prog-axis.strongest .pa-bar i {
+  background: var(--good);
+}
+.prog-axis.weakest .pa-bar i {
+  background: var(--danger);
+}
+.prog-axis.fastest .pa-bar i {
+  background: var(--accent);
+}
+.prog-axis.strongest .pa-name,
+.prog-axis.weakest .pa-name,
+.prog-axis.fastest .pa-name {
+  color: var(--text);
+}
+.pa-flag {
+  font-family: var(--ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: right;
+}
+.prog-axis.strongest .pa-flag {
+  color: var(--good);
+}
+.prog-axis.weakest .pa-flag {
+  color: var(--danger);
+}
+.prog-axis.fastest .pa-flag {
+  color: var(--accent);
+}
+
+.prog-legend {
+  margin: var(--sp-4) 0 0;
+  font-size: var(--t-tiny);
+  color: var(--text-3);
+  max-width: 90ch;
+}
+
+/* ----------------------------------------------------------- the curve */
+.prog-curve {
+  margin-top: var(--sp-7);
+}
+.prog-curve svg {
+  width: 100%;
+  height: auto;
+}
+
+/* ---------------------------------------------------------- the tracks */
+.prog-tracks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-5);
+  margin-top: var(--sp-7);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--line);
+}
+.prog-tracks .stat-v {
+  font-size: var(--t-md);
+  font-family: var(--ui);
+  letter-spacing: 0.14em;
+}
+.prog-tracks .stat-s {
+  max-width: 34ch;
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------- the archive */
+.prog-more {
+  margin-top: var(--sp-7);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--line);
+}
+.prog-detail {
+  margin-top: var(--sp-5);
+}
+
+.prog-bests {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+.prog-best {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--s-0);
+  text-align: left;
+  transition: background 0.14s;
+}
+.prog-best:hover {
+  background: var(--s-2);
+}
+.prog-best b {
+  font-family: var(--ui);
+  font-size: var(--t-micro);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--c, var(--text-2));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prog-best em {
+  font-style: normal;
+  font-size: var(--t-tiny);
+  color: var(--text);
+}
+
+.prog-runs {
+  display: flex;
+  flex-direction: column;
+}
+.prog-run {
+  display: grid;
+  grid-template-columns: 200px 90px 1fr 70px 90px;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-tiny);
+  color: var(--text-2);
+}
+.prog-run b {
+  font-family: var(--ui);
+  font-size: var(--t-micro);
+  letter-spacing: 0.14em;
+}
+.prog-when {
+  color: var(--text-4);
+  text-align: right;
+}
+
+.prog-none {
+  color: var(--text-3);
+  font-size: var(--t-sm);
+  padding: var(--sp-3);
+  margin: 0;
+}
+
+.prog-danger {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-top: var(--sp-7);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--line);
+  font-size: var(--t-tiny);
+  color: var(--text-3);
+}
+.prog-erase {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.prog-erase:hover {
+  border-color: var(--danger);
+  color: #fff;
+  background: rgba(239, 77, 99, 0.18);
+}
+
+@media (max-width: 1080px) {
+  .prog-window-row,
+  .prog-tracks {
+    grid-template-columns: 1fr 1fr;
+  }
+  .prog-axis {
+    grid-template-columns: 110px 1fr 56px;
+  }
+  .pa-flag {
+    display: none;
+  }
+}
