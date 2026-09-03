@@ -6,10 +6,40 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v1.2.0**.
+Currently shipping **v1.3.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v1.3.0 — HANDS
+
+*2026-09-03*
+
+The keys got an attack command, the attack cycle got measured properly, and Ezreal arrived with ten stages of aiming while your feet are busy.
+
+### Added
+
+- The Ezreal path. Ten stages from a target that does not move to a fight that will not stop moving: the missile, the lead, Q while strafing, threading a wave, the auto-Q weave, max-range poke, kiting with something on you, the blink, the transfer, and all of it at once. Each stage is gated on the one before it, and the range indicators are drawn plainly on the first and not at all by the last.
+- Q Mystic Shot refunds every cooldown when it lands, so an accurate Ezreal simply has more of a kit than an inaccurate one. Pressed in the attack windup it throws the auto away; pressed in the backswing it is free.
+- An attack command under WASD. You no longer have to let go of the keys to shoot — the mouse can buy a shot while you drive. Timed onto the tick it is free; pressed early it plants your feet until the shot leaves, which is exactly what an early attack-move click costs you in League.
+- ATTACK TIMING and ATTACK LATENCY. Every shot is now stamped with how long it sat available before you took it, backswing seconds are split into moving and standing, and the kite drill leads with the result — because "you did less damage" is a consequence and "your shots go out 240ms late" is a cause.
+- ADVANTAGEOUS SPACING: the share of a fight spent where you can hit them and they cannot hit you. Reported by every combat drill, and the number the spacing drill now leads with.
+- Eight bot behaviours — chase, retreat, strafe, tether, diver, bait, erratic and controlled-irregular — replacing one movement policy that could only approach, back off, or circle on a timer.
+
+### Changed
+
+- Direction changes are instant. Rolling A into D used to cancel the axis to zero and leave you standing still for as long as both keys were down; the newer key now owns the axis and hands it back when released.
+- Spacing runs in three stages across one run: both reaches drawn, then only as you cross them, then nothing at all. The blind third is weighted more than double the first and reported separately, because it is the only one that resembles a game.
+- The dodge drill has enemies in it. The patterns come out of emitters that can be killed, and the score reads DAMAGE AVOIDED and DAMAGE DEALT — running to an empty corner is still credited with what it avoided and can no longer pass.
+- Vayne’s tumble is scored on where it puts her, not only on when it was pressed: out of their reach, and out of their reach while they are still inside hers. Condemn now weighs how narrow the wall angle was and whether it existed before you walked into it.
+- Stop clears your target as well as your order. It is how you stop attacking, not merely how you stop walking — and it still cannot take back a committed windup.
+- The duel arenas grade attack timing and advantageous spacing, so winning by standing still no longer reads like winning by kiting.
+
+### Fixed
+
+- Unit separation ran after everything else and answered to nothing: two bodies shoving each other against terrain could push one straight through it, and a crowd against the arena edge leaked bodies off the floor.
+- The dodge drill’s spiral pattern staggered its shots on the wall clock, so it kept firing through a pause, landed on different frames at different frame rates, and made two runs of the same seed different runs.
+- Three drills could be passed without playing them: Condemn paid 66% for pressing E at random, the Ezreal stages counted "landed while moving" as a share that anybody who never stands still gets for free, and the new attack-timing read scored 0.88 for a run that cancelled 98% of its own attacks.
 
 ## v1.2.0 — CHAMPION SELECT
 

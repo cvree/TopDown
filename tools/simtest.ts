@@ -1350,6 +1350,70 @@ line('\n=== WASD: the same rhythm with the other hand ===');
   );
 }
 
+line('\n=== The score is a curve, not a coin flip ===');
+{
+  // Two properties that are easy to lose without noticing, and that make the
+  // difference between a ladder and a random number generator.
+  //
+  //   1. Harder settings score lower for the same play. If they do not, the
+  //      difficulty slider is decoration.
+  //   2. The same play at the same setting lands in the same band across
+  //      seeds. If it does not, a rating is a record of the arena's mood.
+  const CASES: [DrillId, Policy, MovementScheme][] = [
+    ['kite', 'orbwalk', 'click'],
+    ['kite', 'wasd', 'wasd'],
+    ['spacing', 'hold', 'click'],
+    ['duel1v1', 'orbwalk', 'click'],
+    ['ezStrafe', 'ezreal', 'wasd'],
+    ['ezKite', 'ezreal', 'wasd'],
+    ['vayneTumble', 'vayneLateral', 'click'],
+  ];
+  const SEEDS = [7, 1234, 99991, 424242];
+  for (const [id, policy, scheme] of CASES) {
+    const at = (diff: number) => {
+      const runs = SEEDS.map((sd) => runDrill(id, policy, diff, sd, scheme).out.performance);
+      const mean = runs.reduce((a, b) => a + b, 0) / runs.length;
+      const spread = Math.max(...runs) - Math.min(...runs);
+      return { mean, spread };
+    };
+    const easy = at(0.15);
+    const mid = at(0.5);
+    const hard = at(0.9);
+    line(
+      `  ${id.padEnd(12)} ${policy.padEnd(12)} easy ${pct(easy.mean)} (±${pct(easy.spread / 2)})  mid ${pct(mid.mean)} (±${pct(mid.spread / 2)})  hard ${pct(hard.mean)} (±${pct(hard.spread / 2)})`,
+    );
+    expect(`${id}/${policy}: harder is worth less`, hard.mean < easy.mean + 0.02, `${pct(hard.mean)} vs ${pct(easy.mean)}`);
+    expect(
+      `${id}/${policy}: the seed does not decide the grade`,
+      Math.max(easy.spread, mid.spread, hard.spread) < 0.45,
+      `worst spread ${pct(Math.max(easy.spread, mid.spread, hard.spread))}`,
+    );
+  }
+}
+
+line('\n=== Stop means stop attacking, not just stop walking ===');
+{
+  const world = new World({ w: 1200, h: 1200 }, new Rng(5));
+  const p = world.spawnPlayer({ x: 600, y: 600 });
+  p.directControl = true;
+  const e = world.spawnActor({ pos: { x: 900, y: 600 }, team: 'enemy', maxHp: 5000 });
+  world.issueAttackHere(p, e.id);
+  for (let i = 0; i < 240; i++) world.step(1 / 240);
+  const attacking = p.targetId === e.id;
+  world.issueStop(p);
+  const hpAtStop = e.hp;
+  for (let i = 0; i < 720; i++) world.step(1 / 240);
+  expect('the stance was attacking before the stop', attacking, `${p.targetId}`);
+  expect('and nothing more lands after it', e.hp === hpAtStop && p.targetId === null, `hp ${e.hp} vs ${hpAtStop}, target ${p.targetId}`);
+
+  // But a committed windup is committed: stop is not an undo.
+  world.issueAttackHere(p, e.id);
+  for (let i = 0; i < 400 && p.phase !== 'windup'; i++) world.step(1 / 240);
+  world.clearEvents();
+  world.issueStop(p);
+  expect('a committed windup survives a stop', p.phase === 'windup', p.phase);
+}
+
 line('\n=== CHEESE SWEEP: every drill against every bad idea ===');
 {
   // The standard this whole trainer lives or dies by: an elite score has to

@@ -270,9 +270,24 @@ export class World {
     return Math.min(FIRE_REQUEST_MAX, cost);
   }
 
+  /**
+   * Stop.
+   *
+   * It drops the order, the target and any pending attack command, which is
+   * what League's S key does: it is how you *stop attacking*, not merely how
+   * you stop walking. It used to leave the target behind, so under an
+   * attack-move stance the champion carried on shooting the thing you had just
+   * asked it to leave alone.
+   *
+   * It still does not cancel a windup. A committed attack is committed, and a
+   * key that could take it back would be a free undo on the one decision this
+   * whole trainer is about.
+   */
   issueStop(a: Actor): void {
-    if (a.phase === 'windup') return; // stop does not cancel a windup
+    if (a.phase === 'windup') return;
     a.order = null;
+    a.targetId = null;
+    a.fireRequest = 0;
     a.vel.x = 0;
     a.vel.y = 0;
   }
