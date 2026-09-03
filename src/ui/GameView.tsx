@@ -149,8 +149,14 @@ const VAYNE_SLOT_NAMES: Partial<Record<AbilitySlot, string>> = {
  */
 const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: string }[] => {
   const scheme = schemeFor(settings, drill);
-  const base = HINTS[scheme];
   const meta = DRILLS[drill];
+  // A cheat sheet is only read while it is short, and a key this drill has no
+  // use for is a line the eye still has to skip. A movement drill does not
+  // list the ability row, and nothing lists the camera lock unless the camera
+  // is the reason you are here.
+  const base = HINTS[scheme].filter(
+    (h) => !(meta.abilities.length === 0 && (h.label === 'abilities' || h.label === 'to shoot')),
+  );
   if (meta.group !== 'VAYNE') return base;
   // Silver Bolts is a passive counter rather than a key, so it never appears.
   const kit = meta.abilities
