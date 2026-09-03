@@ -106,7 +106,9 @@ const HINTS: Record<MovementScheme, { key: string; label: string }[]> = {
     { key: 'WASD', label: 'move' },
     { key: 'LMB', label: 'attack' },
     { key: 'Q E R F', label: 'abilities' },
-    { key: 'RELEASE', label: 'to shoot' },
+    // Both ways of buying a shot, because there are two and a player who only
+    // knows the first one is orbwalking with one hand tied.
+    { key: 'RELEASE', label: 'or LMB to shoot' },
     { key: 'SPACE', label: 'centre camera' },
     { key: 'WHEEL', label: 'zoom' },
     { key: 'ESC', label: 'pause' },
