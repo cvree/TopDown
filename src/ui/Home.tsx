@@ -9,6 +9,13 @@ import {
   trainingPriority,
   type Profile,
 } from '../progression/profile';
+import {
+  APM_LEVELS,
+  clearedThrough,
+  isApmDrill,
+  levelStars,
+  recommendedLevel,
+} from '../progression/apm';
 import { rankFromRating } from '../progression/ranks';
 import { AXIS_LABEL, SKILL_AXES } from '../progression/skills';
 import { VAYNE_STAGES, isVayneStage, stageUnlocked } from '../progression/vayne';
@@ -37,6 +44,8 @@ interface Props {
   onProfile: () => void;
   onPlacement: () => void;
   onVayne: () => void;
+  /** Opens the APM section, on a named mode if one was clicked. */
+  onApm: (id?: DrillId) => void;
 }
 
 /** The path stage behind a Vayne drill id. */
@@ -46,7 +55,7 @@ const GROUPS: { id: DrillGroup; title: string; blurb: string }[] = [
   { id: 'FOUNDATION', title: 'Foundation', blurb: 'The inputs everything else is built on' },
   { id: 'RHYTHM', title: 'Rhythm', blurb: 'Timing between your hands and the clock' },
   { id: 'COMBAT', title: 'Combat', blurb: 'All of it, against something that fights back' },
-  { id: 'APM', title: 'APM Trainer', blurb: 'Thirteen modes, all of them counted in actions per minute' },
+  { id: 'APM', title: 'APM Trainer', blurb: 'Thirteen modes, ten levels each, counted in correct actions a minute' },
   { id: 'VAYNE', title: 'Vayne', blurb: 'One champion, learned in order' },
 ];
 
@@ -59,7 +68,7 @@ const metricFormat = (key: string): 'ms' | 'units' | 'pct' | 'int' =>
         ? 'units'
         : 'pct';
 
-export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne }: Props) {
+export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne, onApm }: Props) {
   const rank = rankFromRating(profile.overall);
   const best = bestAxis(profile);
   const priority = trainingPriority(profile);
@@ -114,6 +123,15 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne
               <div className="rgroup-head">
                 <span>{g.title}</span>
                 <i />
+                {g.id === 'APM' && (
+                  <button
+                    className="rgroup-link"
+                    onMouseEnter={() => audio.play('uiHover')}
+                    onClick={() => onApm()}
+                  >
+                    LADDER
+                  </button>
+                )}
               </div>
               {DRILL_LIST.filter((d) => d.group === g.id).map((d) => {
                 const rec = profile.bests[d.id];
@@ -133,7 +151,17 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne
                   >
                     <span className="ri-bar" />
                     <span className="ri-name">{d.name}</span>
-                    <span className="ri-best mono">{locked ? '🔒' : rec ? rec.score.toLocaleString() : '—'}</span>
+                    {/* An APM row is a rung, not a score: the number that
+                        matters there is which level you are on. */}
+                    <span className="ri-best mono">
+                      {locked
+                        ? '🔒'
+                        : isApmDrill(d.id)
+                          ? `LV ${recommendedLevel(profile.apm, d.id)}`
+                          : rec
+                            ? rec.score.toLocaleString()
+                            : '—'}
+                    </span>
                   </button>
                 );
               })}
@@ -145,7 +173,7 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne
       {/* --------------------------------------------------------- centre */}
       <main className="stage">
         {drill ? (
-          <DrillHero key={drill.id} profile={profile} id={drill.id} />
+          <DrillHero key={drill.id} profile={profile} id={drill.id} onApm={onApm} />
         ) : (
           <div className="calib">
             <div className="eyebrow">Trainer mechanical rank</div>
@@ -281,11 +309,23 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne
 }
 
 /** The middle column: one drill, standing in the arena. */
-function DrillHero({ profile, id }: { profile: Profile; id: DrillId }) {
+function DrillHero({
+  profile,
+  id,
+  onApm,
+}: {
+  profile: Profile;
+  id: DrillId;
+  onApm: (id?: DrillId) => void;
+}) {
   const d = DRILLS[id];
   const rec = profile.bests[id];
   const diff = drillDifficulty(profile, id);
   const headMetric = rec ? Object.entries(rec.metrics)[0] : null;
+  // Narrowed once, so the ladder block below can ask the progression module
+  // about this mode without re-testing the id at every call.
+  const apmId = isApmDrill(id) ? id : null;
+  const apm = apmId ? profile.apm.modes[apmId] : null;
 
   return (
     <div className="hero" style={{ ['--c' as string]: d.accent }}>
@@ -329,6 +369,28 @@ function DrillHero({ profile, id }: { profile: Profile; id: DrillId }) {
               ))}
             </div>
           </div>
+          {apm && apmId && (
+            <div className="hero-ladder">
+              <span className="eyebrow">Ladder</span>
+              <div className="hl-pips">
+                {apm.levels.map((lv, i) => (
+                  <i
+                    key={i}
+                    className={`s${levelStars(lv)}${i < apm.unlocked ? ' open' : ''}${
+                      i + 1 === recommendedLevel(profile.apm, apmId) ? ' next' : ''
+                    }`}
+                    title={`Level ${i + 1}`}
+                  />
+                ))}
+              </div>
+              <button className="hl-link" onClick={() => onApm(id)} onMouseEnter={() => audio.play('uiHover')}>
+                {clearedThrough(apm) > 0
+                  ? `CLEARED THROUGH ${clearedThrough(apm)} / ${APM_LEVELS}`
+                  : `PLAYS AT LEVEL ${recommendedLevel(profile.apm, apmId)}`}
+                <em> · OPEN LADDER</em>
+              </button>
+            </div>
+          )}
           {d.abilities.length > 0 && (
             <div className="hero-keys">
               <span className="eyebrow">Uses</span>

@@ -65,4 +65,4 @@ export const createApmDrill = (id: DrillId, session: Session): Drill | null => {
   }
 };
 
-export { FLOW_TIERS } from './engine';
+export { APM_TARGET_APM, FLOW_TIERS } from './engine';

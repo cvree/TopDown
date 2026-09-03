@@ -8,7 +8,7 @@ import type { Actor, Vec2 } from '../../engine/types';
 import type { KeyMetric } from '../../progression/profile';
 import type { SkillAxis } from '../../progression/skills';
 import { count, ms, pct } from '../base';
-import { ApmDrill, INERT_ATTACK } from './engine';
+import { APM_TARGET_APM, ApmDrill, INERT_ATTACK } from './engine';
 
 /** How far the smite reaches. Everything else in the mode follows from this. */
 const SMITE_RANGE = 700;
@@ -40,7 +40,7 @@ interface Camp {
  * to press it.
  */
 export class ApmSmiteDrill extends ApmDrill {
-  protected readonly targetApm = 105;
+  protected readonly targetApm = APM_TARGET_APM.apmSmite;
   // An objective every five seconds is a very good run.
   protected get targetRate(): number {
     return 12;

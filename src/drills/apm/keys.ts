@@ -7,7 +7,7 @@ import type { Vec2 } from '../../engine/types';
 import type { KeyMetric } from '../../progression/profile';
 import type { SkillAxis } from '../../progression/skills';
 import { count, ms } from '../base';
-import { ApmDrill, KeyCooldowns } from './engine';
+import { APM_TARGET_APM, ApmDrill, KeyCooldowns } from './engine';
 
 const SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r', 'd', 'f'];
 const NAME: Record<string, string> = { q: 'BOLT', w: 'FIELD', e: 'DASH', r: 'PULSE', d: 'FLASH', f: 'IGNITE' };
@@ -27,7 +27,7 @@ const PRESS_CD = 0.28;
  * exactly the habit that makes a combo come out clean under pressure.
  */
 export class ApmKeysDrill extends ApmDrill {
-  protected readonly targetApm = 235;
+  protected readonly targetApm = APM_TARGET_APM.apmKeys;
 
   private queue: AbilitySlot[] = [];
   private shownAt = 0;

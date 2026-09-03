@@ -110,6 +110,74 @@
   background: linear-gradient(90deg, rgba(120, 90, 40, 0.5), transparent);
 }
 
+/* The one group with a section behind it says so, quietly, in the header
+   rather than as a fourteenth row in the list. */
+.rgroup-link {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--accent-2);
+  opacity: 0.75;
+  padding: 0 2px;
+}
+.rgroup-link:hover {
+  opacity: 1;
+  text-shadow: 0 0 10px rgba(56, 224, 208, 0.6);
+}
+
+/* An APM drill's hero carries its ladder: ten rungs, shaded by the stars on
+   each, with the rung it would be played at picked out. */
+.hero-ladder {
+  /* Its own line inside the wrapping stat row, rather than a narrow column
+     squeezed between two numbers. */
+  flex-basis: 100%;
+  display: grid;
+  gap: 6px;
+}
+.hl-pips {
+  display: flex;
+  gap: 3px;
+  max-width: 300px;
+}
+.hl-pips i {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  transform: skewX(-14deg);
+}
+.hl-pips i.open {
+  background: rgba(255, 255, 255, 0.17);
+}
+.hl-pips i.s1 {
+  background: color-mix(in srgb, var(--c) 45%, transparent);
+}
+.hl-pips i.s2 {
+  background: color-mix(in srgb, var(--c) 72%, transparent);
+}
+.hl-pips i.s3 {
+  background: var(--c);
+  box-shadow: 0 0 10px -2px var(--c);
+}
+.hl-pips i.next {
+  outline: 1px solid var(--gold-lit);
+  outline-offset: 1px;
+}
+.hl-link {
+  justify-self: start;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--text-2);
+  padding: 0;
+}
+.hl-link em {
+  font-style: normal;
+  color: var(--accent-2);
+}
+.hl-link:hover {
+  color: var(--text);
+}
+
 /* One drill. A slab of metal with a coloured edge; selected slides out and
    lights up, which is the same gesture the game uses for a chosen target. */
 .rowitem {

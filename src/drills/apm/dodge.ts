@@ -9,7 +9,7 @@ import type { WorldEvent } from '../../engine/world';
 import type { KeyMetric } from '../../progression/profile';
 import type { SkillAxis } from '../../progression/skills';
 import { count, pct, secs } from '../base';
-import { ApmDrill } from './engine';
+import { APM_TARGET_APM, ApmDrill } from './engine';
 
 /** A charge you collect by standing on it. The reason to keep moving. */
 interface Charge {
@@ -241,7 +241,7 @@ abstract class ApmMoveDrill extends ApmDrill {
  * second and then it is not safe at all.
  */
 export class ApmDodgeDrill extends ApmMoveDrill {
-  protected readonly targetApm = 100;
+  protected readonly targetApm = APM_TARGET_APM.apmDodge;
   // A charge every couple of seconds, while never standing in anything.
   protected get targetRate(): number {
     return 30;
@@ -271,7 +271,7 @@ const SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r'];
  * Both are counted, and neither can be fixed by giving up on the other.
  */
 export class ApmDodgeCooldownDrill extends ApmMoveDrill {
-  protected readonly targetApm = 130;
+  protected readonly targetApm = APM_TARGET_APM.apmDodgeCd;
   // Four cooldowns turning over, plus the charges, minus what you sat on.
   protected get targetRate(): number {
     return 45;

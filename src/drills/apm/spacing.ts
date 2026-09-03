@@ -7,7 +7,7 @@ import type { Actor, Vec2 } from '../../engine/types';
 import type { KeyMetric } from '../../progression/profile';
 import type { SkillAxis } from '../../progression/skills';
 import { count, pct, units } from '../base';
-import { ApmDrill } from './engine';
+import { APM_TARGET_APM, ApmDrill } from './engine';
 
 type Call = 'edge' | 'step' | 'break';
 
@@ -31,7 +31,7 @@ const CALL_LABEL: Record<Call, string> = {
  * the moment somebody's cooldown comes up.
  */
 export class ApmSpacingDrill extends ApmDrill {
-  protected readonly targetApm = 95;
+  protected readonly targetApm = APM_TARGET_APM.apmSpacing;
   // One call answered every couple of seconds, for the whole run.
   protected get targetRate(): number {
     return 26;

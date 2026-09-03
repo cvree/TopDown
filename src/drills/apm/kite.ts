@@ -7,7 +7,7 @@ import type { WorldEvent } from '../../engine/world';
 import type { KeyMetric } from '../../progression/profile';
 import type { SkillAxis } from '../../progression/skills';
 import { count, ms, pct } from '../base';
-import { ApmDrill } from './engine';
+import { APM_TARGET_APM, ApmDrill } from './engine';
 
 /**
  * The orbwalking half of the APM trainer.
@@ -221,7 +221,7 @@ abstract class OrbwalkDrill extends ApmDrill {
  * attack cycle for a whole minute without a single wasted window.
  */
 export class ApmKiteDrill extends OrbwalkDrill {
-  protected readonly targetApm = 105;
+  protected readonly targetApm = APM_TARGET_APM.apmKite;
   // An attack and a step per cycle, at a full cycle.
   protected get targetRate(): number {
     return 80;
@@ -256,7 +256,7 @@ export class ApmKiteDrill extends OrbwalkDrill {
  * moment you take one attack you find out whether you were kiting or fleeing.
  */
 export class ApmDefensiveKiteDrill extends OrbwalkDrill {
-  protected readonly targetApm = 115;
+  protected readonly targetApm = APM_TARGET_APM.apmDefKite;
   protected get targetRate(): number {
     return 72;
   }

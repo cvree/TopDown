@@ -26,6 +26,11 @@ interface Props {
   settings: AppSettings;
   /** Label shown above the drill name, e.g. "CALIBRATION 2 / 5". */
   context?: string;
+  /**
+   * Multiplies the drill's own length. Only the APM section uses it, for a
+   * double-length endurance run; an open-ended drill is unaffected.
+   */
+  durationScale?: number;
   onComplete: (result: RunResult, bounds: { w: number; h: number }) => void;
   onExit: () => void;
   onRetry: () => void;
@@ -148,7 +153,17 @@ const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: 
   return [...base.filter((h) => keep.includes(h.label)), ...kit, { key: 'ESC', label: 'pause' }];
 };
 
-export function GameView({ drill, difficulty, seed, settings, context, onComplete, onExit, onRetry }: Props) {
+export function GameView({
+  drill,
+  difficulty,
+  seed,
+  settings,
+  context,
+  durationScale = 1,
+  onComplete,
+  onExit,
+  onRetry,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -158,6 +173,8 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
   const [gpuLost, setGpuLost] = useState(false);
   const doneRef = useRef(false);
   const meta = DRILLS[drill];
+  // A drill with no clock stays without one: doubling zero is still open-ended.
+  const duration = meta.duration > 0 ? Math.round(meta.duration * durationScale) : meta.duration;
 
   // Everything below lives outside React on purpose: the simulation must not
   // be driven by, or wait on, a render pass.
@@ -185,7 +202,7 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
     });
     const session = new Session(
       {
-        duration: meta.duration,
+        duration,
         arena: bounds,
         seed,
         difficulty,
@@ -271,10 +288,10 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
       lastHudWrite = now;
       const t = snap.timeLeft;
       elTime.textContent =
-        meta.duration > 0
+        duration > 0
           ? `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`
           : `${t.toFixed(1)}`;
-      elTime.classList.toggle('urgent', meta.duration > 0 && t < 5.5);
+      elTime.classList.toggle('urgent', duration > 0 && t < 5.5);
 
       elScore.textContent = snap.score.toLocaleString();
 
@@ -479,7 +496,7 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
       if (debug) delete (window as unknown as { __apex?: unknown }).__apex;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drill, difficulty, seed]);
+  }, [drill, difficulty, seed, duration]);
 
   const resume = useCallback(() => {
     // The session owns pause state; a synthetic Escape is the cleanest bridge.
