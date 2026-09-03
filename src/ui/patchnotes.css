@@ -256,7 +256,7 @@
 
 /* The chips share the bar with six nav tabs, a champion and a rank. The
    words go first, the icons and the version number stay. */
-@media (max-width: 1560px) {
+@media (max-width: 1740px) {
   .ver-chip span {
     display: none;
   }

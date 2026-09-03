@@ -160,6 +160,8 @@ export interface DailyState {
   reps: number;
   /** Personal bests set today. */
   bests: number;
+  /** Which drills they were set on, for the session summary. */
+  bestList?: { drill: DrillId; score: number }[];
   /** When the first run of the day started. */
   startedAt: number | null;
 }
@@ -195,6 +197,15 @@ export interface AppSettings {
   showNames: boolean;
   /** The browser-gesture warning has been read and dismissed. */
   gestureNoticeDismissed: boolean;
+  /**
+   * Strip the HUD to what a run needs while it is happening.
+   *
+   * Everything analytical — the live figures, the difficulty read-out, the
+   * frame counter, the brief — belongs after the drill rather than during it.
+   * Off by default, because a player who has never seen the figures cannot
+   * decide they are in the way.
+   */
+  focusMode: boolean;
 }
 
 export interface Profile {
@@ -278,6 +289,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   edgePan: false,
   showNames: true,
   gestureNoticeDismissed: false,
+  focusMode: false,
 };
 
 export const newProfile = (name = 'PLAYER'): Profile => ({
@@ -536,10 +548,14 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
   // allowed to set rate records and never a score record.
   const newBestScore = !opts.endurance && prevBest !== null && result.score > prevBest.score;
   const previousBestScore = prevBest?.score ?? null;
+  // `at` is when the record was *set*, not when the drill was last played.
+  // Stamping it every run would make "set this week" mean "played this week",
+  // which is a different and much less interesting claim.
+  const recordMoved = prevBest === null || newBestScore || personalBests.length > 0;
   p.bests[result.drill] = {
     score: opts.endurance ? (prevBest?.score ?? 0) : Math.max(result.score, prevBest?.score ?? 0),
     metrics: bestMetrics,
-    at: Date.now(),
+    at: recordMoved ? Date.now() : prevBest.at,
   };
 
   // Improvement versus the previous run of the same drill.
@@ -635,6 +651,15 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     result.metrics.csSuccess +
     result.metrics.targetsHit;
   p.daily.bests += personalBests.length + (newBestScore ? 1 : 0);
+  // A first run establishes a baseline and is not a record, so only a genuine
+  // improvement is filed — the summary must never congratulate someone for
+  // having played a drill once.
+  if (newBestScore || personalBests.length > 0) {
+    p.daily.bestList = [
+      ...(p.daily.bestList ?? []).filter((b) => b.drill !== result.drill),
+      { drill: result.drill, score: result.score },
+    ];
+  }
 
   const today = todayKey();
   if (!p.dailyMarks.length || p.dailyMarks[p.dailyMarks.length - 1].date !== today) {

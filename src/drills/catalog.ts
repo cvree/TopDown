@@ -483,9 +483,6 @@ export const DRILL_LIST = Object.values(DRILLS).sort((a, b) => a.order - b.order
 /** The five calibration drills, in the order the placement runs them. */
 export const PLACEMENT_SEQUENCE: DrillId[] = ['movement', 'aim', 'dodge', 'kite', 'duel1v1'];
 
-/** Today's programme. Deliberately short enough to finish every day. */
-export const DAILY_SEQUENCE: DrillId[] = ['movement', 'dodge', 'kite', 'spacing', 'duel1v1'];
-
 /** The champion track, in the order it has to be learned. */
 export const VAYNE_SEQUENCE: DrillId[] = ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'];
 

@@ -120,6 +120,8 @@ export function Records({ profile, onPlay, onTests, onTrain }: Props) {
     [profile.apm],
   );
 
+  const championPlayed = VAYNE_STAGES.some((st) => (profile.vayne.stages[st.id]?.runs ?? 0) > 0);
+
   const headline = useMemo(() => {
     const beaten = rows.filter((r) => r.previous !== null);
     return {
@@ -287,26 +289,38 @@ export function Records({ profile, onPlay, onTests, onTrain }: Props) {
             <section className="panel pad rec-extra">
               <div className="panel-title">The champion path</div>
               <div className="rec-line-list">
-                {VAYNE_STAGES.map((st) => {
-                  const p = profile.vayne.stages[st.id];
-                  const stars = p ? stageStars(st, p) : 0;
-                  return (
-                    <div className="rec-line" key={st.id}>
-                      <span className="rl-name">{st.title}</span>
-                      <div className="rl-bar">
-                        <span style={{ width: `${Math.round((p?.best ?? 0) * 100)}%` }} />
+                {!championPlayed && (
+                  <div className="empty">
+                    <b>NO CHAMPION RECORDS</b>
+                    <p>
+                      Four stages, learned in order, each with its own best. None of them have been run yet.
+                    </p>
+                    <button className="btn sm" onClick={() => onPlay(VAYNE_STAGES[0].id)}>
+                      Begin {DRILLS[VAYNE_STAGES[0].id].name}
+                    </button>
+                  </div>
+                )}
+                {championPlayed &&
+                  VAYNE_STAGES.map((st) => {
+                    const p = profile.vayne.stages[st.id];
+                    const stars = p ? stageStars(st, p) : 0;
+                    return (
+                      <div className="rec-line" key={st.id}>
+                        <span className="rl-name">{st.title}</span>
+                        <div className="rl-bar">
+                          <span style={{ width: `${Math.round((p?.best ?? 0) * 100)}%` }} />
+                        </div>
+                        <span className="rl-val mono">
+                          {p && p.best > 0 ? `${Math.round(p.best * 100)}%` : '—'}
+                        </span>
+                        <span className="rl-stars">
+                          {[1, 2, 3].map((n) => (
+                            <i key={n} className={n <= stars ? 'on' : ''} />
+                          ))}
+                        </span>
                       </div>
-                      <span className="rl-val mono">
-                        {p && p.best > 0 ? `${Math.round(p.best * 100)}%` : '—'}
-                      </span>
-                      <span className="rl-stars">
-                        {[1, 2, 3].map((n) => (
-                          <i key={n} className={n <= stars ? 'on' : ''} />
-                        ))}
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </section>
 

@@ -242,3 +242,44 @@
   opacity: 1;
   pointer-events: auto;
 }
+
+/* The verdict: strongest, weakest, and where to start. */
+.pr-verdict {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 22px 30px;
+  margin: 26px auto 0;
+  max-width: 780px;
+  padding: 20px 24px;
+  border-top: 1px solid rgba(120, 90, 40, 0.35);
+  border-bottom: 1px solid rgba(120, 90, 40, 0.35);
+  text-align: left;
+}
+.pv-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.pv-cell b {
+  font-family: var(--display);
+  font-size: 19px;
+  letter-spacing: 0.06em;
+}
+.pv-cell i {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+.pv-path {
+  grid-column: span 2;
+}
+.pv-path b {
+  color: var(--gold-hot);
+}
+@media (max-width: 700px) {
+  .pv-path {
+    grid-column: span 1;
+  }
+}

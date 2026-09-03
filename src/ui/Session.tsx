@@ -171,16 +171,9 @@ export function SessionComplete({ profile, onDone, onProgress, onPlay }: Summary
       .slice(0, 4);
   }, [profile.ratings, d.startRatings]);
 
-  const bestsToday = useMemo(
-    () =>
-      (Object.entries(profile.bests) as [DrillId, { score: number; at: number }][])
-        .filter(([, b]) => b.at >= dayStart.getTime())
-        .sort((a, b) => b[1].at - a[1].at)
-        .slice(0, 3),
-    // dayStart is derived per render but stable within a day.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [profile.bests],
-  );
+  // Records actually beaten today, filed as they happened. A drill played for
+  // the first time writes a baseline, not a record, and does not appear here.
+  const bestsToday = (d.bestList ?? []).slice(-3).reverse();
 
   const commonError = useMemo(() => {
     const today = profile.errorLog.filter((e) => e.t >= dayStart.getTime());
@@ -267,15 +260,19 @@ export function SessionComplete({ profile, onDone, onProgress, onPlay }: Summary
 
           <section className="panel pad">
             <div className="panel-title">Records &amp; habits</div>
-            {bestsToday.length > 0 && (
+            {bestsToday.length > 0 ? (
               <div className="sd-bests">
-                {bestsToday.map(([id, b]) => (
-                  <div className="sdb-row" key={id}>
+                {bestsToday.map((b) => (
+                  <div className="sdb-row" key={b.drill}>
                     <span className="eyebrow">Personal best</span>
-                    <b style={{ color: DRILLS[id].accent }}>{DRILLS[id].name}</b>
+                    <b style={{ color: DRILLS[b.drill].accent }}>{DRILLS[b.drill].name}</b>
                     <i className="mono">{b.score.toLocaleString()}</i>
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="sd-bests">
+                <div className="sdb-none faint">No records beaten today.</div>
               </div>
             )}
             {commonError ? (

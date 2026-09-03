@@ -24,6 +24,8 @@ import {
 } from '../progression/profile';
 import { APM_LEVELS, isApmDrill, levelDifficulty, recommendedLevel, seedApmLadder } from '../progression/apm';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
+import { recommend } from '../progression/coach';
+import { planSession } from '../progression/plan';
 import { PATCH_NOTES, VERSION } from '../patchnotes/notes';
 import type { TestId } from '../tests/catalog';
 import type { TestResult } from '../tests/types';
@@ -536,11 +538,22 @@ export function App() {
       const axis = Object.keys(DRILLS[id].axes)[0] as SkillAxis;
       return { axis, rating: profile.ratings[axis] };
     });
+    // The verdict comes from the five axes just measured, not from the whole
+    // profile: a freshly placed player has no other data, and quoting an axis
+    // the assessment did not touch would be inventing a reading.
+    const ranked = [...axes].sort((a, b) => b.rating - a.rating);
+    const rec = recommend(profile, 1)[0] ?? null;
     return (
       <PlacementReveal
         rank={rankFromRating(profile.overall)}
         rating={profile.overall}
         axes={axes}
+        strongest={ranked[0]}
+        weakest={ranked[ranked.length - 1]}
+        path={{
+          label: rec ? DRILLS[rec.drill].name : planSession(profile).focus,
+          reason: rec ? rec.reason : 'A balanced first session while the profile fills in.',
+        }}
         onDone={finishPlacement}
       />
     );
@@ -829,6 +842,8 @@ export function App() {
               onCalibrate={() => setPlacementIntro(true)}
               onOpenProgress={() => setRoute('progress')}
               onOpenSummary={() => setSessionDone(true)}
+              onSetup={() => setRoute('settings')}
+              onExplore={() => setRoute('home')}
             />
           )}
           {!sessionDone && route === 'home' && (

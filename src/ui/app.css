@@ -268,16 +268,51 @@
   letter-spacing: 0.08em;
 }
 
-@media (max-width: 1480px) {
+/* The top bar carries six tabs and five chips. As it narrows the words go
+   in order of how much they are worth, and the rank — the one thing that is
+   read at a glance from across the room — never shrinks or clips. */
+.nav {
+  min-width: 0;
+}
+.rank-chip,
+.hero-chip,
+.gear-chip,
+.pal-chip {
+  flex: none;
+}
+
+@media (max-width: 1700px) {
+  .nav button {
+    padding: 0 17px;
+  }
+}
+@media (max-width: 1560px) {
   .gear-chip span {
     display: none;
   }
+  .nav button {
+    padding: 0 14px;
+    font-size: 11px;
+  }
+  .topbar {
+    gap: 20px;
+    padding: 0 22px;
+  }
 }
-@media (max-width: 1380px) {
+@media (max-width: 1400px) {
   .pal-chip .kbd {
     display: none;
   }
   .hero-chip span {
     display: none;
+  }
+}
+@media (max-width: 1240px) {
+  .logo-sub {
+    display: none;
+  }
+  .nav button {
+    padding: 0 11px;
+    letter-spacing: 0.14em;
   }
 }

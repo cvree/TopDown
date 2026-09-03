@@ -41,6 +41,10 @@ interface Props {
   onCalibrate: () => void;
   onOpenProgress: () => void;
   onOpenSummary: () => void;
+  /** Controls, camera and audio — the setup step of the first-run flow. */
+  onSetup: () => void;
+  /** The drill browser, for a player who would rather not be diagnosed. */
+  onExplore: () => void;
 }
 
 /** Under ninety seconds a block is stated in seconds — rounding a 45-second
@@ -63,6 +67,8 @@ export function Today({
   onCalibrate,
   onOpenProgress,
   onOpenSummary,
+  onSetup,
+  onExplore,
 }: Props) {
   const plan = useMemo(() => dailyPlan(profile), [profile]);
   const done = profile.daily.completed;
@@ -144,11 +150,20 @@ export function Today({
                 </span>
               ))}
             </div>
-            <button className="btn primary lg" onClick={onCalibrate} style={{ marginTop: 26 }}>
-              Take the mechanical assessment
-            </button>
+            <div className="tc-actions">
+              <button className="btn primary lg" onClick={onCalibrate}>
+                Take the mechanical assessment
+              </button>
+              <button className="btn lg" onClick={onSetup}>
+                Calibrate your setup first
+              </button>
+              <button className="btn ghost lg" onClick={onExplore}>
+                Explore training
+              </button>
+            </div>
             <p className="tc-foot faint">
-              You can skip it and pick drills yourself — the assessment only exists to save you the guessing.
+              The recommended order is setup, then assessment, then your first session — but nothing here is
+              locked, and you can pick drills yourself at any point.
             </p>
           </div>
         </div>

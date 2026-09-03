@@ -78,6 +78,11 @@ interface RevealProps {
   rank: RankInfo;
   rating: number;
   axes: { axis: SkillAxis; rating: number }[];
+  /** The best and worst of the five things just measured. */
+  strongest: { axis: SkillAxis; rating: number };
+  weakest: { axis: SkillAxis; rating: number };
+  /** Where the trainer thinks this player should start, and why. */
+  path: { label: string; reason: string };
   onDone: () => void;
 }
 
@@ -85,7 +90,7 @@ interface RevealProps {
  * The placement reveal. The analysis lines are not decoration — each one
  * corresponds to a drill that was actually measured, in the order it ran.
  */
-export function PlacementReveal({ rank, rating, axes, onDone }: RevealProps) {
+export function PlacementReveal({ rank, rating, axes, strongest, weakest, path, onDone }: RevealProps) {
   const [line, setLine] = useState(0);
   const [phase, setPhase] = useState<'analysis' | 'reveal' | 'detail'>('analysis');
 
@@ -133,13 +138,13 @@ export function PlacementReveal({ rank, rating, axes, onDone }: RevealProps) {
       <div className="pr-result">
         <div className="pr-glow" />
         <div className="eyebrow" style={{ letterSpacing: '0.42em' }}>
-          Your mechanical rank
+          APEX assessment complete
         </div>
         <div className="pr-emblem">
           <RankEmblem tier={rank.tier} size={196} animated />
         </div>
         <div className="pr-tier display">{rank.label}</div>
-        <div className="pr-rating mono">{Math.round(rating)} rating</div>
+        <div className="pr-rating mono">{Math.round(rating)} AMR</div>
 
         <div className="pr-axes">
           {axes.map((a, i) => (
@@ -150,13 +155,33 @@ export function PlacementReveal({ rank, rating, axes, onDone }: RevealProps) {
           ))}
         </div>
 
+        {/* The diagnosis, which is the point of having sat through five
+            drills: the best thing, the worst thing, and where to start. */}
+        <div className="pr-verdict">
+          <div className="pv-cell">
+            <span className="eyebrow">Strongest</span>
+            <b className="good">{AXIS_LABEL[strongest.axis]}</b>
+            <i className="mono">{Math.round(strongest.rating)}</i>
+          </div>
+          <div className="pv-cell">
+            <span className="eyebrow">Weakest</span>
+            <b className="warn">{AXIS_LABEL[weakest.axis]}</b>
+            <i className="mono">{Math.round(weakest.rating)}</i>
+          </div>
+          <div className="pv-cell pv-path">
+            <span className="eyebrow">Recommended starting path</span>
+            <b>{path.label}</b>
+            <i>{path.reason}</i>
+          </div>
+        </div>
+
         <p className="pr-note">
           This is a <b>trainer</b> rank: it describes how you execute these mechanics, not your League
           ranked tier. Rank moves on measured performance, not on time spent.
         </p>
 
         <button className="btn primary lg pr-continue" onClick={onDone}>
-          Enter the trainer
+          Begin training
         </button>
       </div>
     </div>

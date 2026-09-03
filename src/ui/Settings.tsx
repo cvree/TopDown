@@ -48,7 +48,15 @@ interface Props {
 
 // --------------------------------------------------------------- the registry
 
-type BoolKey = 'quickCast' | 'showRange' | 'reduceShake' | 'lowFx' | 'edgePan' | 'showNames' | 'muted';
+type BoolKey =
+  | 'quickCast'
+  | 'showRange'
+  | 'reduceShake'
+  | 'lowFx'
+  | 'edgePan'
+  | 'showNames'
+  | 'muted'
+  | 'focusMode';
 type NumKey = 'masterVolume' | 'sfxVolume' | 'musicVolume';
 
 interface ChoiceOption<V extends string> {
@@ -171,6 +179,13 @@ const SECTIONS: Section[] = [
         label: 'Show attack range',
         hint: 'The dashed ring around you, plus the attack timer arc — the two indicators the orbwalk drills are read off.',
         terms: 'indicator ring circle radius',
+      },
+      {
+        kind: 'toggle',
+        key: 'focusMode',
+        label: 'Focus mode',
+        hint: 'Strips the HUD to the timer, the task, your health and the score. Everything analytical waits for the results screen. F2 toggles it inside a run.',
+        terms: 'minimal hud clean distraction zen focus',
       },
       {
         kind: 'toggle',

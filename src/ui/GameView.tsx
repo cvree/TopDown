@@ -171,6 +171,29 @@ export function GameView({
   const hudRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<'countdown' | 'running' | 'paused' | 'ended'>('countdown');
   const [gpuLost, setGpuLost] = useState(false);
+  // Focus mode. Seeded from the setting, toggled inside a run with F2, and
+  // deliberately local: switching it mid-run is a decision about this run.
+  const [focus, setFocus] = useState(settings.focusMode);
+  const [focusToast, setFocusToast] = useState(false);
+
+  useEffect(() => setFocus(settings.focusMode), [settings.focusMode]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'F2') return;
+      e.preventDefault();
+      setFocus((v) => !v);
+      setFocusToast(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    if (!focusToast) return;
+    const t = window.setTimeout(() => setFocusToast(false), 1400);
+    return () => window.clearTimeout(t);
+  }, [focusToast, focus]);
   const doneRef = useRef(false);
   const meta = DRILLS[drill];
   // A drill with no clock stays without one: doubling zero is still open-ended.
@@ -528,7 +551,7 @@ export function GameView({
       <canvas ref={canvasRef} className="game-canvas" tabIndex={0} />
       <canvas ref={overlayRef} className="game-overlay" />
 
-      <div className="hud" ref={hudRef}>
+      <div className={`hud${focus ? ' hud-focus' : ''}`} ref={hudRef}>
         <div className="hud-objective panel-rift">
           {context && <div className="hud-context">{context}</div>}
           <div className="hud-name">{meta.name}</div>
@@ -637,6 +660,10 @@ export function GameView({
               <b className="kbd">{h.key}</b> {h.label}
             </span>
           ))}
+          {/* The one hint about the HUD itself, in the row that fades. */}
+          <span>
+            <b className="kbd">F2</b> focus mode
+          </span>
         </div>
 
         {/* Which camera mode you are in, sat above the minimap where League
@@ -653,6 +680,13 @@ export function GameView({
         <div className="hud-minimap">
           <canvas ref={minimapRef} />
         </div>
+
+        {focusToast && (
+          <div className="hud-focus-toast">
+            FOCUS MODE {focus ? 'ON' : 'OFF'}
+            <span>F2</span>
+          </div>
+        )}
       </div>
 
       {gpuLost && (

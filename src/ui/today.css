@@ -501,7 +501,7 @@
 
 /* Session role column: wide enough for "PRIMARY WEAKNESS" at full tracking. */
 .sc-row {
-  grid-template-columns: 22px 158px minmax(0, 1fr) auto;
+  grid-template-columns: 22px 172px minmax(0, 1fr) auto;
 }
 .fc-rec-head {
   font-family: var(--ui);
@@ -549,4 +549,12 @@
 .sr-lines b {
   color: var(--text);
   font-size: 13px;
+}
+
+.tc-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 26px;
 }
