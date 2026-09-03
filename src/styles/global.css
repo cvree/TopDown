@@ -686,3 +686,64 @@ h3 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------------------------------------------------------- failure */
+/* Rendered only by the error boundary. It has to survive whatever broke,
+   so it depends on nothing but the tokens at the top of this file. */
+.fail-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 40px;
+  background: radial-gradient(80% 60% at 50% 40%, rgba(8, 16, 28, 0.9), rgba(1, 3, 7, 0.97));
+}
+.fail-card {
+  width: min(620px, 100%);
+  padding: 34px 40px 28px;
+  text-align: center;
+  background: linear-gradient(160deg, rgba(9, 18, 32, 0.96), rgba(3, 8, 16, 0.96));
+  border: 1px solid var(--stroke-2);
+  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+}
+.fail-card h2 {
+  font-size: 26px;
+  margin: 8px 0 0;
+  color: var(--gold-hot);
+}
+.fail-card p {
+  margin: 0 auto;
+  max-width: 52ch;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+.fail-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 26px 0 18px;
+}
+.fail-detail {
+  text-align: left;
+  border-top: 1px solid rgba(120, 90, 40, 0.28);
+  padding-top: 12px;
+}
+.fail-detail summary {
+  font-family: var(--ui);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.fail-detail code {
+  display: block;
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  word-break: break-word;
+}

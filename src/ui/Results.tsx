@@ -9,7 +9,8 @@ import { expectedRating } from '../progression/rating';
 import { AXIS_LABEL } from '../progression/skills';
 import { APM_LEVELS, CLEAR_AT, levelDifficulty } from '../progression/apm';
 import { VAYNE_STAGES } from '../progression/vayne';
-import { PathMap, ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
+import { ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
+import { Replay } from './Replay';
 import './results.css';
 
 interface Props {
@@ -458,19 +459,11 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
 
         <div className={`res-viz ${stage >= 4 ? 'in' : ''}`}>
           <div className="panel pad">
-            <div className="panel-title">Movement path & cursor density</div>
-            <PathMap path={result.metrics.path} cursor={result.metrics.cursorPath} bounds={bounds} width={430} />
-            <div className="viz-legend">
-              <span>
-                <i style={{ background: 'var(--accent)' }} /> path, brightening over time
-              </span>
-              <span>
-                <i style={{ background: 'var(--warn)' }} /> cursor density
-              </span>
-            </div>
+            <div className="panel-title">Replay</div>
+            <Replay metrics={result.metrics} bounds={bounds} accent={meta.accent} />
           </div>
 
-          <div className="panel pad" style={{ flex: 1 }}>
+          <div className="panel pad">
             <div className="panel-title">Attack rhythm</div>
             <RhythmTimeline
               marks={result.metrics.timeline}

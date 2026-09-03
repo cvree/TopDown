@@ -349,12 +349,21 @@
 }
 
 /* ---------------------------------------------------------------- viz */
+/* Two panels: the replay, which wants room, and the rhythm strip, which
+   wants width. Both are given a floor so neither collapses when the other
+   grows. */
 .res-viz {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: start;
   gap: 20px;
   margin-bottom: 28px;
-  flex-wrap: wrap;
   transition-delay: 0.15s;
+}
+@media (max-width: 1180px) {
+  .res-viz {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .viz-legend {
   display: flex;

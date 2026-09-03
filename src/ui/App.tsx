@@ -33,6 +33,7 @@ import type { SkillAxis } from '../progression/skills';
 import { ArenaBackdrop } from './components/ArenaBackdrop';
 import { Boot } from './Boot';
 import { Crest } from './components/Crest';
+import { ErrorBoundary } from './ErrorBoundary';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
 import { HeroSelect } from './HeroSelect';
 import { HeroSigil } from './components/HeroSigil';
@@ -591,18 +592,25 @@ export function App() {
             : undefined;
     return (
       <>
-        <GameView
-          key={`${currentDrill}-${flow.seed}`}
-          drill={currentDrill}
-          difficulty={difficulty}
-          seed={flow.seed}
-          settings={profile.settings}
-          context={context}
-          durationScale={flow.endurance ? 2 : 1}
-          onComplete={handleComplete}
-          onExit={exitToMenu}
+        <ErrorBoundary
+          key={`boundary-${currentDrill}-${flow.seed}`}
+          what={DRILLS[currentDrill].name}
           onRetry={retry}
-        />
+          onExit={exitToMenu}
+        >
+          <GameView
+            key={`${currentDrill}-${flow.seed}`}
+            drill={currentDrill}
+            difficulty={difficulty}
+            seed={flow.seed}
+            settings={profile.settings}
+            context={context}
+            durationScale={flow.endurance ? 2 : 1}
+            onComplete={handleComplete}
+            onExit={exitToMenu}
+            onRetry={retry}
+          />
+        </ErrorBoundary>
         {interstitial && (
           <div
             className="interstitial"
@@ -820,88 +828,98 @@ export function App() {
             <GestureNotice onDismiss={() => patchSettings({ gestureNoticeDismissed: true })} />
           )}
 
-          {sessionDone && (
-            <SessionComplete
-              profile={profile}
-              onDone={() => setSessionDone(false)}
-              onProgress={() => {
-                setSessionDone(false);
-                setRoute('progress');
-              }}
-              onPlay={(id) => {
-                setSessionDone(false);
-                startSingle(id);
-              }}
-            />
-          )}
-          {!sessionDone && route === 'today' && (
-            <Today
-              profile={profile}
-              onStartSession={startDaily}
-              onPlay={startSingle}
-              onCalibrate={() => setPlacementIntro(true)}
-              onOpenProgress={() => setRoute('progress')}
-              onOpenSummary={() => setSessionDone(true)}
-              onSetup={() => setRoute('settings')}
-              onExplore={() => setRoute('home')}
-            />
-          )}
-          {!sessionDone && route === 'home' && (
-            <Home
-              profile={profile}
-              onPlay={startSingle}
-              onDaily={() => setRoute('today')}
-              onProfile={() => setRoute('progress')}
-              onPlacement={() => setPlacementIntro(true)}
-              onVayne={() => setRoute('vayne')}
-              onApm={(id) => {
-                setApmFocus(id ?? null);
-                setRoute('apm');
-              }}
-            />
-          )}
-          {!sessionDone && route === 'apm' && (
-            <Apm
-              profile={profile}
-              focus={apmFocus}
-              onPlay={startApm}
-              onBack={() => setRoute('home')}
-              onPlacement={() => setPlacementIntro(true)}
-            />
-          )}
+          <ErrorBoundary
+            key={`route-${route}-${sessionDone}`}
+            what={sessionDone ? 'The session summary' : NAV.find((n) => n.id === route)?.label ?? 'This screen'}
+            onExit={() => {
+              setSessionDone(false);
+              setRoute('today');
+            }}
+            exitLabel="Back to today"
+          >
+            {sessionDone && (
+              <SessionComplete
+                profile={profile}
+                onDone={() => setSessionDone(false)}
+                onProgress={() => {
+                  setSessionDone(false);
+                  setRoute('progress');
+                }}
+                onPlay={(id) => {
+                  setSessionDone(false);
+                  startSingle(id);
+                }}
+              />
+            )}
+            {!sessionDone && route === 'today' && (
+              <Today
+                profile={profile}
+                onStartSession={startDaily}
+                onPlay={startSingle}
+                onCalibrate={() => setPlacementIntro(true)}
+                onOpenProgress={() => setRoute('progress')}
+                onOpenSummary={() => setSessionDone(true)}
+                onSetup={() => setRoute('settings')}
+                onExplore={() => setRoute('home')}
+              />
+            )}
+            {!sessionDone && route === 'home' && (
+              <Home
+                profile={profile}
+                onPlay={startSingle}
+                onDaily={() => setRoute('today')}
+                onProfile={() => setRoute('progress')}
+                onPlacement={() => setPlacementIntro(true)}
+                onVayne={() => setRoute('vayne')}
+                onApm={(id) => {
+                  setApmFocus(id ?? null);
+                  setRoute('apm');
+                }}
+              />
+            )}
+            {!sessionDone && route === 'apm' && (
+              <Apm
+                profile={profile}
+                focus={apmFocus}
+                onPlay={startApm}
+                onBack={() => setRoute('home')}
+                onPlacement={() => setPlacementIntro(true)}
+              />
+            )}
 
-          {!sessionDone && route === 'tests' && (
-            <Tests profile={profile} onRun={startTest} onBack={() => setRoute('home')} />
-          )}
-          {!sessionDone && route === 'vayne' && (
-            <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('home')} />
-          )}
-          {!sessionDone && route === 'records' && (
-            <Records
-              profile={profile}
-              onPlay={startSingle}
-              onTests={() => setRoute('tests')}
-              onTrain={() => setRoute('home')}
-            />
-          )}
-          {!sessionDone && route === 'progress' && (
-            <Progress
-              profile={profile}
-              onRename={(name) => setProfile((p) => ({ ...p, name }))}
-              onReset={doReset}
-              onPlay={startSingle}
-            />
-          )}
-          {!sessionDone && route === 'settings' && (
-            <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('home')} />
-          )}
-          {!sessionDone && route === 'patch' && (
-            <PatchNotes
-              seen={profile.seenVersion}
-              onRead={markPatchRead}
-              onBack={() => setRoute('home')}
-            />
-          )}
+            {!sessionDone && route === 'tests' && (
+              <Tests profile={profile} onRun={startTest} onBack={() => setRoute('home')} />
+            )}
+            {!sessionDone && route === 'vayne' && (
+              <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('home')} />
+            )}
+            {!sessionDone && route === 'records' && (
+              <Records
+                profile={profile}
+                onPlay={startSingle}
+                onTests={() => setRoute('tests')}
+                onTrain={() => setRoute('home')}
+              />
+            )}
+            {!sessionDone && route === 'progress' && (
+              <Progress
+                profile={profile}
+                onRename={(name) => setProfile((p) => ({ ...p, name }))}
+                onReset={doReset}
+                onPlay={startSingle}
+              />
+            )}
+            {!sessionDone && route === 'settings' && (
+              <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('home')} />
+            )}
+            {!sessionDone && route === 'patch' && (
+              <PatchNotes
+                seen={profile.seenVersion}
+                onRead={markPatchRead}
+                onBack={() => setRoute('home')}
+              />
+            )}
+          </ErrorBoundary>
         </div>
       )}
     </div>

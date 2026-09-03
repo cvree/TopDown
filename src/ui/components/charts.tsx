@@ -241,95 +241,6 @@ export function RankMeter({ progress, label, sub }: { progress: number; label: s
 
 /* ------------------------------------------------------- canvas visuals */
 
-/** Movement path + cursor heatmap, drawn over the arena footprint. */
-export function PathMap({
-  path,
-  cursor,
-  bounds,
-  width = 420,
-  showCursor = true,
-}: {
-  path: Vec2[];
-  cursor: Vec2[];
-  bounds: { w: number; h: number };
-  width?: number;
-  showCursor?: boolean;
-}) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const height = Math.round((width * bounds.h) / bounds.w);
-
-  useEffect(() => {
-    const cv = ref.current;
-    if (!cv) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    cv.width = width * dpr;
-    cv.height = height * dpr;
-    const ctx = cv.getContext('2d');
-    if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-    const sx = width / bounds.w;
-    const sy = height / bounds.h;
-
-    ctx.fillStyle = 'rgba(8,11,18,.85)';
-    ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = 'rgba(140,190,240,.09)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x <= 4; x++) {
-      ctx.beginPath();
-      ctx.moveTo((x / 4) * width, 0);
-      ctx.lineTo((x / 4) * width, height);
-      ctx.stroke();
-    }
-    for (let y = 0; y <= 3; y++) {
-      ctx.beginPath();
-      ctx.moveTo(0, (y / 3) * height);
-      ctx.lineTo(width, (y / 3) * height);
-      ctx.stroke();
-    }
-
-    if (showCursor && cursor.length > 3) {
-      // Cursor density: where your attention actually lived.
-      ctx.globalCompositeOperation = 'lighter';
-      for (const c of cursor) {
-        const g = ctx.createRadialGradient(c.x * sx, c.y * sy, 0, c.x * sx, c.y * sy, 22);
-        g.addColorStop(0, 'rgba(255,207,107,.055)');
-        g.addColorStop(1, 'rgba(255,207,107,0)');
-        ctx.fillStyle = g;
-        ctx.fillRect(c.x * sx - 22, c.y * sy - 22, 44, 44);
-      }
-      ctx.globalCompositeOperation = 'source-over';
-    }
-
-    if (path.length > 1) {
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      for (let i = 1; i < path.length; i++) {
-        const t = i / path.length;
-        ctx.strokeStyle = `rgba(88,224,255,${0.12 + t * 0.6})`;
-        ctx.lineWidth = 1 + t * 1.6;
-        ctx.beginPath();
-        ctx.moveTo(path[i - 1].x * sx, path[i - 1].y * sy);
-        ctx.lineTo(path[i].x * sx, path[i].y * sy);
-        ctx.stroke();
-      }
-      const last = path[path.length - 1];
-      ctx.fillStyle = '#eafcff';
-      ctx.beginPath();
-      ctx.arc(last.x * sx, last.y * sy, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-      const first = path[0];
-      ctx.strokeStyle = 'rgba(255,255,255,.55)';
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.arc(first.x * sx, first.y * sy, 4.5, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  }, [path, cursor, bounds, width, height, showCursor]);
-
-  return <canvas ref={ref} style={{ width, height, borderRadius: 10, display: 'block' }} />;
-}
-
 /** Attack rhythm timeline — each mark is one decision, coloured by quality. */
 export function RhythmTimeline({
   marks,
@@ -384,7 +295,8 @@ export function RhythmTimeline({
     }
   }, [marks, duration, width, height]);
 
-  return <canvas ref={ref} style={{ width, height, display: 'block' }} />;
+  // A fixed drawing width, but never wider than the column it lands in.
+  return <canvas ref={ref} style={{ width, height, display: 'block', maxWidth: '100%' }} />;
 }
 
 /** Reaction-time distribution: a histogram you can read in one glance. */
@@ -414,7 +326,7 @@ export function ReactionHistogram({
   const bw = width / bins;
 
   return (
-    <svg width={width} height={height + 18}>
+    <svg width={width} height={height + 18} style={{ maxWidth: '100%' }}>
       {counts.map((c, i) => {
         const h = (c / peak) * height;
         return (
