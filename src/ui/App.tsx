@@ -38,6 +38,7 @@ import { Apm } from './Apm';
 import { DrillBreak, SessionComplete } from './Session';
 import { GameView } from './GameView';
 import { Home } from './Home';
+import { Palette } from './Palette';
 import { Records } from './Records';
 import { Today } from './Today';
 import { PatchNotes } from './PatchNotes';
@@ -98,6 +99,9 @@ interface ResultState {
   bounds: { w: number; h: number };
 }
 
+/** Read once: the shortcut hint is the only thing that needs it. */
+const isMac = typeof navigator !== 'undefined' && /Mac|iP(hone|ad)/.test(navigator.platform);
+
 export function App() {
   const [profile, setProfile] = useState<Profile>(() => {
     const p = loadProfile();
@@ -112,6 +116,8 @@ export function App() {
   const [breakDetails, setBreakDetails] = useState(false);
   /** The end-of-session screen, shown once the last block is finished. */
   const [sessionDone, setSessionDone] = useState(false);
+  /** Fast navigation, on Ctrl/Cmd+K. Never available during a run. */
+  const [palette, setPalette] = useState(false);
   // Which mode the APM section opens on, so a click in the drill rail lands on
   // the mode it named rather than on whatever was last selected.
   const [apmFocus, setApmFocus] = useState<DrillId | null>(null);
@@ -156,6 +162,21 @@ export function App() {
     if (!booted || inGame || profile.settings.muted) audio.stopAmbience();
     else audio.startAmbience();
   }, [booted, inGame, profile.settings.muted]);
+
+  // Ctrl/Cmd+K anywhere in the client. Blocked during a run, during the boot
+  // gate and during champion select, all three of which are driven by bare
+  // keypresses and none of which should acquire a search box.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'k' && e.key !== 'K') return;
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      if (!booted || inGame || placementReveal || placementIntro) return;
+      setPalette((v) => !v);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [booted, inGame, placementReveal, placementIntro]);
 
   // A profile that was calibrated before the APM ladder existed still gets its
   // starting rung set — once, the first time the section is opened.
@@ -692,6 +713,23 @@ export function App() {
               {/* The build, and whether there is anything in it you have not
                   read. A version number in a corner is also the first thing
                   anyone needs when reporting that something behaves oddly. */}
+              {/* The palette has to be discoverable or it may as well not
+                  exist: a shortcut nobody is told about is a private feature. */}
+              <button
+                className="pal-chip"
+                title="Search drills, tests and screens"
+                onMouseEnter={() => audio.play('uiHover')}
+                onClick={() => {
+                  audio.play('uiTab');
+                  setPalette(true);
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="10.5" cy="10.5" r="6.5" />
+                  <path d="M15.5 15.5 21 21" />
+                </svg>
+                <i className="kbd">{isMac ? '⌘K' : 'CTRL K'}</i>
+              </button>
               <button
                 className={`ver-chip${route === 'patch' ? ' on' : ''}`}
                 title={
@@ -749,6 +787,21 @@ export function App() {
               </div>
             </div>
           </header>
+
+          {palette && (
+            <Palette
+              profile={profile}
+              onClose={() => setPalette(false)}
+              onGo={(r) => {
+                setSessionDone(false);
+                setRoute(r as Route);
+              }}
+              onPlay={startSingle}
+              onTest={startTest}
+              onStartSession={startDaily}
+              onCalibrate={() => setPlacementIntro(true)}
+            />
+          )}
 
           {showGestureNotice && (
             <GestureNotice onDismiss={() => patchSettings({ gestureNoticeDismissed: true })} />

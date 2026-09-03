@@ -250,13 +250,20 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
                   <div className="pp-row" key={r.axis}>
                     <span className="pp-name">{AXIS_LABEL[r.axis]}</span>
                     <div className="pp-track" title={`${r.isolatedRuns} isolated runs, ${r.liveRuns} live runs`}>
-                      <span className="pp-iso" style={{ width: `${Math.round(r.isolated * 100)}%` }} />
-                      <span className="pp-live" style={{ width: `${Math.round(r.live * 100)}%` }} />
+                      <span className="pp-iso" style={{ width: `${Math.min(100, Math.round(r.isolated * 100))}%` }} />
+                      <span className="pp-live" style={{ width: `${Math.min(100, Math.round(r.live * 100))}%` }} />
                     </div>
                     <span className="pp-nums mono faint">
                       {Math.round(r.isolated * 100)}% → {Math.round(r.live * 100)}%
                     </span>
-                    <b className={`pp-ret mono ${r.retention >= 0.9 ? 'good' : r.retention >= 0.78 ? 'warn' : 'bad'}`}>
+                    <b
+                      className={`pp-ret mono ${r.retention >= 0.9 ? 'good' : r.retention >= 0.78 ? 'warn' : 'bad'}`}
+                      title={
+                        r.retention >= 1
+                          ? 'Better under pressure than on the bench — rare, and worth knowing.'
+                          : 'How much of the isolated number survives an opponent.'
+                      }
+                    >
                       {Math.round(r.retention * 100)}%
                     </b>
                   </div>
@@ -362,20 +369,29 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
                           </div>
                         </div>
                         <div className="err-weeks">
-                          <span className="eyebrow">Week by week</span>
+                          <span className="eyebrow">Week by week · share of opportunities</span>
                           <div className="ew-bars">
-                            {weeks.map((w) => (
-                              <div className="ew-col" key={w.label}>
-                                <div className="ew-bar">
-                                  <span
-                                    style={{ height: w.rate === null ? '2px' : `${Math.max(3, w.rate * 100)}%` }}
-                                    className={w.rate === null ? 'none' : ''}
-                                  />
+                            {(() => {
+                              // Scaled against the worst week rather than
+                              // against 100%: a habit falling from 16% to 6%
+                              // is the story, and four near-flat bars hide it.
+                              const peak = Math.max(0.04, ...weeks.map((w) => w.rate ?? 0));
+                              return weeks.map((w) => (
+                                <div className="ew-col" key={w.label}>
+                                  <div className="ew-bar">
+                                    <span
+                                      style={{
+                                        height:
+                                          w.rate === null ? '3px' : `${Math.max(6, (w.rate / peak) * 100)}%`,
+                                      }}
+                                      className={w.rate === null ? 'none' : ''}
+                                    />
+                                  </div>
+                                  <b className="mono">{w.rate === null ? '—' : `${Math.round(w.rate * 100)}%`}</b>
+                                  <span className="faint">{w.label}</span>
                                 </div>
-                                <b className="mono">{w.rate === null ? '—' : `${Math.round(w.rate * 100)}%`}</b>
-                                <span className="faint">{w.label}</span>
-                              </div>
-                            ))}
+                              ));
+                            })()}
                           </div>
                         </div>
                         <div className="err-fix">

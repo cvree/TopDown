@@ -585,3 +585,81 @@
   color: var(--text-3);
   font-size: 12px;
 }
+
+/* ------------------------------------------------------ primary limiter */
+.limiter {
+  border-left: 2px solid var(--danger);
+  padding: 2px 0 2px 15px;
+  margin-bottom: 18px;
+}
+.lim-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lim-head b {
+  font-family: var(--ui);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--danger);
+}
+.lim-trend {
+  font-size: 11px;
+}
+.lim-trend em {
+  font-style: normal;
+  color: var(--text-3);
+}
+.lim-detail {
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.lim-cost {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.advice-drill {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-top: 9px;
+  font-size: 11.5px;
+}
+.advice-drill b {
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 0.1em;
+}
+
+/* Difficulty note, restated as a movement with a reason. */
+.diff-note {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 6px 14px;
+  align-items: baseline;
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: rgba(10, 200, 185, 0.06);
+  border-left: 2px solid var(--accent);
+}
+.diff-note.up {
+  background: rgba(240, 194, 71, 0.06);
+  border-left-color: var(--warn);
+}
+.diff-note b {
+  font-size: 14px;
+  color: var(--text);
+}
+.diff-note i {
+  grid-column: 1 / -1;
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+}

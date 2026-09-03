@@ -3,6 +3,7 @@ import { audio } from '../engine/audio';
 import { clamp } from '../engine/math';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { formatMetric, type ProgressReport, type RunResult } from '../progression/profile';
+import { ERRORS } from '../progression/errors';
 import { percentileForRating, rankFromRating } from '../progression/ranks';
 import { expectedRating } from '../progression/rating';
 import { AXIS_LABEL } from '../progression/skills';
@@ -238,15 +239,46 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
             </div>
 
             {report.difficultyAfter !== report.difficultyBefore && (
-              <div className="diff-note">
-                Difficulty {report.difficultyAfter > report.difficultyBefore ? 'raised' : 'eased'} to{' '}
-                <b>{Math.round(report.difficultyAfter * 100)}</b> for your next {meta.name.toLowerCase()} run.
+              <div className={`diff-note${report.difficultyAfter > report.difficultyBefore ? ' up' : ''}`}>
+                <span className="eyebrow">Difficulty adjusted</span>
+                <b className="mono">
+                  {Math.round(report.difficultyBefore * 100)} → {Math.round(report.difficultyAfter * 100)}
+                </b>
+                <i>
+                  {report.difficultyAfter > report.difficultyBefore
+                    ? `You performed at ${Math.round(result.performance * 100)}%, above the band this drill aims to hold you in. The next ${meta.name.toLowerCase()} run asks for more.`
+                    : `You performed at ${Math.round(result.performance * 100)}%, below the band. One dimension of the next ${meta.name.toLowerCase()} run is eased so the reps stay clean.`}
+                </i>
               </div>
             )}
           </div>
 
           <div className="panel pad read-panel">
             <div className="panel-title">The read</div>
+            {/* The limiter first: of everything that went wrong, this is the
+                one that cost the most, named and quantified. Everything under
+                it is context for it. */}
+            {report.limiter && (
+              <div className="limiter">
+                <div className="lim-head">
+                  <span className="eyebrow">Primary limiter</span>
+                  <b>{ERRORS[report.limiter.code].label.toUpperCase()}</b>
+                  {report.limiterWas !== null && (
+                    <span
+                      className={`lim-trend mono ${
+                        report.limiter.rate < report.limiterWas ? 'good' : 'bad'
+                      }`}
+                    >
+                      {report.limiter.rate < report.limiterWas ? '▼' : '▲'}{' '}
+                      {Math.round(report.limiterWas * 100)}% → {Math.round(report.limiter.rate * 100)}%
+                      <em> of opportunities, last fortnight</em>
+                    </span>
+                  )}
+                </div>
+                <p className="lim-detail">{report.limiter.detail}</p>
+                <p className="lim-cost faint">{ERRORS[report.limiter.code].cost}</p>
+              </div>
+            )}
             {result.helped.length > 0 && (
               <div className="read-block">
                 <div className="read-label good">WHAT WORKED</div>
@@ -272,6 +304,14 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
                 DO THIS NEXT
               </div>
               <div className="advice-text">{result.advice}</div>
+              {report.limiter && (
+                <div className="advice-drill">
+                  <span className="faint">The drill that trains it:</span>
+                  <b style={{ color: DRILLS[ERRORS[report.limiter.code].fix].accent }}>
+                    {DRILLS[ERRORS[report.limiter.code].fix].name}
+                  </b>
+                </div>
+              )}
             </div>
           </div>
         </div>

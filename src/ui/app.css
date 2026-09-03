@@ -2,7 +2,11 @@
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 11px;
+  /* Six chips on a 62px bar: none of them may wrap, and the whole group
+     shrinks before the nav does. */
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .hero-chip {
@@ -216,7 +220,8 @@
   align-items: center;
   gap: 7px;
   height: 34px;
-  padding: 0 12px;
+  padding: 0 11px;
+  white-space: nowrap;
   border: 1px solid rgba(120, 90, 40, 0.45);
   background: rgba(4, 10, 18, 0.55);
   color: var(--text-2);
@@ -234,4 +239,45 @@
 }
 .gear-chip svg {
   opacity: 0.85;
+}
+
+.pal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 9px;
+  white-space: nowrap;
+  border: 1px solid rgba(120, 90, 40, 0.4);
+  background: rgba(4, 10, 18, 0.5);
+  color: var(--text-3);
+  font-family: var(--ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  transition: color 0.16s, border-color 0.16s, background 0.16s;
+}
+.pal-chip:hover {
+  color: var(--gold-hot);
+  border-color: var(--gold-deep);
+  background: rgba(200, 170, 110, 0.08);
+}
+.pal-chip .kbd {
+  height: 19px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 1480px) {
+  .gear-chip span {
+    display: none;
+  }
+}
+@media (max-width: 1380px) {
+  .pal-chip .kbd {
+    display: none;
+  }
+  .hero-chip span {
+    display: none;
+  }
 }

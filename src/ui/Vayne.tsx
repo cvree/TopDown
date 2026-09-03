@@ -1,5 +1,10 @@
+import { useMemo } from 'react';
 import { audio } from '../engine/audio';
-import { DRILLS } from '../drills/catalog';
+import { DRILLS, isVayneDrill } from '../drills/catalog';
+import { mean } from '../engine/math';
+import { ERRORS, type ErrorCode } from '../progression/errors';
+import { expectedRating } from '../progression/rating';
+import { rankFromRating } from '../progression/ranks';
 import { codeLabel, defaultsFor, type ActionId } from '../engine/input';
 import { drillDifficulty, type Profile } from '../progression/profile';
 import {
@@ -74,6 +79,8 @@ export function Vayne({ profile, onPlay, onBack }: Props) {
           </aside>
         </div>
 
+        <ChampionHub profile={profile} onPlay={onPlay} />
+
         <div className="vpath-stages">
           {VAYNE_STAGES.map((stage) => (
             <StageCard
@@ -121,6 +128,159 @@ export function Vayne({ profile, onPlay, onBack }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * THE HUB.
+ *
+ * The path below says what to learn and in what order. This says where the
+ * champion currently stands: what she is rated at, what is strong, what is
+ * weak, which mistake keeps happening on her specifically, and the one thing
+ * to go and run right now.
+ *
+ * Every number is derived from runs on her four stages — there is no separate
+ * champion scoring system, and nothing here is shown before it can be
+ * measured.
+ */
+function ChampionHub({ profile, onPlay }: { profile: Profile; onPlay: (id: DrillId) => void }) {
+  const v = profile.vayne;
+  const played = VAYNE_STAGES.filter((s) => v.stages[s.id].runs > 0);
+
+  const rating = useMemo(() => {
+    if (!played.length) return 0;
+    // The same rating maths the ladder uses: a best run at the difficulty it
+    // was played at. A champion rating that used its own scale would be a
+    // second, incomparable number pretending to be the first.
+    return mean(played.map((s) => expectedRating(v.stages[s.id].best, v.stages[s.id].difficulty)));
+  }, [played, v.stages]);
+
+  const strength = useMemo(() => {
+    if (!played.length) return null;
+    return played.reduce((a, b) =>
+      v.stages[a.id].best - a.gate >= v.stages[b.id].best - b.gate ? a : b,
+    );
+  }, [played, v.stages]);
+
+  const weakness = useMemo(() => {
+    if (!played.length) return null;
+    return played.reduce((a, b) =>
+      v.stages[a.id].best - a.gate <= v.stages[b.id].best - b.gate ? a : b,
+    );
+  }, [played, v.stages]);
+
+  // The mistake she makes, rather than the mistake you make in general.
+  const habit = useMemo(() => {
+    const hits = profile.errorLog.filter((e) => isVayneDrill(e.drill));
+    if (!hits.length) return null;
+    const by = new Map<ErrorCode, number>();
+    for (const e of hits) by.set(e.code, (by.get(e.code) ?? 0) + e.count);
+    const top = [...by.entries()].sort((a, b) => b[1] - a[1])[0];
+    return top ? { code: top[0], count: top[1] } : null;
+  }, [profile.errorLog]);
+
+  // Recent performance: the last three runs of a stage against the three
+  // before them. Two windows of real runs, or nothing.
+  const trend = useMemo(
+    () =>
+      VAYNE_STAGES.map((s) => {
+        const runs = profile.history.filter((h) => h.drill === s.id).slice(-6);
+        if (runs.length < 4) return null;
+        const half = Math.floor(runs.length / 2);
+        const before = mean(runs.slice(0, half).map((h) => h.performance));
+        const after = mean(runs.slice(half).map((h) => h.performance));
+        return { stage: s, delta: (after - before) * 100 };
+      }).filter((x): x is { stage: VayneStage; delta: number } => x !== null),
+    [profile.history],
+  );
+
+  const next = nextVayneStage(v);
+
+  if (!played.length) {
+    return (
+      <section className="panel pad vhub">
+        <div className="panel-title">Where she stands</div>
+        <div className="empty">
+          <b>NOT MEASURED YET</b>
+          <p>
+            One run on the first stage gives her a rating, a strength, a weakness and a habit to fix. Nothing
+            above is estimated in the meantime.
+          </p>
+          <button className="btn" onClick={() => onPlay(next.id)}>
+            Begin {DRILLS[next.id].name}
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel pad vhub">
+      <div className="panel-title">Where she stands</div>
+      <div className="vhub-grid">
+        <div className="vhub-cell vhub-amr">
+          <span className="eyebrow">Champion AMR</span>
+          <b className="display">{Math.round(rating)}</b>
+          <i className="mono faint">{rankFromRating(rating).label}</i>
+        </div>
+        <div className="vhub-cell">
+          <span className="eyebrow">Mastery</span>
+          <b className="display">{Math.round(v.mastery)}%</b>
+          <i className="mono faint">{played.length} / {VAYNE_STAGES.length} stages run</i>
+        </div>
+        <div className="vhub-cell">
+          <span className="eyebrow">Current strength</span>
+          <b className="good">{strength ? strength.title : '—'}</b>
+          <i className="mono faint">
+            {strength ? `${Math.round(v.stages[strength.id].best * 100)}% best` : ''}
+          </i>
+        </div>
+        <div className="vhub-cell">
+          <span className="eyebrow">Current weakness</span>
+          <b className="warn">{weakness ? weakness.title : '—'}</b>
+          <i className="mono faint">
+            {weakness ? `${Math.round(v.stages[weakness.id].best * 100)}% against a ${Math.round(weakness.gate * 100)}% gate` : ''}
+          </i>
+        </div>
+        <div className="vhub-cell">
+          <span className="eyebrow">Most common mistake</span>
+          <b className="bad">{habit ? ERRORS[habit.code].label : 'NONE RECURRING'}</b>
+          <i className="mono faint">
+            {habit ? `${habit.count} ${ERRORS[habit.code].unit}` : 'nothing crossed the threshold'}
+          </i>
+        </div>
+        <div className="vhub-cell vhub-go">
+          <span className="eyebrow">Continue training</span>
+          <button
+            className="btn primary"
+            onMouseEnter={() => audio.play('uiHover')}
+            onClick={() => {
+              audio.play('uiClick');
+              onPlay(next.id);
+            }}
+          >
+            {DRILLS[next.id].name}
+          </button>
+        </div>
+      </div>
+
+      {trend.length > 0 && (
+        <div className="vhub-trend">
+          <span className="eyebrow">Recent performance · last three runs against the three before</span>
+          <div className="vt-rows">
+            {trend.map((t) => (
+              <div className="vt-row" key={t.stage.id}>
+                <span>{DRILLS[t.stage.id].name}</span>
+                <b className={t.delta >= 0 ? 'good mono' : 'bad mono'}>
+                  {t.delta >= 0 ? '+' : ''}
+                  {t.delta.toFixed(1)}%
+                </b>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
