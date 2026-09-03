@@ -56,6 +56,7 @@ type Policy =
   | 'flee'
   | 'aim'
   | 'hold'
+  | 'kiteAway'
   | 'nodes'
   | 'priority'
   | 'sequence'
@@ -465,6 +466,37 @@ const runDrill = (
               kind: 'move',
               x: Math.max(50, Math.min(bounds.w - 50, gx)),
               y: Math.max(50, Math.min(bounds.h - 50, gy)),
+              t: t * 1000,
+            });
+            break;
+          }
+          case 'kiteAway': {
+            // Orbwalks perfectly, and only ever backwards. It is the most
+            // common shape of a real ADC's mechanics — fine while something
+            // walks at them, useless the moment it turns and runs — and the
+            // kite drill has to be able to see it.
+            reactTimer = 0.05;
+            if (!target) break;
+            const dA = dist(p.pos, target.pos);
+            if (p.attackCd <= 0.001 && p.phase !== 'windup' && dA - target.radius <= p.attack.range) {
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const awayA = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            const tangentA = { x: -awayA.y, y: awayA.x };
+            let gxA = p.pos.x + (awayA.x * 0.7 + tangentA.x * orbitDir * 0.7) * 300;
+            let gyA = p.pos.y + (awayA.y * 0.7 + tangentA.y * orbitDir * 0.7) * 300;
+            const marginA = 200;
+            if (gxA < marginA || gxA > bounds.w - marginA || gyA < marginA || gyA > bounds.h - marginA) {
+              orbitDir *= -1;
+              gxA = p.pos.x + tangentA.x * orbitDir * 300;
+              gyA = p.pos.y + tangentA.y * orbitDir * 300;
+            }
+            input.push({
+              kind: 'move',
+              x: Math.max(50, Math.min(bounds.w - 50, gxA)),
+              y: Math.max(50, Math.min(bounds.h - 50, gyA)),
               t: t * 1000,
             });
             break;
@@ -1176,6 +1208,25 @@ expect('spam produces many cancels', kiteSpam.m.attacksCancelled > 5, `${kiteSpa
 expect('orbwalk produces few cancels', kiteGood.m.attacksCancelled <= 2, `${kiteGood.m.attacksCancelled}`);
 expect('orbwalk deals real damage', kiteGood.m.damageDealt > 400, `${Math.round(kiteGood.m.damageDealt)}`);
 expect('standing still takes more damage than kiting', kiteStill.m.hpLost > kiteGood.m.hpLost, `${Math.round(kiteStill.m.hpLost)} vs ${Math.round(kiteGood.m.hpLost)}`);
+
+line('\n=== KITE: forwards as well as backwards ===');
+{
+  const away = runDrill('kite', 'kiteAway', 0.45);
+  const km = (r: ReturnType<typeof runDrill>, id: string) => r.out.keyMetrics.find((k) => k.id === id)?.value ?? 0;
+  line(
+    `  both ways : chased ${pct(km(kiteGood, 'chased'))}  chasing ${pct(km(kiteGood, 'chasing'))}  perf ${pct(kiteGood.out.performance)}`,
+  );
+  line(
+    `  backwards : chased ${pct(km(away, 'chased'))}  chasing ${pct(km(away, 'chasing'))}  perf ${pct(away.out.performance)}`,
+  );
+  expect('a full orbwalker attacks in both phases', km(kiteGood, 'chased') > 0.4 && km(kiteGood, 'chasing') > 0.4, `${pct(km(kiteGood, 'chased'))} / ${pct(km(kiteGood, 'chasing'))}`);
+  expect(
+    'a backwards-only player falls apart when they run',
+    km(away, 'chasing') < km(kiteGood, 'chasing') - 0.15,
+    `${pct(km(away, 'chasing'))} vs ${pct(km(kiteGood, 'chasing'))}`,
+  );
+  expect('and scores below one who can do both', away.out.performance < kiteGood.out.performance, `${pct(away.out.performance)} vs ${pct(kiteGood.out.performance)}`);
+}
 
 line('\n=== DODGE: a dodge has to end somewhere useful ===');
 const dodgeGood = runDrill('dodge', 'dodgeFight', 0.4);

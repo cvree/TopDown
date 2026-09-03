@@ -63,6 +63,7 @@ export const PATCH_NOTES: PatchEntry[] = [
         items: [
           'Direction changes are instant. Rolling A into D used to cancel the axis to zero and leave you standing still for as long as both keys were down; the newer key now owns the axis and hands it back when released.',
           'Spacing runs in three stages across one run: both reaches drawn, then only as you cross them, then nothing at all. The blind third is weighted more than double the first and reported separately, because it is the only one that resembles a game.',
+          'The kite drill runs in three phases: something walking at you, something running from you, and something doing neither. Kiting forwards and kiting backwards are two skills with one name, and the drill is graded on the weaker of the two — a player who can only orbwalk away from things has not learnt to orbwalk.',
           'The dodge drill has enemies in it. The patterns come out of emitters that can be killed, and the score reads DAMAGE AVOIDED and DAMAGE DEALT — running to an empty corner is still credited with what it avoided and can no longer pass.',
           'Vayne’s tumble is scored on where it puts her, not only on when it was pressed: out of their reach, and out of their reach while they are still inside hers. Condemn now weighs how narrow the wall angle was and whether it existed before you walked into it.',
           'Stop clears your target as well as your order. It is how you stop attacking, not merely how you stop walking — and it still cannot take back a committed windup.',
