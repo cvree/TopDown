@@ -5,7 +5,7 @@ import { PALETTE } from '../engine/palette';
 import type { DrillPaint } from '../engine/paint';
 import type { HudField } from '../engine/session';
 import type { Vec2 } from '../engine/types';
-import { VAYNE_STATS, wallRate } from '../engine/vayne';
+import { VAYNE_STATS, wallCraft, wallRate } from '../engine/vayne';
 import { band, count, ms, pct, type DrillOutcome } from './base';
 import { VayneDrill } from './vaynebase';
 
@@ -221,8 +221,15 @@ export class VayneCondemnDrill extends VayneDrill {
       : 0;
     const reaction = this.reactions.length ? band(median, 2600, 500) : 0;
 
+    // How much of the wall work was hers. A target already standing in a
+    // corner can be condemned into terrain from three quarters of the compass,
+    // and doing that is not a skill — so the stun rate is multiplied by how
+    // narrow the angles were and how many of them did not exist until she
+    // walked into them. Pinning something against a corner still scores; it
+    // just no longer scores the same as making an angle out of open ground.
+    const craft = wallCraft(st);
     const performance = clamp(
-      rate * 0.4 + usage * 0.2 + taken * 0.14 + reaction * 0.12 + d.hpRetained * 0.14,
+      rate * (0.45 + 0.55 * craft) * 0.4 + craft * 0.12 + usage * 0.16 + taken * 0.12 + reaction * 0.08 + d.hpRetained * 0.12,
       0,
       1,
     );
@@ -233,6 +240,9 @@ export class VayneCondemnDrill extends VayneDrill {
     if (usage > 0.75) helped.push('Condemn was almost never sitting unused.');
     if (median > 0 && median < 900) helped.push(`You took the chance in ${Math.round(median)}ms on average.`);
     if (rate < 0.45 && st.condemnHits > 2) hurt.push('Most of your condemns pushed them into open ground — nothing happened.');
+    if (st.condemnCreated > 2) helped.push(`${st.condemnCreated} of those angles did not exist until you moved into them.`);
+    if (craft < 0.4 && st.condemnWallStuns > 2)
+      hurt.push('Your stuns are landing on people who were already against terrain. The ability is a positioning tool; walk to the side of the fight that has a wall on it.');
     if (this.opportunities - this.opportunitiesTaken > 3) hurt.push(`${this.opportunities - this.opportunitiesTaken} chargers reached you with condemn up.`);
     if (this.wastedPresses > 2) hurt.push(`${this.wastedPresses} condemns aimed at nobody.`);
     this.handsNotes(helped, hurt);
@@ -244,7 +254,9 @@ export class VayneCondemnDrill extends VayneDrill {
         : usage < 0.5
           ? 'You are holding condemn for a perfect moment that never comes. A stun every thirteen seconds beats a perfect one every forty.'
           : rate > 0.72
-            ? 'You are reading the geometry. Take it into Night Hunter, where the wall is one of three things you are tracking.'
+            ? craft < 0.45
+              ? 'These are stuns you were handed rather than stuns you built. Pick the wall before they arrive and make them come to the side of you that has it.'
+              : 'You are reading the geometry. Take it into Night Hunter, where the wall is one of three things you are tracking.'
             : 'Good instincts. Now pick your standing spot before they arrive rather than reacting to where they come from.');
 
     return {
@@ -257,6 +269,8 @@ export class VayneCondemnDrill extends VayneDrill {
       },
       keyMetrics: [
         pct('wallRate', 'WALL STUN RATE', rate),
+        pct('wallCraft', 'ANGLES YOU MADE', craft),
+        count('created', 'ANGLES CREATED', st.condemnCreated),
         count('wallStuns', 'WALL STUNS', st.condemnWallStuns),
         ms('condemnReaction', 'REACTION', median),
         count('missed', 'CHANCES MISSED', Math.max(0, this.opportunities - this.opportunitiesTaken), 'lower'),

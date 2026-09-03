@@ -68,6 +68,7 @@ type Policy =
   | 'ezreal'
   | 'ezStatic'
   | 'vayneTumble'
+  | 'vayneLateral'
   | 'vayneBolts'
   | 'vayneCondemn'
   | 'vayneKit'
@@ -710,6 +711,56 @@ const runDrill = (
               gyC = toCentre.y;
             }
             input.dir = { x: gxC, y: gyC };
+            break;
+          }
+          case 'vayneLateral': {
+            // The same rhythm, tumbling sideways rather than straight back.
+            //
+            // Both are "Q in the backswing". Only one of them still has the
+            // target in range afterwards, and the difference between them is
+            // the difference between kiting and running away — which is
+            // precisely what the placement read exists to see.
+            reactTimer = 0.03;
+            const kitL = kitOf(drill);
+            if (!target) break;
+            if (kitL && p.phase === 'backswing' && kitL.tumbleCd <= 0) {
+              const awayL = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+              const sideL = { x: -awayL.y, y: awayL.x };
+              const dirL = norm(awayL.x * 0.25 + sideL.x * orbitDir, awayL.y * 0.25 + sideL.y * orbitDir);
+              input.push({
+                kind: 'ability',
+                slot: 'q',
+                x: p.pos.x + dirL.x * 320,
+                y: p.pos.y + dirL.y * 320,
+                t: t * 1000,
+              });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const dL = dist(p.pos, target.pos);
+            if (p.attackCd <= 0.001 && dL - target.radius <= p.attack.range) {
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              break;
+            }
+            const desiredL = p.attack.range * 0.92 + target.radius;
+            const radialL = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            const tangentL = { x: -radialL.y, y: radialL.x };
+            const cL = Math.max(-1, Math.min(1, (desiredL - dL) / 180));
+            let gxL = p.pos.x + (radialL.x * cL + tangentL.x * orbitDir * 0.55) * 320;
+            let gyL = p.pos.y + (radialL.y * cL + tangentL.y * orbitDir * 0.55) * 320;
+            const marginL = 190;
+            if (gxL < marginL || gxL > bounds.w - marginL || gyL < marginL || gyL > bounds.h - marginL) {
+              orbitDir *= -1;
+              const toC = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gxL = p.pos.x + toC.x * 300;
+              gyL = p.pos.y + toC.y * 300;
+            }
+            input.push({
+              kind: 'move',
+              x: Math.max(50, Math.min(bounds.w - 50, gxL)),
+              y: Math.max(50, Math.min(bounds.h - 50, gyL)),
+              t: t * 1000,
+            });
             break;
           }
           case 'vayneTumble': {
@@ -1581,6 +1632,7 @@ line('\n=== CONDEMN: a wall behind them is a stun; open ground is not ===');
 line('\n=== VAYNE: each stage rewards playing it the way it is taught ===');
 {
   const tumble = runDrill('vayneTumble', 'vayneTumble', 0.35);
+  const tm = (id: string) => tumble.out.keyMetrics.find((k) => k.id === id)?.value ?? 0;
   const tumbleIdle = runDrill('vayneTumble', 'idle', 0.35);
   line(`  tumble  : rhythm ${pct(tumble.out.keyMetrics[0].value)}  used ${tumble.out.keyMetrics[1].value}  thrown ${tumble.out.keyMetrics[2].value}  orbwalk ${pct(tumble.d.orbwalkEfficiency)}  perf ${pct(tumble.out.performance)}`);
   expect('tumbling in the backswing scores well', tumble.out.performance > 0.55, pct(tumble.out.performance));
@@ -1592,13 +1644,42 @@ line('\n=== VAYNE: each stage rewards playing it the way it is taught ===');
   line(`  bolts   : efficiency ${pct(bolts.out.keyMetrics[0].value)}  procs ${bolts.out.keyMetrics[1].value}  dropped ${bolts.out.keyMetrics[2].value}  perf ${pct(bolts.out.performance)}`);
   line(`  switcher: efficiency ${pct(boltsSwitch.out.keyMetrics[0].value)}  procs ${boltsSwitch.out.keyMetrics[1].value}  dropped ${boltsSwitch.out.keyMetrics[2].value}  perf ${pct(boltsSwitch.out.performance)}`);
   expect('finishing stacks scores well', bolts.out.performance > 0.55, pct(bolts.out.performance));
+  void 0;
   expect('finishing stacks beats target-hopping', bolts.out.performance > boltsSwitch.out.performance, `${pct(bolts.out.performance)} vs ${pct(boltsSwitch.out.performance)}`);
   expect('a disciplined run drops few stacks', bolts.out.keyMetrics[2].value <= boltsSwitch.out.keyMetrics[2].value, `${bolts.out.keyMetrics[2].value} vs ${boltsSwitch.out.keyMetrics[2].value}`);
 
   const condemn = runDrill('vayneCondemn', 'vayneCondemn', 0.35);
-  line(`  condemn : wallRate ${pct(condemn.out.keyMetrics[0].value)}  stuns ${condemn.out.keyMetrics[1].value}  missed ${condemn.out.keyMetrics[3].value}  perf ${pct(condemn.out.performance)}`);
+  const cm = (id: string) => condemn.out.keyMetrics.find((k) => k.id === id)?.value ?? 0;
+  line(
+    `  condemn : wallRate ${pct(cm('wallRate'))}  stuns ${cm('wallStuns')}  craft ${pct(cm('wallCraft'))}  created ${cm('created')}  missed ${cm('missed')}  perf ${pct(condemn.out.performance)}`,
+  );
+  const lateral = runDrill('vayneTumble', 'vayneLateral', 0.35);
+  const lm = (r: ReturnType<typeof runDrill>, id: string) => r.out.keyMetrics.find((k) => k.id === id)?.value ?? 0;
+  line(
+    `  sideways: rhythm ${pct(lm(lateral, 'tumbleRhythm'))}  placement ${pct(lm(lateral, 'tumblePlace'))}  dmg ${Math.round(lateral.m.damageDealt)}  perf ${pct(lateral.out.performance)}`,
+  );
+  line(
+    `  backward: rhythm ${pct(lm(tumble, 'tumbleRhythm'))}  placement ${pct(lm(tumble, 'tumblePlace'))}  dmg ${Math.round(tumble.m.damageDealt)}  perf ${pct(tumble.out.performance)}`,
+  );
+  expect(
+    'both tumble on the beat, so the rhythm read cannot separate them',
+    Math.abs(lm(lateral, 'tumbleRhythm') - lm(tumble, 'tumbleRhythm')) < 0.12,
+    `${pct(lm(lateral, 'tumbleRhythm'))} vs ${pct(lm(tumble, 'tumbleRhythm'))}`,
+  );
+  expect(
+    'but placement does: sideways keeps the target in range, backwards does not',
+    lm(lateral, 'tumblePlace') > lm(tumble, 'tumblePlace') + 0.1,
+    `${pct(lm(lateral, 'tumblePlace'))} vs ${pct(lm(tumble, 'tumblePlace'))}`,
+  );
+  expect(
+    'and the score follows the placement',
+    lateral.out.performance > tumble.out.performance,
+    `${pct(lateral.out.performance)} vs ${pct(tumble.out.performance)}`,
+  );
+
   expect('condemning into terrain scores well', condemn.out.performance > 0.55, pct(condemn.out.performance));
-  expect('a wall-aware player actually lands wall stuns', condemn.out.keyMetrics[1].value >= 3, `${condemn.out.keyMetrics[1].value}`);
+  expect('a wall-aware player actually lands wall stuns', cm('wallStuns') >= 3, `${cm('wallStuns')}`);
+  expect('and some of those angles were made rather than found', cm('created') >= 1, `${cm('created')} created`);
 
   const hunt = runDrill('vayneHunt', 'vayneKit', 0.3);
   line(`  hunt    : kit ${pct(hunt.out.keyMetrics[1].value)}  kills ${hunt.out.keyMetrics[2].value}  procs ${hunt.out.keyMetrics[3].value}  hp ${pct(hunt.d.hpRetained)}  perf ${pct(hunt.out.performance)}`);
