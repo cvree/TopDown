@@ -41,6 +41,55 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '1.3.0',
+    name: 'THE COACH',
+    date: '2026-09-03',
+    headline:
+      'The trainer stopped handing you a score and started telling you what went wrong, what it costs, and what to do about it.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'TODAY. The screen the client opens on: one session planned for you — warmup, primary weakness, secondary skill, combined drill, transfer test — with a stated purpose, a running time, and one button that starts it. Under it, your primary weakness, the mistake behind it, and the drill that fixes it.',
+          'Error intelligence. Fourteen named mistakes, read straight off a run’s telemetry: Early Move, Held Fire, Overstep, Range Loss, Rooted, Late Dodge, Hazard Stand, Target Drop, Cursor Overtravel, Panic Click, Missed Shot, CS Miss, Inconsistent and Chip Damage. Each one carries what it means, when it happens, what it costs and the drill that trains it away.',
+          'Pressure retention. The same mechanic measured on a bench and again with something fighting back, stated as a percentage. “I can do it in the practice tool” is now a number rather than a belief.',
+          'Transfer readiness: foundation, isolated, combined, pressure, transfer — each scored from your best three runs in that context, so a skill can be shown as learned but not yet transferred.',
+          'Plateau detection. Six or more runs of a drill going nowhere is named as a plateau, with the mistake that is capping it and a detour into the drill that trains that instead of another attempt at the same wall.',
+          'Insights: findings drawn from real comparisons — a habit fading, a habit returning, a mechanic that does not survive contact, an axis climbing fast. Nothing fires on an empty profile.',
+          'RECORDS. Every personal best in one place, by category, with the score it beat, the date it was set and its trend. Plus the champion path, the lab ladder and the test bests.',
+          'A replay on the results screen: play, pause, 0.25×/0.5×/1×, and every attack, cancel, dodge and hit marked on the clock. Click a marker and it says what happened — a cancelled attack reports how far into the windup you moved, and every event reports the health it left you with.',
+          'Fast navigation on Ctrl/Cmd+K: drills, tests, screens and the two actions worth a shortcut.',
+          'Focus mode (F2, or a setting): strips the HUD to the clock, the task, your health and the score. Everything analytical waits for the results screen.',
+          'A session summary: time, quality reps, what moved, records beaten, the most common mistake of the day, and what tomorrow is for.',
+          'Practice history: finished sessions, what each was for, and what it changed.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'Navigation is six tabs — Today, Train, Champion, Test, Progress, Records — plus setup and search. The lab and the patch notes are reached from the screens that own them.',
+          'The daily programme is no longer the same five drills every day. It is planned each morning from what your last runs actually showed, and it is fixed once drawn so the numbers either side of it stay comparable.',
+          'Between two drills in a session you get a card, not a page: the score, the one thing that cost you, and what is next. The full breakdown is one key away.',
+          'The results screen leads its read with the primary limiter, how often that mistake used to happen, and the drill that trains it away.',
+          'A difficulty change states the movement and the reason for it rather than announcing a number.',
+          'PROGRESS is rebuilt around five questions: how good am I, what shape am I, does it survive a fight, which mistakes am I still making, and is any of it going away. It opens with a written read of your profile and a 30-day change.',
+          'The champion page opens with where she stands: a champion rating on the same scale as the ladder, her strongest and weakest stage, the mistake she specifically keeps making, and the next scenario as a button.',
+          'The assessment ends on a verdict — strongest, weakest, and the drill to start on — rather than only a rank.',
+        ],
+      },
+      {
+        tag: 'fixed',
+        items: [
+          'A personal best’s date was the date the drill was last played, not the date the record was set, so “set this week” meant “played this week”.',
+          'A first run of a drill was congratulated as a personal best. It writes a baseline, and the summary says so.',
+          'A skill measured for the first time inside a window was reported as having grown by its entire rating. Growth is now only counted where both ends were measured; a new reading is named as a new reading.',
+          'The skill radar clipped its own axis labels against the panel edge.',
+          'The top bar could push the rank chip off the end of itself on a narrower display.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.2.0',
     name: 'CHAMPION SELECT',
     date: '2026-09-03',

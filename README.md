@@ -12,6 +12,14 @@ than time played, a champion path that teaches one champion properly, and a
 results screen designed so you can see exactly what you did and what it cost
 you.
 
+Every screen is built to answer five questions: how good am I, what am I
+currently bad at, why, what should I train next, and am I actually improving.
+The trainer names your mistakes rather than only scoring them, plans a session
+around the one that is costing you most, and shows you the habit disappearing
+week by week. Where a number has not been measured yet, it says so and offers
+the run that would measure it — nothing on any screen is estimated, inferred
+from nothing, or invented for flavour.
+
 You pick a champion before you train. Seven of them, each a different
 silhouette, and none of them stronger than another — the choice reaches the
 renderer and stops there, so a rating earned behind one is worth exactly a
@@ -362,6 +370,82 @@ The choice is never locked and never earned. It is changeable forever after
 from **Settings → Champion**, which renders the same screen, and the champion
 you are playing sits in the top bar of the client with a click to change it.
 
+## The coach
+
+The rating says how good you are. The coach says what is wrong, why, and what
+to do about it — and everything it says is derived from telemetry a run already
+recorded, so it can never disagree with the score.
+
+### Error intelligence
+
+Fourteen named mistakes, detected from the same metrics the rating consumes:
+
+| Code | What it is | Fixed by |
+| --- | --- | --- |
+| `EARLY_MOVE` | Moved before the attack released; the windup was thrown away | Kite |
+| `HELD_FIRE` | Off cooldown, in range, and a movement key still down | Kite |
+| `OVERSTEP` | Entered enemy threat range and stayed there | Spacing |
+| `RANGE_LOSS` | Drifted outside your own range and stopped being a threat | Spacing |
+| `ROOTED` | Stood still through windows where moving was free | Kite |
+| `LATE_DODGE` | Reacted to a telegraph after it was too late to move | Dodge |
+| `HAZARD_STAND` | Stayed in a ground hazard that was visible the whole time | Dodge |
+| `TARGET_DROP` | Too slow to commit when the priority target changed | Target Switch |
+| `CURSOR_OVERTRAVEL` | Commands landing off-target and needing a correction | Aim |
+| `PANIC_CLICK` | The same command repeated instead of issued once | Movement |
+| `MISSED_SHOT` | Shots that did not connect — wrong lead, or already gone | Skillshot |
+| `CS_MISS` | Killing blows started and not landed | Last Hit |
+| `INCONSISTENT` | Reactions spread wide: a steadiness problem, not a speed one | Aim |
+| `CHIP_DAMAGE` | Finished low without one big mistake — it came off in pieces | 1 v 1 |
+
+Thresholds sit deliberately above noise. One cancelled attack in a sixty-second
+run is not a habit, and a system that called it one would not be worth
+trusting. Each detection records how often it happened *and* what share of the
+opportunities to make it that was, because the second number is the one that
+trends: a rate falling 16% → 14% → 12% → 6% is a habit visibly disappearing,
+and that is the chart the trainer most wants to be able to draw.
+
+### Pressure retention
+
+Every drill is classified by how much pressure it puts a mechanic under:
+`isolated` (a bench, nothing fighting back), `applied` (in context, scripted
+threat) or `live` (an opponent that moves, targets and punishes). Retention is
+your live performance over your isolated performance, per axis.
+
+It exists because "I can do it in the practice tool" is the most common thing a
+player believes about themselves, and it is the only claim on any of these
+screens that can check it. A mechanic at 91% isolated and 72% live has been
+rehearsed, not learned, and the trainer says so in those words.
+
+### Transfer readiness
+
+Foundation → isolated → combined → pressure → transfer, each scored from your
+best three runs in that context. It is what turns "you know this mechanic" into
+"you perform this mechanic well in isolation and it degrades under combat
+pressure", which is a far more useful sentence.
+
+### Plateau detection
+
+Six or more recent runs of one drill with no trend and no wild swings is a
+plateau. The answer to a plateau is not "try again" — the limiting skill is
+usually somewhere else — so the coach names the mistake that is capping it and
+recommends a detour into the drill that trains *that*.
+
+### The session planner
+
+A day's training is a shape, not a list: warmup on a strength, the primary
+weakness, a supporting skill on a different axis, the same mechanic back in
+context, and a transfer test against something that fights back. It is drawn
+once per day and then left alone, because a plan that reshuffles between two
+drills is not a plan and the numbers either side of it stop being comparable.
+
+### The recommendation engine
+
+Candidates come from recurring mistakes, untrained axes, mechanics that collapse
+under pressure, plateaus and the weakest measured axis — each with the number
+that justifies it. Anything played in the last couple of hours is pushed down
+the list, because the same drill recommended every day stops being a
+recommendation.
+
 ## The ranked system
 
 **This is a trainer rank.** It measures mechanical execution in these drills. It
@@ -596,16 +680,37 @@ gameplay state directly.
 
 ## The client
 
-The front end is not a page. There is no scrolling column of cards: a list down
-the left, the chosen drill standing in the live arena down the middle, your
-record down the right, and one large button along the bottom. The empty middle
-third is the point — the interface is a frame around a place rather than a
-surface covering one, and the arena behind it is the same terrain, lighting and
+Six screens, in the order the questions get asked:
+
+| Screen | What it is for |
+| --- | --- |
+| **Today** | The session, planned for you, and one button that starts it |
+| **Train** | Every drill, the live arena, and the one you have chosen |
+| **Champion** | One champion, learned in order, with where she stands |
+| **Test** | Twelve standardised instruments, no coaching, no assistance |
+| **Progress** | The analysis: shape, pressure, mistakes, trend |
+| **Records** | Every personal best, what it beat, and when |
+
+Setup and the patch notes live in the top bar; the APM lab is reached from the
+drill rail that owns it. `Ctrl`/`⌘`+`K` opens a search over all of it.
+
+**Train** is not a page. There is no scrolling column of cards: a list down the
+left, the chosen drill standing in the live arena down the middle, your record
+down the right, and one large button along the bottom. The empty middle third
+is the point — the interface is a frame around a place rather than a surface
+covering one, and the arena behind it is the same terrain, lighting and
 champions you are about to play in, rendered live.
 
-Screens that are genuinely pages of content — the daily programme, your
-profile, settings — sit on a darkened plate instead, so the arena shows through
-as depth rather than competing for the same pixels as the text.
+Screens that are genuinely pages of content sit on a darkened plate instead, so
+the arena shows through as depth rather than competing for the same pixels as
+the text.
+
+### Focus mode
+
+`F2` inside a run, or a setting for the default, strips the HUD to the clock,
+the current task, your health and the score. The live figures, the difficulty
+read-out and the frame counter are things to read *after* a run; focus mode is
+the training room, and everything analytical waits for the results screen.
 
 ## Versions and patch notes
 
@@ -636,8 +741,11 @@ src/drills/     one file per drill; each owns its rules and its scoring
 src/drills/apm/ the APM lab: one engine and one bench, thirteen modes over them
 src/tests/      the twelve skill tests: one runner interface, one drawing kit
 src/progression/ rating maths, rank ladder, champion path, APM ladder, persistence
+src/progression/errors.ts  the error taxonomy and its detection thresholds
+src/progression/coach.ts   retention, plateaus, insights, recommendations
+src/progression/plan.ts    the daily session planner
 src/patchnotes/ the release history: the client, the version number and CHANGELOG.md
-src/ui/         React shell, HUD, results, profile, rank-up, Vayne, tests, the lab
+src/ui/         React shell, HUD, today, results, replay, progress, records
 src/ui/HeroSelect.tsx champion select: the first run, and the Champion tab in settings
 tools/          headless test harnesses
 docs/           research notes: the out-of-game practice landscape
