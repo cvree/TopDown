@@ -157,6 +157,48 @@ export function Settings({ settings, onChange, onBack }: Props) {
                 ? 'W, A, S and D drive the champion, so the ability row moves one seat over: Q, E, R and F are Q, W, E and R, the summoners are 1 and 2, and stop is X. Everything below is rebindable and applies to this scheme only.'
                 : 'Scores are identical under either scheme — both obey the same windup rule, and the free-movement window is measured the same way.'}
             </p>
+
+            {wasd && (
+              <>
+                <div className="panel-title" style={{ marginTop: 26 }}>
+                  Dash aim
+                </div>
+                <div className="aim-pick">
+                  {(
+                    [
+                      {
+                        id: 'hands' as const,
+                        name: 'THE KEYS',
+                        body: 'A dash goes where you are holding, and falls back to the cursor when no key is down. Under WASD your mouse is holding the target and your keys are holding the exit — this points Tumble at the exit.',
+                      },
+                      {
+                        id: 'cursor' as const,
+                        name: 'THE CURSOR',
+                        body: 'League’s literal behaviour: a dash always goes to the cursor, whatever your hands are doing. Exact transfer, at the cost of aiming your escape with the hand that is holding your target.',
+                      },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      className={`aim-card${(settings.tumbleAim ?? 'hands') === opt.id ? ' on' : ''}`}
+                      onMouseEnter={() => audio.play('uiHover')}
+                      onClick={() => {
+                        if ((settings.tumbleAim ?? 'hands') === opt.id) return;
+                        audio.play('uiClick');
+                        onChange({ tumbleAim: opt.id });
+                      }}
+                    >
+                      <b>{opt.name}</b>
+                      <p>{opt.body}</p>
+                    </button>
+                  ))}
+                </div>
+                <p className="set-note">
+                  Vayne’s Tumble is the ability this decides. It changes nothing about scoring: a tumble is
+                  judged on when it was taken and where it left you, not on which hand aimed it.
+                </p>
+              </>
+            )}
           </section>
 
           <section className="panel pad">

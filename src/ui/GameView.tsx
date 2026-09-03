@@ -121,6 +121,38 @@ const abilityKeyLabel = (settings: AppSettings, slot: AbilitySlot): string => {
   return codeLabel(b.primary).toUpperCase();
 };
 
+/** Vayne's kit, by the name each slot answers to. */
+const VAYNE_SLOT_NAMES: Partial<Record<AbilitySlot, string>> = {
+  q: 'tumble',
+  w: 'bolts',
+  e: 'condemn',
+  r: 'final hour',
+};
+
+/**
+ * The hint row for this run.
+ *
+ * On a champion drill the generic "Q E R F · abilities" is worse than useless
+ * under WASD, because the row has moved one seat over and the player's whole
+ * problem is that Condemn is no longer on E. So a champion drill prints the
+ * key each ability is *actually* on, read from the live bindings, with the
+ * ability's own name next to it.
+ */
+const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: string }[] => {
+  const scheme = schemeOf(settings);
+  const base = HINTS[scheme];
+  const meta = DRILLS[drill];
+  if (meta.group !== 'VAYNE') return base;
+  // Silver Bolts is a passive counter rather than a key, so it never appears.
+  const kit = meta.abilities
+    .filter((slot) => slot !== 'w' && VAYNE_SLOT_NAMES[slot])
+    .map((slot) => ({ key: abilityKeyLabel(settings, slot), label: VAYNE_SLOT_NAMES[slot] as string }));
+  // The row is only useful while it is short, so the champion's own keys push
+  // out the generic ones rather than queueing behind them.
+  const keep = scheme === 'wasd' ? ['move', 'attack', 'to shoot'] : ['move · attack', 'attack-move'];
+  return [...base.filter((h) => keep.includes(h.label)), ...kit, { key: 'ESC', label: 'pause' }];
+};
+
 export function GameView({
   drill,
   difficulty,
@@ -169,7 +201,15 @@ export function GameView({
       scheme,
     });
     const session = new Session(
-      { duration, arena: bounds, seed, difficulty, abilities: meta.abilities, scheme },
+      {
+        duration,
+        arena: bounds,
+        seed,
+        difficulty,
+        abilities: meta.abilities,
+        scheme,
+        tumbleAim: settings.tumbleAim ?? 'hands',
+      },
       input,
       renderer,
     );
@@ -513,7 +553,7 @@ export function GameView({
         </div>
 
         <div className="hud-stats">
-          {[0, 1, 2, 3].map((i) => (
+          {[0, 1, 2, 3, 4].map((i) => (
             <div className="hud-field" data-field key={i}>
               <div className="hud-field-label" data-fl />
               <div className="hud-field-value tone-neutral" data-fv />
@@ -572,7 +612,7 @@ export function GameView({
         {/* Controls, shown once and then gone. A cheat sheet that never
             leaves is a cheat sheet you stop reading and start seeing. */}
         <div className="hud-hints">
-          {HINTS[schemeOf(settings)].map((h) => (
+          {hintsFor(settings, drill).map((h) => (
             <span key={h.key}>
               <b className="kbd">{h.key}</b> {h.label}
             </span>

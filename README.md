@@ -13,7 +13,9 @@ results screen designed so you can see exactly what you did and what it cost
 you.
 
 It can be driven either way: League's click-to-move, or WASD. Both obey the
-same windup law, so a run scores identically under either.
+same windup law, so a run scores identically under either — and the champion
+path knows which hand you are using, because the mistakes are not the same
+ones.
 
 It opens like a game rather than a page: black screen, a crest struck out of
 it, a load bar, and a key to press. That gate is not only theatre — the arena's
@@ -55,7 +57,8 @@ npm run build      # production bundle
 | **Condemn** | Wall stun rate, chances missed | Standing on the right side of the wall *before* the fight |
 | **Night Hunter** | Kit execution under a live 1v2 | Playing Vayne rather than an ADC who owns her abilities |
 
-The APM trainer's thirteen modes are listed in their own section below.
+The APM trainer's thirteen modes are listed in their own section below, and
+the twelve skill tests in theirs.
 
 ### Last Hit is a lane
 
@@ -253,6 +256,14 @@ units along the line from you and only stuns if terrain is waiting at the end
 of it, which makes it a question about where you chose to stand. Final Hour
 shortens the tumble, adds damage, and hides you for a second on each tumble.
 
+**It tells you which habit to go and fix.** Four stages produce twenty numbers
+between them, and twenty numbers teach nothing. The path screen reads your
+*last* run on each stage — deliberately the last rather than the best, because
+"what should I work on" is a question about how you are playing now — measures
+every habit against the value at which it stops costing you anything, and shows
+the one that is furthest off, in a sentence, with the drill that fixes it
+attached to a button.
+
 **Mastery is a ceiling, not a total.** Each stage stores your *best* run and
 the difficulty you played it at; mastery is the weighted blend of those, so a
 worse run never costs you anything and grinding at a level you have already
@@ -260,6 +271,108 @@ beaten converges and stops. Titles run from RECRUIT to **THE GREATEST VAYNE**,
 which needs every stage at three stars at a difficulty with nothing left to
 teach you — and the screen that awards it says plainly that it is a claim
 about these drills, not about anybody's ranked ladder.
+
+### Playing her on WASD
+
+Vayne is the champion the two control schemes disagree about, so the trainer
+takes a position rather than leaving it to chance.
+
+**Your keys aim the tumble.** Under click-to-move the question never arises:
+the cursor is already where you asked to walk, so aiming a dash at it is the
+same instruction twice. Under WASD it is a real fork — the mouse is holding
+your *target* and the keys are holding your *direction*, and those point
+opposite ways at exactly the moment it matters, which is while you are kiting
+something. So by default the keys win: Tumble goes where you are holding, and
+falls back to the cursor when your hand is off the keys. League's literal
+behaviour is one setting away for anyone who wants the transfer to be exact —
+**Settings → Dash aim** — and it changes nothing about scoring. The headless
+suite runs the same seed both ways: with the cursor parked on the pursuer
+throughout, every tumble under `cursor` goes into the fight and every tumble
+under `hands` goes out of it.
+
+**You can see where the dash ends.** While Tumble is up, a lane and a landing
+ring lie on the floor showing where you would arrive, clipped by whatever
+terrain would stop you first. It brightens in the backswing — the window the
+whole champion is built on — and disappears the moment the cooldown starts, so
+it never becomes furniture.
+
+**The trigger is measured.** Under direct control the champion refuses to
+attack while a direction is held, which means WASD has a mistake clicking
+cannot make: holding the keys past the moment the shot was ready. Every one of
+those seconds is damage a click player would already have dealt, and it is
+completely invisible unless something counts it. So the HUD carries a
+**TRIGGER** figure — milliseconds of held fire per attack — the floor says
+`LET GO` when a hold outlasts a comfortable reaction time, and the results
+screen prices it against your attack cycle. A clean release reads under 20ms;
+never releasing at all scores zero, and the suite asserts both.
+
+**The coaching knows which hand you are using.** The same lost attack is "you
+clicked through the windup" with a mouse and "you never let go of the key" with
+a keyboard, and only one of those sentences is any use to the person reading
+it. Windups broken by a direction are counted separately from windups broken by
+a click, tumbles that closed the gap instead of opening it are counted at all,
+and the advice line names the fix that applies to your hands.
+
+**Her kit is on different keys, and the client says so.** W, A, S and D are
+spoken for, so the ability row moves one seat over: Condemn is on `R`, Final
+Hour on `F`. A champion drill prints the key each ability is *actually* bound
+to rather than a generic "abilities" hint, and the path screen carries the
+whole row — read from your live bindings, so a rebound layout says what it
+really is — alongside the three laws that scheme adds.
+
+## Skill tests
+
+Twelve short instruments that sit beside the drills rather than inside them.
+
+The trainer now asks about your hands three different ways, on purpose. A
+**drill** trains a habit over sixty seconds in the arena. The **APM trainer**
+measures how much correct work those hands can sustain while the arena keeps
+moving. A **test** measures a single event on a bare field with nothing else
+happening — twenty to sixty seconds, one number, nowhere to hide. Reaction,
+prediction, recall and arithmetic under a closing window: the parts of the game
+nobody practises because nobody measures them.
+
+| Test | Measures | Why it matters in a game |
+| --- | --- | --- |
+| **Flash Reaction** | Simple visual reaction, median ms | Burning Flash on a hook you only just saw |
+| **Sound Cue** | Auditory reaction with decoys | Recognising an ultimate by its audio and moving before it renders |
+| **Cast Reflex** | Choice reaction across Q/W/E/R/D/F | Casting the ability you meant, not the one next to it |
+| **Dodge Read** | Spatial choice reaction, correct axis | Sidestepping *across* a skillshot instead of running down its line |
+| **Flick** | Target acquisition, median ms | Right-clicking the champion rather than the minion beside them |
+| **Prediction** | Skillshot hit rate against travel time | Leading a moving target instead of aiming at where they are |
+| **Last Hit Clock** | Attack timing error against your own windup | CS under pressure, reading a falling bar against your animation |
+| **Tracking** | Percentage of time the cursor holds a juking target | Keeping the cursor where your next command has to go |
+| **Map Recall** | Positional recall from a shrinking glance | The minimap glance — you photograph it and play off the photograph |
+| **Cooldown Tracker** | Correct up/down calls with nothing counting down | Knowing their Flash is down for forty more seconds |
+| **Execute Check** | Kill/no-kill calls inside a closing window | The all-in decision, before the window shuts |
+| **Combo Memory** | Sequence execution time, broken combos scored as broken | Casting your combo while your eyes are on the fight |
+
+Every test grades onto the same Iron → Challenger ladder as the drills, so
+"Gold reaction, Diamond recall" is a sentence the app can say and mean. Your
+**benchmark** is the mean of your best grade across the tests you have actually
+attempted — a test you have never run reads as absent, not as zero, and the
+page says how many are in the number.
+
+**Tests do not move your drill rating.** A twenty-second reaction instrument
+should not be able to promote you on a ladder that measures playing — not the
+nine mechanical axes, and not the APM axis either — so they keep their own
+bests, their own grades and their own trend lines. Each test
+records every attempt, shows the shape of the run trial by trial, and tells you
+the value you would need to reach the next tier in the test's own unit.
+
+A few design rules hold across all twelve:
+
+- **Anticipating is not reacting.** A key pressed before the cue is a false
+  start; it costs the trial and is added back onto your score.
+- **Nothing that leaks the cue.** Sound Cue's screen is identical before and
+  after the sound fires, because the moment it is not, it stops being an ear
+  test.
+- **Windows shrink through a run.** Dodge Read, Last Hit Clock, Execute Check
+  and Map Recall all tighten as they go, so the last trials are the ones worth
+  reading.
+- **Failure is scored as failure.** A dropped combo enters the median at the
+  bottom of the ladder rather than being quietly discarded, so one lucky fast
+  round cannot outrank eight dead ones.
 
 ## The ranked system
 
@@ -305,6 +418,11 @@ depends on:
 - Tumbling in the backswing beats tumbling on cooldown; finishing bolt stacks
   beats target-hopping; a wall-aware condemn player lands wall stuns and a
   wall-blind one does not.
+- **The same Vayne rhythm scores the same under either hand**, with the cursor
+  parked on the pursuer throughout the WASD run. On that identical seed the
+  `hands` dash aim sends 0% of tumbles into the fight and the `cursor` aim
+  sends 100%; a clean release measures 8ms of held fire and never releasing
+  measures the whole run.
 - **Every drill scores under 30% for a player who does nothing.** No drill can
   be passed by presence alone.
 - 1v1 is winnable; 1v2 and 1v3 cost progressively more health; all three are
@@ -358,6 +476,11 @@ Two schemes, chosen in Settings. The default is League's.
 Under WASD the mouse only ever targets, so it can never cancel an attack; the
 keys are the only thing that moves you, and holding one is the same commitment
 a click is. Everything else — camera, zoom, reset, pause — is unchanged.
+
+**Dash aim** is a WASD-only setting, and Vayne's Tumble is the ability it
+decides: *the keys* (default — the dash goes where you are holding, and to the
+cursor when nothing is held) or *the cursor* (League's literal behaviour). See
+[Playing her on WASD](#playing-her-on-wasd).
 
 All bindings are remappable in Settings, along with quick cast, and each scheme
 keeps its own rebinds so switching never breaks a layout you tuned. In drills
@@ -460,8 +583,9 @@ src/engine/vayne.ts   the champion kit: tumble, bolts, condemn, final hour
 src/gfx/        the 3D renderer: scene, terrain, walls, champions, decals, VFX
 src/drills/     one file per drill; each owns its rules and its scoring
 src/drills/apm/ the APM trainer: one engine, thirteen modes over it
+src/tests/      the twelve skill tests: one runner interface, one drawing kit
 src/progression/ rating maths, rank ladder, champion path, APM ladder, persistence
-src/ui/         React shell, HUD, results, profile, rank-up, Vayne path, APM ladder
+src/ui/         React shell, HUD, results, profile, rank-up, Vayne, tests, APM ladder
 tools/          headless test harnesses
 ```
 
@@ -476,6 +600,13 @@ node", "a caret over the priority target" — as ground markers and billboards
 (`src/engine/paint.ts`), and the renderer decides how that is realised. That is
 what let the original flat 2D canvas renderer be replaced wholesale without
 touching a line of scoring.
+
+A test is a class with an `update(frame)` and nothing else — no React, no
+simulation, no renderer. The shell in `src/ui/TestRun.tsx` owns the countdown,
+the canvas and its device-pixel scaling, the input plumbing and the results
+card, so adding a thirteenth test means writing one class and one catalogue
+entry. The twelve live card previews in the gallery share a single animation
+frame between them.
 
 React renders menus and the results screens. It never touches the simulation
 during play: the game loop owns the canvas, and the HUD is written to through

@@ -15,9 +15,13 @@ import {
   type Profile,
   type ProgressReport,
   type RunResult,
+  type TestReport,
+  applyTestRun,
 } from '../progression/profile';
 import { APM_LEVELS, isApmDrill, levelDifficulty, recommendedLevel, seedApmLadder } from '../progression/apm';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
+import type { TestId } from '../tests/catalog';
+import type { TestResult } from '../tests/types';
 import type { SkillAxis } from '../progression/skills';
 import { ArenaBackdrop } from './components/ArenaBackdrop';
 import { Boot } from './Boot';
@@ -33,11 +37,13 @@ import { RankEmblem } from './components/RankEmblem';
 import { RankUp } from './RankUp';
 import { Results } from './Results';
 import { Settings } from './Settings';
+import { TestRun } from './TestRun';
+import { Tests } from './Tests';
 import { Vayne } from './Vayne';
 import '../styles/global.css';
 import './app.css';
 
-type Route = 'home' | 'profile' | 'daily' | 'apm' | 'vayne' | 'settings';
+type Route = 'home' | 'profile' | 'daily' | 'apm' | 'tests' | 'vayne' | 'settings';
 
 interface Flow {
   kind: 'single' | 'placement' | 'daily';
@@ -48,6 +54,13 @@ interface Flow {
   level?: number;
   /** A double-length APM run. */
   endurance?: boolean;
+}
+
+/** A skill test in progress. Deliberately separate from the drill flow — a
+ *  test does not queue, does not feed the ladder and does not end a daily. */
+interface TestFlow {
+  id: TestId;
+  seed: number;
 }
 
 interface ResultState {
@@ -74,6 +87,8 @@ export function App() {
     driver: { axis: SkillAxis; delta: number } | null;
     headline: { label: string; value: string } | null;
   } | null>(null);
+  const [testFlow, setTestFlow] = useState<TestFlow | null>(null);
+  const [testOutcome, setTestOutcome] = useState<{ report: TestReport; result: TestResult } | null>(null);
   const [placementIntro, setPlacementIntro] = useState(false);
   // The cold open. `booted` gates the client; `arenaReady` is the real signal
   // the boot screen is waiting on — the arena's first rendered frame.
@@ -99,7 +114,7 @@ export function App() {
     audio.applyVolumes();
   }, [profile.settings]);
 
-  const inGame = flow !== null && !results && !placementReveal && !interstitial;
+  const inGame = (flow !== null && !results && !placementReveal && !interstitial) || testFlow !== null;
 
   useEffect(() => {
     if (!booted || inGame || profile.settings.muted) audio.stopAmbience();
@@ -136,7 +151,7 @@ export function App() {
   // Back lands here instead of off-site: we swallow it, re-arm, and the run
   // carries on. Esc is still the way out. The entry is popped again the moment
   // the run ends, so Back behaves normally everywhere else on the site.
-  const runInProgress = flow !== null || placementReveal;
+  const runInProgress = flow !== null || placementReveal || testFlow !== null;
   const guard = useRef({ armed: false, live: false });
   guard.current.live = runInProgress;
 
@@ -194,6 +209,45 @@ export function App() {
     setApmFocus(id);
     setResults(null);
     setFlow({ kind: 'single', index: 0, queue: [id], seed: newSeed(), level, endurance });
+  }, []);
+
+  // ------------------------------------------------------------ skill tests
+
+  const startTest = useCallback((id: TestId) => {
+    audio.unlock();
+    setTestOutcome(null);
+    setTestFlow({ id, seed: newSeed() });
+  }, []);
+
+  const completeTest = useCallback(
+    (value: number, res: TestResult) => {
+      const live = testFlow;
+      if (!live) return;
+      let report: TestReport | null = null;
+      setProfile((prev) => {
+        const next: Profile = { ...prev, tests: { ...prev.tests } };
+        report = applyTestRun(next, live.id, value);
+        return next;
+      });
+      // Same reason as the drill path: React batches, so read the report next tick.
+      window.setTimeout(() => {
+        const rep = report;
+        if (!rep) return;
+        setTestOutcome({ report: rep, result: res });
+      }, 0);
+    },
+    [testFlow],
+  );
+
+  const retryTest = useCallback(() => {
+    setTestOutcome(null);
+    setTestFlow((f) => (f ? { ...f, seed: newSeed() } : null));
+  }, []);
+
+  const exitTest = useCallback(() => {
+    setTestFlow(null);
+    setTestOutcome(null);
+    audio.play('uiBack');
   }, []);
 
   const startPlacement = useCallback(() => {
@@ -396,6 +450,21 @@ export function App() {
     return <PlacementIntro onBegin={startPlacement} onCancel={() => setPlacementIntro(false)} />;
   }
 
+  if (testFlow) {
+    return (
+      <TestRun
+        key={`${testFlow.id}-${testFlow.seed}`}
+        id={testFlow.id}
+        seed={testFlow.seed}
+        report={testOutcome?.report ?? null}
+        result={testOutcome?.result ?? null}
+        onComplete={completeTest}
+        onRetry={retryTest}
+        onExit={exitTest}
+      />
+    );
+  }
+
   if (flow && currentDrill) {
     const context =
       flow.kind === 'placement'
@@ -487,7 +556,7 @@ export function App() {
           </div>
 
           <nav className="nav">
-            {(['home', 'daily', 'apm', 'vayne', 'profile', 'settings'] as Route[]).map((r) => (
+            {(['home', 'daily', 'apm', 'tests', 'vayne', 'profile', 'settings'] as Route[]).map((r) => (
               <button
                 key={r}
                 className={route === r ? 'on' : ''}
@@ -543,6 +612,9 @@ export function App() {
         )}
         {route === 'daily' && (
           <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('home')} />
+        )}
+        {route === 'tests' && (
+          <Tests profile={profile} onRun={startTest} onBack={() => setRoute('home')} />
         )}
         {route === 'vayne' && (
           <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('home')} />

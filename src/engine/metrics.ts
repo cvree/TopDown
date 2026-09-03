@@ -55,6 +55,20 @@ export interface RunMetrics {
   csPerfect: number;
   csMissed: number;
 
+  // --- direct control (WASD) ---------------------------------------------
+  /**
+   * Seconds the shot was loaded — attack off cooldown, target in range — and a
+   * movement key was still down holding it back.
+   *
+   * This is the one mistake WASD can make that clicking cannot. A click that
+   * arrives after the attack timer is up costs nothing; a key that is still
+   * down costs every frame it stays down, and it is completely invisible
+   * unless something counts it.
+   */
+  heldFire: number;
+  /** Windups broken by taking a direction, rather than by a click or a dash. */
+  windupBreaks: number;
+
   // --- inputs -----------------------------------------------------------
   clicks: number;
   redundantClicks: number;
@@ -104,6 +118,8 @@ export const emptyMetrics = (): RunMetrics => ({
   csSuccess: 0,
   csPerfect: 0,
   csMissed: 0,
+  heldFire: 0,
+  windupBreaks: 0,
   clicks: 0,
   redundantClicks: 0,
   kills: 0,
@@ -135,6 +151,10 @@ export interface DerivedMetrics {
   avgTargetSwitch: number; // ms
   csAccuracy: number; // 0..1
   redundantClickRate: number; // 0..1
+  /** Milliseconds of held fire per attack. Always 0 under the click scheme. */
+  triggerDelay: number;
+  /** 1 = the keys were never down while the shot was ready. */
+  triggerDiscipline: number;
   hpRetained: number; // 0..1
   reactionP10: number;
   reactionP90: number;
@@ -155,6 +175,14 @@ export const derive = (m: RunMetrics, maxHp = 720): DerivedMetrics => {
     0,
     1,
   );
+  // Held fire, priced in the currency it is actually spent in: a third of an
+  // attack cycle lost per attack is a third of your damage gone, whatever the
+  // champion's attack speed happens to be.
+  const cycleLen = m.theoreticalAttacks > 0 ? m.duration / m.theoreticalAttacks : 1;
+  // Denominated against at least one attack, so a player who never releases
+  // the keys at all is scored as the worst case rather than, by dividing by
+  // zero attacks, as the best one.
+  const heldPerAttack = m.heldFire / Math.max(1, m.attacksStarted);
   const rt = m.reactionTimes;
   const sd = stdev(rt);
   return {
@@ -171,6 +199,8 @@ export const derive = (m: RunMetrics, maxHp = 720): DerivedMetrics => {
     avgTargetSwitch: m.targetSwitchTimes.length ? median(m.targetSwitchTimes) : 0,
     csAccuracy: m.csAttempts > 0 ? clamp(m.csSuccess / m.csAttempts, 0, 1) : 0,
     redundantClickRate: m.clicks > 0 ? m.redundantClicks / m.clicks : 0,
+    triggerDelay: heldPerAttack * 1000,
+    triggerDiscipline: clamp(1 - heldPerAttack / Math.max(0.05, cycleLen * 0.33), 0, 1),
     hpRetained: clamp(1 - m.hpLost / maxHp, 0, 1),
     hpLostCapped: Math.min(m.hpLost, maxHp),
     reactionP10: rt.length ? percentile(rt, 0.1) : 0,
@@ -195,6 +225,16 @@ export class MetricsRecorder {
     this.cursorAccum = 0;
     this.seriesAccum = 0;
     this.lastClick = null;
+  }
+
+  /**
+   * A windup thrown away by taking a direction rather than by clicking.
+   *
+   * The world cannot tell the two apart — it sees one `attackCancel` either
+   * way — but the coaching has to, because the fix is a different hand.
+   */
+  noteWindupBreak(): void {
+    this.m.windupBreaks++;
   }
 
   /** Consume this step's world events. */
@@ -281,6 +321,16 @@ export class MetricsRecorder {
       if (moving) m.freeWindowMoving += dt;
     }
     if (player.phase === 'windup') m.committedTime += dt;
+
+    // Held fire. Under direct control the world refuses to start an attack
+    // while a direction is down, so these are seconds in which the champion
+    // was in range, loaded, and deliberately not shooting.
+    if (player.directControl && player.moveDir && player.attackCd <= 0 && player.phase !== 'windup') {
+      const held = world.byId(player.targetId);
+      if (held && held.alive && dist(player.pos, held.pos) - held.radius <= player.attack.range) {
+        m.heldFire += dt;
+      }
+    }
 
     // Spacing: how close to "max range" the player is holding against the
     // nearest enemy. Standing at max range is the ideal, being inside it is

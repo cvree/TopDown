@@ -259,7 +259,131 @@
   gap: 20px;
 }
 
+/* ------------------------------------------------------------ the read
+   One habit, one sentence, one button. The bar is the same shape as the
+   stage bars above it — a fill to where you are, a notch where it stops
+   costing you — so the two read as the same kind of statement. */
+.vpath-diag {
+  margin-top: 22px;
+  border-left: 2px solid var(--c, #c86bff);
+}
+.vpath-diag.empty {
+  border-left-color: var(--stroke-2);
+}
+.vd-none {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+.vd-body {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+}
+.vd-num {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vd-num b {
+  font-size: 40px;
+  line-height: 1;
+  color: var(--c, #c86bff);
+}
+.vd-num i {
+  font-size: 11px;
+  font-style: normal;
+  color: var(--text-4);
+}
+.vd-num .eyebrow {
+  margin-top: 6px;
+}
+.vd-fix {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.62;
+  color: var(--text-2);
+}
+.vd-track {
+  position: relative;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.vd-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--c, #c86bff);
+  opacity: 0.75;
+}
+.vd-gate {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--text-2);
+}
+
+/* ---------------------------------------------------------- the hands
+   WASD only. It exists because the scheme moves her entire kit one seat
+   over, and nothing else in the client says so where you can read it
+   before the countdown rather than during it. */
+.vpath-hands {
+  margin-top: 18px;
+}
+.vh-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+}
+.vh-key {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 12px;
+  background: rgba(4, 8, 16, 0.55);
+  border: 1px solid var(--stroke);
+}
+.vh-key .kbd {
+  align-self: flex-start;
+  margin-bottom: 4px;
+}
+.vh-key b {
+  font-family: var(--ui);
+  letter-spacing: 0.1em;
+  font-size: 11px;
+  color: #e7c8ff;
+}
+.vh-key span {
+  font-size: 11px;
+  color: var(--text-4);
+}
+.vh-laws {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+.vh-laws div {
+  font-size: 12.5px;
+  line-height: 1.62;
+  color: var(--text-3);
+}
+.vh-laws b {
+  color: var(--text);
+}
+.vh-laws i {
+  font-style: normal;
+  font-family: var(--mono, monospace);
+  color: #e7c8ff;
+}
+
 @media (max-width: 940px) {
+  .vd-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .vpath-head {
     grid-template-columns: minmax(0, 1fr);
   }

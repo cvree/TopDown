@@ -85,6 +85,22 @@ export interface ViewProjection {
   toggleCameraLock?(): boolean;
 }
 
+/**
+ * Where a self-cast dash points.
+ *
+ * Under the click scheme the question does not arise: the cursor is already
+ * where you asked to walk, so aiming a dash at it is the same instruction
+ * twice. Under WASD it is a genuine fork — the mouse is holding your target
+ * and the keys are holding your direction, and those point opposite ways
+ * exactly when it matters, which is while you are kiting something.
+ *
+ * `hands` resolves that the way a WASD player means it: the keys aim the dash
+ * whenever one is down, and the cursor takes over when none is. `cursor` is
+ * League's literal behaviour, kept for players who want the transfer to be
+ * exact.
+ */
+export type TumbleAim = 'cursor' | 'hands';
+
 export interface SessionConfig {
   duration: number;
   arena: { w: number; h: number };
@@ -93,6 +109,8 @@ export interface SessionConfig {
   abilities: AbilitySlot[];
   /** How the champion is driven. Defaults to League's click scheme. */
   scheme?: MovementScheme;
+  /** Where a dash points under WASD. Meaningless under the click scheme. */
+  tumbleAim?: TumbleAim;
 }
 
 /**
@@ -160,6 +178,26 @@ export class Session {
 
   get scheme(): MovementScheme {
     return this.config.scheme ?? 'click';
+  }
+
+  /** Where a dash points. Only WASD gets a choice; clicking has no hands. */
+  get tumbleAim(): TumbleAim {
+    return this.scheme === 'wasd' ? this.config.tumbleAim ?? 'hands' : 'cursor';
+  }
+
+  /**
+   * The direction the left hand is currently asking for, or null.
+   *
+   * Abilities that want to know — a dash, and the indicator that previews it —
+   * read this rather than the input system, so the headless harness only ever
+   * has to implement `moveVector`.
+   */
+  get handDir(): Vec2 | null {
+    if (this.scheme !== 'wasd') return null;
+    const v = this.input.moveVector?.() ?? { x: 0, y: 0 };
+    const m = Math.hypot(v.x, v.y);
+    if (m < 0.001) return null;
+    return { x: v.x / m, y: v.y / m };
   }
 
   // ------------------------------------------------------------------ frame
@@ -371,9 +409,15 @@ export class Session {
     if (!wasMoving && player.moveDir) {
       this.movedSinceRelease = true;
       // A direction taken during the windup is the same mistake as a click
-      // taken during the windup, and it is called by the same name.
-      if (wasWindup) this.fx.cancel(player.pos);
-      else audio.play('moveCommand', { pan: this.panOf(player.pos) });
+      // taken during the windup, and it costs the same attack — but the hand
+      // that made it is different, so it is counted separately and the
+      // coaching can name the actual fix.
+      if (wasWindup) {
+        this.fx.cancel(player.pos);
+        this.metrics.noteWindupBreak();
+      } else {
+        audio.play('moveCommand', { pan: this.panOf(player.pos) });
+      }
     }
   }
 

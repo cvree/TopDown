@@ -3,7 +3,7 @@ import { derive } from '../engine/metrics';
 import { PALETTE } from '../engine/palette';
 import type { DrillPaint } from '../engine/paint';
 import type { HudField } from '../engine/session';
-import { VAYNE_COLOR, VAYNE_STATS } from '../engine/vayne';
+import { VAYNE_COLOR, VAYNE_STATS, tumbleDirection } from '../engine/vayne';
 import { band, count, pct, type DrillOutcome } from './base';
 import { VayneDrill } from './vaynebase';
 
@@ -153,6 +153,7 @@ export class VayneTumbleDrill extends VayneDrill {
     const d = derive(this.s.metrics.m);
     const st = this.kit.stats;
     const rhythm = st.tumbles > 0 ? st.tumblesClean / st.tumbles : 0;
+    const trigger = this.triggerField();
     return [
       this.tumbleField(),
       {
@@ -167,6 +168,7 @@ export class VayneTumbleDrill extends VayneDrill {
         bar: d.orbwalkEfficiency,
         tone: d.orbwalkEfficiency > 0.7 ? 'good' : 'warn',
       },
+      ...(trigger ? [trigger] : []),
     ];
   }
 
@@ -221,8 +223,10 @@ export class VayneTumbleDrill extends VayneDrill {
     if (st.tumblesGreedy > 1) hurt.push(`${st.tumblesGreedy} tumbles taken with your attack already up.`);
     if (usage < 0.4) hurt.push('You sat on the tumble. It is a six-second cooldown, not an escape button.');
     if (windowUse < 0.35 && this.windowsOffered > 6) hurt.push('The backswing prompt came up and went unused most of the time.');
+    this.handsNotes(helped, hurt);
 
     const advice =
+      this.handsAdvice() ??
       st.tumblesWasted > 1
         ? 'Watch the cycle bar: amber is committed. Wait for it to turn green, then tumble — the damage is already out.'
         : usage < 0.45
@@ -244,6 +248,7 @@ export class VayneTumbleDrill extends VayneDrill {
         count('tumbles', 'TUMBLES USED', st.tumbles),
         count('wasted', 'WINDUPS THROWN', st.tumblesWasted, 'lower'),
         pct('orbwalk', 'ORBWALK EFFICIENCY', d.orbwalkEfficiency),
+        pct('tumbleAway', 'TUMBLE DIRECTION', tumbleDirection(st)),
         count('empowered', 'EMPOWERED HITS', st.empoweredHits),
       ],
       helped,

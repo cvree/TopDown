@@ -106,6 +106,7 @@ export class VayneHuntDrill extends VayneDrill {
     return [
       { label: 'ENEMIES', value: `${this.s.world.enemies().length}`, tone: 'neutral' },
       this.boltField(),
+      ...(this.triggerField() ? [this.triggerField() as HudField] : []),
       {
         label: this.kit.inFinalHour ? 'FINAL HOUR' : 'ULTIMATE',
         value: this.kit.inFinalHour
@@ -175,8 +176,11 @@ export class VayneHuntDrill extends VayneDrill {
     if (st.tumblesWasted > 1) hurt.push(`${st.tumblesWasted} tumbles thrown mid-windup under pressure.`);
     if (bolts < 0.55 && st.attacksLanded > 10) hurt.push('Your bolts fell apart in the fight — you switched targets on instinct.');
     if (st.finalHours === 0) hurt.push('Final Hour never came out. It is a fight-winning window, not an emergency button.');
+    this.handsNotes(helped, hurt);
 
-    const advice = !m.survived
+    const advice =
+      this.handsAdvice() ??
+      (!m.survived
       ? 'Use the terrain. Condemn the diver into a wall, then tumble away from the ranged one — do not trade with both at once.'
       : bolts < 0.6
         ? 'Pick your target and finish three attacks on it. Switching mid-stack is why the fight is going long.'
@@ -184,7 +188,7 @@ export class VayneHuntDrill extends VayneDrill {
           ? 'Open with Final Hour once they commit. The shorter tumble cooldown is what makes the fight unloseable.'
           : won && d.hpRetained > 0.7
             ? 'That is a complete Vayne. Raise the difficulty — this one has nothing left to teach you.'
-            : 'Won it. Now win it without the health bar moving.';
+            : 'Won it. Now win it without the health bar moving.');
 
     return {
       score: Math.max(0, this.liveScore()),

@@ -78,6 +78,17 @@ export interface VayneStageRecord {
   difficulty: number;
   bestScore: number;
   runs: number;
+  /**
+   * The *most recent* run's headline numbers on this stage, keyed by metric id.
+   *
+   * Deliberately the last run rather than the best one. Mastery is a claim
+   * about your ceiling and must never fall; a habit is a claim about how you
+   * are playing right now, and that is exactly the thing that is allowed to
+   * get worse. The two answer different questions and are stored separately.
+   */
+  habits?: Record<string, number>;
+  /** Whether that last run was driven with the keys. */
+  onKeys?: boolean;
 }
 
 export interface VayneProgress {
@@ -196,6 +207,8 @@ export const applyVayneRun = (
   performance: number,
   difficulty: number,
   score: number,
+  habits: Record<string, number> = {},
+  onKeys = false,
 ): VayneRunReport | null => {
   if (!isVayneStage(drill)) return null;
   const stage = VAYNE_STAGES[VAYNE_STAGE_IDS.indexOf(drill)];
@@ -208,6 +221,8 @@ export const applyVayneRun = (
 
   rec.runs += 1;
   rec.bestScore = Math.max(rec.bestScore, score);
+  rec.habits = habits;
+  rec.onKeys = onKeys;
   const improved = performance > rec.best;
   if (improved) {
     rec.best = clamp(performance, 0, 1);
@@ -238,3 +253,131 @@ export const applyVayneRun = (
 
 /** The name of the drill behind a stage, for the client. */
 export const stageName = (id: VayneStageId): string => DRILLS[id].name;
+
+/**
+ * The habits, and what each one costs.
+ *
+ * Every stage measures several things; only one of them is usually the reason
+ * you are stuck. This table is what lets the champion screen say that out loud
+ * instead of showing five bars and leaving the reading to you.
+ *
+ * `wasdFix` exists because the same number has two different causes depending
+ * on which hand is driving. "You are cancelling attacks" is a click that came
+ * too early with a mouse and a key that never came up with a keyboard, and the
+ * player only benefits from being told the one that applies to them.
+ */
+export interface VayneHabit {
+  stage: VayneStageId;
+  /** The key-metric id the drill reports it under. */
+  id: string;
+  label: string;
+  /** The value at which this habit has stopped costing you anything. */
+  good: number;
+  /** Values are 0..1 fractions unless this is set, in which case fewer is better. */
+  countOutOf?: number;
+  fix: string;
+  wasdFix?: string;
+}
+
+export const VAYNE_HABITS: VayneHabit[] = [
+  {
+    stage: 'vayneTumble',
+    id: 'tumbleRhythm',
+    label: 'Tumbling in the backswing',
+    good: 0.85,
+    fix: 'Q belongs in the backswing. Watch the cycle bar go green, then press it — the damage is already gone.',
+    wasdFix:
+      'Q belongs in the backswing, and under WASD the step and the tumble are the same beat: release, tumble, hold again.',
+  },
+  {
+    stage: 'vayneTumble',
+    id: 'tumbleAway',
+    label: 'Tumbling away rather than in',
+    good: 0.9,
+    fix: 'Aim the tumble at the ground you want to hold, not at the body you are shooting.',
+    wasdFix:
+      'Your keys aim the dash. Hold the direction you want to end up in before Q, or the cursor will drag you into the fight.',
+  },
+  {
+    stage: 'vayneTumble',
+    id: 'orbwalk',
+    label: 'Using the free window',
+    good: 0.75,
+    fix: 'Every frame between attacks is free movement. Standing still through them is half your kiting gone.',
+    wasdFix: 'Hold a direction the instant the shot leaves, and let go the instant the next one is ready.',
+  },
+  {
+    stage: 'vayneBolts',
+    id: 'boltEfficiency',
+    label: 'Finishing the third hit',
+    good: 0.75,
+    fix: 'Two stacks is an investment. Three attacks on one body, then look somewhere else.',
+  },
+  {
+    stage: 'vayneBolts',
+    id: 'markShare',
+    label: 'Procking on the called target',
+    good: 0.6,
+    fix: 'When the mark moves, finish your stack first — then commit fully to the new one.',
+  },
+  {
+    stage: 'vayneCondemn',
+    id: 'wallRate',
+    label: 'Condemning into terrain',
+    good: 0.7,
+    fix: 'Walk to the wall before the fight. A condemn into open ground is a knockback and nothing else.',
+  },
+  {
+    stage: 'vayneCondemn',
+    id: 'condemnUse',
+    label: 'Spending the cooldown',
+    good: 0.6,
+    fix: 'A stun every thirteen seconds beats a perfect one every forty.',
+  },
+  {
+    stage: 'vayneHunt',
+    id: 'kitScore',
+    label: 'Playing the whole kit at once',
+    good: 0.7,
+    fix: 'Condemn the diver into terrain, then tumble away from the ranged one. Never trade with both.',
+  },
+  {
+    stage: 'vayneHunt',
+    id: 'hpLeft',
+    label: 'Winning without paying for it',
+    good: 0.7,
+    fix: 'Open Final Hour once they commit. The shorter tumble is what turns the fight one-sided.',
+  },
+];
+
+export interface VayneDiagnosis {
+  habit: VayneHabit;
+  value: number;
+  /** How far short of `good` it is, 0..1. The reason this one was picked. */
+  gap: number;
+  fix: string;
+}
+
+/**
+ * The one habit costing the most right now, or null when there is not enough
+ * evidence yet.
+ *
+ * It reads the last run on each stage rather than the best one, because the
+ * question it answers is "what should I go and fix", and your best run from a
+ * fortnight ago cannot answer that.
+ */
+export const diagnose = (p: VayneProgress, onKeys: boolean): VayneDiagnosis | null => {
+  let worst: VayneDiagnosis | null = null;
+  for (const habit of VAYNE_HABITS) {
+    const rec = p.stages[habit.stage];
+    if (!rec || rec.runs === 0) continue;
+    const value = rec.habits?.[habit.id];
+    if (value === undefined || !Number.isFinite(value)) continue;
+    const gap = clamp((habit.good - value) / Math.max(0.01, habit.good), 0, 1);
+    if (gap <= 0.06) continue;
+    if (!worst || gap > worst.gap) {
+      worst = { habit, value, gap, fix: (onKeys && habit.wasdFix) || habit.fix };
+    }
+  }
+  return worst;
+};
