@@ -22,7 +22,7 @@ import { DRILLS } from '../drills/catalog';
  *  - Clearing a level opens the next one, so the ladder is walked rather than
  *    skipped, and a level cleared outright opens two, so a player who is
  *    plainly past a rung does not have to grind it.
- *  - Placement seeds where the ladder starts. A Diamond player should not be
+ *  - Placement seeds where the ladder starts. An Expert-class player should not be
  *    made to click level 1 for eight minutes to reach the part that is hard.
  *  - Mastery weights the top of the ladder heavily, because three stars on
  *    level 10 is a different claim from three stars on level 1.
@@ -360,7 +360,7 @@ export const nextApmTitle = (mastery: number): ApmTitle | null =>
  * Opens the ladder at a rung that matches the player who already calibrated.
  *
  * Placement measures a general mechanical rating, and a player who placed at
- * Platinum has already demonstrated the thing levels 1–3 exist to teach. They
+ * A Refined-class player has already demonstrated the thing levels 1–3 exist to teach. They
  * still *own* those levels — nothing is skipped or awarded — they simply do
  * not have to walk up to the interesting part one run at a time.
  */

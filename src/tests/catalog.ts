@@ -8,7 +8,7 @@
  *
  * The anchors below are the opinionated part. They are set so that the middle
  * of each ladder lands near where a competent ranked player actually sits, and
- * so CHALLENGER is genuinely rare rather than a participation reward.
+ * so the APEX class is genuinely rare rather than a participation reward.
  */
 
 import { RATING_MAX } from '../progression/ranks';

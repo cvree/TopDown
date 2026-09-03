@@ -46,8 +46,8 @@ export const kFactor = (samples: number): number => {
  * How far a single run may move an axis.
  *
  * The first run on an axis is allowed to place you outright — holding a
- * genuinely Platinum player at Iron for ten runs would be both wrong and
- * miserable. After that the cap tightens sharply, so rank stops being
+ * genuinely Refined-class player in Foundation for ten runs would be both
+ * wrong and miserable. After that the cap tightens sharply, so rank stops being
  * something you can walk into and starts being something you hold.
  */
 export const maxGainFor = (samples: number): number => {

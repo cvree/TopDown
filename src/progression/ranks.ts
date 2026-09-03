@@ -4,44 +4,52 @@
  * This is a rank for *trainer mechanics* — the specific motor skills these
  * drills measure. It is deliberately not a prediction of anyone's League
  * ranked tier, and the UI says so wherever the rank appears.
+ *
+ * The classes are APEX's own, on purpose. Borrowing League's tier names put a
+ * claim in the player's head that this trainer has no evidence for — "my
+ * mechanics are Platinum" is a sentence about a ranked ladder these drills
+ * have never measured. A player who reads "REFINED II" learns what APEX
+ * actually knows: that their execution in these drills is refined, at this
+ * difficulty, on this day. The bands, the divisions, the thresholds and the
+ * emblems are unchanged; only the words are ours now.
  */
 
 export const TIERS = [
-  'IRON',
-  'BRONZE',
-  'SILVER',
-  'GOLD',
-  'PLATINUM',
-  'EMERALD',
-  'DIAMOND',
-  'MASTER',
-  'GRANDMASTER',
-  'CHALLENGER',
+  'FOUNDATION',
+  'DEVELOPING',
+  'PROFICIENT',
+  'CALIBRATED',
+  'REFINED',
+  'ADVANCED',
+  'EXPERT',
+  'ELITE',
+  'PEERLESS',
+  'APEX',
 ] as const;
 
 export type Tier = (typeof TIERS)[number];
 
-/** Rating at which each tier begins. Tiers below Master are 400 wide. */
+/** Rating at which each class begins. Classes below ELITE are 400 wide. */
 export const TIER_FLOOR: Record<Tier, number> = {
-  IRON: 0,
-  BRONZE: 400,
-  SILVER: 800,
-  GOLD: 1200,
-  PLATINUM: 1600,
-  EMERALD: 2000,
-  DIAMOND: 2400,
-  MASTER: 2800,
-  GRANDMASTER: 3100,
-  CHALLENGER: 3350,
+  FOUNDATION: 0,
+  DEVELOPING: 400,
+  PROFICIENT: 800,
+  CALIBRATED: 1200,
+  REFINED: 1600,
+  ADVANCED: 2000,
+  EXPERT: 2400,
+  ELITE: 2800,
+  PEERLESS: 3100,
+  APEX: 3350,
 };
 
 export const RATING_MAX = 3600;
 
 export interface RankInfo {
   tier: Tier;
-  /** 1..4 where 1 is the highest division. Zero for Master and above. */
+  /** 1..4 where 1 is the highest division. Zero for ELITE and above. */
   division: number;
-  /** "PLATINUM II" or "MASTER". */
+  /** "REFINED II" or "ELITE". */
   label: string;
   short: string;
   /** 0..1 progress through the current division (or through Master+ band). */
@@ -55,19 +63,21 @@ const ROMAN = ['', 'I', 'II', 'III', 'IV'];
 
 export const rankFromRating = (ratingRaw: number): RankInfo => {
   const rating = Math.max(0, Math.min(RATING_MAX, ratingRaw));
-  let tier: Tier = 'IRON';
+  let tier: Tier = 'FOUNDATION';
   for (const t of TIERS) if (rating >= TIER_FLOOR[t]) tier = t;
   const tierIndex = TIERS.indexOf(tier);
 
-  if (tier === 'MASTER' || tier === 'GRANDMASTER' || tier === 'CHALLENGER') {
+  // The top three classes have no divisions: at that point the number is the
+  // interesting part and a roman numeral beside it is noise.
+  if (tier === 'ELITE' || tier === 'PEERLESS' || tier === 'APEX') {
     const floor = TIER_FLOOR[tier];
-    const next = tier === 'CHALLENGER' ? null : TIER_FLOOR[TIERS[tierIndex + 1]];
+    const next = tier === 'APEX' ? null : TIER_FLOOR[TIERS[tierIndex + 1]];
     const span = (next ?? RATING_MAX) - floor;
     return {
       tier,
       division: 0,
       label: tier,
-      short: tier === 'GRANDMASTER' ? 'GM' : tier.slice(0, 1) + (tier === 'MASTER' ? '' : ''),
+      short: tier === 'PEERLESS' ? 'PRL' : tier.slice(0, 3),
       progress: span > 0 ? Math.min(1, (rating - floor) / span) : 1,
       nextAt: next,
       tierIndex,
@@ -83,7 +93,7 @@ export const rankFromRating = (ratingRaw: number): RankInfo => {
     tier,
     division,
     label: `${tier} ${ROMAN[division]}`,
-    short: `${tier.slice(0, 1)}${division}`,
+    short: `${tier.slice(0, 3)}${division}`,
     progress: (rating - divFloor) / 100,
     nextAt: divFloor + 100,
     tierIndex,
@@ -103,7 +113,7 @@ export const isDemotion = (a: number, b: number): boolean => isPromotion(b, a);
 
 /** Rough share of players below this rating — used for the "TOP x%" readout. */
 export const percentileForRating = (rating: number): number => {
-  // A deliberately conservative curve: Challenger should feel rare.
+  // A deliberately conservative curve: the APEX class should feel rare.
   const pts: [number, number][] = [
     [0, 0.0],
     [400, 0.07],

@@ -12,21 +12,21 @@ interface Props {
 /**
  * The rank emblem. Built from primitives rather than art assets so it scales
  * cleanly, tints per tier, and can be animated for the promotion moment.
- * Complexity increases with tier: Iron is a bare plate, Challenger is crowned.
+ * Complexity increases with class: Foundation is a bare plate, Apex is crowned.
  */
 export function RankEmblem({ tier, size = 120, animated = false, dim = false }: Props) {
-  const c = RANK_COLORS[tier] ?? RANK_COLORS.IRON;
+  const c = RANK_COLORS[tier] ?? RANK_COLORS.FOUNDATION;
   const idx = [
-    'IRON',
-    'BRONZE',
-    'SILVER',
-    'GOLD',
-    'PLATINUM',
-    'EMERALD',
-    'DIAMOND',
-    'MASTER',
-    'GRANDMASTER',
-    'CHALLENGER',
+    'FOUNDATION',
+    'DEVELOPING',
+    'PROFICIENT',
+    'CALIBRATED',
+    'REFINED',
+    'ADVANCED',
+    'EXPERT',
+    'ELITE',
+    'PEERLESS',
+    'APEX',
   ].indexOf(tier);
   const uid = `rk-${tier}`;
   const chevrons = Math.min(3, Math.floor(idx / 3));

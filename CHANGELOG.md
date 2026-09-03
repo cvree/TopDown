@@ -27,6 +27,7 @@ The trainer stopped handing you a score and started telling you what went wrong,
 - Insights: findings drawn from real comparisons — a habit fading, a habit returning, a mechanic that does not survive contact, an axis climbing fast. Nothing fires on an empty profile.
 - RECORDS. Every personal best in one place, by category, with the score it beat, the date it was set and its trend. Plus the champion path, the lab ladder and the test bests.
 - A replay on the results screen: play, pause, 0.25×/0.5×/1×, and every attack, cancel, dodge and hit marked on the clock. Click a marker and it says what happened — a cancelled attack reports how far into the windup you moved, and every event reports the health it left you with.
+- A personal-best ghost inside the replay: the run holding the score record, drawn on the same clock, with how many attacks each of you had landed by any given moment.
 - Fast navigation on Ctrl/Cmd+K: drills, tests, screens and the two actions worth a shortcut.
 - Focus mode (F2, or a setting): strips the HUD to the clock, the task, your health and the score. Everything analytical waits for the results screen.
 - A session summary: time, quality reps, what moved, records beaten, the most common mistake of the day, and what tomorrow is for.
@@ -42,6 +43,8 @@ The trainer stopped handing you a score and started telling you what went wrong,
 - PROGRESS is rebuilt around five questions: how good am I, what shape am I, does it survive a fight, which mistakes am I still making, and is any of it going away. It opens with a written read of your profile and a 30-day change.
 - The champion page opens with where she stands: a champion rating on the same scale as the ladder, her strongest and weakest stage, the mistake she specifically keeps making, and the next scenario as a button.
 - The assessment ends on a verdict — strongest, weakest, and the drill to start on — rather than only a rank.
+- The ladder wears APEX’s own proficiency classes rather than League’s tier names: Foundation, Developing, Proficient, Calibrated, Refined, Advanced, Expert, Elite, Peerless, Apex. Same bands, same divisions, same thresholds, same emblems — but “my mechanics are Platinum” is a claim about a ranked ladder these drills have never measured, and the trainer should not be putting that sentence in your head.
+- A drill whose difficulty is an opponent prints what that opponent does at this level — reaction, aim error, prediction, dodging, spacing discipline — and what the next level changes.
 
 ### Fixed
 

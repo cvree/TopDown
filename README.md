@@ -310,8 +310,8 @@ nobody practises because nobody measures them.
 | **Execute Check** | Kill/no-kill calls inside a closing window | The all-in decision, before the window shuts |
 | **Combo Memory** | Sequence execution time, broken combos scored as broken | Casting your combo while your eyes are on the fight |
 
-Every test grades onto the same Iron → Challenger ladder as the drills, so
-"Gold reaction, Diamond recall" is a sentence the app can say and mean. Your
+Every test grades onto the same Foundation → Apex ladder as the drills, so
+"Calibrated reaction, Expert recall" is a sentence the app can say and mean. Your
 **benchmark** is the mean of your best grade across the tests you have actually
 attempted — a test you have never run reads as absent, not as zero, and the
 page says how many are in the number.
@@ -454,7 +454,11 @@ the rank appears.
 
 Ten axes are rated independently — Movement, Aim, Skillshot, Dodging, Kiting,
 Spacing, Targeting, Combat, Last Hitting, APM — and blended into an overall
-rating on an Iron → Challenger ladder.
+rating on a Foundation → Apex ladder of APEX's own proficiency classes:
+Foundation, Developing, Proficient, Calibrated, Refined, Advanced, Expert,
+Elite, Peerless, Apex. They are deliberately not League's tier names — "my
+mechanics are Platinum" is a claim about a ranked ladder these drills have
+never measured, and a trainer that invites it is not being honest with you.
 
 **Rank comes from performance, not attendance.** Each run produces a
 performance in 0..1 and the difficulty it was played at. Those give an *expected
@@ -462,7 +466,7 @@ rating* — what a player who performs like that consistently deserves — and y
 rating moves a fraction of the way toward it. Grinding runs at your current
 level converges on your current rating and then stops. The only ways up are to
 perform better or to perform well at a higher difficulty; a flawless run at the
-lowest difficulty tops out around Gold.
+lowest difficulty tops out around Calibrated.
 
 The first run on an axis is allowed to place you outright. After that the
 per-run cap tightens sharply, so a rank becomes something you hold rather than

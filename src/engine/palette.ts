@@ -25,14 +25,14 @@ export const PALETTE = {
 } as const;
 
 export const RANK_COLORS: Record<string, { base: string; glow: string; metal: string }> = {
-  IRON: { base: '#6f7580', glow: '#9aa3b0', metal: '#3d434c' },
-  BRONZE: { base: '#b0754a', glow: '#e0a06a', metal: '#6b452a' },
-  SILVER: { base: '#a8b8c8', glow: '#dfeaf5', metal: '#63707d' },
-  GOLD: { base: '#e3b449', glow: '#ffd97a', metal: '#8a6a1e' },
-  PLATINUM: { base: '#4fd6c4', glow: '#a5fff2', metal: '#1f7a70' },
-  EMERALD: { base: '#3fce74', glow: '#95ffb9', metal: '#1c7440' },
-  DIAMOND: { base: '#69a8ff', glow: '#bcd9ff', metal: '#2b5698' },
-  MASTER: { base: '#b366ff', glow: '#e2c0ff', metal: '#5c2d92' },
-  GRANDMASTER: { base: '#ff5f6d', glow: '#ffb3ba', metal: '#8f2530' },
-  CHALLENGER: { base: '#63e7ff', glow: '#eafcff', metal: '#1d6f8c' },
+  FOUNDATION: { base: '#6f7580', glow: '#9aa3b0', metal: '#3d434c' },
+  DEVELOPING: { base: '#b0754a', glow: '#e0a06a', metal: '#6b452a' },
+  PROFICIENT: { base: '#a8b8c8', glow: '#dfeaf5', metal: '#63707d' },
+  CALIBRATED: { base: '#e3b449', glow: '#ffd97a', metal: '#8a6a1e' },
+  REFINED: { base: '#4fd6c4', glow: '#a5fff2', metal: '#1f7a70' },
+  ADVANCED: { base: '#3fce74', glow: '#95ffb9', metal: '#1c7440' },
+  EXPERT: { base: '#69a8ff', glow: '#bcd9ff', metal: '#2b5698' },
+  ELITE: { base: '#b366ff', glow: '#e2c0ff', metal: '#5c2d92' },
+  PEERLESS: { base: '#ff5f6d', glow: '#ffb3ba', metal: '#8f2530' },
+  APEX: { base: '#63e7ff', glow: '#eafcff', metal: '#1d6f8c' },
 };
