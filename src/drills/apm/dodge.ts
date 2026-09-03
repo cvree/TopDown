@@ -172,6 +172,10 @@ abstract class ApmMoveDrill extends ApmDrill {
     return false;
   }
 
+  protected onDirectMove(_pos: Vec2, _started: boolean): void {
+    this.moveOrders++;
+  }
+
   protected paintMode(out: DrillPaint, t: number): void {
     for (const c of this.charges) {
       const pulse = 0.5 + 0.5 * Math.sin(t * 5 + c.pos.x * 0.01);

@@ -132,6 +132,12 @@ streak matters more than any single input.
 read your current flow rather than a clock, so the mode sits just past the edge
 of whatever you are doing at the time.
 
+**Both control schemes count.** Under WASD a movement command is a key going
+down and a heading changing rather than a click on the ground, so the movement
+modes count those instead — the step out of a backswing scores identically
+whichever hand took it, and the key-coordination prompt prints the key your
+hand is actually on rather than the slot's name.
+
 Modes that ask you to survive something give you a deep health pool on purpose:
 the cost of standing in a telegraph here is your multiplier, not the run.
 Ratings from these modes feed a tenth skill axis, **APM**, alongside the nine

@@ -939,6 +939,23 @@ line('\n=== APM TRAINER: the flow ladder is what the score is made of ===');
   expect('a clean run actually chains', chain >= 13, `${chain}`);
 }
 
+line('\n=== APM TRAINER: the same modes, driven with the keys ===');
+{
+  // The movement modes count commands, and under WASD a command is a key
+  // going down rather than a click on the ground. If that is not counted the
+  // whole trainer silently becomes a click-scheme feature.
+  const kite = runDrill('apmKite', 'wasd', 0.35, 12345, 'wasd');
+  const idle = runDrill('apmKite', 'idle', 0.35, 12345, 'wasd');
+  const apm = kite.out.keyMetrics.find((k) => k.id === 'apm')?.value ?? 0;
+  const steps = kite.out.keyMetrics.find((k) => k.id === 'steps')?.value ?? 0;
+  line(`  wasd kiting: ${pct(kite.out.performance)} @ ${Math.round(apm)} APM  steps ${steps}  score ${kite.out.score}`);
+  line(`  wasd idle  : ${pct(idle.out.performance)}`);
+  expect('WASD movement is counted as APM', apm > 30, `${Math.round(apm)} APM`);
+  expect('the WASD step scores as the step half of the cycle', steps > 10, `${steps} steps`);
+  expect('WASD kiting rewards playing it', kite.out.performance > 0.4, pct(kite.out.performance));
+  expect('WASD idling still scores nothing', idle.out.performance < 0.3, pct(idle.out.performance));
+}
+
 line('\n=== Losing focus pauses a run, and never un-pauses one ===');
 {
   // A gesture-opened background tab can fire window blur *and*

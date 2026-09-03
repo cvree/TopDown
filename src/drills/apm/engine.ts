@@ -98,6 +98,8 @@ export abstract class ApmDrill extends Drill {
   private lastActionAt = 0;
   private sampleCd = 0;
   private lastMove: { x: number; y: number; t: number } | null = null;
+  private lastDir: Vec2 | null = null;
+  private dirCd = 0;
 
   // ------------------------------------------------------------- template
 
@@ -106,6 +108,16 @@ export abstract class ApmDrill extends Drill {
 
   /** Per-mode drawing. The flow ring and tier badge are drawn for you. */
   protected paintMode(_out: DrillPaint, _t: number): void {}
+
+  /**
+   * A movement command issued with the keys rather than the mouse.
+   *
+   * `started` is true when the champion was standing still and is now moving —
+   * the WASD equivalent of a click on the ground. A change of heading while
+   * already moving is also a command, and is passed with `started` false so a
+   * mode can tell the two apart.
+   */
+  protected onDirectMove(_pos: Vec2, _started: boolean): void {}
 
   /** The middle HUD field. Modes that measure something specific override it. */
   protected modeField(): HudField | null {
@@ -365,8 +377,43 @@ export abstract class ApmDrill extends Drill {
       if (this.s.elapsed > 3) this.peakApm = Math.max(this.peakApm, this.liveApm());
     }
 
+    this.pollHeldDirection(dt);
     this.metronome(dt);
     this.tick(dt);
+  }
+
+  /**
+   * WASD's actions, counted the way clicks are.
+   *
+   * Under direct control the mouse issues almost nothing: the commands are a
+   * held direction starting and a heading changing. Without this the movement
+   * modes would report almost no APM for anyone driving with the keys, which
+   * would make the whole trainer a click-scheme feature by accident.
+   *
+   * Only modes whose champion can actually move are polled, so hammering the
+   * keys in a mode that has you bolted to the floor buys nothing. The rate
+   * limit is what stops a held key that wobbles between two diagonals from
+   * reading as ten commands a second.
+   */
+  private pollHeldDirection(dt: number): void {
+    if (this.s.scheme !== 'wasd') return;
+    const p = this.s.world.player;
+    if (!p || !p.alive || p.moveSpeed <= 0) return;
+    this.dirCd = Math.max(0, this.dirCd - dt);
+
+    const dir = p.moveDir;
+    const had = this.lastDir;
+    this.lastDir = dir ? { x: dir.x, y: dir.y } : null;
+    if (!dir) return;
+
+    const started = had === null;
+    // Unit vectors, so the dot product is the cosine: 0.72 is about 44°.
+    const turned = had !== null && had.x * dir.x + had.y * dir.y < 0.72;
+    if (!started && !turned) return;
+    if (this.dirCd > 0) return;
+    this.dirCd = 0.12;
+    this.note();
+    this.onDirectMove(p.pos, started);
   }
 
   /**

@@ -134,6 +134,24 @@ abstract class OrbwalkDrill extends ApmDrill {
     return false;
   }
 
+  /**
+   * The same step, taken with the keys.
+   *
+   * Under WASD the step out of the backswing is a key going down rather than a
+   * click on the ground, and it has to score identically — the trainer's whole
+   * claim is that a run means the same thing under either scheme.
+   */
+  protected onDirectMove(pos: Vec2, started: boolean): void {
+    const p = this.s.world.player;
+    if (!p) return;
+    if (started && !this.movedSinceRelease && p.phase !== 'windup') {
+      this.steps++;
+      this.hit(p.pos, { quality: 0.55, value: 55, action: false });
+    }
+    this.movedSinceRelease = true;
+    void pos;
+  }
+
   protected medianGap(): number {
     if (!this.gaps.length) return 0;
     const s = [...this.gaps].sort((a, b) => a - b);

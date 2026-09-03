@@ -1,4 +1,4 @@
-import type { AbilitySlot } from '../../engine/input';
+import { codeLabel, defaultsFor, type AbilitySlot } from '../../engine/input';
 import { clamp } from '../../engine/math';
 import { PALETTE } from '../../engine/palette';
 import type { DrillPaint } from '../../engine/paint';
@@ -37,11 +37,18 @@ export class ApmKeysDrill extends ApmDrill {
   private lateKeys = 0;
   private gaps: number[] = [];
   private lastHitAt = 0;
+  /** What is printed on the key, which the control scheme decides. */
+  private glyph: Record<string, string> = {};
 
   setup(): void {
     const { w, h } = this.s.world.bounds;
     const p = this.s.world.spawnPlayer({ x: w / 2, y: h / 2 }, { range: 0, damage: 0 });
     p.moveSpeed = 0;
+    // The prompt has to show the key your hand is on, not the slot's name.
+    // Under WASD the ability row moves one seat over, and a mode about keys
+    // that prints the wrong letter is worse than no prompt at all.
+    const binds = defaultsFor(this.s.scheme);
+    for (const slot of SLOTS) this.glyph[slot] = codeLabel(binds[slot].primary);
     for (let i = 0; i < 6; i++) this.push();
     this.arm();
   }
@@ -85,7 +92,7 @@ export class ApmKeysDrill extends ApmDrill {
 
     if (slot !== expected) {
       this.wrongKeys++;
-      this.fumble(p.pos, `WRONG · ${expected.toUpperCase()}`);
+      this.fumble(p.pos, `WRONG · ${this.glyph[expected] ?? expected.toUpperCase()}`);
       this.advance();
       return;
     }
@@ -96,7 +103,7 @@ export class ApmKeysDrill extends ApmDrill {
       quality: clamp(1 - age / this.window, 0, 1),
       value: 85,
       reaction: age * 1000,
-      label: slot.toUpperCase(),
+      label: this.glyph[slot] ?? slot.toUpperCase(),
     });
     this.advance();
   }
@@ -128,7 +135,7 @@ export class ApmKeysDrill extends ApmDrill {
       kind: 'keys',
       x: p.pos.x,
       y: p.pos.y,
-      seq: this.queue.slice(0, 5),
+      seq: this.queue.slice(0, 5).map((k) => this.glyph[k] ?? k),
       labels: this.queue.slice(0, 5).map((k) => NAME[k]),
       index: 0,
       progress: left,
