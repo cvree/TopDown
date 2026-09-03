@@ -653,6 +653,24 @@ Screens that are genuinely pages of content — the daily programme, your
 profile, settings — sit on a darkened plate instead, so the arena shows through
 as depth rather than competing for the same pixels as the text.
 
+## Versions and patch notes
+
+The release history lives in one place — `src/patchnotes/notes.ts`. The client
+reads it (the version chip in the top bar, with a mark on it when there is
+something you have not read), the build takes its version number off the top of
+it, and [`CHANGELOG.md`](CHANGELOG.md) is rendered from it by `npm run
+changelog`. Two hand-maintained copies of a release history diverge within one
+release; one source and a renderer cannot.
+
+Every entry says what was **added**, what **changed** under you, and what was
+**fixed** — in that order, because the middle category is the one that costs a
+player their muscle memory and the last is the one that explains why something
+they reported is finally behaving. Anything that moves a control, a camera or
+the meaning of a score is written down.
+
+Versions before 1.1.0 are assigned retroactively from the commit history: the
+project shipped continuously before it started numbering itself.
+
 ## Architecture
 
 ```
@@ -664,6 +682,7 @@ src/drills/     one file per drill; each owns its rules and its scoring
 src/drills/apm/ the APM trainer: one engine, thirteen modes over it
 src/tests/      the twelve skill tests: one runner interface, one drawing kit
 src/progression/ rating maths, rank ladder, champion path, APM ladder, persistence
+src/patchnotes/ the release history: the client, the version number and CHANGELOG.md
 src/ui/         React shell, HUD, results, profile, rank-up, Vayne, tests, APM ladder
 src/ui/HeroSelect.tsx champion select: the first run, and the Champion tab in settings
 tools/          headless test harnesses

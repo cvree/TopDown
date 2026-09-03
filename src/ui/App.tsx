@@ -21,6 +21,7 @@ import {
 } from '../progression/profile';
 import { APM_LEVELS, isApmDrill, levelDifficulty, recommendedLevel, seedApmLadder } from '../progression/apm';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
+import { PATCH_NOTES, VERSION } from '../patchnotes/notes';
 import type { TestId } from '../tests/catalog';
 import type { TestResult } from '../tests/types';
 import type { SkillAxis } from '../progression/skills';
@@ -34,6 +35,7 @@ import { Apm } from './Apm';
 import { Daily } from './Daily';
 import { GameView } from './GameView';
 import { Home } from './Home';
+import { PatchNotes } from './PatchNotes';
 import { PlacementIntro, PlacementReveal } from './Placement';
 import { ProfileScreen } from './ProfileScreen';
 import { RankEmblem } from './components/RankEmblem';
@@ -46,7 +48,7 @@ import { Vayne } from './Vayne';
 import '../styles/global.css';
 import './app.css';
 
-type Route = 'home' | 'profile' | 'daily' | 'apm' | 'tests' | 'vayne' | 'settings';
+type Route = 'home' | 'profile' | 'daily' | 'apm' | 'tests' | 'vayne' | 'settings' | 'patch';
 
 interface Flow {
   kind: 'single' | 'placement' | 'daily';
@@ -417,6 +419,13 @@ export function App() {
     audio.play('uiClick');
   }, []);
 
+  // Opening the notes is what marks them read; nothing else clears the dot,
+  // and a player who never opens them keeps it. The marking is done by the
+  // screen itself, one frame in, so it can still show you what was new.
+  const markPatchRead = useCallback(() => {
+    setProfile((p) => (p.seenVersion === VERSION ? p : { ...p, seenVersion: VERSION }));
+  }, []);
+
   const chooseHero = useCallback((hero: HeroId) => {
     setProfile((p) => ({ ...p, onboarded: true, settings: { ...p.settings, hero } }));
   }, []);
@@ -556,6 +565,9 @@ export function App() {
   // payoff for pressing the key, not something behind it — and it is the same
   // screen the settings page opens later, so a player only ever learns it once.
   const onboarding = booted && !profile.onboarded;
+  // A profile that has read an older release, or none at all, has something
+  // waiting. A brand-new profile starts level with the build and does not.
+  const unreadPatch = profile.seenVersion !== VERSION;
 
   return (
     <div className="app">
@@ -600,6 +612,25 @@ export function App() {
             </nav>
 
             <div className="topbar-right">
+              {/* The build, and whether there is anything in it you have not
+                  read. A version number in a corner is also the first thing
+                  anyone needs when reporting that something behaves oddly. */}
+              <button
+                className={`ver-chip${route === 'patch' ? ' on' : ''}`}
+                title={
+                  unreadPatch
+                    ? `New in v${VERSION} — ${PATCH_NOTES[0].name}`
+                    : `Running v${VERSION} — patch notes`
+                }
+                onMouseEnter={() => audio.play('uiHover')}
+                onClick={() => {
+                  audio.play('uiTab');
+                  setRoute('patch');
+                }}
+              >
+                {unreadPatch && <i className="ver-dot" />}v{VERSION}
+                <span>PATCH NOTES</span>
+              </button>
               {/* Who you are, always on screen, one click from changing it. A
                   champion you picked and then never see again is a form field. */}
               <button
@@ -671,6 +702,13 @@ export function App() {
           )}
           {route === 'settings' && (
             <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('home')} />
+          )}
+          {route === 'patch' && (
+            <PatchNotes
+              seen={profile.seenVersion}
+              onRead={markPatchRead}
+              onBack={() => setRoute('home')}
+            />
           )}
         </div>
       )}

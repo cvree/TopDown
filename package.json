@@ -1,7 +1,7 @@
 {
   "name": "apex-mechanics",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,7 @@
     "test": "esbuild tools/simtest.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/simtest.mjs --log-level=error && node node_modules/.cache/simtest.mjs && npm run test:skills",
     "test:skills": "esbuild tools/testcheck.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/testcheck.mjs --log-level=error && node node_modules/.cache/testcheck.mjs",
     "test:drill": "esbuild tools/debugrun.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/debugrun.mjs --log-level=error && node node_modules/.cache/debugrun.mjs",
+    "changelog": "esbuild tools/changelog.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/changelog.mjs --log-level=error && node node_modules/.cache/changelog.mjs",
     "build:single": "npm run build && node tools/bundle-single.mjs dist/apex-single.html"
   },
   "dependencies": {

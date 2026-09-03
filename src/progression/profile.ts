@@ -1,4 +1,5 @@
 import { DEFAULT_HERO, type HeroId } from '../engine/heroes';
+import { VERSION } from '../patchnotes/notes';
 import { clamp, mean } from '../engine/math';
 import type { DerivedMetrics, RunMetrics } from '../engine/metrics';
 import { DRILLS, type DrillId } from '../drills/catalog';
@@ -143,6 +144,12 @@ export interface Profile {
   placementRuns: number;
   /** The first-run flow — champion select — has been completed. */
   onboarded: boolean;
+  /**
+   * The newest release whose patch notes this player has read. Null means they
+   * have never opened them, which for a brand-new profile is not the same as
+   * being behind: everything is new to a new player, so nothing is marked.
+   */
+  seenVersion: string | null;
   ratings: Record<SkillAxis, number>;
   samples: Record<SkillAxis, number>;
   overall: number;
@@ -208,6 +215,9 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   placed: false,
   placementRuns: 0,
   onboarded: false,
+  // A new profile has read nothing and is behind on nothing: it starts on the
+  // current version so its first session is not decorated with "NEW" marks.
+  seenVersion: VERSION,
   ratings: zeroAxis(0),
   samples: zeroAxis(0),
   overall: 0,
@@ -244,6 +254,11 @@ export const loadProfile = (): Profile => {
       // through onboarding if it has already been placed — it simply keeps the
       // default body until its owner goes and changes it.
       onboarded: parsed.onboarded ?? Boolean(parsed.placed),
+      // A profile written before patch notes existed has genuinely not read
+      // them, so it keeps null and gets the mark. Which releases it missed is
+      // unknowable, so the notes screen highlights the current one rather than
+      // inventing a history for it.
+      seenVersion: parsed.seenVersion ?? null,
       daily: { ...p.daily, ...parsed.daily },
       // A profile written before the champion track existed simply starts it.
       vayne: parsed.vayne
