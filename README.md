@@ -12,7 +12,9 @@ that teaches one champion properly, and a results screen designed so you can
 see exactly what you did and what it cost you.
 
 It can be driven either way: League's click-to-move, or WASD. Both obey the
-same windup law, so a run scores identically under either.
+same windup law, so a run scores identically under either — and the champion
+path knows which hand you are using, because the mistakes are not the same
+ones.
 
 It opens like a game rather than a page: black screen, a crest struck out of
 it, a load bar, and a key to press. That gate is not only theatre — the arena's
@@ -201,6 +203,14 @@ units along the line from you and only stuns if terrain is waiting at the end
 of it, which makes it a question about where you chose to stand. Final Hour
 shortens the tumble, adds damage, and hides you for a second on each tumble.
 
+**It tells you which habit to go and fix.** Four stages produce twenty numbers
+between them, and twenty numbers teach nothing. The path screen reads your
+*last* run on each stage — deliberately the last rather than the best, because
+"what should I work on" is a question about how you are playing now — measures
+every habit against the value at which it stops costing you anything, and shows
+the one that is furthest off, in a sentence, with the drill that fixes it
+attached to a button.
+
 **Mastery is a ceiling, not a total.** Each stage stores your *best* run and
 the difficulty you played it at; mastery is the weighted blend of those, so a
 worse run never costs you anything and grinding at a level you have already
@@ -208,6 +218,54 @@ beaten converges and stops. Titles run from RECRUIT to **THE GREATEST VAYNE**,
 which needs every stage at three stars at a difficulty with nothing left to
 teach you — and the screen that awards it says plainly that it is a claim
 about these drills, not about anybody's ranked ladder.
+
+### Playing her on WASD
+
+Vayne is the champion the two control schemes disagree about, so the trainer
+takes a position rather than leaving it to chance.
+
+**Your keys aim the tumble.** Under click-to-move the question never arises:
+the cursor is already where you asked to walk, so aiming a dash at it is the
+same instruction twice. Under WASD it is a real fork — the mouse is holding
+your *target* and the keys are holding your *direction*, and those point
+opposite ways at exactly the moment it matters, which is while you are kiting
+something. So by default the keys win: Tumble goes where you are holding, and
+falls back to the cursor when your hand is off the keys. League's literal
+behaviour is one setting away for anyone who wants the transfer to be exact —
+**Settings → Dash aim** — and it changes nothing about scoring. The headless
+suite runs the same seed both ways: with the cursor parked on the pursuer
+throughout, every tumble under `cursor` goes into the fight and every tumble
+under `hands` goes out of it.
+
+**You can see where the dash ends.** While Tumble is up, a lane and a landing
+ring lie on the floor showing where you would arrive, clipped by whatever
+terrain would stop you first. It brightens in the backswing — the window the
+whole champion is built on — and disappears the moment the cooldown starts, so
+it never becomes furniture.
+
+**The trigger is measured.** Under direct control the champion refuses to
+attack while a direction is held, which means WASD has a mistake clicking
+cannot make: holding the keys past the moment the shot was ready. Every one of
+those seconds is damage a click player would already have dealt, and it is
+completely invisible unless something counts it. So the HUD carries a
+**TRIGGER** figure — milliseconds of held fire per attack — the floor says
+`LET GO` when a hold outlasts a comfortable reaction time, and the results
+screen prices it against your attack cycle. A clean release reads under 20ms;
+never releasing at all scores zero, and the suite asserts both.
+
+**The coaching knows which hand you are using.** The same lost attack is "you
+clicked through the windup" with a mouse and "you never let go of the key" with
+a keyboard, and only one of those sentences is any use to the person reading
+it. Windups broken by a direction are counted separately from windups broken by
+a click, tumbles that closed the gap instead of opening it are counted at all,
+and the advice line names the fix that applies to your hands.
+
+**Her kit is on different keys, and the client says so.** W, A, S and D are
+spoken for, so the ability row moves one seat over: Condemn is on `R`, Final
+Hour on `F`. A champion drill prints the key each ability is *actually* bound
+to rather than a generic "abilities" hint, and the path screen carries the
+whole row — read from your live bindings, so a rebound layout says what it
+really is — alongside the three laws that scheme adds.
 
 ## The ranked system
 
@@ -253,6 +311,11 @@ depends on:
 - Tumbling in the backswing beats tumbling on cooldown; finishing bolt stacks
   beats target-hopping; a wall-aware condemn player lands wall stuns and a
   wall-blind one does not.
+- **The same Vayne rhythm scores the same under either hand**, with the cursor
+  parked on the pursuer throughout the WASD run. On that identical seed the
+  `hands` dash aim sends 0% of tumbles into the fight and the `cursor` aim
+  sends 100%; a clean release measures 8ms of held fire and never releasing
+  measures the whole run.
 - **Every drill scores under 30% for a player who does nothing.** No drill can
   be passed by presence alone.
 - 1v1 is winnable; 1v2 and 1v3 cost progressively more health; all three are
@@ -301,6 +364,11 @@ Two schemes, chosen in Settings. The default is League's.
 Under WASD the mouse only ever targets, so it can never cancel an attack; the
 keys are the only thing that moves you, and holding one is the same commitment
 a click is. Everything else — camera, zoom, reset, pause — is unchanged.
+
+**Dash aim** is a WASD-only setting, and Vayne's Tumble is the ability it
+decides: *the keys* (default — the dash goes where you are holding, and to the
+cursor when nothing is held) or *the cursor* (League's literal behaviour). See
+[Playing her on WASD](#playing-her-on-wasd).
 
 All bindings are remappable in Settings, along with quick cast, and each scheme
 keeps its own rebinds so switching never breaks a layout you tuned. In drills

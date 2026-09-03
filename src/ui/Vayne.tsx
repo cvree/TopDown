@@ -1,9 +1,11 @@
 import { audio } from '../engine/audio';
 import { DRILLS } from '../drills/catalog';
+import { codeLabel, defaultsFor, type ActionId } from '../engine/input';
 import { drillDifficulty, type Profile } from '../progression/profile';
 import {
   VAYNE_STAGES,
   VAYNE_TITLES,
+  diagnose,
   nextTitle,
   nextVayneStage,
   stageStars,
@@ -38,6 +40,7 @@ export function Vayne({ profile, onPlay, onBack }: Props) {
   const next = nextTitle(v.peak);
   const recommended = nextVayneStage(v);
   const cleared = VAYNE_STAGES.filter((s) => v.stages[s.id].best >= s.gate).length;
+  const onKeys = profile.settings.movementScheme === 'wasd';
 
   return (
     <div className="scroll">
@@ -82,6 +85,10 @@ export function Vayne({ profile, onPlay, onBack }: Props) {
             />
           ))}
         </div>
+
+        <Diagnosis profile={profile} onPlay={onPlay} />
+
+        {onKeys && <Hands profile={profile} />}
 
         <section className="panel pad vpath-ladder">
           <div className="panel-title">Titles</div>
@@ -208,5 +215,125 @@ function StageCard({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * THE DIAGNOSIS.
+ *
+ * Four stages produce twenty numbers between them, and a player looking at
+ * twenty numbers learns nothing. This picks the single habit furthest from
+ * where it needs to be, says it in a sentence, and puts the drill that fixes
+ * it one click away.
+ *
+ * It reads your *last* run on each stage rather than your best, because "what
+ * should I go and work on" is a question about how you are playing now.
+ */
+function Diagnosis({ profile, onPlay }: { profile: Profile; onPlay: (id: DrillId) => void }) {
+  const onKeys = profile.settings.movementScheme === 'wasd';
+  const d = diagnose(profile.vayne, onKeys);
+
+  if (!d) {
+    const anyRuns = VAYNE_STAGES.some((s) => profile.vayne.stages[s.id].runs > 0);
+    return (
+      <section className="panel pad vpath-diag empty">
+        <div className="panel-title">The read</div>
+        <p className="vd-none">
+          {anyRuns
+            ? 'Nothing is standing out. Every habit measured is at or near where it needs to be — raise the difficulty and make one of them break.'
+            : 'Run a stage and this becomes the one thing worth fixing, named out loud, with the drill that fixes it attached.'}
+        </p>
+      </section>
+    );
+  }
+
+  const meta = DRILLS[d.habit.stage];
+  return (
+    <section className="panel pad vpath-diag" style={{ ['--c' as string]: meta.accent }}>
+      <div className="panel-title">The read</div>
+      <div className="vd-body">
+        <div className="vd-num">
+          <b className="mono">{Math.round(d.value * 100)}</b>
+          <i className="mono">/ {Math.round(d.habit.good * 100)}</i>
+          <span className="eyebrow">{d.habit.label}</span>
+        </div>
+        <div className="vd-text">
+          <p className="vd-fix">{d.fix}</p>
+          <div className="vd-track">
+            <span className="vd-fill" style={{ width: `${Math.round(Math.min(1, d.value) * 100)}%` }} />
+            <i className="vd-gate" style={{ left: `${Math.round(d.habit.good * 100)}%` }} />
+          </div>
+        </div>
+        <button
+          className="btn primary"
+          onMouseEnter={() => audio.play('uiHover')}
+          onClick={() => {
+            audio.play('uiClick');
+            onPlay(d.habit.stage);
+          }}
+        >
+          {meta.name}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * THE HANDS.
+ *
+ * Only shown under WASD, and it exists because that scheme moves Vayne's whole
+ * kit one seat over: Condemn is not on E any more, Final Hour is not on R, and
+ * a player who learned her with a mouse will press the wrong key for a week
+ * unless somebody puts the new row in front of them.
+ *
+ * The keys are read from the live bindings rather than printed as constants,
+ * so a rebound layout says what it actually is.
+ */
+function Hands({ profile }: { profile: Profile }) {
+  const defaults = defaultsFor('wasd');
+  const overrides = profile.settings.wasdBindings ?? {};
+  const key = (a: ActionId): string => codeLabel((overrides[a] ?? defaults[a]).primary).toUpperCase();
+  const aim = profile.settings.tumbleAim ?? 'hands';
+
+  return (
+    <section className="panel pad vpath-hands">
+      <div className="panel-title">Her kit, on your keys</div>
+      <div className="vh-row">
+        {[
+          { k: key('q'), name: 'TUMBLE', sub: 'Q — the dash' },
+          { k: '—', name: 'SILVER BOLTS', sub: 'W — passive, no key' },
+          { k: key('e'), name: 'CONDEMN', sub: 'E — the wall' },
+          { k: key('r'), name: 'FINAL HOUR', sub: 'R — the window' },
+          { k: 'LMB', name: 'TARGET', sub: 'never walks you' },
+          { k: key('stop'), name: 'STOP', sub: 'holds the ground' },
+        ].map((a) => (
+          <div className="vh-key" key={a.name}>
+            <kbd className="kbd">{a.k}</kbd>
+            <b>{a.name}</b>
+            <span>{a.sub}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="vh-laws">
+        <div>
+          <b>Release is the trigger.</b> She cannot fire while you are asking her to walk, so the step and
+          the shot are one beat: let go, shoot, hold again. The <i>TRIGGER</i> figure on the HUD is the
+          milliseconds you spend on the wrong side of that beat.
+        </div>
+        <div>
+          <b>A held key cancels a windup.</b> Exactly as a click does. The whole of orbwalking is that the
+          same input is free in the backswing and ruinous a fifth of a second earlier.
+        </div>
+        <div>
+          <b>{aim === 'hands' ? 'Your keys aim the tumble.' : 'Your cursor aims the tumble.'}</b>{' '}
+          {aim === 'hands'
+            ? 'Whatever direction you are holding is where Q sends you, and the cursor only takes over when your hand is off the keys — so your escape is aimed by the hand that is already pointing at it.'
+            : 'League’s literal behaviour: Q goes to the cursor even while your keys point the other way. Change it under Settings → Dash aim if the dash keeps pulling you into the fight.'}{' '}
+          The ring on the floor is where you would land.
+        </div>
+      </div>
+    </section>
   );
 }

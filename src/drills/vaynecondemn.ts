@@ -185,6 +185,7 @@ export class VayneCondemnDrill extends VayneDrill {
         value: `${Math.max(0, this.opportunities - this.opportunitiesTaken)}`,
         tone: this.opportunities - this.opportunitiesTaken > 3 ? 'bad' : 'neutral',
       },
+      ...(this.triggerField() ? [this.triggerField() as HudField] : []),
     ];
   }
 
@@ -234,15 +235,17 @@ export class VayneCondemnDrill extends VayneDrill {
     if (rate < 0.45 && st.condemnHits > 2) hurt.push('Most of your condemns pushed them into open ground — nothing happened.');
     if (this.opportunities - this.opportunitiesTaken > 3) hurt.push(`${this.opportunities - this.opportunitiesTaken} chargers reached you with condemn up.`);
     if (this.wastedPresses > 2) hurt.push(`${this.wastedPresses} condemns aimed at nobody.`);
+    this.handsNotes(helped, hurt);
 
     const advice =
-      rate < 0.45
+      this.handsAdvice() ??
+      (rate < 0.45
         ? 'Stand so the wall is behind them, not beside you. Walk to the wall before the fight, not during it.'
         : usage < 0.5
           ? 'You are holding condemn for a perfect moment that never comes. A stun every thirteen seconds beats a perfect one every forty.'
           : rate > 0.72
             ? 'You are reading the geometry. Take it into Night Hunter, where the wall is one of three things you are tracking.'
-            : 'Good instincts. Now pick your standing spot before they arrive rather than reacting to where they come from.';
+            : 'Good instincts. Now pick your standing spot before they arrive rather than reacting to where they come from.');
 
     return {
       score: Math.max(0, this.liveScore()),

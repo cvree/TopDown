@@ -95,6 +95,10 @@ export interface VayneStats {
   tumblesWasted: number;
   /** Tumbles taken while the attack was off cooldown and a target was in range. */
   tumblesGreedy: number;
+  /** Tumbles whose direction closed the gap on the nearest live threat. */
+  tumblesInward: number;
+  /** Tumbles cut short by terrain — a dash spent on a wall. */
+  tumblesBlocked: number;
   empoweredHits: number;
 
   attacksLanded: number;
@@ -116,6 +120,8 @@ const emptyStats = (): VayneStats => ({
   tumblesClean: 0,
   tumblesWasted: 0,
   tumblesGreedy: 0,
+  tumblesInward: 0,
+  tumblesBlocked: 0,
   empoweredHits: 0,
   attacksLanded: 0,
   boltProcs: 0,
@@ -304,6 +310,41 @@ export class VayneKit {
   }
 
   /**
+   * Where the tumble would actually go, from `from`, with the cursor at `at`.
+   *
+   * Under the click scheme this is the cursor and nothing else — that is
+   * League. Under WASD the keys win whenever one is down, because the mouse
+   * under that scheme is holding the *target*, and a dash aimed at your target
+   * while you are running away from it is the opposite of the instruction you
+   * meant to give. Returns null when there is no direction to be had.
+   */
+  tumbleDir(from: Vec2, at: Vec2): Vec2 | null {
+    if (this.s.tumbleAim === 'hands') {
+      const hands = this.s.handDir;
+      if (hands) return hands;
+    }
+    const dir = norm(at.x - from.x, at.y - from.y);
+    return dir.x === 0 && dir.y === 0 ? null : dir;
+  }
+
+  /** The closest living enemy, for the reads that are about a direction. */
+  private nearestThreat(): Actor | null {
+    const p = this.s.world.player;
+    if (!p) return null;
+    let best: Actor | null = null;
+    let bd = Infinity;
+    for (const e of this.s.world.actors) {
+      if (!e.alive || e.team === p.team) continue;
+      const d = dist(p.pos, e.pos);
+      if (d < bd) {
+        bd = d;
+        best = e;
+      }
+    }
+    return bd < 900 ? best : null;
+  }
+
+  /**
    * Q — Tumble.
    *
    * The dash itself is trivial. What the kit records is *when* it was taken:
@@ -317,8 +358,8 @@ export class VayneKit {
     if (!p || !p.alive) return 'refused';
     if (this.tumbleCd > 0) return 'refused';
 
-    const dir = norm(at.x - p.pos.x, at.y - p.pos.y);
-    if (dir.x === 0 && dir.y === 0) return 'refused';
+    const dir = this.tumbleDir(p.pos, at);
+    if (!dir) return 'refused';
     const reach = this.s.world.terrainAlong(p.pos, dir, VAYNE_STATS.tumbleRange, p.radius);
     const from = { ...p.pos };
 
@@ -326,6 +367,9 @@ export class VayneKit {
     const target = this.s.world.byId(p.targetId);
     const inRange = !!target && target.alive && dist(p.pos, target.pos) - target.radius <= p.attack.range;
     const attackUp = p.attackCd <= 0.02 && p.phase === 'idle';
+    // Read before the dash moves her: "which way did that go" is a question
+    // about where she was standing when the key went down.
+    const threat = this.nearestThreat();
 
     p.pos.x = from.x + dir.x * reach.distance;
     p.pos.y = from.y + dir.y * reach.distance;
@@ -352,6 +396,15 @@ export class VayneKit {
       this.lastTumbleQuality = 'clean';
       if (p.phase === 'backswing') this.s.micro('TUMBLE CANCEL', p.pos, VAYNE_COLOR);
     }
+
+    // Which way it went is its own read, separate from when it was pressed. A
+    // perfectly timed tumble into the person chasing you is still a tumble
+    // into the person chasing you, and under WASD — where the mouse is on the
+    // target and the keys are on the escape — it is the easy mistake to make.
+    if (threat && dir.x * (threat.pos.x - from.x) + dir.y * (threat.pos.y - from.y) > 0) {
+      this.stats.tumblesInward++;
+    }
+    if (reach.hit) this.stats.tumblesBlocked++;
 
     this.stats.tumbles++;
     this.lastTumbleAt = this.s.world.time;
@@ -542,6 +595,49 @@ export class VayneKit {
       }
     }
 
+    // The exit.
+    //
+    // A dash you cannot see the end of is a dash you press and hope about, and
+    // under WASD there is a genuine question to answer — the keys aim it, and
+    // the mouse is somewhere else entirely. So while the tumble is up it draws
+    // where it would put you, clipped by the terrain that would stop it. It
+    // brightens in the backswing, which is the window the whole champion is
+    // built on, and it is gone the moment the cooldown starts, so it never
+    // becomes furniture.
+    if (this.loadout.tumble && this.tumbleCd <= 0) {
+      const dir = this.tumbleDir(p.pos, cursor);
+      if (dir) {
+        const reach = this.s.world.terrainAlong(p.pos, dir, VAYNE_STATS.tumbleRange, p.radius);
+        const to = { x: p.pos.x + dir.x * reach.distance, y: p.pos.y + dir.y * reach.distance };
+        const free = p.phase === 'backswing' || (p.phase === 'idle' && p.attackCd > 0.02);
+        const blocked = reach.hit;
+        const color = blocked ? PALETTE.textFaint : VAYNE_COLOR;
+        out.markers.push({
+          kind: 'line',
+          x: p.pos.x,
+          y: p.pos.y,
+          x2: to.x,
+          y2: to.y,
+          halfWidth: p.radius * 0.5,
+          color,
+          alpha: free ? 0.5 : 0.22,
+          fill: free ? 0.16 : 0.05,
+          rise: 1.1,
+        });
+        out.markers.push({
+          kind: 'ring',
+          x: to.x,
+          y: to.y,
+          radius: p.radius + 6,
+          color,
+          alpha: free ? 0.62 + 0.14 * Math.sin(t * 7) : 0.26,
+          width: blocked ? 2 : 3,
+          dash: blocked ? 14 : 0,
+          rise: 1.15,
+        });
+      }
+    }
+
     if (this.inFinalHour) {
       out.markers.push({
         kind: 'ring',
@@ -576,3 +672,14 @@ export const boltEfficiency = (st: VayneStats): number => {
 /** Wall stuns against condemns landed. */
 export const wallRate = (st: VayneStats): number =>
   st.condemnHits > 0 ? st.condemnWallStuns / st.condemnHits : 0;
+
+/**
+ * Fraction of tumbles that went somewhere useful — away from the nearest
+ * threat and not into a wall.
+ *
+ * Deliberately separate from the rhythm. Rhythm is *when* you pressed it and
+ * is the first thing to learn; this is *where* it sent you, which is the thing
+ * that stops mattering only once the timing is automatic.
+ */
+export const tumbleDirection = (st: VayneStats): number =>
+  st.tumbles > 0 ? clamp(1 - (st.tumblesInward + st.tumblesBlocked * 0.5) / st.tumbles, 0, 1) : 0;

@@ -6,7 +6,7 @@
  * scores well and that spamming does not. It runs without a browser.
  */
 import { GameLoop, SIM_DT } from '../src/engine/loop';
-import { Session, type ViewProjection } from '../src/engine/session';
+import { Session, type TumbleAim, type ViewProjection } from '../src/engine/session';
 import { createDrill, arenaFor } from '../src/drills';
 import { APM_DRILL_IDS } from '../src/drills/apm';
 import { DRILLS, type DrillId } from '../src/drills/catalog';
@@ -38,6 +38,7 @@ type Policy =
   | 'vayneBolts'
   | 'vayneCondemn'
   | 'vayneKit'
+  | 'vayneWasd'
   | 'apmClick'
   | 'apmPing'
   | 'apmKeys'
@@ -74,7 +75,14 @@ const fakeRenderer: ViewProjection = {
   screenToWorld: (x: number, y: number) => ({ x, y }),
 };
 
-const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345, scheme: MovementScheme = 'click') => {
+const runDrill = (
+  id: DrillId,
+  policy: Policy,
+  difficulty: number,
+  seed = 12345,
+  scheme: MovementScheme = 'click',
+  tumbleAim: TumbleAim = 'hands',
+) => {
   const meta = DRILLS[id];
   const bounds = arenaFor(id);
   const input = new FakeInput();
@@ -86,6 +94,7 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345,
       difficulty,
       abilities: meta.abilities,
       scheme,
+      tumbleAim,
     },
     input as unknown as InputSystem,
     fakeRenderer,
@@ -457,6 +466,61 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345,
             }
             break;
           }
+          case 'vayneWasd': {
+            // The Vayne rhythm, driven with the keys instead of the mouse.
+            //
+            // The mouse is deliberately parked on the pursuer the whole time —
+            // that is where a WASD player's cursor actually lives, because the
+            // cursor is what chooses the target. So every tumble here is
+            // pressed with the cursor pointing *at* the thing being escaped,
+            // which is precisely the case the aim setting exists to resolve.
+            reactTimer = 0.02;
+            const kit = kitOf(drill);
+            if (!target) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            session.cursorWorld = { x: target.pos.x, y: target.pos.y };
+            const away = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            if (p.phase === 'windup') {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            if (kit && p.phase === 'backswing' && kit.tumbleCd <= 0) {
+              input.dir = { x: away.x, y: away.y };
+              input.push({ kind: 'ability', slot: 'q', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              break;
+            }
+            const dW = dist(p.pos, target.pos);
+            const inRangeW = dW - target.radius <= p.attack.range;
+            if (p.attackCd <= 0.001 && inRangeW) {
+              input.dir = { x: 0, y: 0 };
+              if (p.targetId !== target.id) {
+                input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              }
+              break;
+            }
+            const desiredW = p.attack.range * 0.92 + target.radius;
+            const radialW = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            const tangentW = { x: -radialW.y, y: radialW.x };
+            const correctionW = Math.max(-1, Math.min(1, (desiredW - dW) / 180));
+            let gxW = radialW.x * correctionW + tangentW.x * orbitDir * 0.6;
+            let gyW = radialW.y * correctionW + tangentW.y * orbitDir * 0.6;
+            const marginW = 190;
+            if (
+              p.pos.x < marginW ||
+              p.pos.x > bounds.w - marginW ||
+              p.pos.y < marginW ||
+              p.pos.y > bounds.h - marginW
+            ) {
+              orbitDir *= -1;
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gxW = toCentre.x;
+              gyW = toCentre.y;
+            }
+            input.dir = { x: gxW, y: gyW };
+            break;
+          }
           case 'vayneKit': {
             // The whole champion: orbwalk, tumble in the backswing, condemn
             // into terrain, and open the ultimate once the fight is joined.
@@ -654,6 +718,7 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345,
       }
       const ownsCursor =
         policy === 'aim' ||
+        policy === 'vayneWasd' ||
         policy === 'vayneBolts' ||
         policy === 'vayneCondemn' ||
         policy === 'apmClick' ||
@@ -1029,6 +1094,104 @@ line('\n=== APM TRAINER: the same modes, driven with the keys ===');
   expect('the WASD step scores as the step half of the cycle', steps > 10, `${steps} steps`);
   expect('WASD kiting rewards playing it', kite.out.performance > 0.4, pct(kite.out.performance));
   expect('WASD idling still scores nothing', idle.out.performance < 0.3, pct(idle.out.performance));
+}
+
+line('\n=== The Vayne path, driven with the keys ===');
+{
+  const kitOfRun = (r: { drill: unknown }) => kitOf(r.drill)!;
+
+  const mouse = runDrill('vayneTumble', 'vayneTumble', 0.35);
+  const keys = runDrill('vayneTumble', 'vayneWasd', 0.35, 12345, 'wasd');
+  const keysIdle = runDrill('vayneTumble', 'idle', 0.35, 12345, 'wasd');
+  const kMouse = kitOfRun(mouse).stats;
+  const kKeys = kitOfRun(keys).stats;
+
+  line(
+    `  mouse: rhythm ${pct(kMouse.tumblesClean / Math.max(1, kMouse.tumbles))}  tumbles ${kMouse.tumbles}  perf ${pct(mouse.out.performance)}`,
+  );
+  line(
+    `  keys : rhythm ${pct(kKeys.tumblesClean / Math.max(1, kKeys.tumbles))}  tumbles ${kKeys.tumbles}  trigger ${Math.round(keys.d.triggerDelay)}ms  perf ${pct(keys.out.performance)}`,
+  );
+  expect('WASD Vayne rewards playing her properly', keys.out.performance > 0.55, pct(keys.out.performance));
+  expect('WASD Vayne cannot be passed by doing nothing', keysIdle.out.performance < 0.3, pct(keysIdle.out.performance));
+  // The promise the whole scheme rests on: a run means the same thing under
+  // either hand. If this band ever widens, one of the two schemes has quietly
+  // become the easy one.
+  expect(
+    'the same rhythm scores the same under either hand',
+    Math.abs(keys.out.performance - mouse.out.performance) < 0.25,
+    `${pct(keys.out.performance)} vs ${pct(mouse.out.performance)}`,
+  );
+
+  // Trigger discipline: the mistake only WASD can make, and the proof that it
+  // is being watched. `wasdHold` never lets go of the keys at all.
+  const stuck = runDrill('vayneTumble', 'wasdHold', 0.35, 12345, 'wasd');
+  line(
+    `  trigger: clean ${Math.round(keys.d.triggerDelay)}ms (${pct(keys.d.triggerDiscipline)})  never released ${Math.round(stuck.d.triggerDelay)}ms (${pct(stuck.d.triggerDiscipline)})`,
+  );
+  expect('a clean release scores as trigger discipline', keys.d.triggerDiscipline > 0.8, pct(keys.d.triggerDiscipline));
+  expect('never releasing the keys is measured as held fire', stuck.m.heldFire > 3, `${stuck.m.heldFire.toFixed(1)}s`);
+  expect('never releasing the keys destroys trigger discipline', stuck.d.triggerDiscipline < 0.2, pct(stuck.d.triggerDiscipline));
+
+  // The aiming rule. Identical inputs, identical seed — the only difference is
+  // which hand the dash listens to, and the cursor is on the pursuer
+  // throughout. Under `hands` the tumbles leave; under `cursor` they arrive.
+  const cursorAim = runDrill('vayneTumble', 'vayneWasd', 0.35, 12345, 'wasd', 'cursor');
+  const kCursor = kitOfRun(cursorAim).stats;
+  const inwardHands = kKeys.tumblesInward / Math.max(1, kKeys.tumbles);
+  const inwardCursor = kCursor.tumblesInward / Math.max(1, kCursor.tumbles);
+  line(`  aim hands : ${kKeys.tumblesInward} of ${kKeys.tumbles} tumbles went toward the pursuer (${pct(inwardHands)})`);
+  line(`  aim cursor: ${kCursor.tumblesInward} of ${kCursor.tumbles} tumbles went toward the pursuer (${pct(inwardCursor)})`);
+  expect('the keys aim the tumble away from the fight', inwardHands < 0.1, pct(inwardHands));
+  expect('the cursor aim sends the same press into the fight', inwardCursor > 0.8, pct(inwardCursor));
+}
+
+line('\n=== A key taken through the windup costs the attack, and says so ===');
+{
+  // The click scheme already asserts this for a click. The point here is that
+  // the *coaching* can tell the two apart: the world sees one cancel either
+  // way, and only the session knows which hand made it.
+  const input = new FakeInput();
+  const session = new Session(
+    {
+      duration: 60,
+      arena: arenaFor('vayneTumble'),
+      seed: 4242,
+      difficulty: 0.35,
+      abilities: DRILLS.vayneTumble.abilities,
+      scheme: 'wasd',
+    },
+    input as unknown as InputSystem,
+    fakeRenderer,
+  );
+  session.attachDrill(createDrill('vayneTumble', session));
+  session.countdown = 0;
+
+  // One step to leave the countdown — orders are ignored until the run is
+  // actually running — then park the pursuer in range and take the target.
+  session.step(SIM_DT);
+  const p = session.world.player!;
+  const foe = session.world.actors.find((a) => a.alive && a.team === 'enemy')!;
+  foe.pos.x = p.pos.x + 300;
+  foe.pos.y = p.pos.y;
+  input.push({ kind: 'move', x: foe.pos.x, y: foe.pos.y, t: 0 });
+  let guard = 0;
+  while (p.phase !== 'windup' && guard++ < 4000) {
+    foe.pos.x = p.pos.x + 300;
+    foe.pos.y = p.pos.y;
+    session.step(SIM_DT);
+  }
+  expect('an attack starts with the keys up', p.phase === 'windup', p.phase);
+
+  const before = session.metrics.m.windupBreaks;
+  input.dir = { x: 0, y: -1 };
+  session.step(SIM_DT);
+  expect('a direction taken in the windup cancels the attack', p.phase !== 'windup', p.phase);
+  expect(
+    'and is counted as a windup broken by the keys',
+    session.metrics.m.windupBreaks === before + 1,
+    `${session.metrics.m.windupBreaks}`,
+  );
 }
 
 line('\n=== Losing focus pauses a run, and never un-pauses one ===');

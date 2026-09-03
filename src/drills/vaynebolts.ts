@@ -199,6 +199,7 @@ export class VayneBoltsDrill extends VayneDrill {
         bar: 1 - clamp(st.boltsDropped / 6, 0, 1),
         tone: st.boltsDropped > 2 ? 'bad' : eff > 0.7 ? 'good' : 'warn',
       },
+      ...(this.triggerField() ? [this.triggerField() as HudField] : []),
     ];
   }
 
@@ -248,15 +249,17 @@ export class VayneBoltsDrill extends VayneDrill {
     if (st.boltsDropped > 2) hurt.push(`${st.boltsDropped} stacks thrown away by switching early.`);
     if (efficiency < 0.6 && st.attacksLanded > 12) hurt.push('Your hits are spread across targets — most of them are doing nothing.');
     if (priorityShare < 0.4 && this.procsTotal > 3) hurt.push('You proc, but rarely on the target you were asked to kill.');
+    this.handsNotes(helped, hurt);
 
     const advice =
-      st.boltsDropped > 2
+      this.handsAdvice() ??
+      (st.boltsDropped > 2
         ? 'Two stacks on a target is an investment. Finish the third hit before you look anywhere else.'
         : efficiency < 0.6
           ? 'Pick one target and stay on it for three attacks. Spread damage is Vayne doing nothing.'
           : priorityShare < 0.5
             ? 'When the mark moves, finish your stack — then commit fully to the new one.'
-            : 'Clean bolt management. Take it into Condemn, where the target is also trying to reach you.';
+            : 'Clean bolt management. Take it into Condemn, where the target is also trying to reach you.');
 
     return {
       score: Math.max(0, this.liveScore()),

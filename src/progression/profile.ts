@@ -74,6 +74,11 @@ export interface AppSettings {
   quickCast: boolean;
   /** Click-to-move (League) or WASD. */
   movementScheme: 'click' | 'wasd';
+  /**
+   * Where a dash points under WASD: the keys you are holding, or the cursor.
+   * Ignored entirely under the click scheme, where there are no keys to hold.
+   */
+  tumbleAim: 'hands' | 'cursor';
   showRange: boolean;
   lowFx: boolean;
   masterVolume: number;
@@ -130,6 +135,7 @@ const yesterdayKey = (): string => {
 export const DEFAULT_SETTINGS: AppSettings = {
   quickCast: true,
   movementScheme: 'click',
+  tumbleAim: 'hands',
   showRange: true,
   lowFx: false,
   masterVolume: 0.75,
@@ -365,8 +371,18 @@ export const applyRun = (p: Profile, result: RunResult, opts: { placement?: bool
   });
   if (p.history.length > 400) p.history.splice(0, p.history.length - 400);
 
+  // The champion path keeps the last run's headline numbers so it can name the
+  // habit that is costing you, rather than only the score that resulted.
   const vayne = isVayneStage(result.drill)
-    ? applyVayneRun(p.vayne, result.drill, result.performance, result.difficulty, result.score)
+    ? applyVayneRun(
+        p.vayne,
+        result.drill,
+        result.performance,
+        result.difficulty,
+        result.score,
+        Object.fromEntries(result.keyMetrics.map((k) => [k.id, k.value])),
+        p.settings.movementScheme === 'wasd',
+      )
     : null;
 
   adaptDifficulty(p, result.drill, result.performance);
