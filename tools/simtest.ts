@@ -8,6 +8,7 @@
 import { GameLoop, SIM_DT } from '../src/engine/loop';
 import { Session, type ViewProjection } from '../src/engine/session';
 import { createDrill, arenaFor } from '../src/drills';
+import { APM_DRILL_IDS } from '../src/drills/apm';
 import { DRILLS, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
 import type { InputEventKind, InputSystem, MovementScheme } from '../src/engine/input';
@@ -34,7 +35,16 @@ type Policy =
   | 'vayneTumble'
   | 'vayneBolts'
   | 'vayneCondemn'
-  | 'vayneKit';
+  | 'vayneKit'
+  | 'apmClick'
+  | 'apmPing'
+  | 'apmKeys'
+  | 'apmCollect'
+  | 'apmUpkeep'
+  | 'apmBand'
+  | 'apmSmite'
+  | 'apmOrbwalk'
+  | 'apmCsDodge';
 
 class FakeInput {
   cursor = { x: 0, y: 0 };
@@ -104,12 +114,17 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345,
       reactTimer -= SIM_DT;
       if (reactTimer <= 0) {
         switch (policy) {
+          case 'apmOrbwalk':
           case 'orbwalk': {
             // A competent orbwalker: attack the instant the timer is up, then
             // spend the whole free window circling at the edge of range —
             // tangentially, with a radial correction, steering off the walls
             // rather than running into them.
-            reactTimer = 0.05;
+            //
+            // The APM variant runs at a human cadence rather than the sim's.
+            // Twenty commands a second is not a fast player, it is a macro,
+            // and the APM modes are built to refuse to pay one.
+            reactTimer = policy === 'apmOrbwalk' ? 0.2 : 0.05;
             if (!target) break;
             const d = dist(p.pos, target.pos);
             const inRange = d - target.radius <= p.attack.range;
@@ -459,12 +474,150 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345,
             });
             break;
           }
+          // ------------------------------------------------------ APM trainer
+          case 'apmClick':
+          case 'apmPing': {
+            // A competent hand: take the legal mark, click its centre, and —
+            // in the map mode — answer the alert with the key it asks for.
+            reactTimer = 0.15;
+            if (policy === 'apmPing') {
+              const pings = (drill as unknown as { pings?: { slot: 'd' | 'f' }[] }).pings ?? [];
+              if (pings.length) {
+                input.push({ kind: 'ability', slot: pings[0].slot, x: p.pos.x, y: p.pos.y, t: t * 1000 });
+                break;
+              }
+            }
+            const marks = (drill as unknown as { marks?: { actor: { pos: { x: number; y: number } }; order: number }[] })
+              .marks ?? [];
+            if (!marks.length) break;
+            const ordered = marks.some((m) => m.order > 0);
+            const mk = ordered
+              ? marks.reduce((a, b) => (a.order <= b.order ? a : b))
+              : marks.reduce((a, b) => (dist(p.pos, a.actor.pos) <= dist(p.pos, b.actor.pos) ? a : b));
+            input.cursor = { x: mk.actor.pos.x, y: mk.actor.pos.y };
+            session.cursorWorld = { x: mk.actor.pos.x, y: mk.actor.pos.y };
+            input.push({ kind: 'move', x: mk.actor.pos.x, y: mk.actor.pos.y, t: t * 1000 });
+            break;
+          }
+          case 'apmCsDodge': {
+            // Last-hitting under harassment: leave any telegraph standing on
+            // you first, and otherwise take the lowest bar in range.
+            reactTimer = 0.2;
+            let stepped = false;
+            for (const h of session.world.hazards) {
+              if (h.warn <= 0) continue;
+              if (!session.world.hazardHits(h, p.pos, p.radius + 40)) continue;
+              const axis = h.end ? norm(h.end.x - h.pos.x, h.end.y - h.pos.y) : norm(p.pos.x - h.pos.x, p.pos.y - h.pos.y);
+              const away = h.end ? { x: -axis.y, y: axis.x } : axis;
+              input.push({
+                kind: 'move',
+                x: Math.max(70, Math.min(bounds.w - 70, p.pos.x + away.x * 280)),
+                y: Math.max(70, Math.min(bounds.h - 70, p.pos.y + away.y * 280)),
+                t: t * 1000,
+              });
+              stepped = true;
+              break;
+            }
+            if (stepped || !target) break;
+            const reach = dist(p.pos, target.pos) - target.radius;
+            if (reach <= p.attack.range) {
+              if (p.attackCd <= 0.001 && p.phase !== 'windup') {
+                input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              }
+              break;
+            }
+            const toward = norm(target.pos.x - p.pos.x, target.pos.y - p.pos.y);
+            input.push({
+              kind: 'move',
+              x: p.pos.x + toward.x * (reach - p.attack.range + 40),
+              y: p.pos.y + toward.y * (reach - p.attack.range + 40),
+              t: t * 1000,
+            });
+            break;
+          }
+          case 'apmKeys': {
+            reactTimer = 0.1;
+            const q = (drill as unknown as { queue?: string[] }).queue ?? [];
+            if (q.length) input.push({ kind: 'ability', slot: q[0] as 'q', x: p.pos.x, y: p.pos.y, t: t * 1000 });
+            break;
+          }
+          case 'apmCollect':
+          case 'apmUpkeep': {
+            // Walk the charges down, and in the upkeep mode spend every
+            // ability the instant its wheel finishes.
+            reactTimer = 0.18;
+            if (policy === 'apmUpkeep') {
+              const cds = (drill as unknown as { cd?: Record<string, number> }).cd;
+              if (cds) {
+                const ready = (['q', 'w', 'e', 'r'] as const).find((k) => cds[k] <= 0);
+                if (ready) {
+                  input.push({ kind: 'ability', slot: ready, x: p.pos.x + 200, y: p.pos.y, t: t * 1000 });
+                  break;
+                }
+              }
+            }
+            const charges = (drill as unknown as { charges?: { pos: { x: number; y: number } }[] }).charges ?? [];
+            if (!charges.length) break;
+            const c = charges.reduce((a, b) => (dist(p.pos, a.pos) <= dist(p.pos, b.pos) ? a : b));
+            input.push({ kind: 'move', x: c.pos.x, y: c.pos.y, t: t * 1000 });
+            break;
+          }
+          case 'apmBand': {
+            // Stand where the current call asks, on the line from the chaser
+            // through the player so the move is always the shortest one.
+            reactTimer = 0.3;
+            const dr = drill as unknown as { chaser?: { pos: { x: number; y: number } }; band(): { lo: number; hi: number } };
+            const e = dr.chaser;
+            if (!e) break;
+            const b = dr.band();
+            const want = (b.lo + b.hi) / 2;
+            const away = norm(p.pos.x - e.pos.x, p.pos.y - e.pos.y);
+            const gx = e.pos.x + away.x * want;
+            const gy = e.pos.y + away.y * want;
+            input.push({
+              kind: 'move',
+              x: Math.max(70, Math.min(bounds.w - 70, gx)),
+              y: Math.max(70, Math.min(bounds.h - 70, gy)),
+              t: t * 1000,
+            });
+            break;
+          }
+          case 'apmSmite': {
+            // Walk to whichever objective is closest to its window and take it
+            // the moment it is legal.
+            reactTimer = 0.3;
+            const dr = drill as unknown as {
+              camps?: { actor: { pos: { x: number; y: number }; hp: number; radius: number } }[];
+              cd: number;
+              threshold(): number;
+            };
+            const camps = dr.camps ?? [];
+            if (!camps.length) break;
+            const next = camps.reduce((a, b) => (a.actor.hp <= b.actor.hp ? a : b));
+            input.cursor = { x: next.actor.pos.x, y: next.actor.pos.y };
+            session.cursorWorld = { x: next.actor.pos.x, y: next.actor.pos.y };
+            const reach = dist(p.pos, next.actor.pos) - next.actor.radius;
+            if (next.actor.hp <= dr.threshold() && dr.cd <= 0 && reach <= 700) {
+              input.push({ kind: 'ability', slot: 'd', x: next.actor.pos.x, y: next.actor.pos.y, t: t * 1000 });
+              break;
+            }
+            // Walk to it, but only while there is walking left to do.
+            if (reach > 500) input.push({ kind: 'move', x: next.actor.pos.x, y: next.actor.pos.y, t: t * 1000 });
+            break;
+          }
           case 'idle':
             reactTimer = 1;
             break;
         }
       }
-      if (policy !== 'aim' && policy !== 'vayneBolts' && policy !== 'vayneCondemn') {
+      const ownsCursor =
+        policy === 'aim' ||
+        policy === 'vayneBolts' ||
+        policy === 'vayneCondemn' ||
+        policy === 'apmClick' ||
+        policy === 'apmPing' ||
+        policy === 'apmSmite';
+      if (!ownsCursor) {
         session.cursorWorld = { x: p.pos.x, y: p.pos.y };
       }
     }
@@ -717,6 +870,73 @@ for (const id of ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'] as D
   const r = runDrill(id, 'idle', 0.4);
   line(`  ${id.padEnd(13)} idle perf ${pct(r.out.performance)}  score ${r.out.score}`);
   expect(`${id} cannot be passed by doing nothing`, r.out.performance < 0.3, pct(r.out.performance));
+}
+
+line('\n=== APM TRAINER: every mode pays for correct play and nothing else ===');
+{
+  const cases: [DrillId, Policy][] = [
+    ['apmAim', 'apmClick'],
+    ['apmAim2', 'apmClick'],
+    ['apmAimMap', 'apmPing'],
+    ['apmPrecision', 'apmClick'],
+    ['apmKeys', 'apmKeys'],
+    ['apmDodge', 'apmCollect'],
+    ['apmDodgeCd', 'apmUpkeep'],
+    ['apmKite', 'apmOrbwalk'],
+    ['apmDefKite', 'apmOrbwalk'],
+    ['apmLastHit', 'apmOrbwalk'],
+    ['apmLastHit2', 'apmCsDodge'],
+    ['apmSpacing', 'apmBand'],
+    ['apmSmite', 'apmSmite'],
+  ];
+  // Adding a mode without adding it here would silently ship it untested.
+  expect(
+    'every APM mode is covered by these checks',
+    APM_DRILL_IDS.every((id) => cases.some(([c]) => c === id)) && cases.length === APM_DRILL_IDS.length,
+    `${cases.length} cases for ${APM_DRILL_IDS.length} modes`,
+  );
+  for (const [id, policy] of cases) {
+    const good = runDrill(id, policy, 0.35);
+    const idle = runDrill(id, 'idle', 0.35);
+    const apm = good.out.keyMetrics.find((k) => k.id === 'apm')?.value ?? 0;
+    const finite = Number.isFinite(good.out.performance) && Number.isFinite(good.out.score);
+    line(
+      `  ${id.padEnd(13)} played ${pct(good.out.performance)} @ ${Math.round(apm)} APM  score ${good.out.score}` +
+        `   idle ${pct(idle.out.performance)} score ${idle.out.score}`,
+    );
+    const inner = (good as unknown as { session: { drill: unknown } }).session.drill as unknown as {
+      hits: number; fumbles: number; strays: number; expiries: number; bestChain: number;
+    };
+    line(
+      `      hits ${inner.hits}  fumbles ${inner.fumbles}  strays ${inner.strays}  expiries ${inner.expiries}` +
+        `  chain ${inner.bestChain}  correct/min ${Math.round(good.out.keyMetrics.find((k) => k.id === 'correctApm')?.value ?? 0)}`,
+    );
+    expect(`${id} produces finite, in-range results`, finite && good.out.performance >= 0 && good.out.performance <= 1, `perf=${good.out.performance}`);
+    expect(`${id} rewards playing it`, good.out.performance > 0.4, pct(good.out.performance));
+    expect(`${id} cannot be passed by doing nothing`, idle.out.performance < 0.3, pct(idle.out.performance));
+    expect(`${id} counts actions per minute`, apm > 30, `${Math.round(apm)} APM`);
+  }
+}
+
+line('\n=== APM TRAINER: speed alone is not a score ===');
+{
+  // Mashing the field at random is faster than playing it. It must not pay.
+  const played = runDrill('apmAim', 'apmClick', 0.35);
+  const mashed = runDrill('apmAim', 'spam', 0.35);
+  const mashedApm = mashed.out.keyMetrics.find((k) => k.id === 'apm')?.value ?? 0;
+  const playedApm = played.out.keyMetrics.find((k) => k.id === 'apm')?.value ?? 0;
+  line(`  played: ${pct(played.out.performance)} @ ${Math.round(playedApm)} APM  score ${played.out.score}`);
+  line(`  mashed: ${pct(mashed.out.performance)} @ ${Math.round(mashedApm)} APM  score ${mashed.out.score}`);
+  expect('clicking at nothing scores below playing', mashed.out.performance < played.out.performance * 0.6, pct(mashed.out.performance));
+  expect('clicking at nothing scores near zero', mashed.out.score < played.out.score * 0.35, `${mashed.out.score} vs ${played.out.score}`);
+}
+
+line('\n=== APM TRAINER: the flow ladder is what the score is made of ===');
+{
+  const r = runDrill('apmKeys', 'apmKeys', 0.35);
+  const chain = r.out.keyMetrics.find((k) => k.id === 'chain')?.value ?? 0;
+  line(`  best chain ${chain}  perfects and multiplier folded into score ${r.out.score}`);
+  expect('a clean run actually chains', chain >= 13, `${chain}`);
 }
 
 line('\n=== Losing focus pauses a run, and never un-pauses one ===');
