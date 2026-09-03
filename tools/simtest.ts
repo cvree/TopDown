@@ -12,7 +12,10 @@ import { APM_DRILL_IDS, type LabSolution } from '../src/drills/apm';
 import { DRILLS, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
 import { InputSystem, WASD_BINDINGS, type AbilitySlot, type InputEventKind, type MovementScheme } from '../src/engine/input';
-import { dist, norm } from '../src/engine/math';
+import { angleDelta, dist, norm } from '../src/engine/math';
+import { ARCHETYPES } from '../src/engine/archetypes';
+import { EnemyBrain, tuningFor, type BotBehavior } from '../src/engine/ai';
+import type { Actor, Vec2 } from '../src/engine/types';
 import { incomingDamage } from '../src/engine/lane';
 import type { VayneKit } from '../src/engine/vayne';
 import { VAYNE_STATS } from '../src/engine/vayne';
@@ -916,6 +919,129 @@ line('\n=== WASD: the same rhythm with the other hand ===');
     Math.abs(wasdGood.out.performance - kiteGood.out.performance) < 0.25,
     `${pct(wasdGood.out.performance)} vs ${pct(kiteGood.out.performance)}`,
   );
+}
+
+line('\n=== Bots generate situations, not straight lines ===');
+{
+  // Each behaviour is put in a bare arena against a player that either stands
+  // still or walks at it, and asked to prove it does the thing it is named
+  // after. The three banned behaviours are asserted against directly: no
+  // straight-line chasing, no jitter, no loop.
+  const observe = (
+    behavior: BotBehavior,
+    drive: (p: Actor, t: number) => void,
+    seconds = 12,
+    preferredRange?: number,
+  ) => {
+    const world = new World({ w: 2400, h: 2400 }, new Rng(77));
+    const p = world.spawnPlayer({ x: 1200, y: 1200 });
+    p.directControl = true;
+    const def = ARCHETYPES.ranger;
+    const e = world.spawnActor({
+      pos: { x: 1200, y: 700 },
+      team: 'enemy',
+      maxHp: 4000,
+      radius: def.radius,
+      moveSpeed: def.moveSpeed,
+      attack: { ...def.attack },
+      archetype: 'ranger',
+    });
+    const brain = new EnemyBrain(e, 'ranger', tuningFor(0.5), new Rng(31));
+    brain.behavior = behavior;
+    brain.anchor = { x: 1200, y: 700 };
+    brain.leash = 420;
+    if (preferredRange !== undefined) brain.preferredRange = preferredRange;
+    const track: { d: number; pos: Vec2; heading: number }[] = [];
+    let t = 0;
+    let last = { ...e.pos };
+    while (t < seconds) {
+      drive(p, t);
+      brain.update(world, SIM_DT);
+      world.step(SIM_DT);
+      t += SIM_DT;
+      const moved = dist(last, e.pos);
+      if (moved > 0.5) {
+        track.push({ d: dist(p.pos, e.pos), pos: { ...e.pos }, heading: Math.atan2(e.pos.y - last.y, e.pos.x - last.x) });
+        last = { ...e.pos };
+      }
+    }
+    return { world, player: p, enemy: e, brain, track };
+  };
+
+  const still = (_p: Actor) => {};
+  const walkAt = (p: Actor) => {
+    world0.setMoveDir(p, 0, -1);
+  };
+  // `walkAt` needs a world to talk to; the observer owns one, so route through
+  // the player's own move direction instead.
+  void walkAt;
+  const approach = (p: Actor) => {
+    p.moveDir = { x: 0, y: -1 };
+  };
+  const world0 = new World({ w: 10, h: 10 }, new Rng(1));
+
+  // CHASE must close, and must not do it in a straight line.
+  {
+    // A chaser with a melee unit's preferred range: the whole question is
+    // whether it arrives, and by what path.
+    const r = observe('chase', still, 12, 140);
+    const headings = r.track.map((s) => s.heading);
+    const spread = Math.max(...headings) - Math.min(...headings);
+    expect('a chaser actually closes the gap', dist(r.player.pos, r.enemy.pos) < 400, `${dist(r.player.pos, r.enemy.pos).toFixed(0)}u`);
+    expect('a chaser does not walk a straight line', spread > 0.5, `heading spread ${spread.toFixed(2)}rad`);
+  }
+
+  // RETREAT must refuse to be caught while a player walks straight at it.
+  {
+    const r = observe('retreat', approach, 10);
+    expect('a runner keeps its distance from an approaching player', dist(r.player.pos, r.enemy.pos) > 300, `${dist(r.player.pos, r.enemy.pos).toFixed(0)}u`);
+  }
+
+  // TETHER must never leave its leash, however far the player walks off.
+  {
+    const r = observe('tether', (p) => {
+      p.moveDir = { x: 1, y: 1 };
+    }, 14);
+    const worst = Math.max(...r.track.map((s) => dist(s.pos, r.brain.anchor!)));
+    expect('a tether never leaves its leash', worst < r.brain.leash + 90, `${worst.toFixed(0)}u vs leash ${r.brain.leash}`);
+  }
+
+  // BAIT must leave when reached for.
+  {
+    const r = observe('bait', approach, 10);
+    expect('a bait backs off when you step toward it', dist(r.player.pos, r.enemy.pos) > 380, `${dist(r.player.pos, r.enemy.pos).toFixed(0)}u`);
+  }
+
+  // ERRATIC must commit: headings held long enough to be read, not jitter.
+  {
+    const r = observe('erratic', still, 14);
+    let flips = 0;
+    for (let i = 1; i < r.track.length; i++) {
+      if (Math.abs(angleDelta(r.track[i].heading, r.track[i - 1].heading)) > 1.2) flips++;
+    }
+    const perSecond = flips / 14;
+    expect('erratic commits rather than jitters', perSecond < 5, `${perSecond.toFixed(1)} hard turns/s`);
+    expect('erratic is genuinely unpredictable', flips > 4, `${flips} direction changes in 14s`);
+  }
+
+  // IRREGULAR must never come back around: no position is revisited on a period.
+  {
+    const r = observe('irregular', still, 24);
+    // Compare the second half of the path against the first at every lag: a
+    // looping walk has one lag where the two line up almost exactly.
+    const pts = r.track.map((s) => s.pos);
+    let best = Infinity;
+    for (let lag = Math.floor(pts.length * 0.25); lag < pts.length - 40; lag += 4) {
+      let sum = 0;
+      let n = 0;
+      for (let i = 0; i + lag < pts.length; i += 3) {
+        sum += dist(pts[i], pts[i + lag]);
+        n++;
+      }
+      if (n > 8) best = Math.min(best, sum / n);
+    }
+    expect('an irregular walk never repeats itself', best > 60, `closest repeat ${best.toFixed(0)}u apart`);
+  }
 }
 
 line('\n=== A direction change is instant, not a stand-still ===');

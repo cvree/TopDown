@@ -50,12 +50,83 @@ interface Snapshot {
   vel: Vec2;
 }
 
+/**
+ * What a bot is *for*.
+ *
+ * A bot in a mechanics trainer is not an opponent, it is a situation
+ * generator: its only job is to make the player face a decision they will
+ * face in a real game. Three behaviours are therefore banned outright, and
+ * every one of these exists to replace one of them.
+ *
+ *  - **Straight-line chasing** teaches you to run in a straight line away
+ *    from it, which is the opposite of kiting. `chase` arcs instead, and the
+ *    arc drifts, so the correct answer keeps changing.
+ *  - **Random jitter** teaches nothing, because noise has no read. `erratic`
+ *    commits to every direction it picks for long enough to be read and
+ *    punished — it is unpredictable, not twitchy.
+ *  - **Predictable loops** get solved once and then ignored. `irregular`
+ *    is driven by summed incommensurate periods, so it never repeats.
+ *
+ * The rest are situations: something that will not let you leave (`tether`),
+ * something that waits and then commits (`diver`), something that punishes
+ * you for stepping toward it (`bait`), something that will not let you close
+ * (`retreat`), and something that holds its distance and circles (`strafe`).
+ */
+export type BotBehavior =
+  | 'chase'
+  | 'retreat'
+  | 'strafe'
+  | 'tether'
+  | 'diver'
+  | 'bait'
+  | 'erratic'
+  | 'irregular';
+
+export const BOT_BEHAVIORS: BotBehavior[] = [
+  'chase',
+  'retreat',
+  'strafe',
+  'tether',
+  'diver',
+  'bait',
+  'erratic',
+  'irregular',
+];
+
+/** One line each, for a drill that wants to name what it just spawned. */
+export const BEHAVIOR_LABELS: Record<BotBehavior, string> = {
+  chase: 'CHASER',
+  retreat: 'RUNNER',
+  strafe: 'STRAFER',
+  tether: 'TETHER',
+  diver: 'DIVER',
+  bait: 'BAIT',
+  erratic: 'ERRATIC',
+  irregular: 'IRREGULAR',
+};
+
+/** What each archetype does when a drill does not say otherwise. */
+const DEFAULT_BEHAVIOR: Record<ArchetypeId, BotBehavior> = {
+  ranger: 'strafe',
+  diver: 'chase',
+  artillery: 'retreat',
+  controller: 'strafe',
+  duelist: 'erratic',
+  juggernaut: 'chase',
+};
+
 export class EnemyBrain {
   readonly actor: Actor;
   readonly def: ArchetypeDef;
   tune: AiTuning;
   /** Distance this unit tries to hold. Drills may override it. */
   preferredRange: number;
+
+  /** What situation this unit exists to create. Drills may override it. */
+  behavior: BotBehavior;
+  /** Where a tethered unit will not leave, and how far it will go. */
+  anchor: Vec2 | null = null;
+  leash = 520;
 
   private history: Snapshot[] = [];
   private abilityCd: number;
@@ -66,6 +137,20 @@ export class EnemyBrain {
   private dashVel = v2();
   private dodgeCd = 0;
   private rng: Rng;
+  /**
+   * Phase offsets for the irregular walk.
+   *
+   * Three periods with no common multiple, seeded per unit. Summed, they give
+   * a heading that drifts continuously and never comes back around — which is
+   * what "unpredictable" has to mean if it is not going to mean "noise".
+   */
+  private readonly phase: [number, number, number];
+  /** Seconds left on a committed erratic heading, and what it is. */
+  private commitFor = 0;
+  private commitDir = v2();
+  /** Diver / bait state: how long the current stance has left. */
+  private stanceFor = 0;
+  private committed = false;
 
   constructor(actor: Actor, archetype: ArchetypeId, tune: AiTuning, rng: Rng) {
     this.actor = actor;
@@ -73,9 +158,13 @@ export class EnemyBrain {
     this.tune = tune;
     this.preferredRange = this.def.preferredRange;
     this.rng = rng;
+    this.behavior = DEFAULT_BEHAVIOR[archetype];
+    this.anchor = { ...actor.pos };
     // Stagger the first ability so a 1v3 does not open with three ults at once.
     this.abilityCd = this.def.abilityCd * rng.range(0.35, 0.9);
     this.strafeDir = rng.chance(0.5) ? 1 : -1;
+    this.phase = [rng.range(0, 6.283), rng.range(0, 6.283), rng.range(0, 6.283)];
+    this.stanceFor = rng.range(0.8, 2.2);
   }
 
   /** Position of the player as this AI currently believes it to be. */
@@ -162,26 +251,7 @@ export class EnemyBrain {
 
     if (!freeToMove) return;
 
-    let goal: Vec2 | null = null;
-
-    if (d > pref + slack) {
-      // Too far — approach, biased toward the believed position.
-      const dir = norm(believed.x - me.pos.x, believed.y - me.pos.y);
-      goal = { x: me.pos.x + dir.x * 400, y: me.pos.y + dir.y * 400 };
-    } else if (d < pref - slack && aggr < 0.85) {
-      // Too close for a ranged archetype — back off.
-      const dir = norm(me.pos.x - believed.x, me.pos.y - believed.y);
-      goal = { x: me.pos.x + dir.x * 320, y: me.pos.y + dir.y * 320 };
-    } else if (inRange && me.attackCd > 0.02) {
-      // In range and waiting on the attack timer: strafe rather than stand.
-      if (this.strafeCd <= 0) {
-        this.strafeCd = this.rng.range(0.6, 1.4);
-        if (this.rng.chance(0.3)) this.strafeDir *= -1;
-      }
-      const a = Math.atan2(believed.y - me.pos.y, believed.x - me.pos.x) + (Math.PI / 2) * this.strafeDir;
-      const amount = 180 * this.tune.spacingDiscipline;
-      goal = { x: me.pos.x + Math.cos(a) * amount, y: me.pos.y + Math.sin(a) * amount };
-    }
+    const goal = this.steer(world, me, player, believed, { d, pref, slack, aggr, inRange, dt });
 
     if (goal && this.repathCd <= 0) {
       this.repathCd = 0.08;
@@ -191,6 +261,165 @@ export class EnemyBrain {
     } else if (!goal) {
       me.order = { kind: 'attackTarget', pos: { ...player.pos }, targetId: player.id };
     }
+  }
+
+  /**
+   * Where this unit wants to be standing, one behaviour at a time.
+   *
+   * Returning null means "nothing to say" — the caller falls back to holding
+   * the target, which is what a unit standing exactly where it wants to be
+   * should do. Everything here returns a *point*, never a velocity, because
+   * the world already knows how to walk somewhere and duplicating that here
+   * is how two movement systems start disagreeing about collision.
+   */
+  private steer(
+    world: World,
+    me: Actor,
+    player: Actor,
+    believed: Vec2,
+    ctx: { d: number; pref: number; slack: number; aggr: number; inRange: boolean; dt: number },
+  ): Vec2 | null {
+    const { d, pref, slack, inRange, dt } = ctx;
+    const toPlayer = norm(believed.x - me.pos.x, believed.y - me.pos.y);
+    const away = { x: -toPlayer.x, y: -toPlayer.y };
+    const tangent = { x: -toPlayer.y, y: toPlayer.x };
+    const at = (dir: Vec2, amount: number): Vec2 => ({ x: me.pos.x + dir.x * amount, y: me.pos.y + dir.y * amount });
+    const blend = (a: Vec2, b: Vec2, t: number): Vec2 => norm(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+
+    if (this.stanceFor > 0) this.stanceFor -= dt;
+    if (this.commitFor > 0) this.commitFor -= dt;
+
+    switch (this.behavior) {
+      case 'chase': {
+        // Never a straight line. The approach bends by an amount that itself
+        // drifts, so the player cannot solve it once and then walk the same
+        // escape angle for sixty seconds.
+        if (d < pref) return this.holdRing(me, believed, pref, tangent, toPlayer, ctx);
+        const bend = Math.sin(world.time * 0.7 + this.phase[0]) * 0.55 * (1 - this.tune.spacingDiscipline * 0.4);
+        return at(blend(toPlayer, tangent, bend * this.strafeDir), 420);
+      }
+
+      case 'retreat': {
+        // Will not be caught, but will not run forever either: it turns and
+        // trades the moment it has bought itself room.
+        if (d < pref * 0.92) return at(blend(away, tangent, 0.35 * this.strafeDir), 340);
+        if (d > pref * 1.3) return at(toPlayer, 300);
+        return this.holdRing(me, believed, pref, tangent, toPlayer, ctx);
+      }
+
+      case 'strafe':
+        if (d > pref + slack) return at(toPlayer, 380);
+        if (d < pref - slack) return at(away, 300);
+        return this.holdRing(me, believed, pref, tangent, toPlayer, ctx);
+
+      case 'tether': {
+        // Something you cannot simply walk away from — but only inside its
+        // leash. Chasing it out of the circle is the mistake it is testing.
+        const anchor = this.anchor ?? me.pos;
+        const home = dist(me.pos, anchor);
+        if (home > this.leash) {
+          const back = norm(anchor.x - me.pos.x, anchor.y - me.pos.y);
+          return at(back, Math.min(400, home));
+        }
+        if (d > pref + slack) {
+          const want = at(toPlayer, 400);
+          // Never step outside the leash to reach you.
+          if (dist(want, anchor) > this.leash) {
+            const back = norm(anchor.x - want.x, anchor.y - want.y);
+            return { x: want.x + back.x * (dist(want, anchor) - this.leash), y: want.y + back.y * (dist(want, anchor) - this.leash) };
+          }
+          return want;
+        }
+        return this.holdRing(me, believed, pref, tangent, toPlayer, ctx);
+      }
+
+      case 'diver': {
+        // Waits at the edge, then commits everything for a window. The
+        // telegraph is the pause: it stops circling just before it goes.
+        if (this.stanceFor <= 0) {
+          this.committed = !this.committed;
+          this.stanceFor = this.committed
+            ? this.rng.range(1.6, 2.6)
+            : this.rng.range(1.4, 2.8) / Math.max(0.5, this.tune.aggression);
+        }
+        if (this.committed) return at(toPlayer, 460);
+        const ring = Math.max(pref, me.attack.range + 220);
+        if (d < ring * 0.85) return at(blend(away, tangent, 0.3 * this.strafeDir), 320);
+        return this.holdRing(me, believed, ring, tangent, toPlayer, ctx);
+      }
+
+      case 'bait': {
+        // Offers itself, then leaves the moment you reach for it. The read is
+        // your own velocity: step toward it and it is already gone.
+        const closing = player.vel.x * toPlayer.x + player.vel.y * toPlayer.y < -40;
+        const edge = player.attack.range + me.radius + 40;
+        if (closing && d < edge * 1.25) return at(blend(away, tangent, 0.45 * this.strafeDir), 400);
+        if (d > edge * 1.15) return at(toPlayer, 340);
+        return this.holdRing(me, believed, edge, tangent, toPlayer, ctx);
+      }
+
+      case 'erratic': {
+        // Unpredictable, never twitchy: every heading it picks is held long
+        // enough to be seen, aimed at, and punished. Jitter would be easier
+        // to write and would teach nothing, because noise has no read.
+        if (this.commitFor <= 0) {
+          this.commitFor = this.rng.range(0.35, 0.75);
+          const spread = d > pref * 1.4 ? 1.0 : 2.4;
+          const base = Math.atan2(toPlayer.y, toPlayer.x);
+          const a = base + this.rng.gauss() * spread;
+          this.commitDir = { x: Math.cos(a), y: Math.sin(a) };
+        }
+        // Bounded: it is erratic inside the fight, not a unit that wanders off.
+        if (d > pref * 1.8) return at(toPlayer, 380);
+        return at(this.commitDir, 320);
+      }
+
+      case 'irregular': {
+        // Three periods with no common multiple. It looks deliberate, it is
+        // never random, and it does not come back around — so a player cannot
+        // memorise it, only track it.
+        const t = world.time;
+        const wobble =
+          Math.sin(t * 0.83 + this.phase[0]) * 0.6 +
+          Math.sin(t * 1.31 + this.phase[1]) * 0.3 +
+          Math.sin(t * 2.17 + this.phase[2]) * 0.18;
+        const radial = clamp((pref - d) / 220, -1, 1);
+        const dir = norm(toPlayer.x * -radial + tangent.x * wobble, toPlayer.y * -radial + tangent.y * wobble);
+        // Speed modulates too, so the lead a player computes keeps going stale.
+        const pace = 220 + 180 * (0.5 + 0.5 * Math.sin(t * 0.61 + this.phase[2]));
+        void inRange;
+        return at(dir, pace);
+      }
+    }
+  }
+
+  /**
+   * Circling at a chosen radius: the one movement every behaviour shares.
+   *
+   * It corrects toward the ring and travels along it at the same time, so a
+   * unit holding a distance is always moving — a bot that stands still while
+   * it waits for its attack timer is a bot the player never has to track.
+   */
+  private holdRing(
+    me: Actor,
+    believed: Vec2,
+    radius: number,
+    tangent: Vec2,
+    toPlayer: Vec2,
+    ctx: { d: number; inRange: boolean },
+  ): Vec2 {
+    if (this.strafeCd <= 0) {
+      this.strafeCd = this.rng.range(0.7, 1.6);
+      if (this.rng.chance(0.32)) this.strafeDir *= -1;
+    }
+    const correction = clamp((ctx.d - radius) / 200, -1, 1);
+    const amount = 170 * (0.6 + this.tune.spacingDiscipline * 0.6);
+    const dir = norm(
+      toPlayer.x * correction + tangent.x * this.strafeDir,
+      toPlayer.y * correction + tangent.y * this.strafeDir,
+    );
+    void believed;
+    return { x: me.pos.x + dir.x * amount, y: me.pos.y + dir.y * amount };
   }
 
   /** Steps out of the path of a player projectile if this difficulty allows. */
