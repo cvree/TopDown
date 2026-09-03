@@ -35,7 +35,7 @@ import { HeroSigil } from './components/HeroSigil';
 import { Apm } from './Apm';
 import { Daily } from './Daily';
 import { GameView } from './GameView';
-import { Home } from './Home';
+import { Train } from './Train';
 import { Academy } from './Academy';
 import { PatchNotes } from './PatchNotes';
 import { Today } from './Today';
@@ -54,31 +54,34 @@ import './app.css';
 /**
  * The sections.
  *
- * `today` is the home screen and answers "what should I train"; `drills` is the
- * full catalogue for somebody who already knows. The order here is the order
- * the navigation prints — `patch` is reached from the boot screen and the
- * profile rather than from the bar, which is already full.
+ * Six, and they are the six questions a player has: what am I doing today,
+ * what can I train, which champion am I learning, how good am I actually,
+ * how am I doing, and how is this thing set up.
+ *
+ * There used to be eight tabs, and three of them — DRILLS, WASD, LAB — were
+ * the same question asked about three different filing cabinets. They are one
+ * section now, with the cabinets as headings inside it, which is where a
+ * player looking for "something that trains kiting" would have looked first.
+ *
+ * `daily` and `patch` are reached from inside a section rather than from the
+ * bar: a tab is for a place you go on purpose, repeatedly.
  */
 type Route =
   | 'today'
-  | 'drills'
-  | 'academy'
-  | 'apm'
-  | 'tests'
-  | 'vayne'
-  | 'daily'
-  | 'profile'
+  | 'train'
+  | 'champions'
+  | 'test'
+  | 'progress'
   | 'settings'
+  | 'daily'
   | 'patch';
 
 const NAV: { route: Route; label: string }[] = [
   { route: 'today', label: 'TODAY' },
-  { route: 'drills', label: 'DRILLS' },
-  { route: 'academy', label: 'WASD' },
-  { route: 'apm', label: 'LAB' },
-  { route: 'tests', label: 'TESTS' },
-  { route: 'vayne', label: 'VAYNE' },
-  { route: 'profile', label: 'PROFILE' },
+  { route: 'train', label: 'TRAIN' },
+  { route: 'champions', label: 'CHAMPIONS' },
+  { route: 'test', label: 'TEST' },
+  { route: 'progress', label: 'PROGRESS' },
   { route: 'settings', label: 'SETTINGS' },
 ];
 
@@ -116,6 +119,10 @@ export function App() {
   // Which mode the APM section opens on, so a click in the drill rail lands on
   // the mode it named rather than on whatever was last selected.
   const [apmFocus, setApmFocus] = useState<DrillId | null>(null);
+  // Where inside TRAIN you are. The browser is the front door; the course and
+  // the ladder are rooms off it, and Back returns to the browser rather than
+  // dumping you on Today.
+  const [trainView, setTrainView] = useState<'browse' | 'course' | 'lab'>('browse');
   const [flow, setFlow] = useState<Flow | null>(null);
   const [results, setResults] = useState<ResultState | null>(null);
   const [rankUp, setRankUp] = useState<{
@@ -161,7 +168,7 @@ export function App() {
   // A profile that was calibrated before the APM ladder existed still gets its
   // starting rung set — once, the first time the section is opened.
   useEffect(() => {
-    if (route !== 'apm' || !profile.placed || profile.apm.seeded) return;
+    if (route !== 'train' || trainView !== 'lab' || !profile.placed || profile.apm.seeded) return;
     setProfile((p) => {
       if (p.apm.seeded) return p;
       const apm = { ...p.apm, modes: { ...p.apm.modes } };
@@ -171,7 +178,7 @@ export function App() {
       seedApmLadder(apm, p.overall);
       return { ...p, apm };
     });
-  }, [route, profile.placed, profile.apm.seeded]);
+  }, [route, trainView, profile.placed, profile.apm.seeded]);
 
   const patchSettings = useCallback((patch: Partial<AppSettings>) => {
     setProfile((p) => ({ ...p, settings: { ...p.settings, ...patch } }));
@@ -666,6 +673,9 @@ export function App() {
                   onClick={() => {
                     audio.unlock();
                     audio.play('uiTab');
+                    // Pressing the section you are already in means "take me
+                    // back to the front of it", not "do nothing".
+                    if (n.route === 'train') setTrainView('browse');
                     setRoute(n.route);
                   }}
                 >
@@ -709,7 +719,7 @@ export function App() {
                 <HeroSigil hero={profile.settings.hero} size={22} />
                 <span>{heroFor(profile.settings.hero).name}</span>
               </button>
-              <div className="rank-chip" onClick={() => setRoute('profile')}>
+              <div className="rank-chip" onClick={() => setRoute('progress')}>
                 <RankEmblem tier={rank.tier} size={30} />
                 <div>
                   <div className="rc-label">{profile.placed ? rank.label : 'UNRANKED'}</div>
@@ -732,48 +742,50 @@ export function App() {
               onSection={(r) => setRoute(r)}
             />
           )}
-          {route === 'academy' && (
+
+          {/* TRAIN holds the browser and the two deep views that used to be
+              their own tabs. `trainView` is where in the section you are, so
+              a click on "Ladder" is a step inward rather than a tab change. */}
+          {route === 'train' && trainView === 'browse' && (
+            <Train
+              profile={profile}
+              onPlay={startSingle}
+              onLadder={(id) => {
+                setApmFocus(id);
+                setTrainView('lab');
+              }}
+              onCourse={() => setTrainView('course')}
+              onDaily={() => setRoute('daily')}
+            />
+          )}
+          {route === 'train' && trainView === 'course' && (
             <Academy
               profile={profile}
               onPlay={startSingle}
-              onBack={() => setRoute('today')}
+              onBack={() => setTrainView('browse')}
               onAdoptKeys={() => patchSettings({ movementScheme: 'wasd' })}
             />
           )}
-          {route === 'drills' && (
-            <Home
-              profile={profile}
-              onPlay={startSingle}
-              onDaily={() => setRoute('daily')}
-              onProfile={() => setRoute('profile')}
-              onPlacement={() => setPlacementIntro(true)}
-              onVayne={() => setRoute('vayne')}
-              onAcademy={() => setRoute('academy')}
-              onApm={(id) => {
-                setApmFocus(id ?? null);
-                setRoute('apm');
-              }}
-            />
-          )}
-          {route === 'apm' && (
+          {route === 'train' && trainView === 'lab' && (
             <Apm
               profile={profile}
               focus={apmFocus}
               onPlay={startApm}
-              onBack={() => setRoute('today')}
+              onBack={() => setTrainView('browse')}
               onPlacement={() => setPlacementIntro(true)}
             />
           )}
+
           {route === 'daily' && (
-            <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('today')} />
+            <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('train')} />
           )}
-          {route === 'tests' && (
+          {route === 'test' && (
             <Tests profile={profile} onRun={startTest} onBack={() => setRoute('today')} />
           )}
-          {route === 'vayne' && (
+          {route === 'champions' && (
             <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('today')} />
           )}
-          {route === 'profile' && (
+          {route === 'progress' && (
             <ProfileScreen
               profile={profile}
               onRename={(name) => setProfile((p) => ({ ...p, name }))}
