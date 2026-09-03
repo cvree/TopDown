@@ -530,6 +530,7 @@ src/tests/      the twelve skill tests: one runner interface, one drawing kit
 src/progression/ rating maths, rank ladder, champion path, profile persistence
 src/ui/         React shell, HUD, results, profile, rank-up, Vayne, the test rack
 tools/          headless test harnesses
+docs/           research notes: the out-of-game practice landscape
 ```
 
 The champion kit lives in `engine` rather than in the drills because four
