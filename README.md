@@ -438,8 +438,8 @@ direction: those drills are about one champion with her own numbers, so they
 always spawn her whatever the roster says.
 
 The choice is never locked and never earned. It is changeable forever after
-from **Settings → Champion**, which renders the same screen, and the champion
-you are playing sits in the top bar of the client with a click to change it.
+from **Settings → Champion**, which renders the same screen, and from the
+roster row at the foot of **Champions**.
 
 ## The ranked system
 
@@ -691,55 +691,105 @@ gameplay state directly.
 
 ## The client
 
+Six sections, and they are the six questions a player has: what am I doing
+today, what can I train, which champion am I learning, how good am I actually,
+how am I doing, and how is this thing set up.
+
+```
+TODAY   TRAIN   CHAMPIONS   TEST   PROGRESS   SETTINGS
+```
+
+There used to be eight tabs, and three of them — DRILLS, WASD and LAB — were
+the same question asked about three different filing cabinets. They are one
+section now, with the cabinets as rooms inside it.
+
 ### Today
 
-The home screen has one job: answer the five questions a player actually
-arrives with, in the order they arrive in, and then get out of the way.
+The home screen answers five questions and then gets out of the way.
 
 | | |
 | --- | --- |
-| What should I train today? | The session, built and sitting there |
-| What am I currently bad at? | Named, with the gap in rating and what it costs |
-| What improved recently? | The personal bests of the last week, and by how much |
-| What champion am I training? | Where the path is, and what is next on it |
-| What should I do next? | The button. One click, no choosing |
+| What should I train? | The headline, and the button under it |
+| What champion am I on? | The path, and its next step |
+| What am I worst at? | One axis, named, with the gap in rating |
+| What improved? | One number, with what it beat |
+| What do I do next? | The button. One click, no choosing |
+
+Each of the three reads is a link to the thing it is about, so *"your dodging
+is 190 behind"* is one click from training dodging, and *"reaction 218ms, +10.7%"*
+is one click from trying to beat it.
 
 **The session is a run, not a list of buttons.** Five or six pieces, ten to
 twenty minutes, in the order a coach would use: warm the hands, take the next
 thing you are learning, attack the thing you are worst at, keep the champion
 moving, then put it together against something that fights back. Every piece
-says why it is there — *"Last Hitting — 580 rating behind your overall"*, *"32%
-best, 56% to clear"* — because a plan you cannot argue with is a plan you will
+says why it is there, because a plan you cannot argue with is a plan you will
 not follow. It is rebuilt after every run, so finishing a piece changes what
-the rest of it says, and any piece can also be run on its own.
+the rest of it says, and any piece can be run on its own by clicking it.
 
-The rest of the screen is facts rather than decisions: your rating and its
-seven-day trend, your three weakest axes with what each one is, what got
-better, the academy and the champion path with their next step one click away,
-and a summary of your last sitting — including the drill that went worst, so
-you can start the next one with it.
+### Train
 
-**The streak is deliberately quiet.** Fourteen days, one mark each, drawn as a
-record of what happened rather than as something you can lose — and the screen
-says so: *missing a day costs you nothing and takes nothing away.* A streak
-that punishes you for a day off is a retention mechanic wearing a training
-tool's clothes, and it makes people play tired, which is worse than not
-playing.
+One browser for everything you can run. A player does not think *"I would like
+something from the lab"*, they think *"my kiting is bad"* — so the catalogue is
+sorted by the part of the game a drill fixes rather than by the engine it was
+built on, which is why KITE and WASD 06 · KITING are finally in the same place.
 
-### The catalogue
+Every drill carries a phase, so a row says how much of the game is switched on
+before you press it:
 
-The full drill browser is a tab away, and it is not a page either. There is no
-scrolling column of cards: a list down the left, the chosen drill standing in
-the live arena down the middle, your record down the right, and one large
-button along the bottom. The empty middle third is the point — the interface is
-a frame around a place rather than a surface covering one, and the arena behind
-it is the same terrain, lighting and champions you are about to play in,
-rendered live.
+| | |
+| --- | --- |
+| LEARN | Taught, at your own pace, with nothing at stake |
+| ISOLATED | One mechanic, alone, measured |
+| COMBINED | Two mechanics that interfere with each other |
+| PRESSURE | The same thing, with something answering |
+| TRANSFER | Inside a real champion's real kit |
+| TEST | Not training — a number, on a bare field |
 
-Screens that are genuinely pages of content — Today, the academy, the daily
-programme, your profile, settings — sit on a darkened plate instead, so the
-arena shows through as depth rather than competing for the same pixels as the
-text.
+Both fields are derived rather than stored (`src/drills/taxonomy.ts`), so a new
+drill lands in the right place by having sensible axes. **Recommended** sits
+above the catalogue with the four things actually worth running, and they are
+deliberately four different *kinds* of answer — what the plan says next, the
+axis holding you back, the course you are partway through, the champion you are
+learning — so the row is never four flavours of the same suggestion.
+
+### Champions and the academy
+
+Both are courses, and both are drawn as courses: steps as nodes on one line,
+state on the node — cleared, current, open, locked — and one detail panel for
+whichever node you are looking at. They share a component
+(`src/ui/components/CoursePath.tsx`) because they are the same idea, and a
+player who has learned to read one has learned to read the other.
+
+### Results
+
+A coach, not a report. The score and the best it beat, three or four named
+metrics, the one thing that went wrong — titled, then explained in a sentence —
+and one button. Everything else the screen used to open with is behind one
+press of **D**.
+
+### Progress
+
+What changed, first: thirty-day rating movement, the fastest-improving axis,
+the weakest area, and the number that improved most. Then the mechanical
+profile, with strongest, weakest and fastest called out by name and every row a
+link to the drill that trains it. Every personal best and every run is a press
+below, as a record you consult rather than a wall you arrive at.
+
+**The streak is deliberately quiet.** A streak that punishes you for a day off
+is a retention mechanic wearing a training tool's clothes, and it makes people
+play tired, which is worse than not playing — so it is drawn as a record of
+what happened rather than as something you can lose.
+
+### The frame
+
+Screens that are pages of content sit on a darkened plate, so the live arena
+behind the client shows through as depth rather than competing for the same
+pixels as the text. During a run the arena is the screen: the HUD keeps only
+what the drill in front of you can use — ability slots outside its kit are not
+drawn, the brief retires ten seconds in, three live figures rather than five,
+the minimap only where the arena is bigger than one screenful, and the frame
+counter only below fifty.
 
 ## Versions and patch notes
 
@@ -773,8 +823,10 @@ src/tests/      the twelve skill tests: one runner interface, one drawing kit
 src/progression/ rating maths, rank ladder, champion path, APM ladder, WASD course,
                 today's session planner, persistence
 src/patchnotes/ the release history: the client, the version number and CHANGELOG.md
-src/ui/         React shell, HUD, Today, results, profile, rank-up, Vayne, academy,
-                tests, the lab
+src/ui/         React shell, HUD, and the six sections: Today, Train, Champions,
+                Test, Progress, Settings — plus results, rank-up and the lab
+src/ui/components/CoursePath.tsx the shared rail-and-detail both courses draw
+src/drills/taxonomy.ts what part of the game a drill fixes, and how hard it is
 src/ui/HeroSelect.tsx champion select: the first run, and the Champion tab in settings
 tools/          headless test harnesses
 docs/           research notes: the out-of-game practice landscape

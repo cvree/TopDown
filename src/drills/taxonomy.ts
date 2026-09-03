@@ -168,14 +168,23 @@ export const categoryOf = (id: DrillId): Category => {
  */
 const PHASE_ORDER: Phase[] = ['learn', 'isolated', 'combined', 'pressure', 'transfer', 'test'];
 
+// The catalogue and the taxonomy are both static, so each category is worked
+// out once for the life of the tab rather than on every render of the browser
+// that draws eight of them.
+const CACHE = new Map<Category, DrillId[]>();
+
 export const drillsIn = (c: Category): DrillId[] => {
-  if (c === 'wasd') {
-    return DRILL_LIST.filter((d) => d.group === 'WASD' || categoryOf(d.id) === 'wasd').map((d) => d.id);
-  }
-  return DRILL_LIST.filter((d) => categoryOf(d.id) === c)
-    .map((d) => d.id)
-    .sort((a, b) => {
-      const d = PHASE_ORDER.indexOf(phaseOf(a)) - PHASE_ORDER.indexOf(phaseOf(b));
-      return d !== 0 ? d : DRILLS[a].order - DRILLS[b].order;
-    });
+  const hit = CACHE.get(c);
+  if (hit) return hit;
+  const ids =
+    c === 'wasd'
+      ? DRILL_LIST.filter((d) => d.group === 'WASD' || categoryOf(d.id) === 'wasd').map((d) => d.id)
+      : DRILL_LIST.filter((d) => categoryOf(d.id) === c)
+          .map((d) => d.id)
+          .sort((a, b) => {
+            const d = PHASE_ORDER.indexOf(phaseOf(a)) - PHASE_ORDER.indexOf(phaseOf(b));
+            return d !== 0 ? d : DRILLS[a].order - DRILLS[b].order;
+          });
+  CACHE.set(c, ids);
+  return ids;
 };

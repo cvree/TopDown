@@ -6,10 +6,40 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v1.2.0**.
+Currently shipping **v1.3.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v1.3.0 — ONE THING AT A TIME
+
+*2026-09-03*
+
+Half the interface is gone and the half that is left says what to train, how you are doing and what to do next.
+
+### Added
+
+- Today answers five questions and stops: what to train, the champion you are on, the axis holding you back, the number that improved, and one button that starts the session. Each of the three reads is a link to the thing it is about, so "your dodging is 190 behind" is one click from training dodging.
+- Train: one browser for everything you can run, organised by the part of the game it fixes rather than by the engine it was built on — so KITE and WASD 06 · KITING are finally in the same place. Recommended sits above it with the four things actually worth running, and the category holding your weakest axis is already open when you arrive.
+- Every drill carries a phase tag — LEARN, ISOLATED, COMBINED, PRESSURE, TRANSFER, TEST — so a row tells you how much of the game is switched on before you press it.
+- Results names the thing that went wrong. The drills already write their findings as prose and rank them; the screen lifts a two-word title out of the first one, so it opens with EARLY MOVE and keeps the sentence underneath.
+- The champion path and the WASD academy are drawn as paths: steps as nodes on one line, state on the node — cleared, current, open, locked — and one detail panel for the step you are looking at. Vayne’s path gained the foundation it sits on at one end and the title it is worth at the other.
+- Progress opens on what changed: thirty-day rating movement, the fastest-improving axis, the weakest area, and the number that improved most — then the mechanical profile with strongest, weakest and fastest called out by name, every row a link to the drill that trains it.
+
+### Changed
+
+- Eight tabs became six. DRILLS, WASD and LAB were the same question asked about three filing cabinets, and are one TRAIN section with the cabinets as rooms inside it.
+- Results was eight stacked panels and a scroll — forty-odd numbers in six timed reveal waves for a forty-five second drill. Four are on the first screenful and the rest are behind one press of D. The reveal is two beats rather than six.
+- The HUD keeps only what the drill in front of you can use. Ability slots outside the drill’s kit are not drawn, the brief retires ten seconds in, the live figures went from five to three, the minimap appears only where the arena is bigger than one screenful, and the frame counter appears only below fifty.
+- One design system underneath all of it: a seven-step type scale, an eight-step space scale, three buttons, and surfaces that carry elevation with ground rather than with outlines. Panels lost their clipped corners, double keylines and backdrop blur — ten of them on a screen made the frames the loudest thing on it.
+- The film grain and vignette came down by a third. It was costing every screen a stop of contrast at the edges, which is exactly where the chrome lives.
+- The top bar carries two things instead of three. The champion chip named something cosmetic and duplicated the roster; the build is a quiet link rather than a bordered chip.
+- The promotion moment runs two seconds instead of three and a half, and ends on the rank rather than on a paragraph explaining what it is not.
+
+### Fixed
+
+- Tests offered a "back to drills" button naming a section that no longer existed.
+- A run’s spare HUD room was drawn as three translucent slabs stacked in the corner; the figures now carry their own contrast against a scene that can be any colour.
 
 ## v1.2.0 — CHAMPION SELECT
 
