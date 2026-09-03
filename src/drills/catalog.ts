@@ -490,3 +490,57 @@ export const DAILY_SEQUENCE: DrillId[] = ['movement', 'dodge', 'kite', 'spacing'
 export const VAYNE_SEQUENCE: DrillId[] = ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'];
 
 export const isVayneDrill = (id: DrillId): boolean => DRILLS[id].group === 'VAYNE';
+
+/**
+ * How much pressure a drill puts a mechanic under.
+ *
+ * `isolated` is the mechanic alone, on a bench, with nothing fighting back.
+ * `applied` puts it in context but keeps the threat scripted. `live` is an
+ * opponent that moves, targets and punishes.
+ *
+ * The three tiers are what make transfer measurable: a mechanic that scores
+ * 90 isolated and 60 live has not been learned, it has been rehearsed, and
+ * only a comparison across tiers can say so.
+ */
+export type PressureTier = 'isolated' | 'applied' | 'live';
+
+export const PRESSURE_TIER: Record<DrillId, PressureTier> = {
+  movement: 'isolated',
+  aim: 'isolated',
+  skillshot: 'isolated',
+  dodge: 'isolated',
+  spacing: 'applied',
+  kite: 'applied',
+  lasthit: 'applied',
+  targetswitch: 'applied',
+  combos: 'applied',
+  duel1v1: 'live',
+  duel1v2: 'live',
+  duel1v3: 'live',
+  vayneTumble: 'applied',
+  vayneBolts: 'applied',
+  vayneCondemn: 'applied',
+  vayneHunt: 'live',
+  apmPulse: 'isolated',
+  apmSequence: 'isolated',
+  apmChord: 'isolated',
+  apmGate: 'isolated',
+  apmBuffer: 'isolated',
+  apmCancel: 'isolated',
+  apmVector: 'isolated',
+  apmField: 'isolated',
+  apmHandoff: 'isolated',
+  apmSplit: 'isolated',
+  apmUpkeep: 'isolated',
+  apmSwitch: 'isolated',
+  apmSustain: 'isolated',
+};
+
+export const pressureOf = (id: DrillId): PressureTier => PRESSURE_TIER[id];
+
+/** Every drill that trains an axis, strongest weighting first. */
+export const drillsForAxis = (axis: string): DrillMeta[] =>
+  DRILL_LIST.filter((d) => (d.axes as Record<string, number>)[axis] !== undefined).sort(
+    (a, b) =>
+      ((b.axes as Record<string, number>)[axis] ?? 0) - ((a.axes as Record<string, number>)[axis] ?? 0),
+  );

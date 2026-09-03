@@ -4,6 +4,8 @@ import { clamp, mean } from '../engine/math';
 import type { DerivedMetrics, RunMetrics } from '../engine/metrics';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { gradeTest, TESTS, type TestId } from '../tests/catalog';
+import { detectErrors, primaryLimiter, type DetectedError, type ErrorCode } from './errors';
+import { planFrom, planSession, type SessionPlan } from './plan';
 import {
   applyApmRun,
   emptyApmProgress,
@@ -72,6 +74,45 @@ export interface HistoryEntry {
   overall: number;
   key: number;
   keyId: string;
+  /** Per-axis performance, so transfer can be compared axis by axis later. */
+  axes?: Partial<Record<SkillAxis, number>>;
+  /** Which mistakes this run contained. Written for every run from v1.3. */
+  errors?: ErrorCode[];
+}
+
+/**
+ * One mistake, once, with the run it happened in.
+ *
+ * Kept as a flat log rather than a running total because the interesting
+ * question is not "how often do you do this" but "are you still doing it" —
+ * and that can only be answered against a clock.
+ */
+export interface ErrorLogEntry {
+  code: ErrorCode;
+  t: number;
+  drill: DrillId;
+  /** Occurrences in that run. */
+  count: number;
+  /** Share of the opportunities to make it, 0..1. This is what trends. */
+  rate: number;
+}
+
+/** A finished training session — the unit the Today page plans in. */
+export interface SessionRecord {
+  t: number;
+  /** Local date key, so a calendar can group without re-deriving it. */
+  date: string;
+  /** What the session was for, in the planner's words. */
+  focus: string;
+  drills: DrillId[];
+  seconds: number;
+  /** Overall rating either side of the session. */
+  from: number;
+  to: number;
+  /** Personal bests set during it. */
+  bests: number;
+  /** Total quality reps — scored actions across the session's runs. */
+  reps: number;
 }
 
 /**
@@ -101,6 +142,24 @@ export interface DailyState {
   streak: number;
   lastCompletedDate: string | null;
   startOverall: number;
+  /**
+   * Today's session, drawn up once and then left alone.
+   *
+   * It has to be stored rather than recomputed: the planner reads the profile,
+   * the profile changes with every run, and a plan that rewrites itself
+   * between two drills is not a plan.
+   */
+  plan: DrillId[];
+  /** What the session is for, in the planner's words. */
+  focus: string;
+  /** Seconds trained today, across every run. */
+  seconds: number;
+  /** Quality reps today — successful actions, not inputs. */
+  reps: number;
+  /** Personal bests set today. */
+  bests: number;
+  /** When the first run of the day started. */
+  startedAt: number | null;
 }
 
 export interface AppSettings {
@@ -166,10 +225,21 @@ export interface Profile {
   vayne: VayneProgress;
   /** The APM trainer's own ladder: thirteen modes, ten explicit levels each. */
   apm: ApmProgress;
-  /** Overall rating recorded at the start of each local day, for trends. */
-  dailyMarks: { date: string; overall: number }[];
+  /**
+   * Where the profile stood at the end of each local day.
+   *
+   * The per-axis snapshot is what makes a 30-day skill change statable at
+   * all — a rating is a running value, so without a mark from thirty days ago
+   * there is nothing to subtract. Written from v1.3; older marks carry only
+   * the overall, and the UI says so rather than guessing the rest.
+   */
+  dailyMarks: { date: string; overall: number; ratings?: Record<SkillAxis, number> }[];
   /** Skill test records, keyed by test. Independent of the drill ladder. */
   tests: Partial<Record<TestId, TestRecord>>;
+  /** Every mistake the trainer has measured, newest last. Capped. */
+  errorLog: ErrorLogEntry[];
+  /** Completed training sessions, newest last. Capped. */
+  sessions: SessionRecord[];
 }
 
 const zeroAxis = <T>(v: T): Record<SkillAxis, T> =>
@@ -225,7 +295,19 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   difficulty: zeroAxis(0.32),
   bests: {},
   history: [],
-  daily: { date: todayKey(), completed: [], streak: 0, lastCompletedDate: null, startOverall: 0 },
+  daily: {
+    date: todayKey(),
+    completed: [],
+    streak: 0,
+    lastCompletedDate: null,
+    startOverall: 0,
+    plan: [],
+    focus: '',
+    seconds: 0,
+    reps: 0,
+    bests: 0,
+    startedAt: null,
+  },
   settings: { ...DEFAULT_SETTINGS },
   totalRuns: 0,
   totalSeconds: 0,
@@ -233,6 +315,8 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   apm: emptyApmProgress(),
   dailyMarks: [],
   tests: {},
+  errorLog: [],
+  sessions: [],
 });
 
 export const loadProfile = (): Profile => {
@@ -272,6 +356,10 @@ export const loadProfile = (): Profile => {
       dailyMarks: Array.isArray(parsed.dailyMarks) ? parsed.dailyMarks.slice(-120) : [],
       // A profile written before the tests existed simply has none yet.
       tests: parsed.tests ?? {},
+      // Both written from v1.3. An older profile starts them empty rather
+      // than having a history invented for it.
+      errorLog: Array.isArray(parsed.errorLog) ? parsed.errorLog.slice(-800) : [],
+      sessions: Array.isArray(parsed.sessions) ? parsed.sessions.slice(-120) : [],
     };
   } catch {
     return newProfile();
@@ -342,6 +430,12 @@ export interface ProgressReport {
   vayne: VayneRunReport | null;
   /** Present only for runs in the APM trainer. */
   apm: ApmRunReport | null;
+  /** The mistakes this run contained, worst first. */
+  errors: DetectedError[];
+  /** The one that cost the most, if any cost enough to name. */
+  limiter: DetectedError | null;
+  /** How often that limiter used to happen, over the previous fortnight. */
+  limiterWas: number | null;
 }
 
 /** Where the adaptive system tries to keep you: challenged, not drowning. */
@@ -459,15 +553,37 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     });
   }
 
+  // What went wrong, named. Read straight off this run's telemetry, so a
+  // mistake can only be reported if it was actually measured.
+  const errors = detectErrors(result.drill, result.metrics, result.derived);
+  const limiter = primaryLimiter(errors);
+  const now = Date.now();
+
+  // How often that same mistake used to happen, over the fortnight before
+  // this run. It is what lets the results screen say "down from 23%".
+  let limiterWas: number | null = null;
+  if (limiter) {
+    const since = now - 14 * 86400000;
+    const prior = p.errorLog.filter((e) => e.code === limiter.code && e.t >= since);
+    if (prior.length >= 3) limiterWas = mean(prior.map((e) => e.rate));
+  }
+
+  for (const e of errors) {
+    p.errorLog.push({ code: e.code, t: now, drill: result.drill, count: e.count, rate: e.rate });
+  }
+  if (p.errorLog.length > 800) p.errorLog.splice(0, p.errorLog.length - 800);
+
   p.history.push({
     drill: result.drill,
-    t: Date.now(),
+    t: now,
     score: result.score,
     performance: result.performance,
     difficulty: result.difficulty,
     overall: p.overall,
     key: head?.value ?? 0,
     keyId: head?.id ?? '',
+    axes: { ...result.axisPerformance },
+    errors: errors.map((e) => e.code),
   });
   if (p.history.length > 400) p.history.splice(0, p.history.length - 400);
 
@@ -503,12 +619,28 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
   p.totalRuns++;
   p.totalSeconds += result.metrics.duration;
 
+  // Today's running totals. Quality reps are successful actions — attacks
+  // that landed, shots that hit, telegraphs dodged — never raw inputs, so the
+  // number cannot be inflated by clicking faster.
+  rollDaily(p);
+  if (p.daily.startedAt === null) p.daily.startedAt = now;
+  p.daily.seconds += result.metrics.duration;
+  p.daily.reps +=
+    result.metrics.attacksCompleted +
+    result.metrics.shotsHit +
+    result.metrics.projectilesDodged +
+    result.metrics.csSuccess +
+    result.metrics.targetsHit;
+  p.daily.bests += personalBests.length + (newBestScore ? 1 : 0);
+
   const today = todayKey();
   if (!p.dailyMarks.length || p.dailyMarks[p.dailyMarks.length - 1].date !== today) {
-    p.dailyMarks.push({ date: today, overall: p.overall });
+    p.dailyMarks.push({ date: today, overall: p.overall, ratings: { ...p.ratings } });
     if (p.dailyMarks.length > 120) p.dailyMarks.shift();
   } else {
-    p.dailyMarks[p.dailyMarks.length - 1].overall = p.overall;
+    const mark = p.dailyMarks[p.dailyMarks.length - 1];
+    mark.overall = p.overall;
+    mark.ratings = { ...p.ratings };
   }
 
   return {
@@ -529,6 +661,9 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     advice: result.advice,
     vayne,
     apm,
+    errors,
+    limiter,
+    limiterWas,
   };
 };
 
@@ -537,7 +672,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
 export const rollDaily = (p: Profile): void => {
   const today = todayKey();
   if (p.daily.date === today) return;
-  const wasComplete = p.daily.completed.length >= 5;
+  const wasComplete = p.daily.plan.length > 0 && p.daily.completed.length >= p.daily.plan.length;
   if (wasComplete) p.daily.lastCompletedDate = p.daily.date;
   // A streak survives one calendar day of gap and no more.
   if (p.daily.lastCompletedDate && p.daily.lastCompletedDate !== yesterdayKey() && p.daily.lastCompletedDate !== today) {
@@ -549,13 +684,68 @@ export const rollDaily = (p: Profile): void => {
     streak: p.daily.streak,
     lastCompletedDate: p.daily.lastCompletedDate,
     startOverall: p.overall,
+    // A new day gets a new plan, drawn the first time it is asked for.
+    plan: [],
+    focus: '',
+    seconds: 0,
+    reps: 0,
+    bests: 0,
+    startedAt: null,
   };
+};
+
+/**
+ * Draws today's session if it has not been drawn yet. Mutates `p`.
+ *
+ * Called from the Today screen rather than from `rollDaily`, because planning
+ * reads the whole profile and the profile is not loaded yet when the day rolls
+ * over at start-up.
+ */
+export const ensureDailyPlan = (p: Profile): void => {
+  rollDaily(p);
+  if (p.daily.plan.length > 0) return;
+  const plan = planSession(p);
+  p.daily.plan = plan.blocks.map((b) => b.drill);
+  p.daily.focus = plan.focus;
+};
+
+/** The plan as the UI needs it: drills, wording and running time. */
+export const dailyPlan = (p: Profile): SessionPlan =>
+  planFrom(p, p.daily.plan, p.daily.focus) ?? planSession(p);
+
+export const dailyComplete = (p: Profile): boolean =>
+  p.daily.plan.length > 0 && p.daily.plan.every((d) => p.daily.completed.includes(d));
+
+/**
+ * Files today's session in the practice history. Mutates `p`.
+ *
+ * Idempotent for a given day: finishing the session twice — by replaying a
+ * block, say — does not file it twice.
+ */
+export const recordSession = (p: Profile): SessionRecord | null => {
+  if (!dailyComplete(p)) return null;
+  if (p.sessions.some((s) => s.date === p.daily.date)) return null;
+  const rec: SessionRecord = {
+    t: Date.now(),
+    date: p.daily.date,
+    focus: p.daily.focus,
+    drills: [...p.daily.plan],
+    seconds: p.daily.seconds,
+    from: p.daily.startOverall,
+    to: p.overall,
+    bests: p.daily.bests,
+    reps: p.daily.reps,
+  };
+  p.sessions = [...p.sessions, rec].slice(-120);
+  return rec;
 };
 
 export const markDailyComplete = (p: Profile, drill: DrillId): boolean => {
   rollDaily(p);
-  if (!p.daily.completed.includes(drill)) p.daily.completed.push(drill);
-  const done = p.daily.completed.length >= 5;
+  // Only the session's own drills tick the session off. A quick run from the
+  // drill rail is training, but it is not the plan.
+  if (p.daily.plan.includes(drill) && !p.daily.completed.includes(drill)) p.daily.completed.push(drill);
+  const done = dailyComplete(p);
   if (done && p.daily.lastCompletedDate !== p.daily.date) {
     p.daily.lastCompletedDate = p.daily.date;
     p.daily.streak += 1;
