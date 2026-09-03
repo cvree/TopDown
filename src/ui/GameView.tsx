@@ -140,6 +140,7 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
     const bounds = arenaFor(drill);
     const renderer = new RiftRenderer(canvas, overlay, bounds, meta.accent, seed % 997);
     renderer.setQuality(settings.lowFx ? 'low' : 'high');
+    if (meta.zoom !== undefined) renderer.setZoom(meta.zoom);
     const minimap = new Minimap(minimapCanvas);
     minimap.resize(158);
 
@@ -495,7 +496,7 @@ export function GameView({ drill, difficulty, seed, settings, context, onComplet
         </div>
 
         <div className="hud-stats">
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2, 3].map((i) => (
             <div className="hud-field" data-field key={i}>
               <div className="hud-field-label" data-fl />
               <div className="hud-field-value tone-neutral" data-fv />

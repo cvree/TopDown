@@ -45,7 +45,7 @@ npm run build      # production bundle
 | **Dodge** | Hits per pattern, hazard exposure | One correct movement on the telegraph |
 | **Spacing** | Time inside your free-trade band | Trading from max range, not drifting in |
 | **Kite** | Orbwalk efficiency, cancels, DPS uptime | Attack → move → attack |
-| **Last Hit** | CS accuracy, perfect (one-attack) kills | Reading a health bar against your windup |
+| **Last Hit** | CS accuracy, attacks per CS, perfect (one-attack) kills | Farming a live lane: leading the windup, counting turret shots, not waking the wave |
 | **Target Switch** | Switch latency and accuracy | Retargeting mid-fight without freezing |
 | **Combos** | Sequence execution under a closing window | Ability order while your other hand is busy |
 | **1v1 / 1v2 / 1v3** | All of the above, against live AI | Priority, cooldown awareness, not panicking |
@@ -55,6 +55,39 @@ npm run build      # production bundle
 | **Night Hunter** | Kit execution under a live 1v2 | Playing Vayne rather than an ADC who owns her abilities |
 
 The APM trainer's thirteen modes are listed in their own section below.
+
+### Last Hit is a lane
+
+The last-hit drill is a simulated lane rather than a health-bar countdown, and
+the difference is the point. Six minions a side walk out of their gates, pick
+targets by League's own priority table and fight; a turret behind each side
+shoots whatever comes into reach; from the halfway difficulty an enemy laner
+stands opposite you taking the same farm, and the HUD shows their CS next to
+yours.
+
+Nothing drains. Every point of damage in that lane was thrown by a body you can
+watch wind up, which is what turns "click when the bar is short" into four
+reads that transfer:
+
+- **Lead the attack.** Your windup plus your missile's flight is about a third
+  of a second, so the bar you are looking at is not the bar your arrow arrives
+  at. Every minion's plate shows the damage already in the air as a pale wash,
+  and your own damage as a tick — once the health crosses it, the minion is
+  yours.
+- **Count the turret.** A caster minion dies to one turret shot plus one of
+  your attacks; a melee minion to two turret shots plus one. Those numbers are
+  exact, so under-tower farming is practisable instead of mystical.
+- **Don't touch the champion.** Auto the enemy laner with the wave on top of
+  you and six minions turn around, by the same targeting rules the real game
+  uses.
+- **Don't push for free.** Attacks per CS is scored. A clean farmer sits at
+  one; every extra swing at a healthy minion shoves the wave toward their
+  turret and empties your timer for the minion that drops a second later.
+
+How much the drill draws for you falls away as the difficulty rises: below the
+halfway mark it marks the minion you can take and names the mistake you just
+made, above it you keep the health-bar plates only, and at the top you get a
+lane and the bars League would have given you.
 
 ## The mechanics model
 
@@ -106,14 +139,17 @@ your hands are the thing you want to work on rather than your reads.
 | **Dodge + Cooldown** | A movement order, and four cooldowns spent on sight | Both hands, at once, neither allowed to wait |
 | **Kiting** | The attack *and* the step | Holding a full attack cycle without throwing a windup away |
 | **Defensive Kiting** | The same pair, running backwards | Every step now has a direction it has to be in |
-| **Last Hit** | An attack order on the right bar | Five bars falling at once and one attack cycle |
-| **Last Hit 2** | The same, while being shot at | A predictable last-hit position is a free hit for them |
+| **Last Hit** | An attack order on the right bar | The lane above, with the next wave already walking |
+| **Last Hit 2** | The same, contested | An enemy laner taking the same farm, and the HUD keeping score |
 | **Spacing** | A reposition, on the beat | Max range → step in → disengage, and the beat accelerates |
 | **Smite** | One key, in a window you do not control | Three objectives in three places and a rival reaching for the same key |
 
 **Speed alone is not a score.** Every mode routes its inputs through three
 verbs — a hit, a fumble, or a stray — and the number the score is built on is
-*correct* actions per minute, not raw ones. Mashing the field raises the rate
+*correct* actions per minute, not raw ones. The lane modes are the clearest
+case: they run the same lane the Rhythm drill does, and an attack thrown at a
+healthy minion is recorded as a stray, because pushing the wave for free is
+precisely an input that meant nothing. Mashing the field raises the rate
 on the HUD and leaves the scored rate exactly where it was; the headless suite
 asserts it, and a random masher scores 2% where a player scores 100%. Repeating
 an order you already gave is not an action either, so a macro cannot inflate

@@ -74,9 +74,6 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
       return { w: 1500, h: 900 };
     case 'apmAimMap':
       return { w: 1700, h: 1000 };
-    case 'apmLastHit':
-    case 'apmLastHit2':
-      return { w: 1500, h: 940 };
     case 'apmDodge':
     case 'apmDodgeCd':
     case 'apmKite':
@@ -85,8 +82,13 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
       return { w: 1760, h: 1010 };
     case 'apmSmite':
       return { w: 1980, h: 1140 };
+    // The lane is the drill: two gates, two turrets and enough room between
+    // them for a wave to be pushed somewhere that matters. The APM lane modes
+    // are the same lane, so they take the same floor.
     case 'lasthit':
-      return { w: 1400, h: 900 };
+    case 'apmLastHit':
+    case 'apmLastHit2':
+      return { w: 2100, h: 880 };
     case 'duel1v2':
     case 'duel1v3':
       return { w: 1800, h: 1050 };

@@ -476,6 +476,12 @@ export abstract class ApmDrill extends Drill {
     const apmBar = clamp(apm / (this.targetApm * 1.35), 0, 1);
     const acc = this.precision;
     const mid = this.modeField();
+    const clean: HudField = {
+      label: 'CLEAN',
+      value: `${Math.round(acc * 100)}%`,
+      bar: acc,
+      tone: acc > 0.9 ? 'good' : acc > 0.75 ? 'warn' : 'bad',
+    };
     return [
       {
         label: 'APM',
@@ -483,12 +489,10 @@ export abstract class ApmDrill extends Drill {
         bar: apmBar,
         tone: apm > this.targetApm ? 'good' : apm > this.targetApm * 0.6 ? 'warn' : 'bad',
       },
-      mid ?? {
-        label: 'CLEAN',
-        value: `${Math.round(acc * 100)}%`,
-        bar: acc,
-        tone: acc > 0.9 ? 'good' : acc > 0.75 ? 'warn' : 'bad',
-      },
+      // The HUD has four slots. A mode with something of its own to say gets
+      // one, and cleanliness keeps its own either way: in a drill that refuses
+      // to pay for wasted inputs, the share that landed is not a footnote.
+      ...(mid ? [mid, clean] : [clean]),
       {
         label: 'FLOW',
         value:

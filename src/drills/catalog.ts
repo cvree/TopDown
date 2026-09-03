@@ -50,6 +50,11 @@ export interface DrillMeta {
   accent: string;
   /** The one number the results screen leads with. */
   keyMetric: string;
+  /**
+   * Opening camera framing, 1 = the whole arena in frame. Only set it below 1
+   * for a drill whose arena is deliberately bigger than one screenful.
+   */
+  zoom?: number;
   order: number;
 }
 
@@ -141,15 +146,17 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
   lasthit: {
     id: 'lasthit',
     name: 'LAST HIT',
-    tagline: 'The killing blow',
-    brief: 'Minions are taking damage. Land the final hit — not early, not late.',
-    transfers: 'CS timing: reading a health bar against your own attack windup.',
+    tagline: 'A lane, not a metronome',
+    brief:
+      'Two waves fight. Turrets shoot. Take the killing blow on every enemy minion — one attack each, no attack wasted.',
+    transfers: 'Farming a real lane: leading the windup, counting turret shots, and not waking the wave up.',
     group: 'RHYTHM',
     axes: { lastHitting: 0.85, aim: 0.15 },
-    duration: 70,
+    duration: 90,
     abilities: [],
     accent: '#ffd166',
     keyMetric: 'CS ACCURACY',
+    zoom: 0.7,
     order: 7,
   },
   targetswitch: {
@@ -358,29 +365,31 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
   apmLastHit: {
     id: 'apmLastHit',
     name: 'LAST HIT',
-    tagline: 'CS at rate',
-    brief: 'Five bars falling at once and allied fire that does not care which one you wanted. Choose, and already be there.',
-    transfers: 'Taking the whole wave instead of the two you were looking at.',
+    tagline: 'A whole wave, at rate',
+    brief: 'The lane, with the next wave already walking. Take every minion that is yours and swing at nothing that is not.',
+    transfers: 'Taking the whole wave instead of the two bars you happened to be looking at.',
     group: 'APM',
     axes: { tempo: 0.4, lastHitting: 0.45, targeting: 0.15 },
-    duration: 60,
+    duration: 70,
     abilities: [],
     accent: '#ffd166',
     keyMetric: 'SUSTAINED APM',
+    zoom: 0.7,
     order: 39,
   },
   apmLastHit2: {
     id: 'apmLastHit2',
     name: 'LAST HIT 2',
-    tagline: 'CS with someone standing on you',
-    brief: 'The same wave, plus a harasser aiming where your next last hit would put you.',
-    transfers: 'CS under harassment — the only kind that decides a lane.',
+    tagline: 'The same wave, contested',
+    brief: 'An enemy laner opposite doing your job. Every minion is a race now, and the HUD keeps the score.',
+    transfers: 'Winning the farm race against someone whose windup is the clock, not yours.',
     group: 'APM',
-    axes: { tempo: 0.35, lastHitting: 0.4, dodging: 0.25 },
-    duration: 65,
+    axes: { tempo: 0.35, lastHitting: 0.45, targeting: 0.2 },
+    duration: 75,
     abilities: [],
     accent: '#ffab5c',
     keyMetric: 'SUSTAINED APM',
+    zoom: 0.7,
     order: 40,
   },
   apmSpacing: {

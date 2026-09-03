@@ -1,5 +1,5 @@
 import type { FxSystem } from '../engine/fx';
-import type { Billboard, DrillPaint } from '../engine/paint';
+import type { Billboard, DrillPaint, PlateMark } from '../engine/paint';
 import type { Actor } from '../engine/types';
 import type { World } from '../engine/world';
 import type { RiftCamera } from './camera';
@@ -26,10 +26,19 @@ export interface OverlayOpts {
 
 const ALLY = '#3ddc84';
 const ENEMY = '#e8483c';
-const MINION = '#c9463c';
+const ALLY_MINION = '#2fbf78';
+const ENEMY_MINION = '#c9463c';
+
+/** Tone colours for a health bar the drill has marked up. */
+const PLATE_TONE: Record<NonNullable<PlateMark['tone']>, string> = {
+  ready: '#7dffb0',
+  soon: '#ffd166',
+  losing: '#ff6a5c',
+};
 
 export class OverlayHud {
   private ctx: CanvasRenderingContext2D;
+  private plates = new Map<number, PlateMark>();
   private dpr = 1;
   private w = 0;
   private h = 0;
@@ -57,6 +66,11 @@ export class OverlayHud {
     const g = this.ctx;
     g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     g.clearRect(0, 0, this.w, this.h);
+
+    // Health-bar annotations are keyed by actor, so resolve them once rather
+    // than scanning the list per unit.
+    this.plates.clear();
+    for (const pl of opts.paint.plates) this.plates.set(pl.actorId, pl);
 
     for (const a of world.actors) {
       if (!a.alive) continue;
@@ -89,13 +103,23 @@ export class OverlayHud {
   // ------------------------------------------------------------- nameplates
 
   private drawNameplate(g: CanvasRenderingContext2D, a: Actor, cam: RiftCamera, opts: OverlayOpts): void {
+    // A turret is scenery you cannot kill in this trainer, so it carries no
+    // bar: a permanently full one would only compete for the eye with the
+    // bars that actually matter.
+    if (a.unitKind === 'turret') return;
     const isPlayer = a.id === opts.playerId;
     const minion = !!a.isMinion;
+    const ally = a.team === 'player';
+    const plate = this.plates.get(a.id);
     const p = cam.worldToScreen(a.pos.x, a.pos.y, opts.headHeight(a));
     if (!p.visible) return;
 
-    const w = minion ? 46 : isPlayer ? 128 : 108;
-    const h = minion ? 6 : 9;
+    // Only a bar the drill has something to say about grows. Twelve minions
+    // in a clump is already a wall of bars, and widening all of them buys
+    // clutter; widening the two that matter buys attention.
+    const marked = !!plate?.tone;
+    const w = minion ? (marked ? 58 : 46) : isPlayer ? 128 : 108;
+    const h = minion ? (marked ? 8 : 6) : 9;
     const x = Math.round(p.x - w / 2);
     const y = Math.round(p.y - (minion ? 12 : 20));
     const pct = Math.max(0, Math.min(1, a.hp / Math.max(1, a.maxHp)));
@@ -109,8 +133,9 @@ export class OverlayHud {
     g.fill();
     g.stroke();
 
-    // Fill.
-    const col = isPlayer ? ALLY : minion ? MINION : ENEMY;
+    // Fill. Team decides the colour, exactly as it does in League: anything
+    // green is on your side and anything red is not, minion or champion.
+    const col = minion ? (ally ? ALLY_MINION : ENEMY_MINION) : ally ? ALLY : ENEMY;
     const grad = g.createLinearGradient(x, y, x, y + h);
     grad.addColorStop(0, lighten(col, 0.32));
     grad.addColorStop(0.55, col);
@@ -123,6 +148,8 @@ export class OverlayHud {
       g.fillStyle = `rgba(255,255,255,${Math.min(0.55, a.hitFlash * 0.55)})`;
       g.fillRect(x, y, Math.max(0, w * pct), h);
     }
+
+    if (plate) this.drawPlateMark(g, plate, x, y, w, h, pct);
 
     // Tick marks, one per 200 max HP, exactly the read League gives you.
     const per = minion ? 0 : 200;
@@ -152,7 +179,7 @@ export class OverlayHud {
       g.lineWidth = 3;
       g.strokeStyle = 'rgba(3,6,12,0.85)';
       g.strokeText(a.label, p.x, y - 5);
-      g.fillStyle = isPlayer ? '#cfe9ff' : '#ffb8b0';
+      g.fillStyle = ally ? '#cfe9ff' : '#ffb8b0';
       g.fillText(a.label, p.x, y - 5);
     }
 
@@ -164,6 +191,76 @@ export class OverlayHud {
       g.textBaseline = 'top';
       g.fillStyle = a.rootedFor > 0 ? '#ffd166' : '#8fc7ff';
       g.fillText(label, p.x, y + h + 3);
+    }
+  }
+
+  /**
+   * The last-hitter's read, drawn onto the bar itself.
+   *
+   * Two things are painted. The hatched slice at the leading edge is damage
+   * that has already left somebody's hands — missiles in the air and windups
+   * past the point of recall — so the health you are looking at is visibly not
+   * the health that will be there in half a second. The bright tick is where
+   * your own attack would leave the bar: once the fill crosses it, the minion
+   * is yours. Nothing here tells you when to click; it tells you what you are
+   * looking at, which is the part that transfers.
+   */
+  private drawPlateMark(
+    g: CanvasRenderingContext2D,
+    plate: PlateMark,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    pct: number,
+  ): void {
+    // Damage in flight is drawn as a pale wash over the end of the bar with a
+    // hard bright edge where the health will stop. A darker or hatched slice
+    // was the first thing tried and it is unreadable at six pixels high: the
+    // texture never resolves and the whole thing just looks like a bar with a
+    // black end. A wash plus one crisp line survives being glanced at.
+    const incoming = Math.max(0, Math.min(pct, plate.incoming ?? 0));
+    if (incoming > 0.004) {
+      const from = Math.round(x + (pct - incoming) * w);
+      const to = Math.round(x + pct * w);
+      g.fillStyle = 'rgba(255,255,255,0.42)';
+      g.fillRect(from, y, to - from, h);
+      g.fillStyle = 'rgba(255,255,255,0.95)';
+      g.fillRect(from, y, 1.5, h);
+    }
+
+    const th = plate.threshold ?? 0;
+    if (th > 0.001 && th < 1) {
+      const tx = Math.round(x + th * w) + 0.5;
+      g.strokeStyle = 'rgba(6,10,16,0.9)';
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(tx, y - 2);
+      g.lineTo(tx, y + h + 2);
+      g.stroke();
+      g.strokeStyle = plate.tone ? PLATE_TONE[plate.tone] : 'rgba(255,255,255,0.9)';
+      g.lineWidth = 1.5;
+      g.beginPath();
+      g.moveTo(tx, y - 2);
+      g.lineTo(tx, y + h + 2);
+      g.stroke();
+    }
+
+    if (plate.tone) {
+      g.strokeStyle = PLATE_TONE[plate.tone];
+      g.lineWidth = 1.5;
+      g.strokeRect(x - 2.5, y - 2.5, w + 5, h + 5);
+    }
+
+    if (plate.note) {
+      g.font = '700 9px "Chakra Petch", "Inter", system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'top';
+      g.lineWidth = 3;
+      g.strokeStyle = 'rgba(3,6,12,0.85)';
+      g.strokeText(plate.note, x + w / 2, y + h + 4);
+      g.fillStyle = plate.tone ? PLATE_TONE[plate.tone] : '#dff6ff';
+      g.fillText(plate.note, x + w / 2, y + h + 4);
     }
   }
 
