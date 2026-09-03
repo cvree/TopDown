@@ -687,6 +687,32 @@ h3 {
   }
 }
 
+/* ------------------------------------------------------ empty states */
+/* One treatment everywhere. An empty state is a dashed frame, a heading in
+   the app's smallest voice, one honest sentence about what is missing, and
+   — where there is one — the run that would fill it. Never a blank chart. */
+.empty {
+  border: 1px dashed rgba(120, 90, 40, 0.4);
+  padding: 20px 22px;
+  background: rgba(200, 170, 110, 0.02);
+}
+.empty b {
+  font-family: var(--ui);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  color: var(--gold);
+}
+.empty p {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--text-2);
+  max-width: 68ch;
+  line-height: 1.55;
+}
+.empty .btn {
+  margin-top: 14px;
+}
+
 /* ---------------------------------------------------------- failure */
 /* Rendered only by the error boundary. It has to survive whatever broke,
    so it depends on nothing but the tokens at the top of this file. */

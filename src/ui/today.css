@@ -272,29 +272,6 @@
   font-weight: 700;
 }
 
-/* ------------------------------------------------------- empty state */
-.empty {
-  border: 1px dashed rgba(120, 90, 40, 0.4);
-  padding: 20px 22px;
-  background: rgba(200, 170, 110, 0.02);
-}
-.empty b {
-  font-family: var(--ui);
-  font-size: 11px;
-  letter-spacing: 0.24em;
-  color: var(--gold);
-}
-.empty p {
-  margin: 8px 0 0;
-  font-size: 12.5px;
-  color: var(--text-2);
-  max-width: 68ch;
-  line-height: 1.55;
-}
-.empty .btn {
-  margin-top: 14px;
-}
-
 /* -------------------------------------------------------- right rail */
 .today-side {
   display: flex;
