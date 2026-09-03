@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
-import { heroFor, type HeroId } from '../engine/heroes';
+import { type HeroId } from '../engine/heroes';
 import { newSeed } from '../engine/rng';
 import { DAILY_SEQUENCE, DRILLS, PLACEMENT_SEQUENCE, type DrillId } from '../drills/catalog';
 import {
@@ -31,7 +31,6 @@ import { Boot } from './Boot';
 import { Crest } from './components/Crest';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
 import { HeroSelect } from './HeroSelect';
-import { HeroSigil } from './components/HeroSigil';
 import { Apm } from './Apm';
 import { Daily } from './Daily';
 import { GameView } from './GameView';
@@ -685,9 +684,10 @@ export function App() {
             </nav>
 
             <div className="topbar-right">
-              {/* The build, and whether there is anything in it you have not
-                  read. A version number in a corner is also the first thing
-                  anyone needs when reporting that something behaves oddly. */}
+              {/* Two things, where there were three. The champion chip
+                  duplicated the roster on Champions and named something
+                  cosmetic; the version is a quiet link rather than a chip,
+                  because a build number is a fact you need once. */}
               <button
                 className={`ver-chip${route === 'patch' ? ' on' : ''}`}
                 title={
@@ -702,30 +702,14 @@ export function App() {
                 }}
               >
                 {unreadPatch && <i className="ver-dot" />}v{VERSION}
-                <span>PATCH NOTES</span>
               </button>
-              {/* Who you are, always on screen, one click from changing it. A
-                  champion you picked and then never see again is a form field. */}
-              <button
-                className="hero-chip"
-                style={{ ['--c' as string]: heroFor(profile.settings.hero).accent }}
-                title={`Playing as ${heroFor(profile.settings.hero).name} — click to change`}
-                onMouseEnter={() => audio.play('uiHover')}
-                onClick={() => {
-                  audio.play('uiTab');
-                  setRoute('settings');
-                }}
-              >
-                <HeroSigil hero={profile.settings.hero} size={22} />
-                <span>{heroFor(profile.settings.hero).name}</span>
-              </button>
-              <div className="rank-chip" onClick={() => setRoute('progress')}>
-                <RankEmblem tier={rank.tier} size={30} />
+              <button className="rank-chip" onClick={() => setRoute('progress')}>
+                <RankEmblem tier={rank.tier} size={26} />
                 <div>
                   <div className="rc-label">{profile.placed ? rank.label : 'UNRANKED'}</div>
                   <div className="rc-rating mono">{profile.placed ? Math.round(profile.overall) : '—'}</div>
                 </div>
-              </div>
+              </button>
             </div>
           </header>
 
@@ -792,7 +776,7 @@ export function App() {
             />
           )}
           {route === 'settings' && (
-            <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('today')} />
+            <Settings settings={profile.settings} onChange={patchSettings} />
           )}
           {route === 'patch' && (
             <PatchNotes

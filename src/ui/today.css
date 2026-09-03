@@ -9,7 +9,8 @@
    the first thing in the reading order.
    ============================================================ */
 
-.today {
+/* `.wrap` sets the page padding; this needs to beat it rather than tie. */
+.wrap.today {
   padding-top: var(--sp-7);
 }
 

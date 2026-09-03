@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
-import { HERO_LIST, heroFor, type HeroId } from '../engine/heroes';
+import { HERO_LIST, type HeroId } from '../engine/heroes';
 import {
   ACTION_LABELS,
   codeLabel,
@@ -12,14 +12,12 @@ import {
 import { DEFAULT_SETTINGS, type AppSettings } from '../progression/profile';
 import { hasBrowserMouseGestures } from './components/GestureNotice';
 import { HeroRoster } from './components/HeroRoster';
-import { HeroSigil } from './components/HeroSigil';
 import './settings.css';
 import './heroselect.css';
 
 interface Props {
   settings: AppSettings;
   onChange: (patch: Partial<AppSettings>) => void;
-  onBack: () => void;
 }
 
 /**
@@ -307,7 +305,7 @@ const resetPatch = (item: Item): Partial<AppSettings> => {
 
 // --------------------------------------------------------------------- screen
 
-export function Settings({ settings, onChange, onBack }: Props) {
+export function Settings({ settings, onChange }: Props) {
   const [active, setActive] = useState<string>(SECTIONS[0].id);
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -354,7 +352,6 @@ export function Settings({ settings, onChange, onBack }: Props) {
   }, [query]);
 
   const section = SECTIONS.find((s) => s.id === active) ?? SECTIONS[0];
-  const hero = heroFor(settings.hero);
 
   const resetSection = (s: Section) => {
     audio.play('uiClick');
@@ -415,24 +412,6 @@ export function Settings({ settings, onChange, onBack }: Props) {
                 </button>
               );
             })}
-
-            <div className="sn-hero">
-              <span className="eyebrow">Playing as</span>
-              <button
-                className="sn-hero-card"
-                style={{ ['--c' as string]: hero.accent }}
-                onMouseEnter={() => audio.play('uiHover')}
-                onClick={() => {
-                  audio.play('uiTab');
-                  setQuery('');
-                  setActive('champion');
-                }}
-              >
-                <HeroSigil hero={hero.id} size={26} />
-                <b>{hero.name}</b>
-                <em>CHANGE</em>
-              </button>
-            </div>
 
             <button
               className="btn ghost sm sn-reset"
@@ -532,9 +511,6 @@ export function Settings({ settings, onChange, onBack }: Props) {
           </div>
         </div>
 
-        <button className="btn ghost lg" style={{ marginTop: 26 }} onClick={onBack}>
-          Back
-        </button>
       </div>
     </div>
   );

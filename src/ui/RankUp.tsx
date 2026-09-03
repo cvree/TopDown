@@ -29,15 +29,17 @@ export function RankUp({ from, to, driver, headline, onDone }: Props) {
 
   useEffect(() => {
     audio.play('rankUpBuild');
+    // Two seconds, not three and a bit. The moment should land and then get
+    // out of the way — a promotion you have to wait out stops being a reward.
     const t = [
-      window.setTimeout(() => setStage(1), 260),
-      window.setTimeout(() => setStage(2), 1500),
+      window.setTimeout(() => setStage(1), 180),
+      window.setTimeout(() => setStage(2), 900),
       window.setTimeout(() => {
         setStage(3);
         audio.play('rankUpHit');
-      }, 1720),
-      window.setTimeout(() => setStage(4), 2500),
-      window.setTimeout(() => setStage(5), 3200),
+      }, 1080),
+      window.setTimeout(() => setStage(4), 1600),
+      window.setTimeout(() => setStage(5), 2050),
     ];
     return () => t.forEach(clearTimeout);
   }, []);
@@ -94,9 +96,6 @@ export function RankUp({ from, to, driver, headline, onDone }: Props) {
               <b>{headline.value}</b>
             </div>
           )}
-          <div className="ru-note">
-            This is your <b>trainer</b> mechanical rank — a measure of these drills, not a prediction of your League rank.
-          </div>
         </div>
 
         <button className="btn primary lg ru-continue" onClick={onDone}>

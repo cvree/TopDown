@@ -5,59 +5,29 @@
   gap: 16px;
 }
 
-.hero-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 13px 7px 9px;
-  border: 1px solid var(--stroke);
-  border-left: 2px solid var(--c);
-  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 15%, transparent), rgba(6, 13, 24, 0.85) 78%);
-  color: var(--c);
-  transition: border-color 0.2s, background 0.2s;
-  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-}
-.hero-chip:hover {
-  border-color: var(--c);
-  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 26%, transparent), rgba(6, 13, 24, 0.85) 78%);
-}
-.hero-chip span {
-  font-family: var(--ui);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--text);
-}
-@media (max-width: 1100px) {
-  .hero-chip span {
-    display: none;
-  }
-}
-
+/* Your rank, in the corner of every screen and one click from the page that
+   explains it. No plate and no cut corner: it is a label, not a panel. */
 .rank-chip {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 7px 18px 7px 11px;
-  border: 1px solid var(--stroke);
-  background: linear-gradient(160deg, var(--panel-2), var(--panel));
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  gap: var(--sp-2);
+  padding: 4px 0 4px var(--sp-3);
+  border-left: 1px solid var(--line);
+  transition: opacity 0.16s;
 }
 .rank-chip:hover {
-  border-color: var(--stroke-2);
-  background: linear-gradient(160deg, rgba(24, 42, 68, 0.95), rgba(12, 24, 42, 0.92));
+  opacity: 0.75;
 }
 .rc-label {
-  font-family: var(--display);
-  font-size: 12px;
+  font-family: var(--ui);
+  font-size: var(--t-micro);
+  font-weight: 700;
   letter-spacing: 0.16em;
-  line-height: 1.1;
+  line-height: 1.2;
   color: var(--gold-hot);
 }
 .rc-rating {
-  font-size: 10px;
+  font-size: var(--t-micro);
   color: var(--text-3);
 }
 
