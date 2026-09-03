@@ -282,11 +282,21 @@ export const derive = (m: RunMetrics, maxHp = 720): DerivedMetrics => {
   // Weighted so that no single half can carry a run: punctuality is the
   // largest term, but a player who fires on the tick and then stands through
   // every backswing is not orbwalking and does not get to score as if he is.
+  //
+  // And the whole thing is multiplied by how many of the attacks *finished*,
+  // which is not a refinement — it is load-bearing. Every term above is a
+  // statement about a cycle that ran, and a player mashing move commands
+  // starts an attack the instant it is available (perfectly punctual) and
+  // throws it away a tenth of a second later, over and over. That run read as
+  // 0.88 here before this line existed, on a 98% cancel rate, which is the
+  // opposite of what the number is for.
+  const completion = m.attacksStarted > 0 ? clamp(m.attacksCompleted / m.attacksStarted, 0, 1) : 0;
   const attackTiming = clamp(
-    attackPunctuality * 0.4 +
-      backswingUse * 0.3 +
-      band01(downtimeRate, 0.35, 0.02) * 0.18 +
-      band01(cancelRate, 0.25, 0) * 0.12,
+    (attackPunctuality * 0.36 +
+      backswingUse * 0.26 +
+      band01(downtimeRate, 0.35, 0.02) * 0.16 +
+      band01(cancelRate, 0.25, 0) * 0.22) *
+      (0.22 + 0.78 * completion),
     0,
     1,
   );

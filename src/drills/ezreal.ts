@@ -665,7 +665,13 @@ export class EzrealDrill extends Drill {
 
     const attempts = Math.max(0, st.qCasts - st.qBlocked);
     const accuracy = attempts > 0 ? clamp(st.qHits / attempts, 0, 1) : 0;
-    const moving = st.qHits > 0 ? clamp(st.qHitsMoving / st.qHits, 0, 1) : 0;
+    // Share *and* count. A share alone is free for anybody who never stands
+    // still: a player firing at random while running in circles lands two Qs
+    // by accident, both while moving, and reads as 100% "landed on the move".
+    // The harness found exactly that scoring 54% on the kiting stage. Landing
+    // them on the move has to mean landing a real number of them.
+    const movingShare = st.qHits > 0 ? clamp(st.qHitsMoving / st.qHits, 0, 1) : 0;
+    const moving = movingShare * band(st.qHitsMoving, 0, Math.max(3, this.def.expectedCasts * 0.45));
     const lead = st.qHits > 0 ? clamp(st.qHitsOnMovers / st.qHits, 0, 1) : 0;
     const longRange = st.qHits > 0 ? clamp(st.qHitsLong / st.qHits, 0, 1) : 0;
     const thread = st.qCasts > 0 ? clamp(1 - st.qBlocked / st.qCasts, 0, 1) : 0;
@@ -720,12 +726,12 @@ export class EzrealDrill extends Drill {
 
     const helped: string[] = [];
     const hurt: string[] = [];
-    if (moving > 0.75 && st.qHits > 6) helped.push(`${Math.round(moving * 100)}% of your Qs left while you were moving.`);
+    if (movingShare > 0.75 && st.qHits > 6) helped.push(`${Math.round(movingShare * 100)}% of your Qs left while you were moving.`);
     if (longRange > 0.4) helped.push('You are hitting at the far end of the missile, where it is free.');
     if (st.weaveCycles > 6) helped.push(`${st.weaveCycles} clean auto-Q weaves.`);
     if (st.qBlocked === 0 && st.qCasts > 8) helped.push('Nothing ate a single one of your Qs.');
     if (st.eKeptRange > 0 && st.eKeptRange === st.eCasts) helped.push('Every blink left you out of their reach and inside your own.');
-    if (moving < 0.4 && st.qHits > 4) hurt.push('Most of your Qs were fired standing still. That is the shot nobody has to dodge.');
+    if (movingShare < 0.4 && st.qHits > 4) hurt.push('Most of your Qs were fired standing still. That is the shot nobody has to dodge.');
     if (st.qWastedWindup > 2) hurt.push(`${st.qWastedWindup} autos thrown away by pressing Q mid-windup.`);
     if (st.qBlocked > 3) hurt.push(`${st.qBlocked} Qs eaten by something that was not your target.`);
     if (accuracy < 0.4 && st.qCasts > 6) hurt.push(`${Math.round(accuracy * 100)}% accuracy — you are firing where they are, not where they will be.`);
@@ -735,7 +741,7 @@ export class EzrealDrill extends Drill {
     const advice =
       driving < 0.3 && this.def.stage !== 'LEARN'
         ? 'Aim while you move. A stationary Ezreal lands more Qs and loses more games — every stage past the first is weighted to say so.'
-        : moving < 0.45 && st.qHits > 4
+        : movingShare < 0.45 && st.qHits > 4
           ? 'Stop planting your feet to aim. Commit the direction while you are already travelling; the cast time roots you for a quarter second either way.'
           : accuracy < 0.45
             ? 'Lead them. The missile takes half a second to cross its own range — aim at where they will be when it arrives.'
@@ -745,7 +751,7 @@ export class EzrealDrill extends Drill {
 
     const metrics = [
       pct('qAcc', 'Q ACCURACY', accuracy),
-      pct('qMoving', 'LANDED ON THE MOVE', moving),
+      pct('qMoving', 'LANDED ON THE MOVE', movingShare),
       count('qHits', 'MYSTIC SHOTS LANDED', st.qHits),
     ];
     if (w.lead) metrics.push(pct('qLead', 'LANDED ON A MOVER', lead));
@@ -762,7 +768,7 @@ export class EzrealDrill extends Drill {
       score: this.liveScore(),
       performance,
       axisPerformance: {
-        skillshot: clamp(accuracy * 0.5 + moving * 0.3 + lead * 0.2, 0, 1),
+        skillshot: clamp(accuracy * 0.5 + movingShare * 0.3 + lead * 0.2, 0, 1),
         aim: clamp(accuracy * 0.6 + longRange * 0.4, 0, 1),
         movement: clamp(driving, 0, 1),
         ...(w.timing ? { kiting: d.attackTiming } : {}),

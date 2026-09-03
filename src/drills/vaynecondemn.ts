@@ -228,8 +228,24 @@ export class VayneCondemnDrill extends VayneDrill {
     // walked into them. Pinning something against a corner still scores; it
     // just no longer scores the same as making an angle out of open ground.
     const craft = wallCraft(st);
+
+    // Two gates, and they exist because of a specific thing the harness found:
+    // a player pressing E at random points several times a second scored 66%
+    // here. Chargers walk into terrain on their own, so a spammed condemn
+    // lands wall stuns by arithmetic, and every other term in the score was
+    // happy to be paid for them.
+    //
+    // Discipline is the share of presses that were aimed at anybody at all.
+    // Engagement is whether she was fighting between them — a spammer's autos
+    // are cancelled mid-windup by their own next click, so this is the term
+    // that notices nothing else was happening.
+    const presses = st.condemnCasts + this.wastedPresses;
+    const discipline = presses > 0 ? band(this.wastedPresses / presses, 0.45, 0.05) : 1;
+    const engagement = band(d.attackEfficiency, 0.08, 0.55);
+
     const performance = clamp(
-      rate * (0.45 + 0.55 * craft) * 0.4 + craft * 0.12 + usage * 0.16 + taken * 0.12 + reaction * 0.08 + d.hpRetained * 0.12,
+      (rate * (0.45 + 0.55 * craft) * 0.4 + craft * 0.12 + usage * 0.16 + taken * 0.12 + reaction * 0.08 + d.hpRetained * 0.12) *
+        (0.3 + 0.35 * discipline + 0.35 * engagement),
       0,
       1,
     );
@@ -245,6 +261,7 @@ export class VayneCondemnDrill extends VayneDrill {
       hurt.push('Your stuns are landing on people who were already against terrain. The ability is a positioning tool; walk to the side of the fight that has a wall on it.');
     if (this.opportunities - this.opportunitiesTaken > 3) hurt.push(`${this.opportunities - this.opportunitiesTaken} chargers reached you with condemn up.`);
     if (this.wastedPresses > 2) hurt.push(`${this.wastedPresses} condemns aimed at nobody.`);
+    if (engagement < 0.35) hurt.push('You were not attacking between condemns. The knockback buys time to do damage with; it is not the damage.');
     this.handsNotes(helped, hurt);
 
     const advice =

@@ -67,6 +67,12 @@ type Policy =
   | 'wasdCommand'
   | 'ezreal'
   | 'ezStatic'
+  | 'abilitySpam'
+  | 'apmChaos'
+  | 'holdOne'
+  | 'edgeHug'
+  | 'circle'
+  | 'stall'
   | 'vayneTumble'
   | 'vayneLateral'
   | 'vayneBolts'
@@ -995,6 +1001,91 @@ const runDrill = (
             }
             break;
           }
+          // ------------------------------------------------------ the cheese
+          //
+          // Six ways of producing inputs without producing play. Each one is
+          // something a real person will try inside their first ten minutes,
+          // and every one of them used to be worth trying somewhere.
+          case 'abilitySpam': {
+            // Every key, all the time, aimed at nothing in particular.
+            reactTimer = 0.05;
+            const a = session.rng.angle();
+            const at = { x: p.pos.x + Math.cos(a) * 500, y: p.pos.y + Math.sin(a) * 500 };
+            for (const slot of ['q', 'w', 'e', 'r'] as const) {
+              input.push({ kind: 'ability', slot, x: at.x, y: at.y, t: t * 1000 });
+            }
+            break;
+          }
+          case 'apmChaos': {
+            // Six hundred actions a minute of nothing: clicks and casts at
+            // uniformly random points. If raw rate were worth anything
+            // anywhere, this would find it.
+            reactTimer = 0.1;
+            for (let i = 0; i < 2; i++) {
+              const x = session.rng.range(60, bounds.w - 60);
+              const y = session.rng.range(60, bounds.h - 60);
+              if (session.rng.chance(0.5)) {
+                input.push({ kind: 'attackMove', x, y, t: t * 1000 });
+              } else {
+                const slot = session.rng.pick(['q', 'w', 'e', 'r'] as const);
+                input.push({ kind: 'ability', slot, x, y, t: t * 1000 });
+              }
+            }
+            session.cursorWorld = { x: session.rng.range(60, bounds.w - 60), y: session.rng.range(60, bounds.h - 60) };
+            break;
+          }
+          case 'holdOne': {
+            // One direction, held for the whole run. The laziest possible
+            // answer to a movement scheme with four keys.
+            reactTimer = 0.5;
+            input.dir = { x: 1, y: 0 };
+            if (target && p.targetId !== target.id) {
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+            }
+            break;
+          }
+          case 'edgeHug': {
+            // Find the nearest wall and live against it. Cheap safety, and in
+            // several arenas it used to be genuinely hard to punish.
+            reactTimer = 0.35;
+            const left = p.pos.x;
+            const right = bounds.w - p.pos.x;
+            const up = p.pos.y;
+            const down = bounds.h - p.pos.y;
+            const m = Math.min(left, right, up, down);
+            const goal =
+              m === left
+                ? { x: 40, y: p.pos.y }
+                : m === right
+                  ? { x: bounds.w - 40, y: p.pos.y }
+                  : m === up
+                    ? { x: p.pos.x, y: 40 }
+                    : { x: p.pos.x, y: bounds.h - 40 };
+            input.push({ kind: 'move', x: goal.x, y: goal.y, t: t * 1000 });
+            break;
+          }
+          case 'circle': {
+            // A perfect circle around the middle of the floor, forever. It
+            // moves constantly, it never stands still, and it is not playing.
+            reactTimer = 0.12;
+            const a = t * 0.9;
+            const r = Math.min(bounds.w, bounds.h) * 0.32;
+            input.push({
+              kind: 'move',
+              x: bounds.w / 2 + Math.cos(a) * r,
+              y: bounds.h / 2 + Math.sin(a) * r,
+              t: t * 1000,
+            });
+            break;
+          }
+          case 'stall': {
+            // Shuffling on the spot: enough movement to look busy to anything
+            // counting velocity, no distance covered at all.
+            reactTimer = 0.25;
+            const a = t * 6;
+            input.push({ kind: 'move', x: p.pos.x + Math.cos(a) * 40, y: p.pos.y + Math.sin(a) * 40, t: t * 1000 });
+            break;
+          }
           case 'idle':
             reactTimer = 1;
             break;
@@ -1257,6 +1348,70 @@ line('\n=== WASD: the same rhythm with the other hand ===');
     Math.abs(wasdGood.out.performance - kiteGood.out.performance) < 0.25,
     `${pct(wasdGood.out.performance)} vs ${pct(kiteGood.out.performance)}`,
   );
+}
+
+line('\n=== CHEESE SWEEP: every drill against every bad idea ===');
+{
+  // The standard this whole trainer lives or dies by: an elite score has to
+  // require elite execution of the League mechanic the drill is named after.
+  // So every drill outside the lab is played by six players who are not
+  // playing, and none of them may pass.
+  //
+  // Every one of these is something a person tries in their first ten
+  // minutes, and each of them was worth trying somewhere before this ran.
+  const CHEESE: [Policy, string, MovementScheme][] = [
+    ['idle', 'nothing at all', 'click'],
+    ['spam', 'move spam', 'click'],
+    ['abilitySpam', 'ability spam', 'click'],
+    ['apmChaos', 'random high APM', 'click'],
+    ['holdOne', 'one key held', 'wasd'],
+    ['edgeHug', 'edge hugging', 'click'],
+    ['circle', 'circling', 'click'],
+    ['stall', 'shuffling on the spot', 'click'],
+  ];
+  const SUBJECTS: DrillId[] = [
+    'movement',
+    'aim',
+    'skillshot',
+    'dodge',
+    'spacing',
+    'kite',
+    'lasthit',
+    'targetswitch',
+    'combos',
+    'duel1v1',
+    'duel1v2',
+    'vayneTumble',
+    'vayneBolts',
+    'vayneCondemn',
+    'vayneHunt',
+    ...(EZREAL_DRILL_IDS as unknown as DrillId[]),
+  ];
+  // The bar. A cheese run is allowed to be non-zero — a circling player does
+  // dodge things, and pretending otherwise would be its own dishonesty — but
+  // it must never look like competence.
+  const CEILING = 0.4;
+  let worst = { drill: '', how: '', perf: 0 };
+  const offenders: string[] = [];
+  for (const id of SUBJECTS) {
+    let top = 0;
+    let topHow = '';
+    for (const [policy, label, scheme] of CHEESE) {
+      const r = runDrill(id, policy, 0.4, 31337, scheme);
+      if (r.out.performance > top) {
+        top = r.out.performance;
+        topHow = label;
+      }
+      if (!Number.isFinite(r.out.performance) || r.out.performance < 0 || r.out.performance > 1) {
+        offenders.push(`${id} produced ${r.out.performance} under ${label}`);
+      }
+    }
+    line(`  ${id.padEnd(13)} best cheese ${pct(top).padStart(6)}  (${topHow})`);
+    if (top > worst.perf) worst = { drill: id, how: topHow, perf: top };
+    if (top > CEILING) offenders.push(`${id} scores ${pct(top)} for ${topHow}`);
+  }
+  line(`  worst offender: ${worst.drill} at ${pct(worst.perf)} via ${worst.how}`);
+  expect('no drill can be passed by not playing it', offenders.length === 0, offenders.join('; '));
 }
 
 line('\n=== EZREAL: the path, stage by stage ===');
