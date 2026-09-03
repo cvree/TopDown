@@ -19,7 +19,21 @@ export interface AttackProfile {
   damage: number;
   /** 0 for melee/hitscan; otherwise units per second. */
   projectileSpeed: number;
+  /** Look of the missile this attack throws. Defaults to a bolt. */
+  projectileShape?: ProjectileShape;
+  projectileRadius?: number;
+  projectileColor?: string;
 }
+
+/**
+ * What a body *is*, as far as the rest of the game is concerned.
+ *
+ * Kept separate from the archetype because archetypes describe how a champion
+ * fights, and a siege minion is not a champion fighting badly — it is a
+ * different class of thing, with its own silhouette, its own targeting rules
+ * and its own place in a lane.
+ */
+export type UnitKind = 'champion' | 'melee' | 'caster' | 'cannon' | 'turret';
 
 export interface Actor {
   id: number;
@@ -69,6 +83,10 @@ export interface Actor {
   slowFor: number;
   /** Marks minions in the last-hit drill. */
   isMinion?: boolean;
+  /** What class of body this is. Absent means an ordinary champion. */
+  unitKind?: UnitKind;
+  /** Nothing shoves this actor: structures hold their ground. */
+  immovable?: boolean;
   goldValue?: number;
   /** Set when a unit was killed by the player this frame. */
   killedByPlayer?: boolean;

@@ -9,6 +9,7 @@ import { OverlayHud } from './overlay';
 import { ParticleLayer } from './particles';
 import { ProjectileLayer } from './projectiles';
 import { RiftScene, type Quality } from './scene';
+import { StructureLayer } from './structures';
 import { UnitLayer } from './units';
 import { WallLayer } from './walls';
 
@@ -56,6 +57,7 @@ export class RiftRenderer {
   private projectiles: ProjectileLayer;
   private particles: ParticleLayer;
   private walls: WallLayer;
+  private structures: StructureLayer;
   private overlay: OverlayHud;
   private emptyPaint = newPaint();
 
@@ -82,6 +84,7 @@ export class RiftRenderer {
     this.projectiles = new ProjectileLayer(this.scene.world);
     this.particles = new ParticleLayer(this.scene.world);
     this.walls = new WallLayer(this.scene.world);
+    this.structures = new StructureLayer(this.scene.world);
     this.overlay = new OverlayHud(overlayCanvas);
 
     // Your own movement history, drawn as a fading ribbon on the floor. It is
@@ -127,6 +130,19 @@ export class RiftRenderer {
 
   zoomBy(delta: number): void {
     this.scene.rig.zoomBy(delta);
+  }
+
+  /**
+   * The framing a drill opens on.
+   *
+   * Most drills want the whole arena, because losing sight of a spawn would be
+   * unfair. A lane is the exception: it is deliberately longer than one screen
+   * of League, and framing all of it at once shrinks the minions you are being
+   * asked to read the health bars of. The minimap covers the rest, which is
+   * exactly the arrangement the real game uses.
+   */
+  setZoom(z: number): void {
+    this.scene.rig.setZoom(z);
   }
 
   /** Drop an actor into its cast pose. Driven by the session on a real cast. */
@@ -309,6 +325,7 @@ export class RiftRenderer {
     // ------------------------------------------------------------- layers
     this.footsteps(world, fx, alpha);
     this.units.sync(world, alpha, dt, opts.hoverTargetId);
+    this.structures.sync(world, dt);
     this.projectiles.sync(world, alpha);
     this.particles.sync(fx);
     this.writePath(opts.pathTrail, fx.energy);
@@ -464,6 +481,7 @@ export class RiftRenderer {
     this.disposed = true;
     this.units.dispose();
     this.walls.dispose();
+    this.structures.dispose();
     this.decals.dispose();
     this.projectiles.dispose();
     this.particles.dispose();

@@ -12,6 +12,7 @@ import { DRILLS, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
 import type { InputEventKind, InputSystem, MovementScheme } from '../src/engine/input';
 import { dist, norm } from '../src/engine/math';
+import { incomingDamage } from '../src/engine/lane';
 import type { VayneKit } from '../src/engine/vayne';
 import { VAYNE_STATS } from '../src/engine/vayne';
 import { Rng } from '../src/engine/rng';
@@ -29,6 +30,7 @@ type Policy =
   | 'priority'
   | 'sequence'
   | 'lead'
+  | 'lastHit'
   | 'wasd'
   | 'wasdHold'
   | 'vayneTumble'
@@ -142,6 +144,46 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345,
               y: Math.max(50, Math.min(bounds.h - 50, gy)),
               t: t * 1000,
             });
+            break;
+          }
+          case 'lastHit': {
+            // Farming a lane the way it is meant to be farmed: hold the
+            // attack until the shot will actually secure the kill, and stand
+            // at the back of your own wave the rest of the time.
+            //
+            // It leans on exactly the read the drill draws for you — where the
+            // health bar will be once everything already in the air arrives —
+            // which is the point: if playing to the trainer's own indicator
+            // did not beat swinging at everything, the indicator would be
+            // teaching the wrong thing.
+            reactTimer = 0.03;
+            const w = session.world;
+            const minions = w.actors.filter((a) => a.alive && a.team === 'enemy' && a.isMinion);
+            let pick: (typeof minions)[number] | null = null;
+            for (const m of minions) {
+              const gap = dist(p.pos, m.pos) - m.radius;
+              if (gap > p.attack.range) continue;
+              if (incomingDamage(w, m, Infinity, { only: p.id }) > 0) continue; // already committed
+              const lead = (1 / p.attack.attackSpeed) * p.attack.windupRatio + gap / p.attack.projectileSpeed;
+              const at = m.hp - incomingDamage(w, m, lead, { exclude: p.id });
+              if (at <= 0 || at > p.attack.damage) continue;
+              if (!pick || m.hp < pick.hp) pick = m;
+            }
+            if (pick && p.attackCd <= 0.001 && p.phase !== 'windup') {
+              input.push({ kind: 'move', x: pick.pos.x, y: pick.pos.y, t: t * 1000 });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const near = minions.filter((m) => m.pos.x < bounds.w * 0.62);
+            if (near.length) {
+              const cx = near.reduce((sum, m) => sum + m.pos.x, 0) / near.length;
+              const cy = near.reduce((sum, m) => sum + m.pos.y, 0) / near.length;
+              const gx = Math.min(cx - 430, bounds.w * 0.55);
+              const gy = cy + 90;
+              if (Math.hypot(gx - p.pos.x, gy - p.pos.y) > 40) {
+                input.push({ kind: 'move', x: gx, y: gy, t: t * 1000 });
+              }
+            }
             break;
           }
           case 'spam': {
@@ -476,7 +518,7 @@ const runDrill = (id: DrillId, policy: Policy, difficulty: number, seed = 12345,
   const out = drill.outcome();
   const m = session.metrics.m;
   const d = derive(m, session.world.player?.maxHp ?? 720);
-  return { out, m, d, session };
+  return { out, m, d, session, drill };
 };
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
@@ -599,12 +641,45 @@ for (const [id, policy] of [
   ['movement', 'nodes'],
   ['targetswitch', 'priority'],
   ['combos', 'sequence'],
-  ['lasthit', 'orbwalk'],
+  ['lasthit', 'lastHit'],
   ['skillshot', 'lead'],
 ] as [DrillId, Policy][]) {
   const r = runDrill(id, policy, 0.35);
   line(`  ${id.padEnd(13)} correct play perf ${pct(r.out.performance)}  score ${r.out.score}  ${r.out.keyMetrics.slice(0, 2).map((k) => `${k.label} ${k.value.toFixed(2)}`).join('  ')}`);
   expect(`${id} rewards correct play`, r.out.performance > 0.55, pct(r.out.performance));
+}
+
+line('\n=== LAST HIT: a lane rewards patience, not volume ===');
+{
+  const drillOf = (r: ReturnType<typeof runDrill>) => r.drill as unknown as Record<string, number>;
+  const patient = runDrill('lasthit', 'lastHit', 0.45);
+  const greedy = runDrill('lasthit', 'orbwalk', 0.45);
+  const dp = drillOf(patient);
+  const dg = drillOf(greedy);
+  const accOf = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'csAcc')?.value ?? 0;
+  line(
+    `  patient : cs ${dp.cs}  perfect ${dp.perfect}  missed ${dp.missed}  wasted ${dp.wastedHits}  acc ${pct(accOf(patient))}  perf ${pct(patient.out.performance)}`,
+  );
+  line(
+    `  greedy  : cs ${dg.cs}  perfect ${dg.perfect}  missed ${dg.missed}  wasted ${dg.wastedHits}  acc ${pct(accOf(greedy))}  perf ${pct(greedy.out.performance)}`,
+  );
+  expect('waiting for the kill window beats swinging at everything', patient.out.performance > greedy.out.performance + 0.15, `${pct(patient.out.performance)} vs ${pct(greedy.out.performance)}`);
+  expect('patience secures a higher share of the wave', accOf(patient) > accOf(greedy), `${pct(accOf(patient))} vs ${pct(accOf(greedy))}`);
+  expect('a patient run wastes almost no attacks', dp.wastedHits <= dg.wastedHits, `${dp.wastedHits} vs ${dg.wastedHits}`);
+  expect('the lane actually produces farm', dp.cs > 15, `${dp.cs} cs`);
+}
+
+line('\n=== LAST HIT: every point of damage has an owner ===');
+{
+  // The premise of the whole drill: nothing drains. Run the lane with no
+  // player input at all and assert that every minion that died was killed by
+  // a unit that is still identifiable, and that the enemy laner farms.
+  const r = runDrill('lasthit', 'idle', 0.7);
+  const d = r.drill as unknown as Record<string, number>;
+  line(`  unattended lane: enemy minions lost ${d.missed}  to your turret ${d.missedToTurret}  rival cs ${d.rivalCs}  your cs ${d.cs}`);
+  expect('minions kill each other without you', d.missed > 10, `${d.missed}`);
+  expect('an unattended lane is farmed by the rival', d.rivalCs > 4, `${d.rivalCs}`);
+  expect('doing nothing farms nothing', d.cs === 0, `${d.cs}`);
 }
 
 line('\n=== Honesty: doing nothing scores near zero everywhere ===');
@@ -616,7 +691,7 @@ for (const id of ['movement', 'aim', 'skillshot', 'kite', 'spacing', 'lasthit', 
 
 line('\n=== SPACING / MOVEMENT / LAST HIT / TARGET SWITCH / COMBOS / SKILLSHOT run clean ===');
 for (const id of ['spacing', 'movement', 'lasthit', 'targetswitch', 'combos', 'skillshot'] as DrillId[]) {
-  const r = runDrill(id, id === 'skillshot' ? 'lead' : 'orbwalk', 0.4);
+  const r = runDrill(id, id === 'skillshot' ? 'lead' : id === 'lasthit' ? 'lastHit' : 'orbwalk', 0.4);
   const finite = Number.isFinite(r.out.performance) && Number.isFinite(r.out.score);
   line(`  ${id.padEnd(13)} perf ${pct(r.out.performance)}  score ${r.out.score}  metrics ${r.out.keyMetrics.length}`);
   expect(`${id} produces finite, in-range results`, finite && r.out.performance >= 0 && r.out.performance <= 1, `perf=${r.out.performance}`);

@@ -36,6 +36,11 @@ export interface DrillMeta {
   accent: string;
   /** The one number the results screen leads with. */
   keyMetric: string;
+  /**
+   * Opening camera framing, 1 = the whole arena in frame. Only set it below 1
+   * for a drill whose arena is deliberately bigger than one screenful.
+   */
+  zoom?: number;
   order: number;
 }
 
@@ -127,15 +132,17 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
   lasthit: {
     id: 'lasthit',
     name: 'LAST HIT',
-    tagline: 'The killing blow',
-    brief: 'Minions are taking damage. Land the final hit — not early, not late.',
-    transfers: 'CS timing: reading a health bar against your own attack windup.',
+    tagline: 'A lane, not a metronome',
+    brief:
+      'Two waves fight. Turrets shoot. Take the killing blow on every enemy minion — one attack each, no attack wasted.',
+    transfers: 'Farming a real lane: leading the windup, counting turret shots, and not waking the wave up.',
     group: 'RHYTHM',
     axes: { lastHitting: 0.85, aim: 0.15 },
-    duration: 70,
+    duration: 90,
     abilities: [],
     accent: '#ffd166',
     keyMetric: 'CS ACCURACY',
+    zoom: 0.7,
     order: 7,
   },
   targetswitch: {

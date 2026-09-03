@@ -44,7 +44,7 @@ npm run build      # production bundle
 | **Dodge** | Hits per pattern, hazard exposure | One correct movement on the telegraph |
 | **Spacing** | Time inside your free-trade band | Trading from max range, not drifting in |
 | **Kite** | Orbwalk efficiency, cancels, DPS uptime | Attack → move → attack |
-| **Last Hit** | CS accuracy, perfect (one-attack) kills | Reading a health bar against your windup |
+| **Last Hit** | CS accuracy, attacks per CS, perfect (one-attack) kills | Farming a live lane: leading the windup, counting turret shots, not waking the wave |
 | **Target Switch** | Switch latency and accuracy | Retargeting mid-fight without freezing |
 | **Combos** | Sequence execution under a closing window | Ability order while your other hand is busy |
 | **1v1 / 1v2 / 1v3** | All of the above, against live AI | Priority, cooldown awareness, not panicking |
@@ -52,6 +52,39 @@ npm run build      # production bundle
 | **Silver Bolts** | Bolt efficiency, stacks dropped | Finishing the third hit instead of switching at two |
 | **Condemn** | Wall stun rate, chances missed | Standing on the right side of the wall *before* the fight |
 | **Night Hunter** | Kit execution under a live 1v2 | Playing Vayne rather than an ADC who owns her abilities |
+
+### Last Hit is a lane
+
+The last-hit drill is a simulated lane rather than a health-bar countdown, and
+the difference is the point. Six minions a side walk out of their gates, pick
+targets by League's own priority table and fight; a turret behind each side
+shoots whatever comes into reach; from the halfway difficulty an enemy laner
+stands opposite you taking the same farm, and the HUD shows their CS next to
+yours.
+
+Nothing drains. Every point of damage in that lane was thrown by a body you can
+watch wind up, which is what turns "click when the bar is short" into four
+reads that transfer:
+
+- **Lead the attack.** Your windup plus your missile's flight is about a third
+  of a second, so the bar you are looking at is not the bar your arrow arrives
+  at. Every minion's plate shows the damage already in the air as a pale wash,
+  and your own damage as a tick — once the health crosses it, the minion is
+  yours.
+- **Count the turret.** A caster minion dies to one turret shot plus one of
+  your attacks; a melee minion to two turret shots plus one. Those numbers are
+  exact, so under-tower farming is practisable instead of mystical.
+- **Don't touch the champion.** Auto the enemy laner with the wave on top of
+  you and six minions turn around, by the same targeting rules the real game
+  uses.
+- **Don't push for free.** Attacks per CS is scored. A clean farmer sits at
+  one; every extra swing at a healthy minion shoves the wave toward their
+  turret and empties your timer for the minion that drops a second later.
+
+How much the drill draws for you falls away as the difficulty rises: below the
+halfway mark it marks the minion you can take and names the mistake you just
+made, above it you keep the health-bar plates only, and at the top you get a
+lane and the bars League would have given you.
 
 ## The mechanics model
 

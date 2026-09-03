@@ -59,8 +59,10 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
     case 'aim':
     case 'targetswitch':
       return { w: 1500, h: 900 };
+    // The lane is the drill: two gates, two turrets and enough room between
+    // them for a wave to be pushed somewhere that matters.
     case 'lasthit':
-      return { w: 1400, h: 900 };
+      return { w: 2100, h: 880 };
     case 'duel1v2':
     case 'duel1v3':
       return { w: 1800, h: 1050 };
