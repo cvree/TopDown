@@ -95,6 +95,7 @@ export const overallRating = (
     targeting: 1.0,
     combat: 1.35,
     lastHitting: 0.75,
+    tempo: 1.05,
   };
   let sum = 0;
   let wsum = 0;

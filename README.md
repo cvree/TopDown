@@ -5,10 +5,11 @@ thing that feels rewarding should be the thing that actually makes you better.
 
 It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
-drawn on the ground where the thing it is about actually is. Sixteen drills, a
-ranked mechanical skill system driven by measured performance rather than time
-played, a champion path that teaches one champion properly, and a results
-screen designed so you can see exactly what you did and what it cost you.
+drawn on the ground where the thing it is about actually is. Twenty-nine
+drills — including a thirteen-mode APM trainer — a ranked mechanical skill
+system driven by measured performance rather than time played, a champion path
+that teaches one champion properly, and a results screen designed so you can
+see exactly what you did and what it cost you.
 
 It can be driven either way: League's click-to-move, or WASD. Both obey the
 same windup law, so a run scores identically under either.
@@ -53,6 +54,8 @@ npm run build      # production bundle
 | **Condemn** | Wall stun rate, chances missed | Standing on the right side of the wall *before* the fight |
 | **Night Hunter** | Kit execution under a live 1v2 | Playing Vayne rather than an ADC who owns her abilities |
 
+The APM trainer's thirteen modes are listed in their own section below.
+
 ## The mechanics model
 
 The simulation reproduces the parts of League combat that matter for muscle
@@ -86,9 +89,63 @@ health bar.
 The AI perceives you through a delayed snapshot buffer, so its reaction time is
 a real latency rather than a fudge factor.
 
+## The APM trainer
+
+Thirteen modes over one engine (`src/drills/apm/`), all measured the same way:
+**correct commands per minute**. It is the part of the trainer you open when
+your hands are the thing you want to work on rather than your reads.
+
+| Mode | The command it counts | What makes it hard |
+| --- | --- | --- |
+| **Aim** | A click on the mark | Nothing but the rate. This is the ceiling on everything else |
+| **Aim 2** | A click on the *lowest-numbered* mark | Speed now costs you a read |
+| **Aim + Map** | Clicks in the middle, D or F at the rim | Two screens, one pair of hands |
+| **Mouse Precision** | A click through the centre of a small drifting mark | Graded in pixels; the marks shrink as your chain grows |
+| **Key Coordination** | The front key of a rolling queue | No mouse at all, and the window shrinks as you speed up |
+| **Dodge** | A movement order | Charges pull you somewhere, telegraphs push you off it |
+| **Dodge + Cooldown** | A movement order, and four cooldowns spent on sight | Both hands, at once, neither allowed to wait |
+| **Kiting** | The attack *and* the step | Holding a full attack cycle without throwing a windup away |
+| **Defensive Kiting** | The same pair, running backwards | Every step now has a direction it has to be in |
+| **Last Hit** | An attack order on the right bar | Five bars falling at once and one attack cycle |
+| **Last Hit 2** | The same, while being shot at | A predictable last-hit position is a free hit for them |
+| **Spacing** | A reposition, on the beat | Max range → step in → disengage, and the beat accelerates |
+| **Smite** | One key, in a window you do not control | Three objectives in three places and a rival reaching for the same key |
+
+**Speed alone is not a score.** Every mode routes its inputs through three
+verbs — a hit, a fumble, or a stray — and the number the score is built on is
+*correct* actions per minute, not raw ones. Mashing the field raises the rate
+on the HUD and leaves the scored rate exactly where it was; the headless suite
+asserts it, and a random masher scores 2% where a player scores 100%. Repeating
+an order you already gave is not an action either, so a macro cannot inflate
+the count.
+
+**The flow ladder is the feel and the read at the same time.** Chained correct
+actions climb five tiers — IN RHYTHM, HOT HANDS, BLAZING, TRANSCENDENT — each
+worth a bigger multiplier (×1.35 up to ×3.2) and each audibly different: the
+confirmation pitch rises with the chain, the arena bed swells, and from the
+second tier a metronome appears and accelerates with you. Losing the chain
+takes all of it away in one sound. You can tell how a run is going with your
+eyes shut, and the score is mostly made of the multiplier, so protecting a
+streak matters more than any single input.
+
+**The drill paces itself to you.** Spawn rates, prompt windows and target sizes
+read your current flow rather than a clock, so the mode sits just past the edge
+of whatever you are doing at the time.
+
+**Both control schemes count.** Under WASD a movement command is a key going
+down and a heading changing rather than a click on the ground, so the movement
+modes count those instead — the step out of a backswing scores identically
+whichever hand took it, and the key-coordination prompt prints the key your
+hand is actually on rather than the slot's name.
+
+Modes that ask you to survive something give you a deep health pool on purpose:
+the cost of standing in a telegraph here is your multiplier, not the run.
+Ratings from these modes feed a tenth skill axis, **APM**, alongside the nine
+the rest of the trainer already measured.
+
 ## The Vayne path
 
-The ladder above rates nine general axes and does not care which champion you
+The ladder above rates ten general axes and does not care which champion you
 play. The champion path is the other thing: one champion, four stages in the
 order they actually have to be learned, each gating the next.
 
@@ -122,9 +179,9 @@ about these drills, not about anybody's ranked ladder.
 is not a prediction of anyone's League ranked tier, and the UI says so wherever
 the rank appears.
 
-Nine axes are rated independently — Movement, Aim, Skillshot, Dodging, Kiting,
-Spacing, Targeting, Combat, Last Hitting — and blended into an overall rating
-on an Iron → Challenger ladder.
+Ten axes are rated independently — Movement, Aim, Skillshot, Dodging, Kiting,
+Spacing, Targeting, Combat, Last Hitting, APM — and blended into an overall
+rating on an Iron → Challenger ladder.
 
 **Rank comes from performance, not attendance.** Each run produces a
 performance in 0..1 and the difficulty it was played at. Those give an *expected
@@ -165,6 +222,11 @@ depends on:
 - 1v1 is winnable; 1v2 and 1v3 cost progressively more health; all three are
   winnable, averaged across seeds.
 - The same policy performs worse at higher difficulty.
+- **Every APM mode rewards playing it, refuses to reward idling, and reports a
+  real actions-per-minute figure.** A bot that clicks at random produces the
+  highest raw APM in the suite and scores 2%, against 100% for the same bot
+  playing properly — the check that keeps an APM trainer from degenerating into
+  a click-speed test.
 
 `npm run test:drill <drill> <difficulty>` plays a single drill headlessly and
 prints a per-5-second trace — the fastest way to see why a tuning change
@@ -304,6 +366,7 @@ src/engine/     simulation: world, combat, AI, metrics, audio, input, paint
 src/engine/vayne.ts   the champion kit: tumble, bolts, condemn, final hour
 src/gfx/        the 3D renderer: scene, terrain, walls, champions, decals, VFX
 src/drills/     one file per drill; each owns its rules and its scoring
+src/drills/apm/ the APM trainer: one engine, thirteen modes over it
 src/progression/ rating maths, rank ladder, champion path, profile persistence
 src/ui/         React shell, HUD, results, profile, rank-up, the Vayne path
 tools/          headless test harnesses

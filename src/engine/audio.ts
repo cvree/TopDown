@@ -57,6 +57,10 @@ type SfxName =
   | 'telegraph'
   | 'hazardFire'
   | 'enemyCast'
+  /* ---- the APM trainer's flow ladder ---- */
+  | 'flowTier'
+  | 'flowPulse'
+  | 'flowBreak'
   /* ---- ceremony ---- */
   | 'gateEnter'
   | 'announce';
@@ -435,6 +439,29 @@ export class AudioEngine {
           slideTo: 1200 * semi(this.comboPitch),
           pan,
         });
+        break;
+
+      // --------------------------------------------------------- flow ladder
+      case 'flowTier':
+        // A chord that arrives rather than a note that plays: root, fifth and
+        // octave stacked two frames apart, over a low swell you feel in the
+        // chest. This is the sound of the multiplier going up and it is meant
+        // to be the best sound in the trainer.
+        this.tone(196, 0.5, { type: 'sine', gain: 0.16 * intensity, slideTo: 392, space: 0.5 });
+        this.metal(523.25, 0.5, { gain: 0.09 * intensity, ratios: [1, 1.5, 2, 3], space: 0.45 });
+        this.tone(1046.5, 0.42, { type: 'triangle', gain: 0.07 * intensity, delay: 0.05, space: 0.5 });
+        this.noise(0.3, { gain: 0.05 * intensity, hp: 2400, lp: 12000, lpEnd: 3000, space: 0.4 });
+        break;
+      case 'flowPulse':
+        // The metronome. Deliberately tiny — it should sit under the hits and
+        // be felt as tempo rather than heard as a click.
+        this.tone(1560 * semi(this.comboPitch * 0.25), 0.028, { type: 'sine', gain: 0.035 * intensity, space: 0.08 });
+        this.noise(0.018, { gain: 0.02 * intensity, hp: 4000, lp: 13000, space: 0.05 });
+        break;
+      case 'flowBreak':
+        // Everything the tier-up is, inverted: falling, dull, over quickly.
+        this.tone(330, 0.24, { type: 'sawtooth', gain: 0.09 * intensity, slideTo: 82, filter: 1200, filterEnd: 300, pan });
+        this.noise(0.18, { gain: 0.06 * intensity, hp: 160, lp: 1800, lpEnd: 220, pan, space: 0.25 });
         break;
 
       // -------------------------------------------------------- abilities

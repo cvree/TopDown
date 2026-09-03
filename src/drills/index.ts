@@ -1,5 +1,6 @@
 import type { Session } from '../engine/session';
 import { AimDrill } from './aim';
+import { createApmDrill } from './apm';
 import { ArenaDrill } from './arena';
 import type { Drill } from './base';
 import { DRILLS, type DrillId } from './catalog';
@@ -17,6 +18,9 @@ import { VayneHuntDrill } from './vaynehunt';
 import { VayneTumbleDrill } from './vaynetumble';
 
 export const createDrill = (id: DrillId, session: Session): Drill => {
+  // The APM trainer owns thirteen of the ids and builds them from one engine.
+  const apm = createApmDrill(id, session);
+  if (apm) return apm;
   switch (id) {
     case 'movement':
       return new MovementDrill(session);
@@ -50,6 +54,8 @@ export const createDrill = (id: DrillId, session: Session): Drill => {
       return new VayneCondemnDrill(session);
     case 'vayneHunt':
       return new VayneHuntDrill(session);
+    default:
+      throw new Error(`unknown drill: ${id}`);
   }
 };
 
@@ -59,6 +65,26 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
     case 'aim':
     case 'targetswitch':
       return { w: 1500, h: 900 };
+    // The APM click modes want a field the cursor can cross without a camera
+    // move; the movement modes want somewhere to run to.
+    case 'apmAim':
+    case 'apmAim2':
+    case 'apmPrecision':
+    case 'apmKeys':
+      return { w: 1500, h: 900 };
+    case 'apmAimMap':
+      return { w: 1700, h: 1000 };
+    case 'apmLastHit':
+    case 'apmLastHit2':
+      return { w: 1500, h: 940 };
+    case 'apmDodge':
+    case 'apmDodgeCd':
+    case 'apmKite':
+    case 'apmDefKite':
+    case 'apmSpacing':
+      return { w: 1760, h: 1010 };
+    case 'apmSmite':
+      return { w: 1980, h: 1140 };
     case 'lasthit':
       return { w: 1400, h: 900 };
     case 'duel1v2':

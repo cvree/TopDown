@@ -17,9 +17,23 @@ export type DrillId =
   | 'vayneTumble'
   | 'vayneBolts'
   | 'vayneCondemn'
-  | 'vayneHunt';
+  | 'vayneHunt'
+  /* --- the APM trainer. One engine, thirteen ways to be measured by it --- */
+  | 'apmAim'
+  | 'apmAim2'
+  | 'apmAimMap'
+  | 'apmPrecision'
+  | 'apmKeys'
+  | 'apmDodge'
+  | 'apmDodgeCd'
+  | 'apmKite'
+  | 'apmDefKite'
+  | 'apmLastHit'
+  | 'apmLastHit2'
+  | 'apmSpacing'
+  | 'apmSmite';
 
-export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'VAYNE';
+export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'APM' | 'VAYNE';
 
 export interface DrillMeta {
   id: DrillId;
@@ -207,6 +221,195 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     accent: '#ff4d6d',
     keyMetric: 'SURVIVAL',
     order: 12,
+  },
+  // ------------------------------------------------------------------- APM
+  //
+  // Thirteen modes over one engine. Every one of them counts the same thing —
+  // correct commands per minute — and every one of them refuses to count an
+  // input that did not mean anything, which is what separates this from a
+  // click-speed test. The flow ladder is shared: chain your actions and the
+  // multiplier climbs through five tiers, break and it is gone.
+  apmAim: {
+    id: 'apmAim',
+    name: 'AIM',
+    tagline: 'Raw click rate',
+    brief: 'Marks light up and die fast. No decoys, no order — just how many correct commands a minute your hand makes.',
+    transfers: 'The ceiling on everything else you do with a mouse in a fight.',
+    group: 'APM',
+    axes: { tempo: 0.7, aim: 0.3 },
+    duration: 45,
+    abilities: [],
+    accent: '#7ceaff',
+    keyMetric: 'SUSTAINED APM',
+    order: 30,
+  },
+  apmAim2: {
+    id: 'apmAim2',
+    name: 'AIM 2',
+    tagline: 'Rate, with a read on top',
+    brief: 'The marks are numbered and only the lowest one is legal. Speed now costs you a decision.',
+    transfers: 'Clicking the champion you meant while three of them are on the screen.',
+    group: 'APM',
+    axes: { tempo: 0.55, targeting: 0.3, aim: 0.15 },
+    duration: 50,
+    abilities: [],
+    accent: '#8ad4ff',
+    keyMetric: 'SUSTAINED APM',
+    order: 31,
+  },
+  apmAimMap: {
+    id: 'apmAimMap',
+    name: 'AIM + MAP',
+    tagline: 'Two screens, one pair of hands',
+    brief: 'Keep clicking marks in the middle while alerts flash at the rim. Red wants D, blue wants F, both die in a second.',
+    transfers: 'Answering the minimap without dropping whatever your hands were already doing.',
+    group: 'APM',
+    axes: { tempo: 0.5, targeting: 0.3, aim: 0.2 },
+    duration: 55,
+    abilities: ['d', 'f'],
+    accent: '#9fc4ff',
+    keyMetric: 'SUSTAINED APM',
+    order: 32,
+  },
+  apmPrecision: {
+    id: 'apmPrecision',
+    name: 'MOUSE PRECISION',
+    tagline: 'Speed measured in pixels',
+    brief: 'Small drifting marks, graded on how far from the centre you land. They shrink as your chain grows.',
+    transfers: 'Landing on the champion rather than the ground beside them when your hand is already moving.',
+    group: 'APM',
+    axes: { tempo: 0.5, aim: 0.5 },
+    duration: 45,
+    abilities: [],
+    accent: '#b8e4ff',
+    keyMetric: 'SUSTAINED APM',
+    order: 33,
+  },
+  apmKeys: {
+    id: 'apmKeys',
+    name: 'KEY COORDINATION',
+    tagline: 'The left hand, alone',
+    brief: 'A queue of keys runs above your champion. Answer the front one, read two ahead, never touch the mouse.',
+    transfers: 'Combos coming out clean while your other hand is busy steering.',
+    group: 'APM',
+    axes: { tempo: 0.65, targeting: 0.35 },
+    duration: 45,
+    abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
+    accent: '#c48bff',
+    keyMetric: 'SUSTAINED APM',
+    order: 34,
+  },
+  apmDodge: {
+    id: 'apmDodge',
+    name: 'DODGE',
+    tagline: 'Movement APM',
+    brief: 'Charges to collect, telegraphs to leave. Standing still is safe for about a second and then it is not.',
+    transfers: 'Repositioning constantly instead of in bursts when something lands on you.',
+    group: 'APM',
+    axes: { tempo: 0.45, dodging: 0.35, movement: 0.2 },
+    duration: 60,
+    abilities: [],
+    accent: '#ffcf6b',
+    keyMetric: 'SUSTAINED APM',
+    order: 35,
+  },
+  apmDodgeCd: {
+    id: 'apmDodgeCd',
+    name: 'DODGE + COOLDOWN',
+    tagline: 'Both hands at once',
+    brief: 'Everything the dodge mode asks, plus four cooldowns that must be spent the moment they come up.',
+    transfers: 'Never sitting on an ability because your feet were busy.',
+    group: 'APM',
+    axes: { tempo: 0.4, dodging: 0.3, combat: 0.3 },
+    duration: 65,
+    abilities: ['q', 'w', 'e', 'r'],
+    accent: '#ffb45c',
+    keyMetric: 'SUSTAINED APM',
+    order: 36,
+  },
+  apmKite: {
+    id: 'apmKite',
+    name: 'KITING',
+    tagline: 'Attack, move, attack — at rate',
+    brief: 'A pace dummy that cannot hurt you. The only question is whether you can hold a full attack cycle for a minute.',
+    transfers: 'Orbwalking at the speed a real fight moves rather than the speed a drill lets you.',
+    group: 'APM',
+    axes: { tempo: 0.45, kiting: 0.4, spacing: 0.15 },
+    duration: 60,
+    abilities: [],
+    accent: '#5ce1a8',
+    keyMetric: 'SUSTAINED APM',
+    order: 37,
+  },
+  apmDefKite: {
+    id: 'apmDefKite',
+    name: 'DEFENSIVE KITING',
+    tagline: 'The rhythm, running backwards',
+    brief: 'Divers that want to reach you. Same cycle, except every step now has a direction it has to be in.',
+    transfers: 'Kiting a gap-closer down without giving up your own damage to do it.',
+    group: 'APM',
+    axes: { tempo: 0.35, kiting: 0.35, spacing: 0.2, dodging: 0.1 },
+    duration: 60,
+    abilities: [],
+    accent: '#4fd6c4',
+    keyMetric: 'SUSTAINED APM',
+    order: 38,
+  },
+  apmLastHit: {
+    id: 'apmLastHit',
+    name: 'LAST HIT',
+    tagline: 'CS at rate',
+    brief: 'Five bars falling at once and allied fire that does not care which one you wanted. Choose, and already be there.',
+    transfers: 'Taking the whole wave instead of the two you were looking at.',
+    group: 'APM',
+    axes: { tempo: 0.4, lastHitting: 0.45, targeting: 0.15 },
+    duration: 60,
+    abilities: [],
+    accent: '#ffd166',
+    keyMetric: 'SUSTAINED APM',
+    order: 39,
+  },
+  apmLastHit2: {
+    id: 'apmLastHit2',
+    name: 'LAST HIT 2',
+    tagline: 'CS with someone standing on you',
+    brief: 'The same wave, plus a harasser aiming where your next last hit would put you.',
+    transfers: 'CS under harassment — the only kind that decides a lane.',
+    group: 'APM',
+    axes: { tempo: 0.35, lastHitting: 0.4, dodging: 0.25 },
+    duration: 65,
+    abilities: [],
+    accent: '#ffab5c',
+    keyMetric: 'SUSTAINED APM',
+    order: 40,
+  },
+  apmSpacing: {
+    id: 'apmSpacing',
+    name: 'SPACING',
+    tagline: 'The band, on a beat',
+    brief: 'Max range, step in, disengage. The call changes every beat and the beat speeds up as you climb.',
+    transfers: 'Changing the gap on purpose the moment a cooldown comes up, instead of drifting.',
+    group: 'APM',
+    axes: { tempo: 0.4, spacing: 0.45, movement: 0.15 },
+    duration: 55,
+    abilities: [],
+    accent: '#6be0a0',
+    keyMetric: 'SUSTAINED APM',
+    order: 41,
+  },
+  apmSmite: {
+    id: 'apmSmite',
+    name: 'SMITE',
+    tagline: 'The execute, on a clock you do not own',
+    brief: 'Three objectives burning down in three places, one smite, and a rival with his finger on the same key.',
+    transfers: 'Being stood on the camp before the window opens — which is the whole skill.',
+    group: 'APM',
+    axes: { tempo: 0.4, lastHitting: 0.35, movement: 0.25 },
+    duration: 60,
+    abilities: ['d'],
+    accent: '#ff9f5c',
+    keyMetric: 'SUSTAINED APM',
+    order: 42,
   },
   vayneTumble: {
     id: 'vayneTumble',
