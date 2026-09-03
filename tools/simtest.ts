@@ -52,6 +52,8 @@ type Policy =
   | 'idle'
   | 'standStill'
   | 'dodge'
+  | 'dodgeFight'
+  | 'flee'
   | 'aim'
   | 'hold'
   | 'nodes'
@@ -253,6 +255,131 @@ const runDrill = (
             // Attacks, never moves: good DPS, no orbwalking.
             reactTimer = 0.1;
             if (target) input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+            break;
+          }
+          case 'flee': {
+            // The strategy the old dodge drill rewarded: find the emptiest
+            // corner of the floor and stay in it. It should still score its
+            // avoidance honestly and it should not be able to pass.
+            reactTimer = 0.3;
+            let far = { x: bounds.w * 0.08, y: bounds.h * 0.08 };
+            let bestD = -1;
+            for (const corner of [
+              { x: bounds.w * 0.08, y: bounds.h * 0.08 },
+              { x: bounds.w * 0.92, y: bounds.h * 0.08 },
+              { x: bounds.w * 0.08, y: bounds.h * 0.92 },
+              { x: bounds.w * 0.92, y: bounds.h * 0.92 },
+            ]) {
+              let nearest = Infinity;
+              for (const e of session.world.enemies()) nearest = Math.min(nearest, dist(corner, e.pos));
+              if (nearest > bestD) {
+                bestD = nearest;
+                far = corner;
+              }
+            }
+            input.push({ kind: 'move', x: far.x, y: far.y, t: t * 1000 });
+            break;
+          }
+          case 'dodgeFight': {
+            // Dodge, and then make the dodge worth something: step into range
+            // of an emitter, take the shot, and leave. This is the behaviour
+            // the drill is supposed to be measuring.
+            reactTimer = 0.05;
+            const emitters = session.world.enemies().filter((e) => e.unitKind === 'turret');
+            const pick = emitters.length
+              ? emitters.reduce((a, b) => (dist(p.pos, a.pos) <= dist(p.pos, b.pos) ? a : b))
+              : null;
+
+            // Telegraphed ground first. Most of what this drill throws is a
+            // hazard rather than a missile, and a policy that only watches
+            // missiles is not dodging — it is being lucky, slowly.
+            let escape = { x: 0, y: 0 };
+            for (const h of session.world.hazards) {
+              if (h.team !== 'enemy' || h.active <= 0) continue;
+              if (!session.world.hazardHits(h, p.pos, p.radius + 70)) continue;
+              const away =
+                h.shape === 'ring'
+                  ? (() => {
+                      const d = dist(p.pos, h.pos);
+                      const r = norm(p.pos.x - h.pos.x, p.pos.y - h.pos.y);
+                      // Inside a ring the way out is inward, outside it is out.
+                      const inward = d < h.radius;
+                      return inward ? { x: -r.x, y: -r.y } : r;
+                    })()
+                  : norm(p.pos.x - h.pos.x, p.pos.y - h.pos.y);
+              escape.x += away.x;
+              escape.y += away.y;
+            }
+            if (escape.x !== 0 || escape.y !== 0) {
+              const out = norm(escape.x, escape.y);
+              input.push({
+                kind: 'move',
+                x: Math.max(60, Math.min(bounds.w - 60, p.pos.x + out.x * 340)),
+                y: Math.max(60, Math.min(bounds.h - 60, p.pos.y + out.y * 340)),
+                t: t * 1000,
+              });
+              break;
+            }
+
+            // Which missile is actually going to hit, and when — rather than
+            // which one happens to be nearest. A volley puts eight in the air
+            // and only two of them are aimed at you; dodging the closest one
+            // means stepping into the path of the next.
+            let threat: { x: number; y: number } | null = null;
+            let miss = { x: 0, y: 0 };
+            let td = Infinity;
+            for (const pr of session.world.projectiles) {
+              if (pr.team !== 'enemy') continue;
+              const rx = p.pos.x - pr.pos.x;
+              const ry = p.pos.y - pr.pos.y;
+              const vv = pr.vel.x * pr.vel.x + pr.vel.y * pr.vel.y;
+              if (vv < 1) continue;
+              const tHit = (rx * pr.vel.x + ry * pr.vel.y) / vv;
+              if (tHit < 0 || tHit > 1.1) continue;
+              const missX = rx - pr.vel.x * tHit;
+              const missY = ry - pr.vel.y * tHit;
+              if (Math.hypot(missX, missY) > p.radius + pr.radius + 26) continue;
+              if (tHit < td) {
+                td = tHit;
+                threat = pr.vel;
+                miss = { x: missX, y: missY };
+              }
+            }
+            // Something in the air comes first: dodge perpendicular, but bias
+            // the sidestep toward whatever you were trying to shoot.
+            if (threat) {
+              // Sidestep the way you are already off the line: continuing off
+              // it clears in half the distance that crossing it does, and
+              // crossing it is how a panicked dodge walks into the shot.
+              const perp = norm(-threat.y, threat.x);
+              const off = perp.x * miss.x + perp.y * miss.y;
+              const bias = pick ? norm(pick.pos.x - p.pos.x, pick.pos.y - p.pos.y) : { x: 0, y: 0 };
+              const sign =
+                Math.abs(off) > 4 ? (off >= 0 ? 1 : -1) : perp.x * bias.x + perp.y * bias.y >= 0 ? 1 : -1;
+              input.push({
+                kind: 'move',
+                x: Math.max(60, Math.min(bounds.w - 60, p.pos.x + perp.x * sign * 300)),
+                y: Math.max(60, Math.min(bounds.h - 60, p.pos.y + perp.y * sign * 300)),
+                t: t * 1000,
+              });
+              break;
+            }
+            if (!pick) break;
+            const dp = dist(p.pos, pick.pos);
+            if (dp - pick.radius <= p.attack.range && p.attackCd <= 0.001 && p.phase !== 'windup') {
+              input.push({ kind: 'move', x: pick.pos.x, y: pick.pos.y, t: t * 1000 });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const toward = norm(pick.pos.x - p.pos.x, pick.pos.y - p.pos.y);
+            const want = p.attack.range * 0.85 + pick.radius;
+            const sign = dp > want ? 1 : -1;
+            input.push({
+              kind: 'move',
+              x: Math.max(60, Math.min(bounds.w - 60, p.pos.x + toward.x * sign * 300)),
+              y: Math.max(60, Math.min(bounds.h - 60, p.pos.y + toward.y * sign * 300)),
+              t: t * 1000,
+            });
             break;
           }
           case 'dodge': {
@@ -908,13 +1035,34 @@ expect('orbwalk produces few cancels', kiteGood.m.attacksCancelled <= 2, `${kite
 expect('orbwalk deals real damage', kiteGood.m.damageDealt > 400, `${Math.round(kiteGood.m.damageDealt)}`);
 expect('standing still takes more damage than kiting', kiteStill.m.hpLost > kiteGood.m.hpLost, `${Math.round(kiteStill.m.hpLost)} vs ${Math.round(kiteGood.m.hpLost)}`);
 
-line('\n=== DODGE: reacting vs. idle ===');
-const dodgeGood = runDrill('dodge', 'dodge', 0.4);
+line('\n=== DODGE: a dodge has to end somewhere useful ===');
+const dodgeGood = runDrill('dodge', 'dodgeFight', 0.4);
+const dodgeOnly = runDrill('dodge', 'dodge', 0.4);
+const dodgeFlee = runDrill('dodge', 'flee', 0.4);
 const dodgeIdle = runDrill('dodge', 'idle', 0.4);
-line(`  reacting: hits ${dodgeGood.m.hitsTaken}  survived ${dodgeGood.m.survivalTime.toFixed(1)}s  nearMiss ${dodgeGood.m.nearMisses}  perf ${pct(dodgeGood.out.performance)}`);
+const metricOf = (r: ReturnType<typeof runDrill>, id: string) => r.out.keyMetrics.find((k) => k.id === id)?.value ?? 0;
+line(`  fighting: hits ${dodgeGood.m.hitsTaken}  avoided ${metricOf(dodgeGood, 'avoided')}  dealt ${metricOf(dodgeGood, 'dealt')}  emitters ${metricOf(dodgeGood, 'emitters')}  perf ${pct(dodgeGood.out.performance)}`);
+line(`  dodging : hits ${dodgeOnly.m.hitsTaken}  avoided ${metricOf(dodgeOnly, 'avoided')}  dealt ${metricOf(dodgeOnly, 'dealt')}  perf ${pct(dodgeOnly.out.performance)}`);
+line(`  fleeing : hits ${dodgeFlee.m.hitsTaken}  avoided ${metricOf(dodgeFlee, 'avoided')}  dealt ${metricOf(dodgeFlee, 'dealt')}  perf ${pct(dodgeFlee.out.performance)}`);
 line(`  idle    : hits ${dodgeIdle.m.hitsTaken}  survived ${dodgeIdle.m.survivalTime.toFixed(1)}s  perf ${pct(dodgeIdle.out.performance)}`);
-expect('dodging beats standing still', dodgeGood.out.performance > dodgeIdle.out.performance, `${pct(dodgeGood.out.performance)} vs ${pct(dodgeIdle.out.performance)}`);
+expect('dodging beats standing still', dodgeOnly.out.performance > dodgeIdle.out.performance, `${pct(dodgeOnly.out.performance)} vs ${pct(dodgeIdle.out.performance)}`);
 expect('idle player actually gets hit', dodgeIdle.m.hitsTaken > 2, `${dodgeIdle.m.hitsTaken}`);
+expect(
+  'dodging while fighting beats dodging alone',
+  dodgeGood.out.performance > dodgeOnly.out.performance * 1.4,
+  `${pct(dodgeGood.out.performance)} vs ${pct(dodgeOnly.out.performance)}`,
+);
+expect(
+  'running away forever cannot pass',
+  dodgeFlee.out.performance < 0.4,
+  `${pct(dodgeFlee.out.performance)}`,
+);
+expect(
+  'fleeing is still credited with what it avoided',
+  metricOf(dodgeFlee, 'avoided') > 0 && metricOf(dodgeFlee, 'dealt') === 0,
+  `avoided ${metricOf(dodgeFlee, 'avoided')}, dealt ${metricOf(dodgeFlee, 'dealt')}`,
+);
+expect('a fighting run actually deals damage', metricOf(dodgeGood, 'dealt') > 400, `${metricOf(dodgeGood, 'dealt')}`);
 
 line('\n=== 1v1: fighting vs. idle ===');
 const duelGood = runDrill('duel1v1', 'orbwalk', 0.4);

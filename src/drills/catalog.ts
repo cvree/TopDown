@@ -115,15 +115,16 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
   dodge: {
     id: 'dodge',
     name: 'DODGE',
-    tagline: 'Skillshot survival',
-    brief: 'Read the telegraph, move once, be somewhere else. Waves escalate every 15 seconds.',
-    transfers: 'Reacting to skillshots with a single correct movement instead of panicking.',
+    tagline: 'Somewhere else, and somewhere useful',
+    brief:
+      'Read the telegraph, move once, be somewhere else — and kill the emitters throwing it. Both halves are scored; neither can carry the run.',
+    transfers: 'Dodging while still doing your job, instead of leaving the fight to be safe in a corner.',
     group: 'FOUNDATION',
-    axes: { dodging: 0.8, movement: 0.2 },
+    axes: { dodging: 0.7, movement: 0.15, combat: 0.15 },
     duration: 75,
     abilities: [],
     accent: '#ffcf6b',
-    keyMetric: 'DODGE RATE',
+    keyMetric: 'DAMAGE AVOIDED',
     order: 4,
   },
   spacing: {
