@@ -131,27 +131,36 @@
   background: linear-gradient(90deg, var(--gold-deep), var(--gold-lit));
 }
 .td-rank-row {
-  display: flex;
-  gap: 14px;
+  /* Three equal columns rather than flex: the labels are different lengths and
+     "MIN TRAINED" is the widest, so sizing to content leaves it colliding with
+     its neighbour on a narrow card. */
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   width: 100%;
-  justify-content: space-between;
   padding-top: 12px;
   border-top: 1px solid var(--stroke);
 }
 .td-rank-row span {
   display: grid;
   gap: 1px;
-  flex: 1;
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-4);
+  min-width: 0;
+  justify-items: center;
+  text-align: center;
 }
 .td-rank-row em {
   font-style: normal;
   font-size: 14px;
   letter-spacing: 0.02em;
   color: var(--text);
+}
+.td-rank-row i {
+  font-style: normal;
+  font-size: 8.5px;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-4);
 }
 
 /* ------------------------------------------------------------- the session */
@@ -348,16 +357,60 @@
 }
 
 /* champion + academy */
+
+/* The roster chip. It reads as a badge rather than as a heading, because the
+   champion you wear is not progress and should not look like it.
+
+   Named `td-roster`, not `td-hero`: `.td-hero` is already the top section, so
+   a chip called that silently restyles the section it lives in — including
+   every span in the rating card next to it. */
+.td-roster {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--stroke);
+  border-left: 3px solid var(--c);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 12%, transparent), rgba(4, 8, 16, 0.55) 45%);
+  transition: border-color 0.2s var(--ease);
+}
+.td-roster:hover {
+  border-color: var(--stroke-2);
+}
+.td-roster > div {
+  min-width: 0;
+}
+.td-roster b {
+  display: block;
+  font-family: var(--ui);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--text);
+}
+.td-roster span {
+  display: block;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--text-4);
+}
+.td-roster i {
+  margin-left: auto;
+  flex: none;
+  align-self: center;
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--text-4);
+}
+
 .td-champ-top {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 14px;
-}
-.td-champ-name {
-  font-size: 26px;
-  letter-spacing: 0.12em;
-  color: #e7c8ff;
 }
 .td-champ-mast {
   text-align: right;

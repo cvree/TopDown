@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ARCHETYPES } from '../engine/archetypes';
+import { DEFAULT_HERO, HEROES, isHeroId, type HeroId } from '../engine/heroes';
 import type { Actor, ArchetypeId } from '../engine/types';
 import type { World } from '../engine/world';
 import { ChampionRig, type RigSpec } from './champions';
@@ -13,44 +14,24 @@ import { ChampionRig, type RigSpec } from './champions';
  * scoring reads, never a separate visual approximation of it.
  */
 
-type VisualKey =
-  | ArchetypeId
-  | 'player'
-  | 'nightHunter'
-  | 'minionMelee'
-  | 'minionCaster'
-  | 'minionCannon'
-  | 'dummy';
+type VisualKey = ArchetypeId | HeroId | 'minionMelee' | 'minionCaster' | 'minionCannon' | 'dummy';
+
+/** Hero ids and archetype ids share one namespace here, so they may not collide. */
+const isHeroKey = (k: VisualKey): k is HeroId => isHeroId(k);
 
 const ENEMY_RING = '#ff4d42';
 const ALLY_RING = '#5fe0ff';
 
 const VISUALS: Record<VisualKey, Omit<RigSpec, 'height' | 'radius' | 'ringColor'>> = {
-  player: {
-    // The player reads brightest of anything in the arena, on purpose. You
-    // must never have to hunt for your own champion.
-    build: 'medium',
-    primary: '#4e9ee0',
-    secondary: '#e2c77a',
-    accent: '#9ff2ff',
-    skin: '#e6c2a0',
-    weapon: 'sword',
-    headgear: 'helm',
-    cape: true,
-  },
-  // The Vayne silhouette: lean, hooded, cloaked, and violet rather than the
-  // default blue — at this camera distance the outline and the colour are the
-  // whole of a champion's identity, so those are the two things that change.
-  nightHunter: {
-    build: 'lean',
-    primary: '#4a2f6b',
-    secondary: '#1b1030',
-    accent: '#c86bff',
-    skin: '#e3c6ae',
-    weapon: 'bow',
-    headgear: 'hood',
-    cape: true,
-  },
+  // Every playable body comes from the roster rather than being restated
+  // here: the champion you picked in settings, the one the Vayne path spawns
+  // and the one standing in the menu backdrop are then provably the same
+  // champion. At this camera distance the outline and the colour are the whole
+  // of a champion's identity, which is exactly what a `HeroLook` carries.
+  ...(Object.fromEntries(Object.entries(HEROES).map(([id, h]) => [id, h.look])) as Record<
+    HeroId,
+    Omit<RigSpec, 'height' | 'radius' | 'ringColor'>
+  >),
   ranger: {
     build: 'lean',
     primary: '#46a37e',
@@ -159,8 +140,10 @@ const VISUALS: Record<VisualKey, Omit<RigSpec, 'height' | 'radius' | 'ringColor'
 };
 
 const visualKeyFor = (a: Actor, playerId: number): VisualKey => {
-  if (a.visual === 'nightHunter') return 'nightHunter';
-  if (a.id === playerId) return 'player';
+  // A drill that named a champion outranks everything, including the roster:
+  // the Vayne path is about a specific body and must always get it.
+  if (a.visual && isHeroId(a.visual)) return a.visual;
+  if (a.id === playerId) return DEFAULT_HERO;
   if (a.unitKind === 'caster') return 'minionCaster';
   if (a.unitKind === 'cannon') return 'minionCannon';
   if (a.isMinion) return 'minionMelee';
@@ -214,6 +197,8 @@ export class UnitLayer {
       // Structures are drawn by their own layer; a turret is not a body with
       // legs and no amount of rig tuning makes it read as one.
       if (a.unitKind === 'turret') continue;
+      // A hidden actor is a hook the simulation needs and the eye does not.
+      if (a.hidden) continue;
       let e = this.entries.get(a.id);
       const visual = visualKeyFor(a, world.playerId);
       const key = `${visual}:${a.team}`;
@@ -280,7 +265,9 @@ export class UnitLayer {
       height,
       radius: a.radius,
       ringColor: ally ? ALLY_RING : ENEMY_RING,
-      accent: key === 'player' || key === 'nightHunter' || minion ? base.accent : arch?.color ?? base.accent,
+      // A hero and a minion keep their own accent; an enemy archetype takes
+      // the colour its card is printed in, so the two can never disagree.
+      accent: isHeroKey(key) || minion ? base.accent : arch?.color ?? base.accent,
     };
   }
 

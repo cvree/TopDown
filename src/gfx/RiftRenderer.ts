@@ -9,6 +9,7 @@ import { OverlayHud } from './overlay';
 import { ParticleLayer } from './particles';
 import { ProjectileLayer } from './projectiles';
 import { RiftScene, type Quality } from './scene';
+import type { ArenaStyle } from './terrain';
 import { StructureLayer } from './structures';
 import { UnitLayer } from './units';
 import { WallLayer } from './walls';
@@ -44,6 +45,9 @@ export interface RenderOpts {
   idle?: boolean;
 }
 
+/** A hidden body leaves no trail: there is nothing walking to leave one. */
+const EMPTY_TRAIL: Vec2[] = [];
+
 const ALLY_RANGE = '#7fd2ff';
 const ENEMY_RANGE = '#ff6a5c';
 
@@ -77,8 +81,9 @@ export class RiftRenderer {
     bounds: { w: number; h: number },
     accent = '#58e0ff',
     seed = 7,
+    style: ArenaStyle = 'rift',
   ) {
-    this.scene = new RiftScene(canvas, bounds, accent, seed);
+    this.scene = new RiftScene(canvas, bounds, accent, seed, style);
     this.units = new UnitLayer(this.scene.world);
     this.decals = new DecalLayer(this.scene.world);
     this.projectiles = new ProjectileLayer(this.scene.world);
@@ -238,7 +243,7 @@ export class RiftRenderer {
       }
     }
 
-    if (player && opts.showRange && !opts.idle) {
+    if (player && opts.showRange && !opts.idle && !player.hidden) {
       // Your attack range. Dashed and slowly rotating so it never reads as
       // part of the floor, brighter as the clean-chain builds.
       const chain = Math.min(1, opts.chain / 8);
@@ -328,7 +333,7 @@ export class RiftRenderer {
     this.structures.sync(world, dt);
     this.projectiles.sync(world, alpha);
     this.particles.sync(fx);
-    this.writePath(opts.pathTrail, fx.energy);
+    this.writePath(player?.hidden ? EMPTY_TRAIL : opts.pathTrail, fx.energy);
 
     this.scene.render(dt, {
       hurt: opts.hitFeedback,

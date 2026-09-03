@@ -19,7 +19,7 @@ import { VayneHuntDrill } from './vaynehunt';
 import { VayneTumbleDrill } from './vaynetumble';
 
 export const createDrill = (id: DrillId, session: Session): Drill => {
-  // The APM trainer owns thirteen of the ids and builds them from one engine.
+  // The APM lab owns thirteen of the ids and builds them from one engine.
   const apm = createApmDrill(id, session);
   if (apm) return apm;
   // The academy owns nine more, all of them played on the keys.
@@ -69,29 +69,31 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
     case 'aim':
     case 'targetswitch':
       return { w: 1500, h: 900 };
-    // The APM click modes want a field the cursor can cross without a camera
-    // move; the movement modes want somewhere to run to.
-    case 'apmAim':
-    case 'apmAim2':
-    case 'apmPrecision':
-    case 'apmKeys':
+    // The lab is a bench, not a battlefield. A field the cursor can cross
+    // without the camera moving, and no more floor than the console needs.
+    case 'apmPulse':
+    case 'apmSequence':
+    case 'apmChord':
+    case 'apmGate':
+    case 'apmBuffer':
+    case 'apmCancel':
+    case 'apmSwitch':
+    case 'apmUpkeep':
+    case 'apmSustain':
       return { w: 1500, h: 900 };
-    case 'apmAimMap':
-      return { w: 1700, h: 1000 };
-    case 'apmDodge':
-    case 'apmDodgeCd':
-    case 'apmKite':
-    case 'apmDefKite':
-    case 'apmSpacing':
+    // The two that use the mouse want somewhere for it to travel, and the
+    // split mode wants a rim far enough out to count as peripheral.
+    case 'apmField':
+    case 'apmHandoff':
+      return { w: 1660, h: 960 };
+    case 'apmSplit':
       return { w: 1760, h: 1010 };
-    case 'apmSmite':
-      return { w: 1980, h: 1140 };
+    // The only mode with a body to steer needs room to be sent across.
+    case 'apmVector':
+      return { w: 1900, h: 1080 };
     // The lane is the drill: two gates, two turrets and enough room between
-    // them for a wave to be pushed somewhere that matters. The APM lane modes
-    // are the same lane, so they take the same floor.
+    // them for a wave to be pushed somewhere that matters.
     case 'lasthit':
-    case 'apmLastHit':
-    case 'apmLastHit2':
       return { w: 2100, h: 880 };
     case 'duel1v2':
     case 'duel1v3':

@@ -9,24 +9,43 @@ import type { SkillAxis } from '../../progression/skills';
 import { Drill, band, count, pct, type DrillOutcome } from '../base';
 
 /**
- * The APM trainer's shared engine.
+ * THE LAB — the APM trainer's shared engine.
+ *
+ * The trainer used to be the game with a stopwatch on it: minions to farm,
+ * camps to smite, a duelist to kite. That taught the game a second time and
+ * measured hands only incidentally. This engine now sits under something
+ * deliberately further away — a bare console of pads, gates and clocks with no
+ * champion to fight and nothing to kill — so that what is left in the
+ * measurement is the thing the section is named after: *pressing*. How fast
+ * two fingers trade off. How wide the gap is between the two keys of a chord.
+ * How early you can commit to a window that has not opened yet. How much a
+ * key costs when your hand has to move to reach it.
+ *
+ * Distance from the game is the point, and applicability is bought back a
+ * different way: every mode names the moment it is a slice of. A gate that
+ * refuses an early press is the cast bar you buffer into; a barred pad you
+ * must leave alone is the cooldown you do not spend on a bait. The lab never
+ * shows you the moment — it drills the press the moment is made of.
  *
  * Every mode in this folder measures the same thing — how many *correct*
  * commands your hands issue per minute — and every mode has to feel the same
  * way while doing it. That feel is not decoration: it is the mode's read-out.
  * The chain climbs, the flow tier steps up, the pitch of every confirmation
- * rises with it, the arena bed swells, a metronome appears once you are in
+ * rises with it, the console bed swells, a metronome appears once you are in
  * rhythm and speeds up as you do. When you break, all of it falls away at
  * once. You should be able to tell how the run is going with your eyes shut.
  *
  * The other half of the design is that speed alone must never score. Every
- * mode routes its inputs through exactly three verbs here:
+ * mode routes its inputs through exactly four verbs here:
  *
  *   hit()    — the right command, on time. Pays out, scaled by the multiplier.
+ *   hold()   — the command you were right not to make. Pays, counts no action.
  *   fumble() — the wrong command, or one that arrived too late. Breaks flow.
  *   stray()  — an input that meant nothing. Costs efficiency, not the chain.
  *
- * so "actions per minute" can never drift away from "actions that mattered".
+ * so "actions per minute" can never drift away from "actions that mattered" —
+ * and so a mode about restraint can pay for restraint without paying a rate
+ * for it, which is the whole reason hold() exists as a verb of its own.
  */
 
 export interface FlowTier {
@@ -59,19 +78,19 @@ export const FLOW_TIERS: FlowTier[] = [
  * is lying about what it is asking for.
  */
 export const APM_TARGET_APM = {
-  apmAim: 175,
-  apmAim2: 140,
-  apmAimMap: 120,
-  apmPrecision: 150,
-  apmKeys: 235,
-  apmDodge: 100,
-  apmDodgeCd: 130,
-  apmKite: 105,
-  apmDefKite: 115,
-  apmLastHit: 110,
-  apmLastHit2: 130,
-  apmSpacing: 95,
-  apmSmite: 105,
+  apmPulse: 265,
+  apmSequence: 235,
+  apmChord: 170,
+  apmGate: 125,
+  apmBuffer: 65,
+  apmCancel: 145,
+  apmVector: 105,
+  apmField: 180,
+  apmHandoff: 150,
+  apmSplit: 145,
+  apmUpkeep: 120,
+  apmSwitch: 165,
+  apmSustain: 200,
 } as const;
 
 /** Seconds of history the live APM readout averages over. */
@@ -104,6 +123,8 @@ export abstract class ApmDrill extends Drill {
   private stamps: number[] = [];
 
   protected hits = 0;
+  /** Prompts you were right to leave alone. Correct, and not an action. */
+  protected holds = 0;
   protected fumbles = 0;
   protected expiries = 0;
   protected strays = 0;
@@ -235,13 +256,15 @@ export abstract class ApmDrill extends Drill {
    * someone who never touched the keyboard.
    */
   protected get precision(): number {
+    const good = this.hits + this.holds;
     const bad = this.fumbles + this.strays + this.expiries * 0.5;
-    return this.hits / Math.max(1, this.hits + bad);
+    return good / Math.max(1, good + bad);
   }
 
   /** Of everything the drill asked for, how much you answered. */
   protected get answered(): number {
-    return this.hits / Math.max(1, this.hits + this.fumbles + this.expiries);
+    const good = this.hits + this.holds;
+    return good / Math.max(1, good + this.fumbles + this.expiries);
   }
 
   // ----------------------------------------------------------- the verbs
@@ -290,6 +313,28 @@ export abstract class ApmDrill extends Drill {
     if (opts.label) this.s.micro(opts.label, pos, color);
     else if (perfect) this.s.micro('PERFECT', pos, PALETTE.good);
 
+    this.refreshTier(pos);
+  }
+
+  /**
+   * The command you were right not to make.
+   *
+   * A mode that asks you to withhold cannot pay for it with hit(): that would
+   * put a number in "correct actions per minute" that no finger produced, and
+   * the whole engine rests on that number being made of inputs. So restraint
+   * gets a verb of its own — it pays score, it protects the chain, it counts
+   * towards how much of what was asked you answered, and it moves the rate
+   * exactly nowhere.
+   */
+  protected hold(pos: Vec2, label = 'HELD'): void {
+    this.holds++;
+    this.chain++;
+    this.bestChain = Math.max(this.bestChain, this.chain);
+    audio.setComboPitch(this.chain);
+    this.scoreAcc += 70 * this.multiplier;
+    audio.play('abilityReady', { intensity: 0.5, pan: this.s.panOf(pos) });
+    this.s.fx.ring(pos.x, pos.y, 10, 52, 0.32, PALETTE.textDim, 2, 'pulse');
+    this.s.micro(label, pos, PALETTE.textDim);
     this.refreshTier(pos);
   }
 
@@ -427,15 +472,27 @@ export abstract class ApmDrill extends Drill {
     this.dirCd = Math.max(0, this.dirCd - dt);
 
     const dir = p.moveDir;
+    if (!dir) {
+      this.lastDir = null;
+      return;
+    }
     const had = this.lastDir;
-    this.lastDir = dir ? { x: dir.x, y: dir.y } : null;
-    if (!dir) return;
-
     const started = had === null;
     // Unit vectors, so the dot product is the cosine: 0.72 is about 44°.
     const turned = had !== null && had.x * dir.x + had.y * dir.y < 0.72;
-    if (!started && !turned) return;
+    if (!started && !turned) {
+      // Drift, not a decision. Tracked so that a slow sweep across the
+      // threshold still eventually reads as the turn it is.
+      this.lastDir = { x: dir.x, y: dir.y };
+      return;
+    }
+    // A command that arrives inside the rate limit is deferred, not thrown
+    // away: the old heading is left in place so the turn is still pending and
+    // is counted on the first frame the limit allows. Dropping it instead —
+    // which is what this did — silently lost every command a mode asked for
+    // in quick succession, and a movement mode is mostly those.
     if (this.dirCd > 0) return;
+    this.lastDir = { x: dir.x, y: dir.y };
     this.dirCd = 0.12;
     this.note();
     this.onDirectMove(p.pos, started);
@@ -556,6 +613,8 @@ export abstract class ApmDrill extends Drill {
     if (accuracy > 0.93 && this.hits > 12) helped.push('Almost nothing you did was wasted.');
     if (this.peakTier >= 3) helped.push(`You reached ${FLOW_TIERS[this.peakTier].name} — a ×${FLOW_TIERS[this.peakTier].mult} run.`);
     if (this.perfects > this.hits * 0.4 && this.hits > 8) helped.push(`${this.perfects} inputs landed in the early window.`);
+    if (this.holds > 4 && this.fumbles <= this.holds * 0.25)
+      helped.push(`${this.holds} prompts you correctly left alone.`);
     if (this.strays > this.hits * 0.25) hurt.push(`${this.strays} inputs went nowhere — speed you paid for and did not get.`);
     if (this.fumbles > 4) hurt.push(`${this.fumbles} wrong or late inputs broke the chain.`);
     if (this.expiries > this.hits * 0.3) hurt.push(`${this.expiries} prompts expired before you answered them.`);
@@ -589,6 +648,7 @@ export abstract class ApmDrill extends Drill {
         pct('clean', 'CLEAN INPUTS', accuracy),
         count('chain', 'BEST CHAIN', this.bestChain),
         count('peakApm', 'PEAK APM', Math.round(peak)),
+        ...(this.holds > 0 ? [count('held', 'CORRECTLY HELD', this.holds)] : []),
         ...own.slice(1),
       ],
       helped: [...helped, ...coaching.helped],
@@ -614,13 +674,3 @@ export class KeyCooldowns {
     this.cd[slot] = v;
   }
 }
-
-/** A target that exists to be clicked, not to fight back. */
-export const INERT_ATTACK = {
-  attackSpeed: 0.01,
-  windupRatio: 0.3,
-  backswingRatio: 0.3,
-  range: 0,
-  damage: 0,
-  projectileSpeed: 0,
-} as const;

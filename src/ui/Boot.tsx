@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
+import { VERSION } from '../patchnotes/notes';
 import { Crest } from './components/Crest';
 import './boot.css';
 
@@ -136,7 +137,12 @@ export function Boot({ ready, onEnter }: Props) {
           <span className="boot-rule right" />
         </div>
 
-        <div className={`boot-sub${struck ? ' in' : ''}`}>MECHANICS TRAINER · THE RIFT, IN MINIATURE</div>
+        <div className={`boot-sub${struck ? ' in' : ''}`}>
+          MECHANICS TRAINER · THE RIFT, IN MINIATURE
+          {/* The build, on the first screen anyone ever sees. It is the one
+              piece of information a bug report always needs. */}
+          <span className="boot-ver mono">v{VERSION}</span>
+        </div>
       </div>
 
       <div className={`boot-foot${stage === 'load' || stage === 'gate' ? ' in' : ''}`}>

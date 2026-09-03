@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
+import { heroFor, type HeroId } from '../engine/heroes';
 import { newSeed } from '../engine/rng';
 import { DAILY_SEQUENCE, DRILLS, PLACEMENT_SEQUENCE, type DrillId } from '../drills/catalog';
 import {
@@ -21,6 +22,7 @@ import {
 import { APM_LEVELS, isApmDrill, levelDifficulty, recommendedLevel, seedApmLadder } from '../progression/apm';
 import { buildPlan, planQueue } from '../progression/plan';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
+import { PATCH_NOTES, VERSION } from '../patchnotes/notes';
 import type { TestId } from '../tests/catalog';
 import type { TestResult } from '../tests/types';
 import type { SkillAxis } from '../progression/skills';
@@ -28,11 +30,14 @@ import { ArenaBackdrop } from './components/ArenaBackdrop';
 import { Boot } from './Boot';
 import { Crest } from './components/Crest';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
+import { HeroSelect } from './HeroSelect';
+import { HeroSigil } from './components/HeroSigil';
 import { Apm } from './Apm';
 import { Daily } from './Daily';
 import { GameView } from './GameView';
 import { Home } from './Home';
 import { Academy } from './Academy';
+import { PatchNotes } from './PatchNotes';
 import { Today } from './Today';
 import { PlacementIntro, PlacementReveal } from './Placement';
 import { ProfileScreen } from './ProfileScreen';
@@ -51,15 +56,26 @@ import './app.css';
  *
  * `today` is the home screen and answers "what should I train"; `drills` is the
  * full catalogue for somebody who already knows. The order here is the order
- * the navigation prints.
+ * the navigation prints — `patch` is reached from the boot screen and the
+ * profile rather than from the bar, which is already full.
  */
-type Route = 'today' | 'drills' | 'academy' | 'apm' | 'tests' | 'vayne' | 'daily' | 'profile' | 'settings';
+type Route =
+  | 'today'
+  | 'drills'
+  | 'academy'
+  | 'apm'
+  | 'tests'
+  | 'vayne'
+  | 'daily'
+  | 'profile'
+  | 'settings'
+  | 'patch';
 
 const NAV: { route: Route; label: string }[] = [
   { route: 'today', label: 'TODAY' },
   { route: 'drills', label: 'DRILLS' },
   { route: 'academy', label: 'WASD' },
-  { route: 'apm', label: 'APM' },
+  { route: 'apm', label: 'LAB' },
   { route: 'tests', label: 'TESTS' },
   { route: 'vayne', label: 'VAYNE' },
   { route: 'profile', label: 'PROFILE' },
@@ -463,10 +479,23 @@ export function App() {
     audio.play('uiClick');
   }, []);
 
+  // Opening the notes is what marks them read; nothing else clears the dot,
+  // and a player who never opens them keeps it. The marking is done by the
+  // screen itself, one frame in, so it can still show you what was new.
+  const markPatchRead = useCallback(() => {
+    setProfile((p) => (p.seenVersion === VERSION ? p : { ...p, seenVersion: VERSION }));
+  }, []);
+
+  const chooseHero = useCallback((hero: HeroId) => {
+    setProfile((p) => ({ ...p, onboarded: true, settings: { ...p.settings, hero } }));
+  }, []);
+
   const doReset = useCallback(() => {
     resetProfile();
     const p = newProfile();
     setProfile(p);
+    // A wiped profile is a new player: `onboarded` is false again, so the
+    // next thing they see is champion select.
     setRoute('today');
   }, []);
 
@@ -595,112 +624,175 @@ export function App() {
     );
   }
 
+  // The first-run flow. It waits for the boot gate — champion select is the
+  // payoff for pressing the key, not something behind it — and it is the same
+  // screen the settings page opens later, so a player only ever learns it once.
+  const onboarding = booted && !profile.onboarded;
+  // A profile that has read an older release, or none at all, has something
+  // waiting. A brand-new profile starts level with the build and does not.
+  const unreadPatch = profile.seenVersion !== VERSION;
+
   return (
     <div className="app">
-      <ArenaBackdrop enabled={!profile.settings.lowFx} onReady={() => setArenaReady(true)} />
+      <ArenaBackdrop
+        enabled={!profile.settings.lowFx}
+        hero={profile.settings.hero}
+        onReady={() => setArenaReady(true)}
+      />
       {!booted && <Boot ready={arenaReady} onEnter={() => setBooted(true)} />}
-      <div className="shell">
-        <header className="topbar">
-          <div className="logo" onClick={() => setRoute('today')}>
-            <Crest size={26} />
-            APEX
-            <span className="logo-sub">MECHANICS</span>
-          </div>
+      {onboarding && (
+        <HeroSelect initial={profile.settings.hero} lowFx={profile.settings.lowFx} onConfirm={chooseHero} />
+      )}
+      {/* The client is unmounted, not merely covered, while the boot gate or
+          champion select is up. Both of those are driven by bare keypresses,
+          and so is the client — Enter starts today's session — so leaving it
+          alive underneath means one Enter both locks in a champion and
+          launches calibration. */}
+      {booted && !onboarding && (
+        <div className="shell">
+          <header className="topbar">
+            <div className="logo" onClick={() => setRoute('today')}>
+              <Crest size={26} />
+              APEX
+              <span className="logo-sub">MECHANICS</span>
+            </div>
 
-          <nav className="nav">
-            {NAV.map((n) => (
+            <nav className="nav">
+              {NAV.map((n) => (
+                <button
+                  key={n.route}
+                  className={route === n.route ? 'on' : ''}
+                  onMouseEnter={() => audio.play('uiHover')}
+                  onClick={() => {
+                    audio.unlock();
+                    audio.play('uiTab');
+                    setRoute(n.route);
+                  }}
+                >
+                  {n.label}
+                </button>
+              ))}
+            </nav>
+
+            <div className="topbar-right">
+              {/* The build, and whether there is anything in it you have not
+                  read. A version number in a corner is also the first thing
+                  anyone needs when reporting that something behaves oddly. */}
               <button
-                key={n.route}
-                className={route === n.route ? 'on' : ''}
+                className={`ver-chip${route === 'patch' ? ' on' : ''}`}
+                title={
+                  unreadPatch
+                    ? `New in v${VERSION} — ${PATCH_NOTES[0].name}`
+                    : `Running v${VERSION} — patch notes`
+                }
                 onMouseEnter={() => audio.play('uiHover')}
                 onClick={() => {
-                  audio.unlock();
                   audio.play('uiTab');
-                  setRoute(n.route);
+                  setRoute('patch');
                 }}
               >
-                {n.label}
+                {unreadPatch && <i className="ver-dot" />}v{VERSION}
+                <span>PATCH NOTES</span>
               </button>
-            ))}
-          </nav>
-
-          <div className="topbar-right">
-            <div className="rank-chip" onClick={() => setRoute('profile')}>
-              <RankEmblem tier={rank.tier} size={30} />
-              <div>
-                <div className="rc-label">{profile.placed ? rank.label : 'UNRANKED'}</div>
-                <div className="rc-rating mono">{profile.placed ? Math.round(profile.overall) : '—'}</div>
+              {/* Who you are, always on screen, one click from changing it. A
+                  champion you picked and then never see again is a form field. */}
+              <button
+                className="hero-chip"
+                style={{ ['--c' as string]: heroFor(profile.settings.hero).accent }}
+                title={`Playing as ${heroFor(profile.settings.hero).name} — click to change`}
+                onMouseEnter={() => audio.play('uiHover')}
+                onClick={() => {
+                  audio.play('uiTab');
+                  setRoute('settings');
+                }}
+              >
+                <HeroSigil hero={profile.settings.hero} size={22} />
+                <span>{heroFor(profile.settings.hero).name}</span>
+              </button>
+              <div className="rank-chip" onClick={() => setRoute('profile')}>
+                <RankEmblem tier={rank.tier} size={30} />
+                <div>
+                  <div className="rc-label">{profile.placed ? rank.label : 'UNRANKED'}</div>
+                  <div className="rc-rating mono">{profile.placed ? Math.round(profile.overall) : '—'}</div>
+                </div>
               </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        {showGestureNotice && (
-          <GestureNotice onDismiss={() => patchSettings({ gestureNoticeDismissed: true })} />
-        )}
+          {showGestureNotice && (
+            <GestureNotice onDismiss={() => patchSettings({ gestureNoticeDismissed: true })} />
+          )}
 
-        {route === 'today' && (
-          <Today
-            profile={profile}
-            onStartSession={startSession}
-            onPlay={startSingle}
-            onPlacement={() => setPlacementIntro(true)}
-            onSection={(r) => setRoute(r)}
-          />
-        )}
-        {route === 'academy' && (
-          <Academy
-            profile={profile}
-            onPlay={startSingle}
-            onBack={() => setRoute('today')}
-            onAdoptKeys={() => patchSettings({ movementScheme: 'wasd' })}
-          />
-        )}
-        {route === 'drills' && (
-          <Home
-            profile={profile}
-            onPlay={startSingle}
-            onDaily={() => setRoute('daily')}
-            onProfile={() => setRoute('profile')}
-            onPlacement={() => setPlacementIntro(true)}
-            onVayne={() => setRoute('vayne')}
-            onAcademy={() => setRoute('academy')}
-            onApm={(id) => {
-              setApmFocus(id ?? null);
-              setRoute('apm');
-            }}
-          />
-        )}
-        {route === 'apm' && (
-          <Apm
-            profile={profile}
-            focus={apmFocus}
-            onPlay={startApm}
-            onBack={() => setRoute('today')}
-            onPlacement={() => setPlacementIntro(true)}
-          />
-        )}
-        {route === 'daily' && (
-          <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('today')} />
-        )}
-        {route === 'tests' && (
-          <Tests profile={profile} onRun={startTest} onBack={() => setRoute('today')} />
-        )}
-        {route === 'vayne' && (
-          <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('today')} />
-        )}
-        {route === 'profile' && (
-          <ProfileScreen
-            profile={profile}
-            onRename={(name) => setProfile((p) => ({ ...p, name }))}
-            onReset={doReset}
-            onPlay={startSingle}
-          />
-        )}
-        {route === 'settings' && (
-          <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('today')} />
-        )}
-      </div>
+          {route === 'today' && (
+            <Today
+              profile={profile}
+              onStartSession={startSession}
+              onPlay={startSingle}
+              onPlacement={() => setPlacementIntro(true)}
+              onSection={(r) => setRoute(r)}
+            />
+          )}
+          {route === 'academy' && (
+            <Academy
+              profile={profile}
+              onPlay={startSingle}
+              onBack={() => setRoute('today')}
+              onAdoptKeys={() => patchSettings({ movementScheme: 'wasd' })}
+            />
+          )}
+          {route === 'drills' && (
+            <Home
+              profile={profile}
+              onPlay={startSingle}
+              onDaily={() => setRoute('daily')}
+              onProfile={() => setRoute('profile')}
+              onPlacement={() => setPlacementIntro(true)}
+              onVayne={() => setRoute('vayne')}
+              onAcademy={() => setRoute('academy')}
+              onApm={(id) => {
+                setApmFocus(id ?? null);
+                setRoute('apm');
+              }}
+            />
+          )}
+          {route === 'apm' && (
+            <Apm
+              profile={profile}
+              focus={apmFocus}
+              onPlay={startApm}
+              onBack={() => setRoute('today')}
+              onPlacement={() => setPlacementIntro(true)}
+            />
+          )}
+          {route === 'daily' && (
+            <Daily profile={profile} onStart={startDaily} onBack={() => setRoute('today')} />
+          )}
+          {route === 'tests' && (
+            <Tests profile={profile} onRun={startTest} onBack={() => setRoute('today')} />
+          )}
+          {route === 'vayne' && (
+            <Vayne profile={profile} onPlay={startSingle} onBack={() => setRoute('today')} />
+          )}
+          {route === 'profile' && (
+            <ProfileScreen
+              profile={profile}
+              onRename={(name) => setProfile((p) => ({ ...p, name }))}
+              onReset={doReset}
+              onPlay={startSingle}
+            />
+          )}
+          {route === 'settings' && (
+            <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('today')} />
+          )}
+          {route === 'patch' && (
+            <PatchNotes
+              seen={profile.seenVersion}
+              onRead={markPatchRead}
+              onBack={() => setRoute('today')}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

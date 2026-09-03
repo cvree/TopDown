@@ -439,6 +439,20 @@
   );
   pointer-events: none;
 }
+/* A bench has no health pool. The frame stays — the HUD must not change shape
+   between drills — and the fill and the tick marks go, so the eye stops
+   reading a permanently full bar as information. */
+.cf-hp.empty {
+  border-color: rgba(140, 160, 185, 0.22);
+}
+.cf-hp.empty::after {
+  opacity: 0.18;
+}
+.cf-hp.empty em {
+  color: rgba(190, 210, 235, 0.5);
+  letter-spacing: 0.12em;
+}
+
 .cf-hp em {
   position: absolute;
   inset: 0;

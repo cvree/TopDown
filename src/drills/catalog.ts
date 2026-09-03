@@ -28,20 +28,20 @@ export type DrillId =
   | 'wasdOffKite'
   | 'wasdDefKite'
   | 'wasdMulti'
-  /* --- the APM trainer. One engine, thirteen ways to be measured by it --- */
-  | 'apmAim'
-  | 'apmAim2'
-  | 'apmAimMap'
-  | 'apmPrecision'
-  | 'apmKeys'
-  | 'apmDodge'
-  | 'apmDodgeCd'
-  | 'apmKite'
-  | 'apmDefKite'
-  | 'apmLastHit'
-  | 'apmLastHit2'
-  | 'apmSpacing'
-  | 'apmSmite';
+  /* --- the APM lab. One engine, thirteen ways of measuring a press --- */
+  | 'apmPulse'
+  | 'apmSequence'
+  | 'apmChord'
+  | 'apmGate'
+  | 'apmBuffer'
+  | 'apmCancel'
+  | 'apmVector'
+  | 'apmField'
+  | 'apmHandoff'
+  | 'apmSplit'
+  | 'apmUpkeep'
+  | 'apmSwitch'
+  | 'apmSustain';
 
 export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'WASD' | 'APM' | 'VAYNE';
 
@@ -403,192 +403,192 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
   },
   // ------------------------------------------------------------------- APM
   //
-  // Thirteen modes over one engine. Every one of them counts the same thing —
-  // correct commands per minute — and every one of them refuses to count an
-  // input that did not mean anything, which is what separates this from a
-  // click-speed test. The flow ladder is shared: chain your actions and the
-  // multiplier climbs through five tiers, break and it is gone.
-  apmAim: {
-    id: 'apmAim',
-    name: 'AIM',
-    tagline: 'Raw click rate',
-    brief: 'Marks light up and die fast. No decoys, no order — just how many correct commands a minute your hand makes.',
-    transfers: 'The ceiling on everything else you do with a mouse in a fight.',
+  // The lab. Thirteen modes over one engine, and deliberately not the game:
+  // no minions, no camps, nothing fighting back — a bench of pads, gates and
+  // clocks, because what is being measured is pressing and everything else on
+  // the screen was noise in the measurement. Every mode counts the same thing,
+  // correct commands per minute, and every mode refuses to count an input that
+  // did not mean anything. The flow ladder is shared: chain your actions and
+  // the multiplier climbs through five tiers, break and it is gone.
+  apmPulse: {
+    id: 'apmPulse',
+    name: 'PULSE',
+    tagline: 'Cadence, with one bit of choice',
+    brief: 'Two pads, two fingers. Take the lit one — and about a third of the time the light does not move.',
+    transfers: 'The trill under every combo: two abilities, two fingers, nothing travelling.',
     group: 'APM',
-    axes: { tempo: 0.7, aim: 0.3 },
-    duration: 45,
-    abilities: [],
+    axes: { tempo: 1 },
+    duration: 40,
+    abilities: ['q', 'e'],
     accent: '#7ceaff',
     keyMetric: 'SUSTAINED APM',
     order: 30,
   },
-  apmAim2: {
-    id: 'apmAim2',
-    name: 'AIM 2',
-    tagline: 'Rate, with a read on top',
-    brief: 'The marks are numbered and only the lowest one is legal. Speed now costs you a decision.',
-    transfers: 'Clicking the champion you meant while three of them are on the screen.',
+  apmSequence: {
+    id: 'apmSequence',
+    name: 'SEQUENCE',
+    tagline: 'The queue, read two ahead',
+    brief: 'Six keys roll across the bench and only the front one is legal. The window shrinks as you speed up.',
+    transfers: 'A long combo arriving in the right order when you are not thinking about it.',
     group: 'APM',
-    axes: { tempo: 0.55, targeting: 0.3, aim: 0.15 },
-    duration: 50,
-    abilities: [],
-    accent: '#8ad4ff',
-    keyMetric: 'SUSTAINED APM',
-    order: 31,
-  },
-  apmAimMap: {
-    id: 'apmAimMap',
-    name: 'AIM + MAP',
-    tagline: 'Two screens, one pair of hands',
-    brief: 'Keep clicking marks in the middle while alerts flash at the rim. Red wants D, blue wants F, both die in a second.',
-    transfers: 'Answering the minimap without dropping whatever your hands were already doing.',
-    group: 'APM',
-    axes: { tempo: 0.5, targeting: 0.3, aim: 0.2 },
-    duration: 55,
-    abilities: ['d', 'f'],
-    accent: '#9fc4ff',
-    keyMetric: 'SUSTAINED APM',
-    order: 32,
-  },
-  apmPrecision: {
-    id: 'apmPrecision',
-    name: 'MOUSE PRECISION',
-    tagline: 'Speed measured in pixels',
-    brief: 'Small drifting marks, graded on how far from the centre you land. They shrink as your chain grows.',
-    transfers: 'Landing on the champion rather than the ground beside them when your hand is already moving.',
-    group: 'APM',
-    axes: { tempo: 0.5, aim: 0.5 },
-    duration: 45,
-    abilities: [],
-    accent: '#b8e4ff',
-    keyMetric: 'SUSTAINED APM',
-    order: 33,
-  },
-  apmKeys: {
-    id: 'apmKeys',
-    name: 'KEY COORDINATION',
-    tagline: 'The left hand, alone',
-    brief: 'A queue of keys runs above your champion. Answer the front one, read two ahead, never touch the mouse.',
-    transfers: 'Combos coming out clean while your other hand is busy steering.',
-    group: 'APM',
-    axes: { tempo: 0.65, targeting: 0.35 },
+    axes: { tempo: 0.7, targeting: 0.3 },
     duration: 45,
     abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
     accent: '#c48bff',
     keyMetric: 'SUSTAINED APM',
+    order: 31,
+  },
+  apmChord: {
+    id: 'apmChord',
+    name: 'CHORD',
+    tagline: 'Two keys, one instant',
+    brief: 'A pair lights and both keys have to land together. The tolerance closes to under fifty milliseconds.',
+    transfers: 'Flash plus an ability — the pairs that only work on the same frame.',
+    group: 'APM',
+    axes: { tempo: 0.7, combat: 0.3 },
+    duration: 50,
+    abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
+    accent: '#8ad4ff',
+    keyMetric: 'SUSTAINED APM',
+    order: 32,
+  },
+  apmGate: {
+    id: 'apmGate',
+    name: 'GO / NO-GO',
+    tagline: 'The press you were right not to make',
+    brief: 'Live pads want their key now. Barred pads want nothing at all, and pressing one costs the chain.',
+    transfers: 'The cooldown you do not spend on a bait. Inhibition is slower than reaction and nobody trains it.',
+    group: 'APM',
+    axes: { tempo: 0.6, targeting: 0.4 },
+    duration: 55,
+    abilities: ['q', 'w', 'e', 'r'],
+    accent: '#ff9f5c',
+    keyMetric: 'SUSTAINED APM',
+    order: 33,
+  },
+  apmBuffer: {
+    id: 'apmBuffer',
+    name: 'BUFFER',
+    tagline: 'Into a window that has not opened',
+    brief: 'A shutter runs on a clock you can see. Be pressing before it opens — early is eaten, late is only reacting.',
+    transfers: 'Queueing the next cast into the tail of the current one.',
+    group: 'APM',
+    axes: { tempo: 0.65, lastHitting: 0.35 },
+    duration: 55,
+    abilities: ['q'],
+    accent: '#5ce1a8',
+    keyMetric: 'SUSTAINED APM',
     order: 34,
   },
-  apmDodge: {
-    id: 'apmDodge',
-    name: 'DODGE',
-    tagline: 'Movement APM',
-    brief: 'Charges to collect, telegraphs to leave. Standing still is safe for about a second and then it is not.',
-    transfers: 'Repositioning constantly instead of in bursts when something lands on you.',
+  apmCancel: {
+    id: 'apmCancel',
+    name: 'CANCEL',
+    tagline: 'The second press, at a particular moment',
+    brief: 'START runs a bar. Cut it after the commit and before it ends — the window closes to a tenth of a second.',
+    transfers: 'Cutting a backswing the instant it is free, and every animation cancel underneath that.',
     group: 'APM',
-    axes: { tempo: 0.45, dodging: 0.35, movement: 0.2 },
-    duration: 60,
-    abilities: [],
-    accent: '#ffcf6b',
+    axes: { tempo: 0.6, kiting: 0.4 },
+    duration: 55,
+    abilities: ['q', 'e'],
+    accent: '#4fd6c4',
     keyMetric: 'SUSTAINED APM',
     order: 35,
   },
-  apmDodgeCd: {
-    id: 'apmDodgeCd',
-    name: 'DODGE + COOLDOWN',
-    tagline: 'Both hands at once',
-    brief: 'Everything the dodge mode asks, plus four cooldowns that must be spent the moment they come up.',
-    transfers: 'Never sitting on an ability because your feet were busy.',
+  apmVector: {
+    id: 'apmVector',
+    name: 'VECTOR',
+    tagline: 'The movement command, alone',
+    brief: 'A heading is called. Go that way, now. Nothing to dodge and nowhere to be — only the command.',
+    transfers: 'One aimed reposition instead of two corrections. Counted the same whichever hand sends it.',
     group: 'APM',
-    axes: { tempo: 0.4, dodging: 0.3, combat: 0.3 },
-    duration: 65,
-    abilities: ['q', 'w', 'e', 'r'],
-    accent: '#ffb45c',
+    axes: { tempo: 0.6, movement: 0.4 },
+    duration: 50,
+    abilities: [],
+    accent: '#ffcf6b',
     keyMetric: 'SUSTAINED APM',
     order: 36,
   },
-  apmKite: {
-    id: 'apmKite',
-    name: 'KITING',
-    tagline: 'Attack, move, attack — at rate',
-    brief: 'A pace dummy that cannot hurt you. The only question is whether you can hold a full attack cycle for a minute.',
-    transfers: 'Orbwalking at the speed a real fight moves rather than the speed a drill lets you.',
+  apmField: {
+    id: 'apmField',
+    name: 'FIELD',
+    tagline: 'The mouse half, with nothing attached',
+    brief: 'Pads light across the floor and go out. Graded in units from the centre, and they shrink as you chain.',
+    transfers: 'The ceiling on every command that starts with the cursor being somewhere.',
     group: 'APM',
-    axes: { tempo: 0.45, kiting: 0.4, spacing: 0.15 },
-    duration: 60,
+    axes: { tempo: 0.6, aim: 0.4 },
+    duration: 45,
     abilities: [],
-    accent: '#5ce1a8',
+    accent: '#b8e4ff',
     keyMetric: 'SUSTAINED APM',
     order: 37,
   },
-  apmDefKite: {
-    id: 'apmDefKite',
-    name: 'DEFENSIVE KITING',
-    tagline: 'The rhythm, running backwards',
-    brief: 'Divers that want to reach you. Same cycle, except every step now has a direction it has to be in.',
-    transfers: 'Kiting a gap-closer down without giving up your own damage to do it.',
+  apmHandoff: {
+    id: 'apmHandoff',
+    name: 'HANDOFF',
+    tagline: 'Two hands, strictly taking turns',
+    brief: 'Click, key, click, key — never twice in a row. What it measures is the seam between the two.',
+    transfers: 'Cast, then reposition, then cast: the pair that has to overlap rather than queue.',
     group: 'APM',
-    axes: { tempo: 0.35, kiting: 0.35, spacing: 0.2, dodging: 0.1 },
-    duration: 60,
-    abilities: [],
-    accent: '#4fd6c4',
+    axes: { tempo: 0.5, aim: 0.3, targeting: 0.2 },
+    duration: 55,
+    abilities: ['q', 'w', 'e'],
+    accent: '#9fc4ff',
     keyMetric: 'SUSTAINED APM',
     order: 38,
   },
-  apmLastHit: {
-    id: 'apmLastHit',
-    name: 'LAST HIT',
-    tagline: 'A whole wave, at rate',
-    brief: 'The lane, with the next wave already walking. Take every minion that is yours and swing at nothing that is not.',
-    transfers: 'Taking the whole wave instead of the two bars you happened to be looking at.',
+  apmSplit: {
+    id: 'apmSplit',
+    name: 'SPLIT',
+    tagline: 'Two things at once, neither waiting',
+    brief: 'A key queue in the middle that never stops, and alerts at the rim that want a different key inside a second.',
+    transfers: 'Answering the minimap without your combo falling apart.',
     group: 'APM',
-    axes: { tempo: 0.4, lastHitting: 0.45, targeting: 0.15 },
-    duration: 70,
-    abilities: [],
-    accent: '#ffd166',
+    axes: { tempo: 0.5, targeting: 0.35, aim: 0.15 },
+    duration: 60,
+    abilities: ['q', 'w', 'e', 'd', 'f'],
+    accent: '#ffb45c',
     keyMetric: 'SUSTAINED APM',
-    zoom: 0.7,
     order: 39,
   },
-  apmLastHit2: {
-    id: 'apmLastHit2',
-    name: 'LAST HIT 2',
-    tagline: 'The same wave, contested',
-    brief: 'An enemy laner opposite doing your job. Every minion is a race now, and the HUD keeps the score.',
-    transfers: 'Winning the farm race against someone whose windup is the clock, not yours.',
+  apmUpkeep: {
+    id: 'apmUpkeep',
+    name: 'UPKEEP',
+    tagline: 'Four clocks, none of them prompting you',
+    brief: 'Wheels fill at rates that do not divide into each other. Spend each as it comes up — and leave the locked one alone.',
+    transfers: 'Never sitting on a cooldown because your attention was somewhere else.',
     group: 'APM',
-    axes: { tempo: 0.35, lastHitting: 0.45, targeting: 0.2 },
-    duration: 75,
-    abilities: [],
-    accent: '#ffab5c',
+    axes: { tempo: 0.5, combat: 0.3, targeting: 0.2 },
+    duration: 60,
+    abilities: ['q', 'w', 'e', 'r'],
+    accent: '#ffd166',
     keyMetric: 'SUSTAINED APM',
-    zoom: 0.7,
     order: 40,
   },
-  apmSpacing: {
-    id: 'apmSpacing',
-    name: 'SPACING',
-    tagline: 'The band, on a beat',
-    brief: 'Max range, step in, disengage. The call changes every beat and the beat speeds up as you climb.',
-    transfers: 'Changing the gap on purpose the moment a cooldown comes up, instead of drifting.',
+  apmSwitch: {
+    id: 'apmSwitch',
+    name: 'SWITCH',
+    tagline: 'What it costs to move your hand',
+    brief: 'Near bank, far bank, mouse. The prompt keeps changing which, and the mode prints the cost in milliseconds.',
+    transfers: 'The summoner key mid-combo. Not a harder key — a different hand shape, and the shape is what you pay for.',
     group: 'APM',
-    axes: { tempo: 0.4, spacing: 0.45, movement: 0.15 },
+    axes: { tempo: 0.6, targeting: 0.4 },
     duration: 55,
-    abilities: [],
-    accent: '#6be0a0',
+    abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
+    accent: '#ff6bd6',
     keyMetric: 'SUSTAINED APM',
     order: 41,
   },
-  apmSmite: {
-    id: 'apmSmite',
-    name: 'SMITE',
-    tagline: 'The execute, on a clock you do not own',
-    brief: 'Three objectives burning down in three places, one smite, and a rival with his finger on the same key.',
-    transfers: 'Being stood on the camp before the window opens — which is the whole skill.',
+  apmSustain: {
+    id: 'apmSustain',
+    name: 'SUSTAIN',
+    tagline: 'The rate you can be held to',
+    brief: 'A beat you must answer, faster every twelve seconds. Drop two inside one step and the run ends where your hands do.',
+    transfers: 'Minute three of a fight rather than second three of one.',
     group: 'APM',
-    axes: { tempo: 0.4, lastHitting: 0.35, movement: 0.25 },
-    duration: 60,
-    abilities: ['d'],
-    accent: '#ff9f5c',
+    axes: { tempo: 0.8, combat: 0.2 },
+    duration: 150,
+    abilities: ['q', 'w', 'e', 'r'],
+    accent: '#b98cff',
     keyMetric: 'SUSTAINED APM',
     order: 42,
   },
