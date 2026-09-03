@@ -460,7 +460,13 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
         <div className={`res-viz ${stage >= 4 ? 'in' : ''}`}>
           <div className="panel pad">
             <div className="panel-title">Replay</div>
-            <Replay metrics={result.metrics} bounds={bounds} accent={meta.accent} />
+            <Replay
+              metrics={result.metrics}
+              bounds={bounds}
+              accent={meta.accent}
+              ghost={report.ghost}
+              score={result.score}
+            />
           </div>
 
           <div className="panel pad">

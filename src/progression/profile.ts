@@ -1,7 +1,7 @@
 import { DEFAULT_HERO, type HeroId } from '../engine/heroes';
 import { VERSION } from '../patchnotes/notes';
 import { clamp, mean } from '../engine/math';
-import type { DerivedMetrics, RunMetrics } from '../engine/metrics';
+import type { DerivedMetrics, RunMetrics, TimelineMark } from '../engine/metrics';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { gradeTest, TESTS, type TestId } from '../tests/catalog';
 import { detectErrors, primaryLimiter, type DetectedError, type ErrorCode } from './errors';
@@ -59,11 +59,52 @@ export interface RunResult {
   advice: string;
 }
 
+/**
+ * Enough of a run to draw it again next to the one you just played.
+ *
+ * Deliberately small: the path at a fifth of the recorded resolution and the
+ * event marks without their positions. A ghost is a shape and a rhythm, not a
+ * second copy of the telemetry, and this has to survive in localStorage
+ * beside twenty-eight other drills.
+ */
+export interface BestReplay {
+  /** Downsampled path, 0.25s per point. */
+  path: { x: number; y: number }[];
+  /** Seconds per path sample, so the drawer does not have to assume. */
+  step: number;
+  /** The event timeline, kinds only. */
+  marks: { t: number; k: TimelineMark['kind'] }[];
+  score: number;
+  at: number;
+}
+
 export interface BestRecord {
   score: number;
   metrics: Record<string, number>;
   at: number;
+  /** The record run itself, for the replay's ghost. Absent on old profiles. */
+  replay?: BestReplay;
 }
+
+/** Every fifth sample, capped — about a minute and a half of path. */
+const GHOST_STRIDE = 5;
+const GHOST_MAX_POINTS = 420;
+const GHOST_MAX_MARKS = 320;
+
+const captureReplay = (result: RunResult): BestReplay => {
+  const path: { x: number; y: number }[] = [];
+  for (let i = 0; i < result.metrics.path.length; i += GHOST_STRIDE) {
+    const p = result.metrics.path[i];
+    // One decimal place is well under a pixel at arena scale and roughly
+    // halves the stored size.
+    path.push({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 });
+    if (path.length >= GHOST_MAX_POINTS) break;
+  }
+  const marks = result.metrics.timeline
+    .slice(0, GHOST_MAX_MARKS)
+    .map((m) => ({ t: Math.round(m.t * 100) / 100, k: m.kind }));
+  return { path, step: 0.05 * GHOST_STRIDE, marks, score: result.score, at: Date.now() };
+};
 
 export interface HistoryEntry {
   drill: DrillId;
@@ -445,6 +486,12 @@ export interface ProgressReport {
   vayne: VayneRunReport | null;
   /** Present only for runs in the APM trainer. */
   apm: ApmRunReport | null;
+  /**
+   * The best run of this drill as it stood *before* this one — the thing the
+   * replay draws a ghost of. Null on a first run, when there is nothing to
+   * compare against and pretending otherwise would be theatre.
+   */
+  ghost: BestReplay | null;
   /** The mistakes this run contained, worst first. */
   errors: DetectedError[];
   /** The one that cost the most, if any cost enough to name. */
@@ -532,6 +579,9 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
 
   // Personal bests.
   const prevBest = p.bests[result.drill] ?? null;
+  // Held before the record is rewritten below: the ghost the results screen
+  // draws is the best you had coming in, not the one you may just have set.
+  const ghostBefore = prevBest?.replay ?? null;
   const personalBests: PersonalBest[] = [];
   const bestMetrics: Record<string, number> = { ...(prevBest?.metrics ?? {}) };
   for (const km of result.keyMetrics) {
@@ -552,10 +602,20 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
   // Stamping it every run would make "set this week" mean "played this week",
   // which is a different and much less interesting claim.
   const recordMoved = prevBest === null || newBestScore || personalBests.length > 0;
+  // The ghost is the run that holds the score record, so it is only replaced
+  // when the score is. An endurance run never holds it, by the same rule that
+  // stops it setting one.
+  const keepGhost = !newBestScore || opts.endurance;
   p.bests[result.drill] = {
     score: opts.endurance ? (prevBest?.score ?? 0) : Math.max(result.score, prevBest?.score ?? 0),
     metrics: bestMetrics,
     at: recordMoved ? Date.now() : prevBest.at,
+    replay:
+      keepGhost && prevBest?.replay
+        ? prevBest.replay
+        : opts.endurance
+          ? prevBest?.replay
+          : captureReplay(result),
   };
 
   // Improvement versus the previous run of the same drill.
@@ -689,6 +749,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     advice: result.advice,
     vayne,
     apm,
+    ghost: ghostBefore,
     errors,
     limiter,
     limiterWas,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } fr
 import { audio } from '../engine/audio';
 import { clamp } from '../engine/math';
 import type { RunMetrics, TimelineMark } from '../engine/metrics';
+import type { BestReplay } from '../progression/profile';
 import './replay.css';
 
 /**
@@ -25,6 +26,10 @@ interface Props {
   /** Minimum drawing height. The canvas takes the width it is given. */
   minHeight?: number;
   maxHeight?: number;
+  /** The best run of this drill as it stood before this one, if there is one. */
+  ghost?: BestReplay | null;
+  /** This run's score, for the comparison line. */
+  score?: number;
 }
 
 /** What each timeline event is called, and how it is drawn. */
@@ -55,7 +60,16 @@ const NOTABLE: TimelineMark['kind'][] = ['cancel', 'taken', 'kill', 'dodge'];
 
 const SPEEDS = [0.25, 0.5, 1] as const;
 
-export function Replay({ metrics, bounds, accent, minHeight = 240, maxHeight = 380 }: Props) {
+export function Replay({
+  metrics,
+  bounds,
+  accent,
+  minHeight = 240,
+  maxHeight = 380,
+  ghost = null,
+  score = 0,
+}: Props) {
+  const [showGhost, setShowGhost] = useState(true);
   const duration = Math.max(0.1, metrics.duration);
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -180,6 +194,33 @@ export function Replay({ metrics, bounds, accent, minHeight = 240, maxHeight = 3
       ctx.stroke();
     };
     line(0, metrics.path.length - 1, 'rgba(140,170,200,0.16)', 1.2);
+
+    // The record run, underneath. Drawn to the same clock, so at any moment
+    // the two dots are where you were and where your best self was.
+    if (ghost && showGhost && ghost.path.length > 1) {
+      const gUpto = clamp(Math.round(t / ghost.step), 0, ghost.path.length - 1);
+      ctx.beginPath();
+      for (let i = 0; i <= gUpto; i++) {
+        const [px, py] = project(ghost.path[i].x, ghost.path[i].y);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.strokeStyle = 'rgba(240,230,210,0.34)';
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([5, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const g = ghost.path[gUpto];
+      if (g) {
+        const [gx, gy] = project(g.x, g.y);
+        ctx.strokeStyle = 'rgba(240,230,210,0.75)';
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.arc(gx, gy, 5.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
     line(Math.max(0, upto - 90), upto, accent, 1.9);
 
     // Cursor, and the line from hand to intent.
@@ -240,7 +281,7 @@ export function Replay({ metrics, bounds, accent, minHeight = 240, maxHeight = 3
       ctx.arc(px, py, 8, 0, Math.PI * 2);
       ctx.stroke();
     }
-  }, [t, selected, metrics, events, project, posAt, bounds.w, bounds.h, width, height, accent]);
+  }, [t, selected, metrics, events, project, posAt, bounds.w, bounds.h, width, height, accent, ghost, showGhost]);
 
   const seek = (time: number) => {
     setT(clamp(time, 0, duration));
@@ -283,6 +324,15 @@ export function Replay({ metrics, bounds, accent, minHeight = 240, maxHeight = 3
       seek(time);
     }
   };
+
+  // Landed attacks either side of the same moment — the comparison the stored
+  // marks can make honestly, and the one that decides an orbwalk. A drill with
+  // no attacks in either run gets no such line rather than a pair of zeroes.
+  const landedNow = events.filter((e) => e.kind === 'hit' && e.t <= t).length;
+  const landedBest = ghost ? ghost.marks.filter((m) => m.k === 'hit' && m.t <= t).length : 0;
+  const comparable =
+    !!ghost &&
+    (events.some((e) => e.kind === 'hit') || ghost.marks.some((m) => m.k === 'hit'));
 
   const sel = selected !== null ? events[selected] : null;
   const prevMark = selected !== null && selected > 0 ? events[selected - 1] : undefined;
@@ -374,6 +424,36 @@ export function Replay({ metrics, bounds, accent, minHeight = 240, maxHeight = 3
           ))}
         </div>
       </div>
+
+      {ghost && (
+        <div className="rp-ghost">
+          <button
+            className={`rp-ghost-toggle${showGhost ? ' on' : ''}`}
+            onClick={() => setShowGhost((v) => !v)}
+            aria-pressed={showGhost}
+          >
+            <i />
+            Personal best ghost
+          </button>
+          {showGhost && comparable && (
+            <span className="rp-ghost-read mono">
+              At {t.toFixed(1)}s · you {landedNow} landed · best {landedBest}
+              <em className={landedNow - landedBest >= 0 ? 'good' : 'bad'}>
+                {' '}
+                {landedNow > landedBest
+                  ? `+${landedNow - landedBest} ahead`
+                  : landedNow < landedBest
+                    ? `${landedBest - landedNow} behind`
+                    : 'level'}
+              </em>
+            </span>
+          )}
+          <span className="rp-ghost-score mono faint">
+            best {ghost.score.toLocaleString()}
+            {score > 0 && ` · this run ${score.toLocaleString()}`}
+          </span>
+        </div>
+      )}
 
       <div className="rp-detail">
         {sel ? (
