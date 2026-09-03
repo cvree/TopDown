@@ -1,0 +1,400 @@
+/* ============================================================
+   TEST RUN — the instrument itself
+
+   Full bleed, no chrome except a thin frame: while a reaction test
+   is live the only thing on screen that should be able to hold your
+   eye is the field. The banner is one line, the rail is 2px, and
+   everything else waits until the run is over.
+   ============================================================ */
+
+.testrun {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  --c: var(--accent);
+}
+
+/* -------------------------------------------------------------- top bar */
+.tr-top {
+  flex: none;
+  height: 54px;
+  display: grid;
+  grid-template-columns: 200px 1fr 200px;
+  align-items: center;
+  padding: 0 20px;
+  background: linear-gradient(180deg, rgba(2, 6, 12, 0.97), rgba(3, 9, 17, 0.7));
+  border-bottom: 1px solid var(--stroke);
+}
+.tr-exit {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  transition: color 0.16s;
+}
+.tr-exit:hover {
+  color: var(--gold-hot);
+}
+.tr-title {
+  text-align: center;
+  line-height: 1.15;
+}
+.tr-title .eyebrow {
+  font-size: 8.5px;
+  letter-spacing: 0.34em;
+}
+.tr-title b {
+  display: block;
+  font-size: 17px;
+  letter-spacing: 0.2em;
+  color: var(--c);
+}
+.tr-keys {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+/* --------------------------------------------------------------- banner */
+.tr-banner {
+  flex: none;
+  padding: 14px 20px 0;
+  text-align: center;
+}
+.tr-prompt {
+  font-family: var(--ui);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold-lit);
+  min-height: 22px;
+  text-shadow: 0 0 26px rgba(200, 170, 110, 0.35);
+}
+.tr-rail {
+  width: min(620px, 76%);
+  height: 2px;
+  margin: 12px auto 0;
+  background: rgba(255, 255, 255, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+.tr-rail span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: linear-gradient(90deg, transparent, var(--c));
+  box-shadow: 0 0 12px var(--c);
+}
+
+/* ---------------------------------------------------------------- field */
+.tr-field {
+  flex: 1;
+  min-height: 0;
+  margin: 14px 20px 20px;
+  position: relative;
+  border: 1px solid var(--stroke);
+  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+  background: #05080f;
+}
+.tr-field canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* The 3-2-1. Struck rather than faded, so it reads as a start gun. */
+.tr-count {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: radial-gradient(60% 60% at 50% 50%, rgba(2, 6, 12, 0.55), rgba(2, 6, 12, 0.9));
+}
+.tr-count span {
+  font-size: 132px;
+  color: var(--gold-hot);
+  text-shadow: 0 0 60px rgba(200, 170, 110, 0.6);
+  animation: strike 0.5s var(--ease) both;
+}
+
+/* -------------------------------------------------------------- results */
+.tr-results {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 5, 10, 0.72);
+  backdrop-filter: blur(9px) saturate(0.85);
+  animation: fadeIn 0.3s var(--ease) both;
+  overflow-y: auto;
+}
+
+.trr {
+  width: min(660px, 100%);
+  padding: 26px 30px 24px;
+  position: relative;
+}
+.trr-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--stroke);
+}
+.trr-head .faint {
+  font-size: 11.5px;
+}
+
+/* The one number. */
+.trr-hero {
+  text-align: center;
+  padding: 22px 0 6px;
+}
+.trr-figure {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+.trr-figure b {
+  font-size: 76px;
+  line-height: 1;
+  color: var(--c);
+  text-shadow: 0 0 46px color-mix(in srgb, var(--c) 45%, transparent);
+}
+.trr-unit {
+  font-family: var(--ui);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text-3);
+}
+.trr-figure-label {
+  margin-top: 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.32em;
+}
+
+/* The grade, on the same ladder as everything else in the app. */
+.trr-grade {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'emblem text' 'rail rail';
+  align-items: center;
+  gap: 4px 14px;
+  margin: 20px 0 4px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(120, 90, 40, 0.34);
+}
+.trr-grade > :first-child {
+  grid-area: emblem;
+}
+.trr-grade > :nth-child(2) {
+  grid-area: text;
+}
+.trr-tier {
+  font-size: 22px;
+  letter-spacing: 0.14em;
+  color: var(--gold-hot);
+}
+.trr-rating {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--text-3);
+}
+.trr-grade-rail {
+  grid-area: rail;
+  position: relative;
+  height: 6px;
+  margin-top: 12px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.trr-grade-rail span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, var(--gold-deep), var(--gold-hot));
+  box-shadow: 0 0 14px rgba(200, 170, 110, 0.65);
+  animation: railGrow 0.9s var(--ease) both;
+}
+.trr-grade-rail i {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: rgba(2, 5, 10, 0.9);
+}
+@keyframes railGrow {
+  from {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+}
+
+/* Personal best, or the best that still stands. */
+.trr-pb {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-left: 2px solid var(--gold-hot);
+  background: linear-gradient(90deg, rgba(200, 170, 110, 0.16), transparent);
+}
+.trr-pb b {
+  font-family: var(--ui);
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  color: var(--gold-hot);
+  white-space: nowrap;
+}
+.trr-pb span {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.trr-pb.quiet {
+  border-left-color: var(--stroke);
+  background: rgba(255, 255, 255, 0.02);
+}
+.trr-pb.quiet b {
+  color: var(--text-3);
+}
+
+.trr-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  margin-top: 18px;
+  background: rgba(120, 90, 40, 0.3);
+  border: 1px solid rgba(120, 90, 40, 0.3);
+}
+.trr-stat {
+  background: var(--panel-solid);
+  padding: 12px 14px;
+}
+.trr-stat .eyebrow {
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  color: var(--text-3);
+}
+.trr-stat b {
+  display: block;
+  font-size: 21px;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+/* Per-trial bars: taller is better, whichever direction better is. */
+.trr-trace {
+  margin-top: 18px;
+}
+.trr-trace .eyebrow {
+  font-size: 8.5px;
+  letter-spacing: 0.24em;
+  display: block;
+  margin-bottom: 8px;
+}
+.trialbars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 54px;
+  padding: 0 1px;
+  border-bottom: 1px solid var(--stroke);
+}
+.trialbars i {
+  flex: 1;
+  min-width: 3px;
+  border-radius: 1px 1px 0 0;
+  animation: barUp 0.5s var(--ease) both;
+}
+@keyframes barUp {
+  from {
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+}
+
+.trr-notes {
+  margin-top: 16px;
+}
+.trr-notes p {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-2);
+  margin: 0 0 7px;
+  padding-left: 14px;
+  position: relative;
+}
+.trr-notes p::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  background: var(--c);
+  transform: rotate(45deg);
+}
+
+.trr-next {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--stroke);
+}
+.trr-next b {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--gold-lit);
+}
+
+.trr-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 20px;
+}
+.trr-actions .btn.primary {
+  flex: 1;
+}
+.trr-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 19px;
+  margin-left: 10px;
+  padding: 0 5px;
+  border: 1px solid rgba(10, 16, 23, 0.45);
+  background: rgba(10, 16, 23, 0.16);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+@media (max-width: 720px) {
+  .tr-top {
+    grid-template-columns: 1fr auto 1fr;
+  }
+  .trr-figure b {
+    font-size: 54px;
+  }
+  .trr-stats {
+    grid-template-columns: 1fr;
+  }
+}

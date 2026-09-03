@@ -1,6 +1,7 @@
 import { clamp, mean } from '../engine/math';
 import type { DerivedMetrics, RunMetrics } from '../engine/metrics';
 import { DRILLS, type DrillId } from '../drills/catalog';
+import { gradeTest, TESTS, type TestId } from '../tests/catalog';
 import { isDemotion, isPromotion, rankFromRating, type RankInfo } from './ranks';
 import { distribute, overallRating, updateRating } from './rating';
 import { AXIS_LABEL, SKILL_AXES, type SkillAxis } from './skills';
@@ -61,6 +62,26 @@ export interface HistoryEntry {
   keyId: string;
 }
 
+/**
+ * A skill test's record. Tests sit beside the ladder rather than inside it:
+ * they do not move your drill rating, because a 20-second reaction instrument
+ * should not be able to promote you. They keep their own bests, their own
+ * grade, and their own trend.
+ */
+export interface TestRecord {
+  /** The primary value of the best attempt, in the test's own unit. */
+  best: number;
+  /** That value graded onto the 0..3600 ladder. */
+  bestRating: number;
+  /** The most recent attempt's value, best or not. */
+  last: number;
+  attempts: number;
+  /** When the best was set. */
+  at: number;
+  /** Every attempt, newest last, capped. Drawn as the test's trend line. */
+  history: { t: number; value: number; rating: number }[];
+}
+
 export interface DailyState {
   /** ISO date (local) of the day currently in progress. */
   date: string;
@@ -110,6 +131,8 @@ export interface Profile {
   vayne: VayneProgress;
   /** Overall rating recorded at the start of each local day, for trends. */
   dailyMarks: { date: string; overall: number }[];
+  /** Skill test records, keyed by test. Independent of the drill ladder. */
+  tests: Partial<Record<TestId, TestRecord>>;
 }
 
 const zeroAxis = <T>(v: T): Record<SkillAxis, T> =>
@@ -161,6 +184,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   totalSeconds: 0,
   vayne: emptyVayneProgress(),
   dailyMarks: [],
+  tests: {},
 });
 
 export const loadProfile = (): Profile => {
@@ -186,6 +210,8 @@ export const loadProfile = (): Profile => {
       bests: parsed.bests ?? {},
       history: Array.isArray(parsed.history) ? parsed.history.slice(-400) : [],
       dailyMarks: Array.isArray(parsed.dailyMarks) ? parsed.dailyMarks.slice(-120) : [],
+      // A profile written before the tests existed simply has none yet.
+      tests: parsed.tests ?? {},
     };
   } catch {
     return newProfile();
@@ -492,4 +518,72 @@ export const formatMetric = (v: number, f: KeyMetric['format']): string => {
     default:
       return `${Math.round(v)}`;
   }
+};
+
+/* ------------------------------------------------------------ skill tests */
+
+export interface TestReport {
+  id: TestId;
+  value: number;
+  rating: number;
+  /** The best before this attempt, or null if this was the first. */
+  previousBest: number | null;
+  previousRating: number;
+  newBest: boolean;
+  rankBefore: RankInfo;
+  rankAfter: RankInfo;
+  promoted: boolean;
+  benchmarkBefore: number;
+  benchmarkAfter: number;
+  attempts: number;
+}
+
+/**
+ * The mean of your best grade on every test you have attempted.
+ *
+ * Deliberately not an average over all twelve: a test you have never run
+ * should read as absent, not as zero. Twelve tests you have all done badly is
+ * a real number; two tests you have done well is a different, smaller claim,
+ * and the UI says how many are in it.
+ */
+export const benchmarkRating = (p: Profile): number => {
+  const rs = Object.values(p.tests ?? {}).map((r) => r.bestRating);
+  return rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 0;
+};
+
+export const testsAttempted = (p: Profile): number => Object.keys(p.tests ?? {}).length;
+
+/** Records an attempt and reports what it changed. Mutates `p`. */
+export const applyTestRun = (p: Profile, id: TestId, value: number): TestReport => {
+  const meta = TESTS[id];
+  const rating = gradeTest(id, value);
+  const prev = p.tests[id] ?? null;
+  const benchmarkBefore = benchmarkRating(p);
+
+  const better = !prev || (meta.primaryDirection === 'lower' ? value < prev.best : value > prev.best);
+  const record: TestRecord = {
+    best: better ? value : (prev as TestRecord).best,
+    bestRating: better ? rating : (prev as TestRecord).bestRating,
+    last: value,
+    attempts: (prev?.attempts ?? 0) + 1,
+    at: better ? Date.now() : (prev as TestRecord).at,
+    history: [...(prev?.history ?? []), { t: Date.now(), value, rating }].slice(-40),
+  };
+  p.tests = { ...p.tests, [id]: record };
+
+  const previousRating = prev?.bestRating ?? 0;
+  return {
+    id,
+    value,
+    rating,
+    previousBest: prev?.best ?? null,
+    previousRating,
+    newBest: better && prev !== null,
+    rankBefore: rankFromRating(previousRating),
+    rankAfter: rankFromRating(record.bestRating),
+    promoted: prev !== null && isPromotion(previousRating, record.bestRating),
+    benchmarkBefore,
+    benchmarkAfter: benchmarkRating(p),
+    attempts: record.attempts,
+  };
 };

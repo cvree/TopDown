@@ -1,0 +1,291 @@
+/* ============================================================
+   TESTS — the instrument rack
+
+   The drills page is a client: rails, a live arena, one big button.
+   This is deliberately the opposite — a wall of instruments you can
+   scan in one pass. The only thing borrowed from a dashboard is the
+   grid; everything inside a card is cut metal and a live picture.
+   ============================================================ */
+
+.tests {
+  padding-top: 34px;
+}
+
+/* ------------------------------------------------------------- header */
+.tests-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  gap: 40px;
+  align-items: start;
+  padding-bottom: 34px;
+  border-bottom: 1px solid var(--stroke);
+  margin-bottom: 34px;
+}
+
+.tests-h1 {
+  font-size: clamp(38px, 5vw, 62px);
+  margin: 6px 0 12px;
+  letter-spacing: 0.06em;
+  background: var(--foil);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.85));
+}
+
+.tests-lead {
+  max-width: 66ch;
+  font-size: 14.5px;
+  line-height: 1.65;
+  margin: 0 0 20px;
+}
+
+.tests-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* The benchmark plate. One number, the way the rank chip does it. */
+.tests-score {
+  padding: 22px 20px 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.ts-tier {
+  font-size: 19px;
+  letter-spacing: 0.12em;
+  color: var(--gold-hot);
+  margin-top: 8px;
+}
+.ts-rating {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--text-3);
+}
+.ts-meter {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  margin: 12px 0 10px;
+  position: relative;
+  overflow: hidden;
+}
+.ts-meter span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, var(--gold-deep), var(--gold-hot));
+  box-shadow: 0 0 14px rgba(200, 170, 110, 0.7);
+  transition: width 0.6s var(--ease);
+}
+.ts-sub {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+}
+
+/* -------------------------------------------------------------- groups */
+.tests-group {
+  margin-bottom: 46px;
+}
+.tg-head {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.tg-head h2 {
+  margin: 0;
+  font-size: 21px;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+  text-transform: uppercase;
+}
+.tg-head span {
+  font-size: 12.5px;
+}
+.tg-head i {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--stroke), transparent);
+}
+
+.tests-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
+  gap: 20px;
+}
+
+/* --------------------------------------------------------------- card */
+.tcard {
+  --c: var(--accent);
+  display: block;
+  text-align: left;
+  padding: 0;
+  background: linear-gradient(165deg, rgba(9, 18, 32, 0.9), rgba(3, 8, 16, 0.94));
+  border: 1px solid var(--stroke);
+  position: relative;
+  overflow: hidden;
+  clip-path: polygon(13px 0, 100% 0, 100% calc(100% - 13px), calc(100% - 13px) 100%, 0 100%, 0 13px);
+  transition: transform 0.2s var(--ease), border-color 0.2s, box-shadow 0.25s;
+}
+.tcard:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--c) 60%, transparent);
+  box-shadow: 0 22px 46px -26px #000, 0 0 34px -18px var(--c);
+}
+
+/* The live miniature. */
+.tc-preview {
+  position: relative;
+  height: 132px;
+  background: #05080f;
+  border-bottom: 1px solid var(--stroke);
+  overflow: hidden;
+}
+.tc-preview canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.tc-veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, transparent 34%, transparent 62%, rgba(2, 5, 10, 0.7) 100%);
+}
+
+/* "RUN TEST" slides up over the preview on hover. */
+.tc-run {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 9px 0;
+  text-align: center;
+  font-family: var(--ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: #0a1017;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 92%, #fff 8%), var(--c));
+  transform: translateY(100%);
+  transition: transform 0.22s var(--ease-metal);
+}
+.tcard:hover .tc-run {
+  transform: none;
+}
+
+.tc-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 3px;
+  background: rgba(2, 6, 12, 0.82);
+  border: 1px solid var(--stroke);
+  font-family: var(--ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--gold-lit);
+}
+.tc-meta {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+}
+.tc-meta span {
+  padding: 2px 7px;
+  background: rgba(2, 6, 12, 0.75);
+  border: 1px solid rgba(120, 90, 40, 0.35);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+}
+
+.tc-body {
+  padding: 15px 17px 16px;
+}
+.tc-name {
+  font-size: 18px;
+  letter-spacing: 0.1em;
+  color: var(--c);
+  text-shadow: 0 0 22px color-mix(in srgb, var(--c) 40%, transparent);
+}
+.tc-tag {
+  font-family: var(--ui);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-top: 3px;
+}
+.tc-brief {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+  margin: 11px 0 14px;
+  min-height: 58px;
+}
+
+.tc-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(120, 90, 40, 0.28);
+}
+.tc-best .eyebrow {
+  font-size: 8.5px;
+  letter-spacing: 0.22em;
+  display: block;
+  margin-bottom: 3px;
+}
+.tc-best b {
+  font-size: 25px;
+  color: var(--text);
+  line-height: 1;
+}
+.tc-best b i {
+  font-size: 11px;
+  font-style: normal;
+  color: var(--text-3);
+  margin-left: 3px;
+}
+.tc-attempts {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  padding-bottom: 4px;
+}
+
+.tests-disclaimer {
+  max-width: 74ch;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-3);
+  border-left: 2px solid var(--stroke);
+  padding-left: 16px;
+  margin: 10px 0 20px;
+}
+.tests-disclaimer b {
+  color: var(--text-2);
+}
+
+@media (max-width: 980px) {
+  .tests-head {
+    grid-template-columns: 1fr;
+  }
+}
