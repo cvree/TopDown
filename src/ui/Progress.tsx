@@ -100,6 +100,15 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
           </div>
         </div>
 
+        {/* A profile with nothing in it gets one sentence and the way out of
+            it, rather than four tiles of dashes with no explanation. */}
+        {!profile.placed && (
+          <p className="prog-first">
+            Nothing here has been measured yet. Calibration is five short drills, once, and it fills in
+            every number on this page.
+          </p>
+        )}
+
         {/* ---------------------------------------------------- 30-day change */}
         <section className="prog-window">
           <div className="sec-head">

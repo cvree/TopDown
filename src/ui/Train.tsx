@@ -83,7 +83,11 @@ export function Train({ profile, onPlay, onLadder, onCourse, onDaily }: Props) {
         <section className="tr-rec">
           <div className="sec-head">
             Recommended
-            <span className="sec-note">picked from your last {Math.min(profile.totalRuns, 40)} runs</span>
+            <span className="sec-note">
+              {profile.totalRuns > 0
+                ? `picked from your last ${Math.min(profile.totalRuns, 40)} runs`
+                : 'a starting point, until you have some runs'}
+            </span>
           </div>
           <div className="tr-rec-row">
             {recommended.map((r, i) => (
@@ -257,7 +261,15 @@ const buildRecommendations = (p: Profile, plan: ReturnType<typeof buildPlan>): R
   const priority = trainingPriority(p);
   if (priority) {
     const d = drillForAxis(priority.axis);
-    add(d, `Your weakest axis. ${AXIS_LABEL[priority.axis]} is what is holding the rest back.`);
+    // An axis with no runs behind it is an unknown, not a weakness, and
+    // telling a brand-new profile that its movement is holding it back is a
+    // claim the trainer has no evidence for.
+    add(
+      d,
+      p.samples[priority.axis] > 0
+        ? `Your weakest axis. ${AXIS_LABEL[priority.axis]} is what is holding the rest back.`
+        : `${AXIS_LABEL[priority.axis]} has never been measured. Nothing is a weakness until it is.`,
+    );
   }
 
   const mod = nextWasdModule(p.wasd);

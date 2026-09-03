@@ -3,11 +3,9 @@ import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { formatMetric, recentImprovement, type Profile } from '../progression/profile';
 import { axisReadings, buildPlan, nextInPlan, recentImprovements } from '../progression/plan';
-import { heroFor } from '../engine/heroes';
 import { rankFromRating } from '../progression/ranks';
 import { AXIS_BLURB, AXIS_LABEL } from '../progression/skills';
-import { nextVayneStage } from '../progression/vayne';
-import { HeroSigil } from './components/HeroSigil';
+import { nextVayneStage, titleFor as vayneTitleFor } from '../progression/vayne';
 import { RankEmblem } from './components/RankEmblem';
 import './today.css';
 
@@ -76,13 +74,25 @@ export function Today({ profile, onStartSession, onPlay, onPlacement, onSection 
     return (
       <div className="scroll">
         <div className="wrap today fade-up">
-          <section className="td-open">
+          {/* The first thing anybody sees after champion select. One column,
+              centred on the fold, because a new profile has no session, no
+              rating and no reads — everything this screen normally holds is a
+              consequence of the eight minutes this button starts. */}
+          <section className="td-first">
             <span className="eyebrow">First run</span>
             <h1 className="td-title display">CALIBRATION</h1>
             <p className="td-lead">
               Five short drills read your movement, reaction, attack timing and combat profile, then place
               you on the ladder. Eight minutes, once. After that this screen builds you a session every day.
             </p>
+            <div className="td-first-seq">
+              {['MOVEMENT', 'AIM', 'DODGE', 'KITE', '1 v 1'].map((n, i) => (
+                <span key={n}>
+                  <i className="mono">{i + 1}</i>
+                  {n}
+                </span>
+              ))}
+            </div>
             <button className="btn primary lg" onClick={start} onMouseEnter={() => audio.play('uiHover')}>
               Begin calibration <span className="hint">ENTER</span>
             </button>
@@ -146,16 +156,22 @@ export function Today({ profile, onStartSession, onPlay, onPlacement, onSection 
             }}
           >
             {(() => {
-              const hero = heroFor(profile.settings.hero);
+              // The champion *path*, not the roster silhouette. Two different
+              // things wore that word and the card used to say both at once:
+              // a Sentinel badge over "next on the path: TUMBLE" is a card
+              // about two champions. The roster is cosmetic and lives on
+              // Champions; this is the course with progress in it.
               const stage = nextVayneStage(profile.vayne);
+              const title = vayneTitleFor(profile.vayne.peak);
               return (
                 <>
-                  <div className="td-read-head" style={{ ['--c' as string]: hero.accent }}>
-                    <HeroSigil hero={hero.id} size={26} />
-                    <b>{hero.name.toUpperCase()}</b>
+                  <div className="td-read-head">
+                    <b>VAYNE</b>
+                    <span className="mono">{Math.round(profile.vayne.mastery)}</span>
                   </div>
                   <p>
-                    Next on the path: <em>{DRILLS[stage.id].name}</em> — {stage.title.toLowerCase()}.
+                    {title.name.toLowerCase()} · next is <em>{DRILLS[stage.id].name}</em>,{' '}
+                    {stage.title.toLowerCase()}.
                   </p>
                   <span className="td-read-act">Continue mastery →</span>
                 </>

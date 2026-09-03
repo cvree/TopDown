@@ -292,3 +292,44 @@
     font-size: var(--t-2xl);
   }
 }
+
+/* ------------------------------------------------------------- first run
+   A new profile has no session, no rating and no reads, so the screen is one
+   centred column rather than the three-band layout with two empty bands. */
+.td-first {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 620px;
+  padding: 12vh 0 0;
+}
+.td-first .td-title {
+  margin-top: var(--sp-3);
+}
+.td-first .td-lead {
+  margin-bottom: var(--sp-6);
+}
+.td-first-seq {
+  display: flex;
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-7);
+  padding: var(--sp-4) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  align-self: stretch;
+}
+.td-first-seq span {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-family: var(--ui);
+  font-size: var(--t-tiny);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text-2);
+}
+.td-first-seq i {
+  font-style: normal;
+  font-size: var(--t-micro);
+  color: var(--text-4);
+}
