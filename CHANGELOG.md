@@ -48,6 +48,10 @@ The trainer stopped handing you a score and started telling you what went wrong,
 
 ### Fixed
 
+- A black screen after choosing a champion. Clicking through the roster rebuilt the portrait’s renderer every time, each one taking over a graphics context whose resources the last one had just released — twenty-eight clicks meant twenty-nine renderers over one increasingly broken context. The portrait now builds once and swaps the body inside it.
+- The arena behind the menus survives losing its graphics context: it stops drawing to a dead one and the painted background takes over, rather than leaving a black rectangle behind the whole client.
+- Anything that fails now lands on a screen that says what happened and offers a reload. Nothing in the app can leave you on a blank page any more.
+- A champion saved by a build whose roster has since changed no longer leaves the settings roster with nothing selected in it.
 - A personal best’s date was the date the drill was last played, not the date the record was set, so “set this week” meant “played this week”.
 - A first run of a drill was congratulated as a personal best. It writes a baseline, and the summary says so.
 - A skill measured for the first time inside a window was reported as having grown by its entire rating. Growth is now only counted where both ends were measured; a new reading is named as a new reading.

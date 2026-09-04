@@ -1,4 +1,4 @@
-import { DEFAULT_HERO, type HeroId } from '../engine/heroes';
+import { DEFAULT_HERO, isHeroId, type HeroId } from '../engine/heroes';
 import { VERSION } from '../patchnotes/notes';
 import { clamp, mean } from '../engine/math';
 import type { DerivedMetrics, RunMetrics, TimelineMark } from '../engine/metrics';
@@ -389,7 +389,14 @@ export const loadProfile = (): Profile => {
       ratings: { ...p.ratings, ...parsed.ratings },
       samples: { ...p.samples, ...parsed.samples },
       difficulty: { ...p.difficulty, ...parsed.difficulty },
-      settings: { ...p.settings, ...parsed.settings },
+      settings: {
+        ...p.settings,
+        ...parsed.settings,
+        // A champion from a build whose roster has since changed reads back as
+        // the default everywhere it is drawn, so it is normalised here too —
+        // otherwise settings shows a roster with nothing selected in it.
+        hero: isHeroId(parsed.settings?.hero) ? parsed.settings.hero : p.settings.hero,
+      },
       // A profile written before champion select existed is not dragged back
       // through onboarding if it has already been placed — it simply keeps the
       // default body until its owner goes and changes it.
