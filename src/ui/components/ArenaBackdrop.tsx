@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { DEFAULT_HERO, heroFor, type HeroId } from '../../engine/heroes';
 import { ChampionRig, type RigSpec } from '../../gfx/champions';
@@ -63,6 +63,11 @@ export function ArenaBackdrop({
   onReady?: () => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  // A context the browser has taken back cannot be drawn to, and a canvas that
+  // is still on screen after that is a black rectangle behind the whole
+  // client. When it happens we stop, say so, and fall back to the painted
+  // background the low-effects setting already uses.
+  const [lost, setLost] = useState(false);
   const readyRef = useRef(onReady);
   readyRef.current = onReady;
   // The live scene, so changing champion can swap one body rather than tear
@@ -85,8 +90,21 @@ export function ArenaBackdrop({
     } catch {
       // No WebGL: the menus still work, they just get a flat background.
       readyRef.current?.();
+      setLost(true);
       return;
     }
+
+    // Losing the context is not an error the player caused and not one they
+    // can do anything about, so it is handled rather than reported: the loop
+    // stops, the canvas comes down, and the painted background takes over.
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      setLost(true);
+      // Whoever is gating on the arena must not wait for a frame that can no
+      // longer be drawn.
+      readyRef.current?.();
+    };
+    canvas.addEventListener('webglcontextlost', onContextLost);
     // A backdrop must never cost the front end its responsiveness — but it is
     // also the first thing anyone sees, so it keeps the post chain. Medium
     // quality buys bloom on the braziers and the grade pass's vignette and
@@ -95,12 +113,25 @@ export function ArenaBackdrop({
     scene.renderScale = 0.8;
     scene.setQuality('medium');
 
-    const rigs = FIGURES.map((f, i) => {
-      const rig = new ChampionRig(figureSpec(i, heroRef.current));
-      rig.setPosition(f.x, f.y);
-      scene.world.add(rig.group);
-      return rig;
-    });
+    let rigs: ChampionRig[];
+    try {
+      rigs = FIGURES.map((f, i) => {
+        const rig = new ChampionRig(figureSpec(i, heroRef.current));
+        rig.setPosition(f.x, f.y);
+        scene.world.add(rig.group);
+        return rig;
+      });
+    } catch {
+      // Anything that goes wrong building the staged figures costs us the
+      // backdrop and nothing else. It must never cost the player the client:
+      // this runs during a commit, so an exception escaping here would take
+      // the whole tree down and leave them on a black page.
+      scene.dispose();
+      canvas.removeEventListener('webglcontextlost', onContextLost);
+      readyRef.current?.();
+      setLost(true);
+      return;
+    }
     liveRef.current = { scene, rigs };
 
     const resize = () => {
@@ -148,7 +179,7 @@ export function ArenaBackdrop({
       const now = performance.now();
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
-      if (document.hidden) return;
+      if (document.hidden || scene.renderer.getContext().isContextLost()) return;
       acc += dt;
       if (acc < FRAME) return;
       const step = acc;
@@ -212,6 +243,7 @@ export function ArenaBackdrop({
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('pointermove', onPointer);
+      canvas.removeEventListener('webglcontextlost', onContextLost);
       ro.disconnect();
       liveRef.current = null;
       for (const rig of rigs) rig.dispose();
@@ -223,15 +255,22 @@ export function ArenaBackdrop({
   useEffect(() => {
     const live = liveRef.current;
     if (!live) return;
-    const old = live.rigs[0];
-    const rig = new ChampionRig(figureSpec(0, hero));
-    rig.setPosition(FIGURES[0].x, FIGURES[0].y);
-    live.scene.world.add(rig.group);
-    live.rigs[0] = rig;
-    old.dispose();
+    try {
+      const old = live.rigs[0];
+      const rig = new ChampionRig(figureSpec(0, hero));
+      rig.setPosition(FIGURES[0].x, FIGURES[0].y);
+      live.scene.world.add(rig.group);
+      live.rigs[0] = rig;
+      old.dispose();
+    } catch {
+      // Same rule as the build: the backdrop is allowed to fail, the client
+      // is not. This effect fires the instant a champion is chosen, which is
+      // the worst possible moment to hand somebody a blank page.
+      setLost(true);
+    }
   }, [hero]);
 
-  if (!enabled) return <div className="atmos atmos-static" aria-hidden />;
+  if (!enabled || lost) return <div className="atmos atmos-static" aria-hidden />;
   return (
     <div className="atmos" aria-hidden>
       <canvas ref={ref} />

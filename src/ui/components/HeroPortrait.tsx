@@ -13,8 +13,14 @@ import { heroFor, type HeroId } from '../../engine/heroes';
  *
  * It is deliberately not a `RiftScene`: the arena builds terrain, a sky and a
  * post chain, and none of that belongs behind a portrait. This is one light
- * rig, one figure, a soft floor and nothing else, which is cheap enough to
- * mount and dispose every time the selection changes.
+ * rig, one figure, a soft floor and nothing else.
+ *
+ * The renderer is built **once** and the body is swapped inside it. Rebuilding
+ * it per selection meant a new WebGL context every time somebody clicked a
+ * champion — and a browser will only keep so many contexts alive at once. Past
+ * the limit it kills the oldest, which is the arena rendering behind the whole
+ * client, and the player is left looking at a black screen for the crime of
+ * browsing the roster.
  */
 
 const HEIGHT = 170;
@@ -30,6 +36,11 @@ export function HeroPortrait({
   className?: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  // The live scene, so a change of champion swaps one body rather than tearing
+  // the renderer down and taking its context with it.
+  const liveRef = useRef<{ scene: THREE.Scene; rig: ChampionRig; rim: THREE.PointLight } | null>(null);
+  const heroRef = useRef(hero);
+  heroRef.current = hero;
 
   useEffect(() => {
     const canvas = ref.current;
@@ -73,7 +84,7 @@ export function HeroPortrait({
     scene.add(fill);
     scene.add(new THREE.HemisphereLight(0x8fb6e8, 0x2a2418, 1.05));
 
-    const def = heroFor(hero);
+    const def = heroFor(heroRef.current);
     // A rim light in the champion's own colour. It is what makes seven bodies
     // in the same armour read as seven different champions in a grid.
     const rim = new THREE.PointLight(new THREE.Color(def.accent), 60000, 1100, 2);
@@ -88,6 +99,7 @@ export function HeroPortrait({
     });
     rig.setPosition(0, 0);
     scene.add(rig.group);
+    liveRef.current = { scene, rig, rim };
 
     const camera = new THREE.PerspectiveCamera(30, 1, 10, 1400);
 
@@ -133,7 +145,8 @@ export function HeroPortrait({
       // Idle, wind up, release, idle — the loop the whole trainer is about,
       // played at half speed so the two phases are separable by eye.
       const cyc = t % 5;
-      rig.update(step, {
+      // The live rig, because the champion can be swapped underneath us.
+      (liveRef.current?.rig ?? rig).update(step, {
         speed: 0,
         // The rig faces +z at `facing = π/2` (see the note in units.ts), and
         // the camera is orbiting by `yaw` — so this keeps the champion turned
@@ -157,11 +170,39 @@ export function HeroPortrait({
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
-      rig.dispose();
+      liveRef.current?.rig.dispose();
+      liveRef.current = null;
       scene.clear();
+      // `dispose()` frees this renderer's GPU resources but leaves the context
+      // attached to the canvas until it is garbage collected. Losing it on
+      // purpose hands it back now, which is the difference between a screen
+      // you can come back to and one that has run the browser out of contexts.
+      try {
+        renderer.forceContextLoss();
+      } catch {
+        /* Some drivers refuse; disposing is still worth doing. */
+      }
       renderer.dispose();
     };
-  }, [hero, enabled]);
+  }, [enabled]);
+
+  // Champion changed: swap the body and the rim light inside the live scene.
+  useEffect(() => {
+    const live = liveRef.current;
+    if (!live) return;
+    const def = heroFor(hero);
+    const next = new ChampionRig({
+      height: HEIGHT,
+      radius: HEIGHT / 5.4,
+      ...def.look,
+      ringColor: '#5fe0ff',
+    });
+    next.setPosition(0, 0);
+    live.scene.add(next.group);
+    live.rig.dispose();
+    live.rig = next;
+    live.rim.color.set(def.accent);
+  }, [hero]);
 
   if (!enabled) return null;
   return <canvas ref={ref} className={className} aria-hidden />;

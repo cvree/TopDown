@@ -279,6 +279,16 @@ export class RiftScene {
     this.sky.geometry.dispose();
     (this.sky.material as THREE.Material).dispose();
     this.scene.clear();
+    // Handing the WebGL context back rather than waiting for the collector to
+    // notice. A browser keeps only a handful alive at once and kills the
+    // oldest when it runs out — and the oldest is whatever is rendering
+    // behind the client, which is how a leak here turns into a black screen
+    // somewhere else entirely.
+    try {
+      this.renderer.forceContextLoss();
+    } catch {
+      /* Some drivers refuse. Disposing is still worth doing. */
+    }
     this.renderer.dispose();
   }
 }
