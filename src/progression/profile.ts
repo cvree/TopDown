@@ -5,7 +5,6 @@ import type { DerivedMetrics, RunMetrics, TimelineMark } from '../engine/metrics
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { gradeTest, TESTS, type TestId } from '../tests/catalog';
 import { detectErrors, primaryLimiter, type DetectedError, type ErrorCode } from './errors';
-import { planFrom, planSession, type SessionPlan } from './plan';
 import {
   applyApmRun,
   emptyApmProgress,
@@ -26,6 +25,21 @@ import {
   type VayneProgress,
   type VayneRunReport,
 } from './vayne';
+import {
+  applyWasdRun,
+  emptyWasdProgress,
+  isWasdModuleId,
+  normalizeWasdProgress,
+  type WasdProgress,
+  type WasdRunReport,
+} from './wasd';
+import {
+  applyEzrealRun,
+  emptyEzrealProgress,
+  isEzrealStage,
+  type EzrealProgress,
+  type EzrealRunReport,
+} from './ezreal';
 
 const STORAGE_KEY = 'apex.profile.v1';
 const PROFILE_VERSION = 1;
@@ -65,10 +79,10 @@ export interface RunResult {
  * Deliberately small: the path at a fifth of the recorded resolution and the
  * event marks without their positions. A ghost is a shape and a rhythm, not a
  * second copy of the telemetry, and this has to survive in localStorage
- * beside twenty-eight other drills.
+ * beside every other drill.
  */
 export interface BestReplay {
-  /** Downsampled path, 0.25s per point. */
+  /** Downsampled path, a quarter of a second per point. */
   path: { x: number; y: number }[];
   /** Seconds per path sample, so the drawer does not have to assume. */
   step: number;
@@ -94,10 +108,10 @@ const GHOST_MAX_MARKS = 320;
 const captureReplay = (result: RunResult): BestReplay => {
   const path: { x: number; y: number }[] = [];
   for (let i = 0; i < result.metrics.path.length; i += GHOST_STRIDE) {
-    const p = result.metrics.path[i];
-    // One decimal place is well under a pixel at arena scale and roughly
-    // halves the stored size.
-    path.push({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 });
+    const pt = result.metrics.path[i];
+    // One decimal is well under a pixel at arena scale and roughly halves the
+    // stored size.
+    path.push({ x: Math.round(pt.x * 10) / 10, y: Math.round(pt.y * 10) / 10 });
     if (path.length >= GHOST_MAX_POINTS) break;
   }
   const marks = result.metrics.timeline
@@ -117,7 +131,7 @@ export interface HistoryEntry {
   keyId: string;
   /** Per-axis performance, so transfer can be compared axis by axis later. */
   axes?: Partial<Record<SkillAxis, number>>;
-  /** Which mistakes this run contained. Written for every run from v1.3. */
+  /** Which mistakes this run contained. Written for every run from v1.4. */
   errors?: ErrorCode[];
 }
 
@@ -136,24 +150,6 @@ export interface ErrorLogEntry {
   count: number;
   /** Share of the opportunities to make it, 0..1. This is what trends. */
   rate: number;
-}
-
-/** A finished training session — the unit the Today page plans in. */
-export interface SessionRecord {
-  t: number;
-  /** Local date key, so a calendar can group without re-deriving it. */
-  date: string;
-  /** What the session was for, in the planner's words. */
-  focus: string;
-  drills: DrillId[];
-  seconds: number;
-  /** Overall rating either side of the session. */
-  from: number;
-  to: number;
-  /** Personal bests set during it. */
-  bests: number;
-  /** Total quality reps — scored actions across the session's runs. */
-  reps: number;
 }
 
 /**
@@ -183,28 +179,6 @@ export interface DailyState {
   streak: number;
   lastCompletedDate: string | null;
   startOverall: number;
-  /** Per-axis ratings as the day opened, so a session can report what moved. */
-  startRatings?: Record<SkillAxis, number>;
-  /**
-   * Today's session, drawn up once and then left alone.
-   *
-   * It has to be stored rather than recomputed: the planner reads the profile,
-   * the profile changes with every run, and a plan that rewrites itself
-   * between two drills is not a plan.
-   */
-  plan: DrillId[];
-  /** What the session is for, in the planner's words. */
-  focus: string;
-  /** Seconds trained today, across every run. */
-  seconds: number;
-  /** Quality reps today — successful actions, not inputs. */
-  reps: number;
-  /** Personal bests set today. */
-  bests: number;
-  /** Which drills they were set on, for the session summary. */
-  bestList?: { drill: DrillId; score: number }[];
-  /** When the first run of the day started. */
-  startedAt: number | null;
 }
 
 export interface AppSettings {
@@ -277,23 +251,39 @@ export interface Profile {
   totalSeconds: number;
   /** The champion track. Separate from the general ladder on purpose. */
   vayne: VayneProgress;
+  ezreal: EzrealProgress;
   /** The APM trainer's own ladder: thirteen modes, ten explicit levels each. */
   apm: ApmProgress;
-  /**
-   * Where the profile stood at the end of each local day.
-   *
-   * The per-axis snapshot is what makes a 30-day skill change statable at
-   * all — a rating is a running value, so without a mark from thirty days ago
-   * there is nothing to subtract. Written from v1.3; older marks carry only
-   * the overall, and the UI says so rather than guessing the rest.
-   */
+  /** The WASD academy: nine modules, taken in order, played on the keys. */
+  wasd: WasdProgress;
+  /** Overall rating recorded at the start of each local day, for trends. */
   dailyMarks: { date: string; overall: number; ratings?: Record<SkillAxis, number> }[];
-  /** Skill test records, keyed by test. Independent of the drill ladder. */
-  tests: Partial<Record<TestId, TestRecord>>;
   /** Every mistake the trainer has measured, newest last. Capped. */
   errorLog: ErrorLogEntry[];
-  /** Completed training sessions, newest last. Capped. */
-  sessions: SessionRecord[];
+  /** Skill test records, keyed by test. Independent of the drill ladder. */
+  tests: Partial<Record<TestId, TestRecord>>;
+  /**
+   * Personal bests as they happened, newest last.
+   *
+   * The `bests` map already holds the *values*, but it cannot answer "what did
+   * I improve this week", which is the one question a home screen has to
+   * answer before anything else. So each beaten record is also appended here,
+   * with what it beat and when — a short, capped log rather than a second
+   * source of truth.
+   */
+  recentBests: RecentBest[];
+}
+
+/** One beaten record, kept so the home screen can say what got better. */
+export interface RecentBest {
+  drill: DrillId;
+  id: string;
+  label: string;
+  value: number;
+  previous: number;
+  format: KeyMetric['format'];
+  direction: MetricDirection;
+  at: number;
 }
 
 const zeroAxis = <T>(v: T): Record<SkillAxis, T> =>
@@ -350,29 +340,18 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   difficulty: zeroAxis(0.32),
   bests: {},
   history: [],
-  daily: {
-    date: todayKey(),
-    completed: [],
-    streak: 0,
-    lastCompletedDate: null,
-    startOverall: 0,
-    startRatings: undefined,
-    plan: [],
-    focus: '',
-    seconds: 0,
-    reps: 0,
-    bests: 0,
-    startedAt: null,
-  },
+  daily: { date: todayKey(), completed: [], streak: 0, lastCompletedDate: null, startOverall: 0 },
   settings: { ...DEFAULT_SETTINGS },
   totalRuns: 0,
   totalSeconds: 0,
   vayne: emptyVayneProgress(),
+  ezreal: emptyEzrealProgress(),
   apm: emptyApmProgress(),
+  wasd: emptyWasdProgress(),
   dailyMarks: [],
-  tests: {},
   errorLog: [],
-  sessions: [],
+  tests: {},
+  recentBests: [],
 });
 
 export const loadProfile = (): Profile => {
@@ -411,18 +390,24 @@ export const loadProfile = (): Profile => {
       vayne: parsed.vayne
         ? { ...p.vayne, ...parsed.vayne, stages: { ...p.vayne.stages, ...parsed.vayne.stages } }
         : p.vayne,
+      ezreal: parsed.ezreal
+        ? { ...p.ezreal, ...parsed.ezreal, stages: { ...p.ezreal.stages, ...parsed.ezreal.stages } }
+        : p.ezreal,
       // The APM ladder is repaired rather than merged: a profile written
       // before it existed, or before a mode did, has to come back playable.
       apm: normalizeApmProgress(parsed.apm),
       bests: parsed.bests ?? {},
       history: Array.isArray(parsed.history) ? parsed.history.slice(-400) : [],
       dailyMarks: Array.isArray(parsed.dailyMarks) ? parsed.dailyMarks.slice(-120) : [],
+      // Written from v1.4. An older profile starts it empty rather than
+      // having a history of mistakes invented for it.
+      errorLog: Array.isArray(parsed.errorLog) ? parsed.errorLog.slice(-800) : [],
+      // Same for the academy: a profile written before it existed comes back
+      // with an empty course rather than a crash on modules.wasdMove.
+      wasd: normalizeWasdProgress(parsed.wasd),
       // A profile written before the tests existed simply has none yet.
       tests: parsed.tests ?? {},
-      // Both written from v1.3. An older profile starts them empty rather
-      // than having a history invented for it.
-      errorLog: Array.isArray(parsed.errorLog) ? parsed.errorLog.slice(-800) : [],
-      sessions: Array.isArray(parsed.sessions) ? parsed.sessions.slice(-120) : [],
+      recentBests: Array.isArray(parsed.recentBests) ? parsed.recentBests.slice(-60) : [],
     };
   } catch {
     return newProfile();
@@ -491,8 +476,12 @@ export interface ProgressReport {
   advice: string;
   /** Present only for runs on the Vayne path. */
   vayne: VayneRunReport | null;
+  /** Present only for runs on the Ezreal path. */
+  ezreal: EzrealRunReport | null;
   /** Present only for runs in the APM trainer. */
   apm: ApmRunReport | null;
+  /** Present only for runs in the WASD academy. */
+  wasd: WasdRunReport | null;
   /**
    * The best run of this drill as it stood *before* this one — the thing the
    * replay draws a ghost of. Null on a first run, when there is nothing to
@@ -599,19 +588,30 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     // "personal best" would make the badge meaningless.
     if (improved) {
       personalBests.push({ id: km.id, label: km.label, value: km.value, previous: prev ?? null, format: km.format });
+      p.recentBests.push({
+        drill: result.drill,
+        id: km.id,
+        label: km.label,
+        value: km.value,
+        previous: prev as number,
+        format: km.format,
+        direction: km.direction,
+        at: Date.now(),
+      });
     }
   }
   // A double-length run accumulates a longer score by construction, so it is
   // allowed to set rate records and never a score record.
+  if (p.recentBests.length > 60) p.recentBests.splice(0, p.recentBests.length - 60);
   const newBestScore = !opts.endurance && prevBest !== null && result.score > prevBest.score;
   const previousBestScore = prevBest?.score ?? null;
   // `at` is when the record was *set*, not when the drill was last played.
   // Stamping it every run would make "set this week" mean "played this week",
   // which is a different and much less interesting claim.
   const recordMoved = prevBest === null || newBestScore || personalBests.length > 0;
-  // The ghost is the run that holds the score record, so it is only replaced
-  // when the score is. An endurance run never holds it, by the same rule that
-  // stops it setting one.
+  // The ghost belongs to the run holding the score record, so it is only
+  // replaced when the score is. An endurance run never holds it, by the same
+  // rule that stops it setting one.
   const keepGhost = !newBestScore || opts.endurance;
   p.bests[result.drill] = {
     score: opts.endurance ? (prevBest?.score ?? 0) : Math.max(result.score, prevBest?.score ?? 0),
@@ -687,6 +687,18 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
       )
     : null;
 
+  const ezreal = isEzrealStage(result.drill)
+    ? applyEzrealRun(
+        p.ezreal,
+        result.drill,
+        result.performance,
+        result.difficulty,
+        result.score,
+        Object.fromEntries(result.keyMetrics.map((k) => [k.id, k.value])),
+        p.settings.movementScheme === 'wasd',
+      )
+    : null;
+
   // The rate the ladder records is the *correct* one — the number the mode's
   // score is built on — rather than the raw headline rate, so a level record
   // can never be set by mashing.
@@ -701,32 +713,23 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
       })
     : null;
 
+  // The academy keeps the last run's headline numbers for the same reason the
+  // champion path does: so it can name the habit that is costing you rather
+  // than only the score that resulted from it.
+  const wasd = isWasdModuleId(result.drill)
+    ? applyWasdRun(
+        p.wasd,
+        result.drill,
+        result.performance,
+        result.difficulty,
+        result.score,
+        Object.fromEntries(result.keyMetrics.map((k) => [k.id, k.value])),
+      )
+    : null;
+
   adaptDifficulty(p, result.drill, result.performance);
   p.totalRuns++;
   p.totalSeconds += result.metrics.duration;
-
-  // Today's running totals. Quality reps are successful actions — attacks
-  // that landed, shots that hit, telegraphs dodged — never raw inputs, so the
-  // number cannot be inflated by clicking faster.
-  rollDaily(p);
-  if (p.daily.startedAt === null) p.daily.startedAt = now;
-  p.daily.seconds += result.metrics.duration;
-  p.daily.reps +=
-    result.metrics.attacksCompleted +
-    result.metrics.shotsHit +
-    result.metrics.projectilesDodged +
-    result.metrics.csSuccess +
-    result.metrics.targetsHit;
-  p.daily.bests += personalBests.length + (newBestScore ? 1 : 0);
-  // A first run establishes a baseline and is not a record, so only a genuine
-  // improvement is filed — the summary must never congratulate someone for
-  // having played a drill once.
-  if (newBestScore || personalBests.length > 0) {
-    p.daily.bestList = [
-      ...(p.daily.bestList ?? []).filter((b) => b.drill !== result.drill),
-      { drill: result.drill, score: result.score },
-    ];
-  }
 
   const today = todayKey();
   if (!p.dailyMarks.length || p.dailyMarks[p.dailyMarks.length - 1].date !== today) {
@@ -735,6 +738,8 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
   } else {
     const mark = p.dailyMarks[p.dailyMarks.length - 1];
     mark.overall = p.overall;
+    // The per-axis snapshot is what makes a 30-day skill change statable at
+    // all — without a mark from thirty days ago there is nothing to subtract.
     mark.ratings = { ...p.ratings };
   }
 
@@ -754,12 +759,14 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     difficultyBefore,
     difficultyAfter: drillDifficulty(p, result.drill),
     advice: result.advice,
-    vayne,
-    apm,
     ghost: ghostBefore,
     errors,
     limiter,
     limiterWas,
+    vayne,
+    ezreal,
+    apm,
+    wasd,
   };
 };
 
@@ -768,7 +775,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
 export const rollDaily = (p: Profile): void => {
   const today = todayKey();
   if (p.daily.date === today) return;
-  const wasComplete = p.daily.plan.length > 0 && p.daily.completed.length >= p.daily.plan.length;
+  const wasComplete = p.daily.completed.length >= 5;
   if (wasComplete) p.daily.lastCompletedDate = p.daily.date;
   // A streak survives one calendar day of gap and no more.
   if (p.daily.lastCompletedDate && p.daily.lastCompletedDate !== yesterdayKey() && p.daily.lastCompletedDate !== today) {
@@ -780,69 +787,13 @@ export const rollDaily = (p: Profile): void => {
     streak: p.daily.streak,
     lastCompletedDate: p.daily.lastCompletedDate,
     startOverall: p.overall,
-    startRatings: { ...p.ratings },
-    // A new day gets a new plan, drawn the first time it is asked for.
-    plan: [],
-    focus: '',
-    seconds: 0,
-    reps: 0,
-    bests: 0,
-    startedAt: null,
   };
-};
-
-/**
- * Draws today's session if it has not been drawn yet. Mutates `p`.
- *
- * Called from the Today screen rather than from `rollDaily`, because planning
- * reads the whole profile and the profile is not loaded yet when the day rolls
- * over at start-up.
- */
-export const ensureDailyPlan = (p: Profile): void => {
-  rollDaily(p);
-  if (p.daily.plan.length > 0) return;
-  const plan = planSession(p);
-  p.daily.plan = plan.blocks.map((b) => b.drill);
-  p.daily.focus = plan.focus;
-};
-
-/** The plan as the UI needs it: drills, wording and running time. */
-export const dailyPlan = (p: Profile): SessionPlan =>
-  planFrom(p, p.daily.plan, p.daily.focus) ?? planSession(p);
-
-export const dailyComplete = (p: Profile): boolean =>
-  p.daily.plan.length > 0 && p.daily.plan.every((d) => p.daily.completed.includes(d));
-
-/**
- * Files today's session in the practice history. Mutates `p`.
- *
- * Idempotent for a given day: finishing the session twice — by replaying a
- * block, say — does not file it twice.
- */
-export const recordSession = (p: Profile): SessionRecord | null => {
-  if (!dailyComplete(p)) return null;
-  if (p.sessions.some((s) => s.date === p.daily.date)) return null;
-  const rec: SessionRecord = {
-    t: Date.now(),
-    date: p.daily.date,
-    focus: p.daily.focus,
-    drills: [...p.daily.plan],
-    seconds: p.daily.seconds,
-    from: p.daily.startOverall,
-    to: p.overall,
-    bests: p.daily.bests,
-    reps: p.daily.reps,
-  };
-  p.sessions = [...p.sessions, rec].slice(-120);
-  return rec;
 };
 
 export const markDailyComplete = (p: Profile, drill: DrillId): boolean => {
   rollDaily(p);
-  // Only the session's own drills tick the session off. A quick run from the
-  // drill rail is training, but it is not the plan.
-  if (p.daily.plan.includes(drill) && !p.daily.completed.includes(drill)) p.daily.completed.push(drill);
-  const done = dailyComplete(p);
+  if (!p.daily.completed.includes(drill)) p.daily.completed.push(drill);
+  const done = p.daily.completed.length >= 5;
   if (done && p.daily.lastCompletedDate !== p.daily.date) {
     p.daily.lastCompletedDate = p.daily.date;
     p.daily.streak += 1;

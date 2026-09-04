@@ -99,6 +99,20 @@ export interface VayneStats {
   tumblesInward: number;
   /** Tumbles cut short by terrain — a dash spent on a wall. */
   tumblesBlocked: number;
+  /**
+   * Tumbles that ended outside the reach of the unit they were taken away
+   * from, and — the harder half — those that also ended with that unit still
+   * inside her own reach.
+   *
+   * This is the difference between a tumble and a *good* tumble, and nothing
+   * about when the key was pressed can tell them apart. Straight backwards
+   * off a diver is safe and costs you the trade; the same cooldown spent
+   * sideways buys the same distance and keeps the damage on.
+   */
+  tumblesToSafety: number;
+  tumblesKeptRange: number;
+  /** Tumbles that landed closer to a *second* threat than they started. */
+  tumblesIntoCrowd: number;
   empoweredHits: number;
 
   attacksLanded: number;
@@ -110,6 +124,22 @@ export interface VayneStats {
   condemnCasts: number;
   condemnHits: number;
   condemnWallStuns: number;
+  /**
+   * Wall stuns the player *made*, rather than found.
+   *
+   * A target standing in a corner can be condemned into terrain from three
+   * quarters of the compass, and doing it is not a skill. This counts the
+   * ones where the angle did not exist a second and a bit earlier and exists
+   * now because of where she walked — which is the whole of Condemn as a
+   * positional ability rather than a button.
+   */
+  condemnCreated: number;
+  /**
+   * Summed narrowness of the angles taken, 0..1 each. A stun from the one
+   * direction in twenty-four that works is worth most of a point; a stun on
+   * something already pinned in a corner is worth almost none.
+   */
+  condemnAngleSum: number;
 
   finalHours: number;
   finalHourSeconds: number;
@@ -122,6 +152,9 @@ const emptyStats = (): VayneStats => ({
   tumblesGreedy: 0,
   tumblesInward: 0,
   tumblesBlocked: 0,
+  tumblesToSafety: 0,
+  tumblesKeptRange: 0,
+  tumblesIntoCrowd: 0,
   empoweredHits: 0,
   attacksLanded: 0,
   boltProcs: 0,
@@ -130,6 +163,8 @@ const emptyStats = (): VayneStats => ({
   condemnCasts: 0,
   condemnHits: 0,
   condemnWallStuns: 0,
+  condemnCreated: 0,
+  condemnAngleSum: 0,
   finalHours: 0,
   finalHourSeconds: 0,
 });
@@ -156,6 +191,15 @@ export class VayneKit {
   private stackAge = 0;
   private empowered = false;
   private pending: PendingHit[] = [];
+  /**
+   * Where she has been standing, sampled ten times a second for two seconds.
+   *
+   * Condemn reads it to answer the only question that separates the ability
+   * from a knockback: was the wall behind them already, or did you put
+   * yourself on the side of the fight where it would be?
+   */
+  private trail: { t: number; pos: Vec2 }[] = [];
+  private trailAccum = 0;
   /** Attack cycle phase at the moment Q was pressed, for the rhythm read. */
   lastTumbleQuality: 'clean' | 'wasted' | 'greedy' | null = null;
   lastTumbleAt = -99;
@@ -202,6 +246,15 @@ export class VayneKit {
    * every point of bolt damage countable.
    */
   update(dt: number): void {
+    const me = this.s.world.player;
+    if (me) {
+      this.trailAccum += dt;
+      if (this.trailAccum >= 0.1) {
+        this.trailAccum = 0;
+        this.trail.push({ t: this.s.world.time, pos: { ...me.pos } });
+        while (this.trail.length && this.s.world.time - this.trail[0].t > 2.2) this.trail.shift();
+      }
+    }
     if (this.tumbleCd > 0) this.tumbleCd = Math.max(0, this.tumbleCd - dt);
     if (this.condemnCd > 0) this.condemnCd = Math.max(0, this.condemnCd - dt);
     if (this.hourCd > 0) this.hourCd = Math.max(0, this.hourCd - dt);
@@ -406,6 +459,27 @@ export class VayneKit {
     }
     if (reach.hit) this.stats.tumblesBlocked++;
 
+    // Where it *put* her. Direction is only half the read: a tumble taken
+    // perfectly on the beat, in a sensible direction, that ends outside her
+    // own attack range has still bought distance by giving up the trade, and
+    // that is the trade-off the ability actually asks about.
+    if (threat) {
+      const gap = dist(p.pos, threat.pos);
+      const safe = gap > threat.attack.range + p.radius;
+      if (safe) this.stats.tumblesToSafety++;
+      if (safe && gap <= p.attack.range + threat.radius) this.stats.tumblesKeptRange++;
+      // And whether she landed nearer to somebody else's fist than she left.
+      for (const other of this.s.world.actors) {
+        if (!other.alive || other.team === p.team || other.id === threat.id) continue;
+        if (dist(p.pos, other.pos) >= dist(from, other.pos)) continue;
+        if (dist(p.pos, other.pos) <= other.attack.range + p.radius) {
+          this.stats.tumblesIntoCrowd++;
+          this.s.micro('INTO THE SECOND ONE', p.pos, PALETTE.danger);
+          break;
+        }
+      }
+    }
+
     this.stats.tumbles++;
     this.lastTumbleAt = this.s.world.time;
     this.empowered = true;
@@ -448,6 +522,18 @@ export class VayneKit {
 
     if (path.hit) {
       this.stats.condemnWallStuns++;
+      // How hard the angle was, and whether she made it.
+      const narrowness = 1 - this.wallWindow(target);
+      this.stats.condemnAngleSum += narrowness;
+      const then = this.trail.find((s) => this.s.world.time - s.t <= 1.3);
+      if (then) {
+        const thenDir = norm(target.pos.x - then.pos.x, target.pos.y - then.pos.y);
+        const thenPath = this.s.world.terrainAlong(target.pos, thenDir, VAYNE_STATS.condemnPush, target.radius);
+        if (!thenPath.hit) {
+          this.stats.condemnCreated++;
+          this.s.micro('ANGLE MADE', path.at, PALETTE.good);
+        }
+      }
       this.lastWallStunAt = this.s.world.time;
       target.rootedFor = Math.max(target.rootedFor, VAYNE_STATS.condemnStun);
       this.pending.push({ targetId: target.id, amount: VAYNE_STATS.condemnWallDamage, kind: 'wall' });
@@ -461,6 +547,29 @@ export class VayneKit {
       this.s.micro('NO WALL', target.pos, PALETTE.textDim);
     }
     return 'cast';
+  }
+
+  /**
+   * What share of the compass around a target has terrain behind it.
+   *
+   * Small means the angle was rare and finding it was the skill. Large means
+   * the target was already pinned in a corner and any condemn at all would
+   * have stunned it, which is not something a player should be paid for.
+   */
+  private wallWindow(target: Actor): number {
+    const n = 24;
+    let hits = 0;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const path = this.s.world.terrainAlong(
+        target.pos,
+        { x: Math.cos(a), y: Math.sin(a) },
+        VAYNE_STATS.condemnPush,
+        target.radius,
+      );
+      if (path.hit) hits++;
+    }
+    return hits / n;
   }
 
   /** The unit Condemn would hit: under the cursor first, else nearest to it. */
@@ -683,3 +792,36 @@ export const wallRate = (st: VayneStats): number =>
  */
 export const tumbleDirection = (st: VayneStats): number =>
   st.tumbles > 0 ? clamp(1 - (st.tumblesInward + st.tumblesBlocked * 0.5) / st.tumbles, 0, 1) : 0;
+
+/**
+ * Where the tumbles actually landed her, 0..1.
+ *
+ * The full read, and the one the drills score: landing out of their reach is
+ * most of it, landing out of their reach *and* still inside her own is all of
+ * it, and landing next to somebody else is worse than not having pressed it.
+ *
+ * A tumble that no threat was near is neither credited nor charged — the
+ * question does not arise, and answering it anyway would price walking around
+ * an empty arena as good positioning.
+ */
+export const tumblePlacement = (st: VayneStats): number => {
+  const judged = st.tumblesToSafety + st.tumblesIntoCrowd;
+  if (judged < 1) return 0;
+  const good = st.tumblesKeptRange * 1 + (st.tumblesToSafety - st.tumblesKeptRange) * 0.55;
+  return clamp((good - st.tumblesIntoCrowd * 0.8) / Math.max(1, st.tumblesToSafety + st.tumblesIntoCrowd), 0, 1);
+};
+
+/**
+ * How much of the wall work was the player's doing, 0..1.
+ *
+ * Two halves, because there are two ways to be given a stun you did not earn:
+ * the target was already in a corner (a wide angle), or it wandered into one
+ * without you moving at all. This credits narrow angles, and credits them
+ * again when the angle did not exist a moment before you walked into it.
+ */
+export const wallCraft = (st: VayneStats): number => {
+  if (st.condemnWallStuns < 1) return 0;
+  const narrow = clamp(st.condemnAngleSum / st.condemnWallStuns, 0, 1);
+  const made = clamp(st.condemnCreated / st.condemnWallStuns, 0, 1);
+  return clamp(narrow * 0.5 + made * 0.5, 0, 1);
+};

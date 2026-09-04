@@ -338,6 +338,66 @@ export class OverlayHud {
         g.fillRect(x, y, w * Math.max(0, Math.min(1, b.progress)), 5);
         return;
       }
+      case 'cadence': {
+        // High enough to clear the champion's own health plate: the bar is
+        // read constantly during a run, and a bar that overlaps the health it
+        // sits above is a bar nobody reads.
+        const p = cam.worldToScreen(b.x, b.y, 250);
+        if (!p.visible) return;
+        const w = 176;
+        const h = 11;
+        const x = p.x - w / 2;
+        const y = p.y - 44;
+        // Windup, release, backswing, then the wait for the timer. The middle
+        // tick has no width in the simulation, so it is drawn as a seam.
+        const wu = Math.max(0, Math.min(1, b.windup));
+        const bs = Math.max(0, Math.min(1, b.backswing));
+        const free = Math.max(0, 1 - wu - bs);
+
+        g.fillStyle = 'rgba(4,8,14,0.82)';
+        g.fillRect(x - 2, y - 2, w + 4, h + 4);
+        // Committed: moving here throws the attack away.
+        g.fillStyle = 'rgba(255,95,126,0.85)';
+        g.fillRect(x, y, w * wu, h);
+        // Free: the backswing, where movement costs nothing at all.
+        g.fillStyle = 'rgba(61,220,132,0.8)';
+        g.fillRect(x + w * wu, y, w * bs, h);
+        // Waiting on the attack timer — free, but nothing is happening.
+        g.fillStyle = 'rgba(120,140,165,0.4)';
+        g.fillRect(x + w * (wu + bs), y, w * free, h);
+
+        // The release seam, where the damage actually leaves.
+        g.fillStyle = '#eafcff';
+        g.fillRect(x + w * wu - 1, y - 3, 2, h + 6);
+
+        if (b.phase !== 'idle') {
+          const hx = x + w * Math.max(0, Math.min(1, b.head));
+          g.fillStyle = b.moving && b.phase === 'windup' ? '#ff5f7e' : '#eafcff';
+          g.fillRect(hx - 1.5, y - 5, 3, h + 10);
+        }
+
+        g.textAlign = 'center';
+        g.textBaseline = 'bottom';
+        g.font = '700 9px "Chakra Petch", "Inter", sans-serif';
+        g.lineWidth = 3;
+        g.strokeStyle = 'rgba(3,6,12,0.85)';
+        const caption =
+          b.note ??
+          (b.phase === 'windup'
+            ? b.moving
+              ? 'MOVED IN THE WINDUP — ATTACK LOST'
+              : 'WINDUP · COMMITTED'
+            : b.phase === 'backswing'
+              ? 'BACKSWING · MOVING IS FREE'
+              : b.phase === 'ready'
+                ? 'READY · RELEASE THE KEYS TO FIRE'
+                : 'WINDING DOWN');
+        g.strokeText(caption, p.x, y - 6);
+        g.fillStyle =
+          b.phase === 'windup' ? (b.moving ? '#ff5f7e' : '#ffcf6b') : b.phase === 'backswing' ? '#8ff0bb' : '#c8d7eb';
+        g.fillText(caption, p.x, y - 6);
+        return;
+      }
       case 'caret': {
         const p = cam.worldToScreen(b.x, b.y, b.lift ?? 150);
         if (!p.visible) return;

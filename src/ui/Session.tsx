@@ -3,6 +3,7 @@ import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { ERRORS } from '../progression/errors';
 import { formatMetric, type Profile, type ProgressReport, type RunResult } from '../progression/profile';
+import { lastSession } from '../progression/plan';
 import { recommend } from '../progression/coach';
 import { AXIS_LABEL, SKILL_AXES } from '../progression/skills';
 import { useCountUp } from './components/charts';
@@ -165,36 +166,50 @@ interface SummaryProps {
  * having been present.
  */
 export function SessionComplete({ profile, onDone, onProgress, onPlay }: SummaryProps) {
-  const d = profile.daily;
-  const startedAt = d.startedAt ?? Date.now();
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
+  // The sitting that just happened, inferred from the run history rather than
+  // stored: a session is runs that happened near each other, and reading it
+  // that way means it works on every profile ever written.
+  const session = useMemo(() => lastSession(profile, true), [profile]);
+  const since = session ? session.at - session.minutes * 60000 - 60000 : Date.now();
 
   const moved = useMemo(() => {
-    const start = d.startRatings;
-    if (!start) return [];
-    return SKILL_AXES.map((axis) => ({ axis, delta: profile.ratings[axis] - (start[axis] ?? 0) }))
+    // What the sitting changed, axis by axis: the ratings as they stood before
+    // its first run against where they stand now.
+    const before = profile.dailyMarks.filter((m) => m.ratings);
+    const base = before.length > 1 ? before[before.length - 2].ratings : undefined;
+    if (!base) return [];
+    return SKILL_AXES.map((axis) => ({ axis, delta: profile.ratings[axis] - (base[axis] ?? 0) }))
       .filter((x) => Math.abs(x.delta) >= 1)
       .sort((a, b) => b.delta - a.delta)
       .slice(0, 4);
-  }, [profile.ratings, d.startRatings]);
+  }, [profile.ratings, profile.dailyMarks]);
 
-  // Records actually beaten today, filed as they happened. A drill played for
-  // the first time writes a baseline, not a record, and does not appear here.
-  const bestsToday = (d.bestList ?? []).slice(-3).reverse();
+  // Records actually beaten in this sitting. A drill played for the first time
+  // writes a baseline, not a record, and does not appear here.
+  const bestsToday = useMemo(
+    () =>
+      profile.recentBests
+        .filter((b) => b.at >= since)
+        .slice(-3)
+        .reverse(),
+    [profile.recentBests, since],
+  );
 
   const commonError = useMemo(() => {
-    const today = profile.errorLog.filter((e) => e.t >= dayStart.getTime());
+    const inSession = profile.errorLog.filter((e) => e.t >= since);
     const by = new Map<string, number>();
-    for (const e of today) by.set(e.code, (by.get(e.code) ?? 0) + e.count);
+    for (const e of inSession) by.set(e.code, (by.get(e.code) ?? 0) + e.count);
     const top = [...by.entries()].sort((a, b) => b[1] - a[1])[0];
     return top ? { code: top[0] as keyof typeof ERRORS, count: top[1] } : null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.errorLog]);
+  }, [profile.errorLog, since]);
 
   const next = useMemo(() => recommend(profile, 1)[0] ?? null, [profile]);
-  const overallDelta = profile.overall - d.startOverall;
-  const elapsed = Math.max(d.seconds, (Date.now() - startedAt) / 1000);
+  const overallDelta = session ? session.ratingAfter - session.ratingBefore : 0;
+  const elapsed = (session?.minutes ?? 0) * 60;
+  const reps = useMemo(
+    () => profile.history.filter((h) => h.t >= since).reduce((n, h) => n + Math.round(h.score / 100), 0),
+    [profile.history, since],
+  );
 
   // One cue, and it tells the truth: the record sound only where a record was
   // actually beaten. A reward for having been present is how a trainer starts
@@ -221,11 +236,11 @@ export function SessionComplete({ profile, onDone, onProgress, onPlay }: Summary
           </div>
           <div className="sd-stat">
             <span className="eyebrow">Quality reps</span>
-            <b className="display mono">{d.reps.toLocaleString()}</b>
+            <b className="display mono">{reps.toLocaleString()}</b>
           </div>
           <div className="sd-stat">
             <span className="eyebrow">Drills</span>
-            <b className="display mono">{d.completed.length}</b>
+            <b className="display mono">{session?.runs ?? 0}</b>
           </div>
           <div className="sd-stat">
             <span className="eyebrow">Rating</span>
@@ -275,11 +290,13 @@ export function SessionComplete({ profile, onDone, onProgress, onPlay }: Summary
             <div className="panel-title">Records &amp; habits</div>
             {bestsToday.length > 0 ? (
               <div className="sd-bests">
-                {bestsToday.map((b) => (
-                  <div className="sdb-row" key={b.drill}>
+                {bestsToday.map((b, i) => (
+                  <div className="sdb-row" key={`${b.drill}-${b.id}-${i}`}>
                     <span className="eyebrow">Personal best</span>
                     <b style={{ color: DRILLS[b.drill].accent }}>{DRILLS[b.drill].name}</b>
-                    <i className="mono">{b.score.toLocaleString()}</i>
+                    <i className="mono">
+                      {b.label} {formatMetric(b.value, b.format)}
+                    </i>
                   </div>
                 ))}
               </div>

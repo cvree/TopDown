@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { formatMetric, type Profile } from '../progression/profile';
+import { sessionHistory } from '../progression/plan';
 import {
   axisGains,
   errorRollup,
@@ -77,7 +78,7 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
     return profile.history.slice(-60).map((h) => h.overall);
   }, [profile]);
 
-  const sessions = useMemo(() => [...profile.sessions].reverse().slice(0, 8), [profile.sessions]);
+  const sessions = useMemo(() => sessionHistory(profile, 8), [profile]);
   const topPct = 1 - percentileForRating(profile.overall);
 
   return (
@@ -441,24 +442,34 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Focus</th>
+                  <th>Drills</th>
                   <th>Length</th>
-                  <th>Reps</th>
-                  <th>Bests</th>
+                  <th>Runs</th>
+                  <th>Weakest run</th>
                   <th>AMR</th>
                 </tr>
               </thead>
               <tbody>
                 {sessions.map((s) => (
-                  <tr key={s.date}>
-                    <td className="mono">{s.date.slice(5)}</td>
-                    <td>{s.focus}</td>
-                    <td className="mono faint">{Math.round(s.seconds / 60)}m</td>
-                    <td className="mono faint">{s.reps.toLocaleString()}</td>
-                    <td className="mono faint">{s.bests || '—'}</td>
-                    <td className={`mono ${s.to >= s.from ? 'good' : 'bad'}`}>
-                      {s.to >= s.from ? '+' : ''}
-                      {Math.round(s.to - s.from)}
+                  <tr key={s.at}>
+                    <td className="mono">
+                      {new Date(s.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </td>
+                    <td>
+                      {s.drills
+                        .slice(0, 3)
+                        .map((d) => DRILLS[d].name)
+                        .join(', ')}
+                      {s.drills.length > 3 && ` +${s.drills.length - 3}`}
+                    </td>
+                    <td className="mono faint">{s.minutes}m</td>
+                    <td className="mono faint">{s.runs}</td>
+                    <td className="faint">
+                      {s.worst ? `${DRILLS[s.worst.drill].name} ${Math.round(s.worst.performance * 100)}%` : '—'}
+                    </td>
+                    <td className={`mono ${s.ratingAfter >= s.ratingBefore ? 'good' : 'bad'}`}>
+                      {s.ratingAfter >= s.ratingBefore ? '+' : ''}
+                      {Math.round(s.ratingAfter - s.ratingBefore)}
                     </td>
                   </tr>
                 ))}
@@ -467,7 +478,7 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
           ) : (
             <div className="empty">
               <b>NO SESSIONS YET</b>
-              <p>Finish a planned session on the Today screen and it is filed here with what it changed.</p>
+              <p>Train a few drills in one sitting and it is filed here with what it changed.</p>
             </div>
           )}
         </section>

@@ -4,7 +4,6 @@ import { tuningFor } from '../engine/ai';
 import { DRILL_LIST, DRILLS, type DrillGroup, type DrillId } from '../drills/catalog';
 import {
   bestAxis,
-  dailyComplete,
   drillDifficulty,
   formatMetric,
   recentImprovement,
@@ -18,9 +17,11 @@ import {
   levelStars,
   recommendedLevel,
 } from '../progression/apm';
+import { buildPlan } from '../progression/plan';
 import { rankFromRating } from '../progression/ranks';
 import { AXIS_LABEL, SKILL_AXES } from '../progression/skills';
 import { VAYNE_STAGES, isVayneStage, stageUnlocked } from '../progression/vayne';
+import { isWasdModuleId, moduleOf, moduleUnlocked } from '../progression/wasd';
 import { RankEmblem } from './components/RankEmblem';
 import { Sparkline } from './components/charts';
 import './home.css';
@@ -46,6 +47,8 @@ interface Props {
   onProfile: () => void;
   onPlacement: () => void;
   onVayne: () => void;
+  /** Opens the WASD academy, for a module that is still locked. */
+  onAcademy: () => void;
   /** Opens the APM section, on a named mode if one was clicked. */
   onApm: (id?: DrillId) => void;
 }
@@ -57,8 +60,10 @@ const GROUPS: { id: DrillGroup; title: string; blurb: string }[] = [
   { id: 'FOUNDATION', title: 'Foundation', blurb: 'The inputs everything else is built on' },
   { id: 'RHYTHM', title: 'Rhythm', blurb: 'Timing between your hands and the clock' },
   { id: 'COMBAT', title: 'Combat', blurb: 'All of it, against something that fights back' },
+  { id: 'WASD', title: 'WASD Academy', blurb: 'Nine modules on the keys, in the order the skills stack' },
   { id: 'APM', title: 'The Lab', blurb: 'Pressing, isolated from the game — thirteen benches, ten levels each' },
   { id: 'VAYNE', title: 'Vayne', blurb: 'One champion, learned in order' },
+  { id: 'EZREAL', title: 'Ezreal', blurb: 'Aiming while your feet are busy — ten stages, isolated to a whole fight' },
 ];
 
 /**
@@ -90,16 +95,16 @@ const metricFormat = (key: string): 'ms' | 'units' | 'pct' | 'int' =>
         ? 'units'
         : 'pct';
 
-export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne, onApm }: Props) {
+export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne, onAcademy, onApm }: Props) {
   const rank = rankFromRating(profile.overall);
   const best = bestAxis(profile);
   const priority = trainingPriority(profile);
   const improvement = recentImprovement(profile);
-  // Today's session, as planned this morning — not a fixed list. The bar is a
-  // shortcut to the Today screen, so it has to agree with it exactly.
-  const plan = profile.daily.plan;
-  const sessionDone = dailyComplete(profile);
-  const dailyLeft = plan.filter((d) => !profile.daily.completed.includes(d)).length;
+  // Today's session, built from the same planner the Today screen uses — the
+  // bar is a shortcut to that screen, so it has to agree with it exactly.
+  const plan = useMemo(() => buildPlan(profile), [profile]);
+  const sessionDone = plan.items.every((i) => i.done);
+  const dailyLeft = plan.items.filter((i) => !i.done).length;
 
   // Nothing is selected until you are placed: an unplaced player is shown
   // calibration, and picking a drill is what overrides that.
@@ -157,6 +162,15 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne
                     LADDER
                   </button>
                 )}
+                {g.id === 'WASD' && (
+                  <button
+                    className="rgroup-link"
+                    onMouseEnter={() => audio.play('uiHover')}
+                    onClick={onAcademy}
+                  >
+                    COURSE
+                  </button>
+                )}
               </div>
               {DRILL_LIST.filter((d) => d.group === g.id).map((d) => {
                 const rec = profile.bests[d.id];
@@ -164,15 +178,26 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne
                 // A stage of the champion path is locked here exactly as it is
                 // locked there. One list saying "locked" while another happily
                 // launches it would make the course meaningless.
-                const locked = isVayneStage(d.id) && !stageUnlocked(profile.vayne, stageOf(d.id));
+                // A course locks the same way in both lists. One list saying
+                // "locked" while another happily launches it would make either
+                // course meaningless.
+                const locked =
+                  (isVayneStage(d.id) && !stageUnlocked(profile.vayne, stageOf(d.id))) ||
+                  (isWasdModuleId(d.id) && !moduleUnlocked(profile.wasd, moduleOf(d.id)));
                 return (
                   <button
                     key={d.id}
                     className={`rowitem${on ? ' on' : ''}${locked ? ' locked' : ''}`}
                     style={{ ['--c' as string]: d.accent }}
                     onMouseEnter={() => audio.play('uiHover')}
-                    onClick={() => (locked ? onVayne() : pick(d.id))}
-                    title={locked ? 'Locked — clear the previous stage on the Vayne path' : undefined}
+                    onClick={() => (locked ? (isWasdModuleId(d.id) ? onAcademy() : onVayne()) : pick(d.id))}
+                    title={
+                      locked
+                        ? isWasdModuleId(d.id)
+                          ? 'Locked — clear the previous module in the WASD academy'
+                          : 'Locked — clear the previous stage on the Vayne path'
+                        : undefined
+                    }
                   >
                     <span className="ri-bar" />
                     <span className="ri-name">{d.name}</span>
@@ -300,14 +325,14 @@ export function Home({ profile, onPlay, onDaily, onProfile, onPlacement, onVayne
       <footer className="playbar">
         <button className="bar-daily" onClick={onDaily} onMouseEnter={() => audio.play('uiHover')}>
           <div className="bar-daily-l">
-            <span className="eyebrow">{profile.daily.focus || "Today's session"}</span>
+            <span className="eyebrow">{plan.headline || "Today's session"}</span>
             <b className="display">
-              {!plan.length ? 'NOT PLANNED YET' : sessionDone ? 'COMPLETE' : `${dailyLeft} DRILLS LEFT`}
+              {!plan.items.length ? 'NOT PLANNED YET' : sessionDone ? 'COMPLETE' : `${dailyLeft} DRILLS LEFT`}
             </b>
           </div>
           <div className="bar-pips">
-            {plan.map((d) => (
-              <i key={d} className={profile.daily.completed.includes(d) ? 'on' : ''} title={DRILLS[d].name} />
+            {plan.items.map((i) => (
+              <i key={i.drill} className={i.done ? 'on' : ''} title={DRILLS[i.drill].name} />
             ))}
           </div>
           <div className="bar-streak mono">

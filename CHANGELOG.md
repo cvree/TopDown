@@ -6,20 +6,19 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v1.3.0**.
+Currently shipping **v1.4.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
 
-## v1.3.0 — THE COACH
+## v1.4.0 — THE COACH
 
-*2026-09-03*
+*2026-09-04*
 
 The trainer stopped handing you a score and started telling you what went wrong, what it costs, and what to do about it.
 
 ### Added
 
-- TODAY. The screen the client opens on: one session planned for you — warmup, primary weakness, secondary skill, combined drill, transfer test — with a stated purpose, a running time, and one button that starts it. Under it, your primary weakness, the mistake behind it, and the drill that fixes it.
 - Error intelligence. Fourteen named mistakes, read straight off a run’s telemetry: Early Move, Held Fire, Overstep, Range Loss, Rooted, Late Dodge, Hazard Stand, Target Drop, Cursor Overtravel, Panic Click, Missed Shot, CS Miss, Inconsistent and Chip Damage. Each one carries what it means, when it happens, what it costs and the drill that trains it away.
 - Pressure retention. The same mechanic measured on a bench and again with something fighting back, stated as a percentage. “I can do it in the practice tool” is now a number rather than a belief.
 - Transfer readiness: foundation, isolated, combined, pressure, transfer — each scored from your best three runs in that context, so a skill can be shown as learned but not yet transferred.
@@ -31,17 +30,12 @@ The trainer stopped handing you a score and started telling you what went wrong,
 - Fast navigation on Ctrl/Cmd+K: drills, tests, screens and the two actions worth a shortcut.
 - Focus mode (F2, or a setting): strips the HUD to the clock, the task, your health and the score. Everything analytical waits for the results screen.
 - A session summary: time, quality reps, what moved, records beaten, the most common mistake of the day, and what tomorrow is for.
-- Practice history: finished sessions, what each was for, and what it changed.
 
 ### Changed
 
-- Navigation is six tabs — Today, Train, Champion, Test, Progress, Records — plus setup and search. The lab and the patch notes are reached from the screens that own them.
-- The daily programme is no longer the same five drills every day. It is planned each morning from what your last runs actually showed, and it is fixed once drawn so the numbers either side of it stay comparable.
 - Between two drills in a session you get a card, not a page: the score, the one thing that cost you, and what is next. The full breakdown is one key away.
 - The results screen leads its read with the primary limiter, how often that mistake used to happen, and the drill that trains it away.
 - A difficulty change states the movement and the reason for it rather than announcing a number.
-- PROGRESS is rebuilt around five questions: how good am I, what shape am I, does it survive a fight, which mistakes am I still making, and is any of it going away. It opens with a written read of your profile and a 30-day change.
-- The champion page opens with where she stands: a champion rating on the same scale as the ladder, her strongest and weakest stage, the mistake she specifically keeps making, and the next scenario as a button.
 - The assessment ends on a verdict — strongest, weakest, and the drill to start on — rather than only a rank.
 - The ladder wears APEX’s own proficiency classes rather than League’s tier names: Foundation, Developing, Proficient, Calibrated, Refined, Advanced, Expert, Elite, Peerless, Apex. Same bands, same divisions, same thresholds, same emblems — but “my mechanics are Platinum” is a claim about a ranked ladder these drills have never measured, and the trainer should not be putting that sentence in your head.
 - A drill whose difficulty is an opponent prints what that opponent does at this level — reaction, aim error, prediction, dodging, spacing discipline — and what the next level changes.
@@ -57,6 +51,40 @@ The trainer stopped handing you a score and started telling you what went wrong,
 - A skill measured for the first time inside a window was reported as having grown by its entire rating. Growth is now only counted where both ends were measured; a new reading is named as a new reading.
 - The skill radar clipped its own axis labels against the panel edge.
 - The top bar could push the rank chip off the end of itself on a narrower display.
+
+## v1.3.0 — HANDS
+
+*2026-09-03*
+
+A place to learn the keys, a place to start each session, an attack command for WASD, an attack cycle that is actually measured, and Ezreal.
+
+### Added
+
+- The WASD Academy. Nine modules in the order the skills stack: the four keys, cursor independence, strafing, aiming while moving, attack cadence, kiting, offensive kiting, defensive kiting, and a very small teamfight. The scheme switch existed already; somewhere to learn the scheme did not, and the two are not the same thing.
+- Today: a first screen that opens on what to do next rather than on a list of everything you could do — the plan, where you last left off, and what has moved recently.
+- The Ezreal path. Ten stages from a target that does not move to a fight that will not stop moving: the missile, the lead, Q while strafing, threading a wave, the auto-Q weave, max-range poke, kiting with something on you, the blink, the transfer, and all of it at once. Each stage is gated on the one before it, and the range indicators are drawn plainly on the first and not at all by the last.
+- Q Mystic Shot refunds every cooldown when it lands, so an accurate Ezreal simply has more of a kit than an inaccurate one. Pressed in the attack windup it throws the auto away; pressed in the backswing it is free.
+- An attack command under WASD. You no longer have to let go of the keys to shoot — the mouse can buy a shot while you drive. Timed onto the tick it is free; pressed early it plants your feet until the shot leaves, which is exactly what an early attack-move click costs you in League.
+- ATTACK TIMING and ATTACK LATENCY. Every shot is now stamped with how long it sat available before you took it, backswing seconds are split into moving and standing, and the kite drill leads with the result — because "you did less damage" is a consequence and "your shots go out 240ms late" is a cause.
+- ADVANTAGEOUS SPACING: the share of a fight spent where you can hit them and they cannot hit you. Reported by every combat drill, and the number the spacing drill now leads with.
+- Eight bot behaviours — chase, retreat, strafe, tether, diver, bait, erratic and controlled-irregular — replacing one movement policy that could only approach, back off, or circle on a timer.
+
+### Changed
+
+- Direction changes are instant. Rolling A into D used to cancel the axis to zero and leave you standing still for as long as both keys were down; the newer key now owns the axis and hands it back when released.
+- Spacing runs in three stages across one run: both reaches drawn, then only as you cross them, then nothing at all. The blind third is weighted more than double the first and reported separately, because it is the only one that resembles a game.
+- The kite drill runs in three phases: something walking at you, something running from you, and something doing neither. Kiting forwards and kiting backwards are two skills with one name, and the drill is graded on the weaker of the two — a player who can only orbwalk away from things has not learnt to orbwalk.
+- The dodge drill has enemies in it. The patterns come out of emitters that can be killed, and the score reads DAMAGE AVOIDED and DAMAGE DEALT — running to an empty corner is still credited with what it avoided and can no longer pass.
+- Vayne’s tumble is scored on where it puts her, not only on when it was pressed: out of their reach, and out of their reach while they are still inside hers. Condemn now weighs how narrow the wall angle was and whether it existed before you walked into it.
+- Academy modules are gated on having played them. Almost every number the academy keeps is a share of time spent moving, and all of them were free to a player holding one key down: uptime reads 1.0, every mark is taken "on the move", and a cursor chasing marks while the feet run straight even reads as independent. Six of the nine modules scored over half that way and one scored 87%. Scores now need the module’s prompts answered and the feet making decisions — a turn or a fresh press, so the release-and-repress rhythm counts as readily as constant turning.
+- Stop clears your target as well as your order. It is how you stop attacking, not merely how you stop walking — and it still cannot take back a committed windup.
+- The duel arenas grade attack timing and advantageous spacing, so winning by standing still no longer reads like winning by kiting.
+
+### Fixed
+
+- Unit separation ran after everything else and answered to nothing: two bodies shoving each other against terrain could push one straight through it, and a crowd against the arena edge leaked bodies off the floor.
+- The dodge drill’s spiral pattern staggered its shots on the wall clock, so it kept firing through a pause, landed on different frames at different frame rates, and made two runs of the same seed different runs.
+- Three drills could be passed without playing them: Condemn paid 66% for pressing E at random, the Ezreal stages counted "landed while moving" as a share that anybody who never stands still gets for free, and the new attack-timing read scored 0.88 for a run that cancelled 98% of its own attacks.
 
 ## v1.2.0 — CHAMPION SELECT
 

@@ -46,6 +46,17 @@ const PLAYER_ATTACK: AttackProfile = {
 /** Radius inside which an enemy projectile counts as a "near miss". */
 export const GRAZE_RADIUS = 46;
 
+/**
+ * The longest an attack command will hold your feet waiting for a shot.
+ *
+ * Long enough that a press a tenth of a second early still fires — nobody has
+ * frame-perfect hands and a trainer that demands them teaches flinching, not
+ * timing. Short enough that a press half a cycle early is simply thrown away
+ * after costing you the distance, which is what stops mashing from being a
+ * strategy.
+ */
+export const FIRE_REQUEST_MAX = 0.3;
+
 export class World {
   readonly bounds: WorldBounds;
   readonly rng: Rng;
@@ -117,6 +128,7 @@ export class World {
       targetId: null,
       order: null,
       moveDir: null,
+      fireRequest: 0,
       knockback: null,
       lastAttackAt: -99,
       hitFlash: 0,
@@ -240,9 +252,42 @@ export class World {
     if (targetId !== undefined) a.targetId = targetId;
   }
 
+  /**
+   * "Shoot now."
+   *
+   * The one command direct control has that clicking does not need, because
+   * clicking cannot be holding a direction at the same time. It plants the
+   * champion until the attack starts, for at most `FIRE_REQUEST_MAX`, and
+   * reports how much standing still the press is about to cost — zero if the
+   * timer was already up, the whole remaining cooldown if it was not.
+   *
+   * Returns the seconds of movement the command will cost.
+   */
+  requestFire(a: Actor): number {
+    if (a.phase === 'windup') return 0;
+    const cost = Math.max(0, a.attackCd);
+    a.fireRequest = Math.min(FIRE_REQUEST_MAX, Math.max(cost, 1 / 240));
+    return Math.min(FIRE_REQUEST_MAX, cost);
+  }
+
+  /**
+   * Stop.
+   *
+   * It drops the order, the target and any pending attack command, which is
+   * what League's S key does: it is how you *stop attacking*, not merely how
+   * you stop walking. It used to leave the target behind, so under an
+   * attack-move stance the champion carried on shooting the thing you had just
+   * asked it to leave alone.
+   *
+   * It still does not cancel a windup. A committed attack is committed, and a
+   * key that could take it back would be a free undo on the one decision this
+   * whole trainer is about.
+   */
   issueStop(a: Actor): void {
-    if (a.phase === 'windup') return; // stop does not cancel a windup
+    if (a.phase === 'windup') return;
     a.order = null;
+    a.targetId = null;
+    a.fireRequest = 0;
     a.vel.x = 0;
     a.vel.y = 0;
   }
@@ -328,6 +373,22 @@ export class World {
     return { distance: best, hit: hit && best < maxDist - 0.5, at: { x: from.x + dx * best, y: from.y + dy * best } };
   }
 
+  /**
+   * Puts an actor back where an actor is allowed to be: inside the arena and
+   * outside the terrain.
+   *
+   * Everything that moves a body — steering, knockback, and the separation
+   * pass that runs after both — ends by calling this. Before, separation ran
+   * last and answered to nothing, so two units shoving each other against a
+   * wall pushed one of them *through* it, and a crowd against the arena edge
+   * quietly leaked bodies off the floor.
+   */
+  private confine(a: Actor): void {
+    a.pos.x = clamp(a.pos.x, a.radius, this.bounds.w - a.radius);
+    a.pos.y = clamp(a.pos.y, a.radius, this.bounds.h - a.radius);
+    if (this.walls.length) this.resolveWalls(a);
+  }
+
   /** Pushes a circle out of any wall it is standing in. */
   private resolveWalls(a: Actor): void {
     for (const wall of this.walls) {
@@ -401,6 +462,7 @@ export class World {
 
     // A knockback owns the actor while it lasts: no pathing, no attacking.
     if (a.knockback) {
+      a.fireRequest = 0;
       const kb = a.knockback;
       const step = Math.min(kb.speed * dt, kb.remaining);
       a.pos.x += kb.dir.x * step;
@@ -408,9 +470,7 @@ export class World {
       a.vel.x = kb.dir.x * kb.speed;
       a.vel.y = kb.dir.y * kb.speed;
       kb.remaining -= step;
-      a.pos.x = clamp(a.pos.x, a.radius, this.bounds.w - a.radius);
-      a.pos.y = clamp(a.pos.y, a.radius, this.bounds.h - a.radius);
-      this.resolveWalls(a);
+      this.confine(a);
       if (kb.remaining <= 0.001) {
         a.knockback = null;
         a.vel.x = 0;
@@ -461,17 +521,22 @@ export class World {
     // An attack-move never chases: it walks to the point you clicked and
     // attacks whatever enters range on the way, exactly as in League. Only an
     // explicit attack-on-target order follows the unit.
-    // Under direct control a held direction and an attack are exclusive: you
-    // release the keys to shoot. That is the same commitment the click scheme
-    // asks for — it is just expressed with the other hand.
-    const holdingFire = a.directControl && a.moveDir !== null;
-    if (target && a.attackCd <= 0 && a.phase !== 'windup' && !holdingFire && (target.invisibleFor ?? 0) <= 0) {
+    // Under direct control an attack needs one of two things: the keys let go
+    // of — the classic orbwalk release — or an explicit attack command, which
+    // costs you standing still until the shot leaves. A held direction alone
+    // never fires, because a champion that shoots while you drive it is not
+    // teaching anybody to orbwalk.
+    const firing = a.directControl ? a.moveDir === null || (a.fireRequest ?? 0) > 0 : true;
+    if (target && a.attackCd <= 0 && a.phase !== 'windup' && firing && (target.invisibleFor ?? 0) <= 0) {
       const d = dist(a.pos, target.pos) - target.radius;
       if (d <= a.attack.range) this.beginAttack(a, target);
     }
 
-    // Movement.
-    const canMove = a.phase !== 'windup' && a.rootedFor <= 0;
+    // Movement. A live attack command plants the feet: the champion has been
+    // told to shoot and is waiting for the timer, which is exactly the stutter
+    // an early attack-move click buys you in League.
+    const halted = (a.directControl ?? false) && (a.fireRequest ?? 0) > 0;
+    const canMove = a.phase !== 'windup' && a.rootedFor <= 0 && !halted;
     let moved = 0;
     if (canMove && a.moveDir) {
       const sp = a.moveSpeed * a.slowFactor;
@@ -516,15 +581,22 @@ export class World {
       a.vel.x = 0;
       a.vel.y = 0;
     }
-    if (target) a.facing = Math.atan2(target.pos.y - a.pos.y, target.pos.x - a.pos.x);
+    // Face the target while the attack animation owns the body; face where you
+    // are going the rest of the time. A champion that moonwalks everywhere
+    // because a stance is holding a target reads its own movement wrongly.
+    if (target && (a.phase !== 'idle' || moved === 0)) {
+      a.facing = Math.atan2(target.pos.y - a.pos.y, target.pos.x - a.pos.x);
+    }
 
-    // Keep everyone inside the arena, and out of the terrain.
-    a.pos.x = clamp(a.pos.x, a.radius, this.bounds.w - a.radius);
-    a.pos.y = clamp(a.pos.y, a.radius, this.bounds.h - a.radius);
-    if (this.walls.length) this.resolveWalls(a);
+    this.confine(a);
+    // The command ages out at the end of the step it was read on, never
+    // before: a request made and expired inside one tick would be a command
+    // that could not possibly have fired anything.
+    if ((a.fireRequest ?? 0) > 0) a.fireRequest = Math.max(0, (a.fireRequest ?? 0) - dt);
   }
 
   beginAttack(a: Actor, target: Actor): void {
+    a.fireRequest = 0;
     const cycle = 1 / Math.max(0.05, a.attack.attackSpeed);
     a.phase = 'windup';
     a.phaseTime = cycle * a.attack.windupRatio;
@@ -609,6 +681,8 @@ export class World {
           b.pos.x += nx * push;
           b.pos.y += ny * push;
         }
+        if (!a.immovable) this.confine(a);
+        if (!b.immovable) this.confine(b);
       }
     }
   }
@@ -660,6 +734,12 @@ export class World {
             targetId: a.id,
             amount: p.damage,
             pos: { ...p.pos },
+            // Which missile it was. A champion whose abilities are missiles
+            // needs to tell its own skillshot landing apart from its basic
+            // attack landing, and the alternative — inferring it from damage
+            // or timing — is a guess that goes wrong the first time two
+            // numbers happen to match.
+            meta: p.id,
           });
           if (p.pierce) p.hitIds?.add(a.id);
           else p.life = p.maxLife + 1;

@@ -3,7 +3,7 @@ import { derive } from '../engine/metrics';
 import { PALETTE } from '../engine/palette';
 import type { DrillPaint } from '../engine/paint';
 import type { HudField } from '../engine/session';
-import { VAYNE_COLOR, VAYNE_STATS, tumbleDirection } from '../engine/vayne';
+import { VAYNE_COLOR, VAYNE_STATS, tumbleDirection, tumblePlacement } from '../engine/vayne';
 import { band, count, pct, type DrillOutcome } from './base';
 import { VayneDrill } from './vaynebase';
 
@@ -199,17 +199,23 @@ export class VayneTumbleDrill extends VayneDrill {
     const available = Math.max(1, this.s.elapsed / VAYNE_STATS.tumbleCd);
     const usage = band(st.tumbles / available, 0.25, 0.85);
     const windowUse = this.windowsOffered > 0 ? clamp(this.windowsTaken / this.windowsOffered, 0, 1) : 0;
-    const tumbleScore = rhythm * (0.4 + 0.6 * usage);
+    const placement = tumblePlacement(st);
+    // Rhythm is *when* the key went down; placement is where it sent her.
+    // Scoring only the first one meant a run of perfectly timed tumbles
+    // straight into the person chasing her graded as flawless, which is the
+    // single most common way a real Vayne dies.
+    const tumbleScore = rhythm * (0.4 + 0.6 * usage) * (0.55 + 0.45 * placement);
     const damageRate = band(m.damageDealt / Math.max(1, this.s.elapsed), 10, 40);
     const chainScore = band(m.maxChain, 2, 12);
 
     const performance = clamp(
-      d.orbwalkEfficiency * 0.3 +
+      d.orbwalkEfficiency * 0.26 +
         tumbleScore * 0.28 +
-        windowUse * 0.08 +
+        placement * 0.1 +
+        windowUse * 0.06 +
         d.hpRetained * 0.14 +
-        damageRate * 0.12 +
-        chainScore * 0.08,
+        damageRate * 0.1 +
+        chainScore * 0.06,
       0,
       1,
     );
@@ -221,6 +227,10 @@ export class VayneTumbleDrill extends VayneDrill {
     if (d.orbwalkEfficiency > 0.75) helped.push('Your attack and movement windows are almost fully used.');
     if (st.tumblesWasted > 0) hurt.push(`${st.tumblesWasted} tumble${st.tumblesWasted === 1 ? '' : 's'} thrown mid-windup — each one cost you a whole attack.`);
     if (st.tumblesGreedy > 1) hurt.push(`${st.tumblesGreedy} tumbles taken with your attack already up.`);
+    if (st.tumblesKeptRange > 2 && st.tumblesKeptRange >= st.tumblesToSafety * 0.6)
+      helped.push(`${st.tumblesKeptRange} tumbles that bought distance without giving up the trade.`);
+    if (st.tumblesIntoCrowd > 0) hurt.push(`${st.tumblesIntoCrowd} tumble${st.tumblesIntoCrowd === 1 ? '' : 's'} that landed next to a second opponent.`);
+    if (placement < 0.4 && st.tumbles > 4) hurt.push('Your tumbles are landing badly. Timing them right is only half of it — sideways keeps them in range, backwards does not.');
     if (usage < 0.4) hurt.push('You sat on the tumble. It is a six-second cooldown, not an escape button.');
     if (windowUse < 0.35 && this.windowsOffered > 6) hurt.push('The backswing prompt came up and went unused most of the time.');
     this.handsNotes(helped, hurt);
@@ -249,6 +259,7 @@ export class VayneTumbleDrill extends VayneDrill {
         count('wasted', 'WINDUPS THROWN', st.tumblesWasted, 'lower'),
         pct('orbwalk', 'ORBWALK EFFICIENCY', d.orbwalkEfficiency),
         pct('tumbleAway', 'TUMBLE DIRECTION', tumbleDirection(st)),
+        pct('tumblePlace', 'TUMBLE PLACEMENT', placement),
         count('empowered', 'EMPOWERED HITS', st.empoweredHits),
       ],
       helped,

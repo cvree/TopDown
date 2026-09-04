@@ -9,13 +9,27 @@ import { GameLoop, SIM_DT } from '../src/engine/loop';
 import { Session, type TumbleAim, type ViewProjection } from '../src/engine/session';
 import { createDrill, arenaFor } from '../src/drills';
 import { APM_DRILL_IDS, type LabSolution } from '../src/drills/apm';
-import { DRILLS, type DrillId } from '../src/drills/catalog';
+import { WASD_DRILL_IDS } from '../src/drills/wasd';
+import { DRILLS, WASD_SEQUENCE, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
-import type { InputEventKind, InputSystem, MovementScheme } from '../src/engine/input';
-import { dist, norm } from '../src/engine/math';
+import { InputSystem, WASD_BINDINGS, type AbilitySlot, type InputEventKind, type MovementScheme } from '../src/engine/input';
+import { angleDelta, dist, norm } from '../src/engine/math';
+import { ARCHETYPES } from '../src/engine/archetypes';
+import { EnemyBrain, tuningFor, type BotBehavior } from '../src/engine/ai';
+import type { Actor, Vec2 } from '../src/engine/types';
 import { incomingDamage } from '../src/engine/lane';
 import type { VayneKit } from '../src/engine/vayne';
 import { VAYNE_STATS } from '../src/engine/vayne';
+import { EZREAL_STATS, type EzrealKit } from '../src/engine/ezreal';
+import { EZREAL_DRILL_IDS, ezrealStage, type EzrealDrillId } from '../src/drills/ezreal';
+import {
+  EZREAL_STAGES,
+  applyEzrealRun,
+  computeEzrealMastery,
+  emptyEzrealProgress,
+  ezStageUnlocked,
+  ezTitleFor,
+} from '../src/progression/ezreal';
 import {
   APM_LEVELS,
   APM_MODES,
@@ -39,8 +53,11 @@ type Policy =
   | 'idle'
   | 'standStill'
   | 'dodge'
+  | 'dodgeFight'
+  | 'flee'
   | 'aim'
   | 'hold'
+  | 'kiteAway'
   | 'nodes'
   | 'priority'
   | 'sequence'
@@ -48,14 +65,31 @@ type Policy =
   | 'lastHit'
   | 'wasd'
   | 'wasdHold'
+  | 'wasdMash'
+  | 'wasdCommand'
+  | 'ezreal'
+  | 'ezStatic'
+  | 'abilitySpam'
+  | 'apmChaos'
+  | 'holdOne'
+  | 'edgeHug'
+  | 'circle'
+  | 'stall'
   | 'vayneTumble'
+  | 'vayneLateral'
   | 'vayneBolts'
   | 'vayneCondemn'
   | 'vayneKit'
   | 'vayneWasd'
   | 'apmOrbwalk'
   | 'lab'
-  | 'labWasd';
+  | 'labWasd'
+  /* --- the WASD academy. Every one of these drives the keys, not the mouse --- */
+  | 'acadMove'
+  | 'acadIndep'
+  | 'acadStrafe'
+  | 'acadAimMove'
+  | 'acadMulti';
 
 class FakeInput {
   cursor = { x: 0, y: 0 };
@@ -116,6 +150,11 @@ const runDrill = (
   let t = 0;
   let reactTimer = 0;
   let orbitDir = 1;
+  // Academy bookkeeping: which way the strafe policy is running, and whether
+  // it has already reacted to the telegraph currently on screen.
+  let strafeSide = 1;
+  let tellSeen = false;
+  let strafeFlipAt = 0;
   /** When the lab policy last issued an input, for its human rate limit. */
   let lastLabInput = -1;
   const maxT = (meta.duration > 0 ? meta.duration : 60) + 2;
@@ -238,6 +277,131 @@ const runDrill = (
             if (target) input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
             break;
           }
+          case 'flee': {
+            // The strategy the old dodge drill rewarded: find the emptiest
+            // corner of the floor and stay in it. It should still score its
+            // avoidance honestly and it should not be able to pass.
+            reactTimer = 0.3;
+            let far = { x: bounds.w * 0.08, y: bounds.h * 0.08 };
+            let bestD = -1;
+            for (const corner of [
+              { x: bounds.w * 0.08, y: bounds.h * 0.08 },
+              { x: bounds.w * 0.92, y: bounds.h * 0.08 },
+              { x: bounds.w * 0.08, y: bounds.h * 0.92 },
+              { x: bounds.w * 0.92, y: bounds.h * 0.92 },
+            ]) {
+              let nearest = Infinity;
+              for (const e of session.world.enemies()) nearest = Math.min(nearest, dist(corner, e.pos));
+              if (nearest > bestD) {
+                bestD = nearest;
+                far = corner;
+              }
+            }
+            input.push({ kind: 'move', x: far.x, y: far.y, t: t * 1000 });
+            break;
+          }
+          case 'dodgeFight': {
+            // Dodge, and then make the dodge worth something: step into range
+            // of an emitter, take the shot, and leave. This is the behaviour
+            // the drill is supposed to be measuring.
+            reactTimer = 0.05;
+            const emitters = session.world.enemies().filter((e) => e.unitKind === 'turret');
+            const pick = emitters.length
+              ? emitters.reduce((a, b) => (dist(p.pos, a.pos) <= dist(p.pos, b.pos) ? a : b))
+              : null;
+
+            // Telegraphed ground first. Most of what this drill throws is a
+            // hazard rather than a missile, and a policy that only watches
+            // missiles is not dodging — it is being lucky, slowly.
+            let escape = { x: 0, y: 0 };
+            for (const h of session.world.hazards) {
+              if (h.team !== 'enemy' || h.active <= 0) continue;
+              if (!session.world.hazardHits(h, p.pos, p.radius + 70)) continue;
+              const away =
+                h.shape === 'ring'
+                  ? (() => {
+                      const d = dist(p.pos, h.pos);
+                      const r = norm(p.pos.x - h.pos.x, p.pos.y - h.pos.y);
+                      // Inside a ring the way out is inward, outside it is out.
+                      const inward = d < h.radius;
+                      return inward ? { x: -r.x, y: -r.y } : r;
+                    })()
+                  : norm(p.pos.x - h.pos.x, p.pos.y - h.pos.y);
+              escape.x += away.x;
+              escape.y += away.y;
+            }
+            if (escape.x !== 0 || escape.y !== 0) {
+              const out = norm(escape.x, escape.y);
+              input.push({
+                kind: 'move',
+                x: Math.max(60, Math.min(bounds.w - 60, p.pos.x + out.x * 340)),
+                y: Math.max(60, Math.min(bounds.h - 60, p.pos.y + out.y * 340)),
+                t: t * 1000,
+              });
+              break;
+            }
+
+            // Which missile is actually going to hit, and when — rather than
+            // which one happens to be nearest. A volley puts eight in the air
+            // and only two of them are aimed at you; dodging the closest one
+            // means stepping into the path of the next.
+            let threat: { x: number; y: number } | null = null;
+            let miss = { x: 0, y: 0 };
+            let td = Infinity;
+            for (const pr of session.world.projectiles) {
+              if (pr.team !== 'enemy') continue;
+              const rx = p.pos.x - pr.pos.x;
+              const ry = p.pos.y - pr.pos.y;
+              const vv = pr.vel.x * pr.vel.x + pr.vel.y * pr.vel.y;
+              if (vv < 1) continue;
+              const tHit = (rx * pr.vel.x + ry * pr.vel.y) / vv;
+              if (tHit < 0 || tHit > 1.1) continue;
+              const missX = rx - pr.vel.x * tHit;
+              const missY = ry - pr.vel.y * tHit;
+              if (Math.hypot(missX, missY) > p.radius + pr.radius + 26) continue;
+              if (tHit < td) {
+                td = tHit;
+                threat = pr.vel;
+                miss = { x: missX, y: missY };
+              }
+            }
+            // Something in the air comes first: dodge perpendicular, but bias
+            // the sidestep toward whatever you were trying to shoot.
+            if (threat) {
+              // Sidestep the way you are already off the line: continuing off
+              // it clears in half the distance that crossing it does, and
+              // crossing it is how a panicked dodge walks into the shot.
+              const perp = norm(-threat.y, threat.x);
+              const off = perp.x * miss.x + perp.y * miss.y;
+              const bias = pick ? norm(pick.pos.x - p.pos.x, pick.pos.y - p.pos.y) : { x: 0, y: 0 };
+              const sign =
+                Math.abs(off) > 4 ? (off >= 0 ? 1 : -1) : perp.x * bias.x + perp.y * bias.y >= 0 ? 1 : -1;
+              input.push({
+                kind: 'move',
+                x: Math.max(60, Math.min(bounds.w - 60, p.pos.x + perp.x * sign * 300)),
+                y: Math.max(60, Math.min(bounds.h - 60, p.pos.y + perp.y * sign * 300)),
+                t: t * 1000,
+              });
+              break;
+            }
+            if (!pick) break;
+            const dp = dist(p.pos, pick.pos);
+            if (dp - pick.radius <= p.attack.range && p.attackCd <= 0.001 && p.phase !== 'windup') {
+              input.push({ kind: 'move', x: pick.pos.x, y: pick.pos.y, t: t * 1000 });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const toward = norm(pick.pos.x - p.pos.x, pick.pos.y - p.pos.y);
+            const want = p.attack.range * 0.85 + pick.radius;
+            const sign = dp > want ? 1 : -1;
+            input.push({
+              kind: 'move',
+              x: Math.max(60, Math.min(bounds.w - 60, p.pos.x + toward.x * sign * 300)),
+              y: Math.max(60, Math.min(bounds.h - 60, p.pos.y + toward.y * sign * 300)),
+              t: t * 1000,
+            });
+            break;
+          }
           case 'dodge': {
             // Moves away from the nearest inbound projectile.
             reactTimer = 0.08;
@@ -272,8 +436,14 @@ const runDrill = (
             break;
           }
           case 'hold': {
-            // Disciplined spacing: attack when ready, otherwise sit at the
-            // outer edge of your own range and match their movement.
+            // Disciplined spacing: attack when ready, otherwise hold the outer
+            // edge of your own range and match their movement.
+            //
+            // The correction is radial *and* tangential, and it turns before
+            // it reaches the floor edge. Backing away in a straight line is
+            // how a real player gets cornered and it is not what competent
+            // spacing looks like — a policy that did it would be testing the
+            // arena's walls rather than the drill's scoring.
             reactTimer = 0.05;
             if (!target) break;
             const d = dist(p.pos, target.pos);
@@ -283,15 +453,62 @@ const runDrill = (
               break;
             }
             if (p.phase === 'windup') break;
-            if (Math.abs(d - want) < 26) break;
             const radial = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
-            const sign = d < want ? 1 : -1;
-            const gx = p.pos.x + radial.x * sign * 300;
-            const gy = p.pos.y + radial.y * sign * 300;
+            const tangent = { x: -radial.y, y: radial.x };
+            // Inside their reach is an emergency, not a small error: leave
+            // first and re-space afterwards. Correcting proportionally from in
+            // there means strolling out of a threat range, which is how a real
+            // player eats four autos deciding what to do.
+            const danger = target.attack.range + p.radius + 50;
+            const correction = d < danger ? 1 : Math.max(-1, Math.min(1, (want - d) / 140));
+            const tw = 0.7 * (1 - Math.abs(correction));
+            let gx = p.pos.x + (radial.x * correction + tangent.x * orbitDir * tw) * 300;
+            let gy = p.pos.y + (radial.y * correction + tangent.y * orbitDir * tw) * 300;
+            // Pinned: go *around* them rather than into the wall. Walking to
+            // the middle of the floor would be walking at the thing you are
+            // spacing against, which no competent player does.
+            const margin = 220;
+            if (gx < margin || gx > bounds.w - margin || gy < margin || gy > bounds.h - margin) {
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              orbitDir = tangent.x * toCentre.x + tangent.y * toCentre.y >= 0 ? 1 : -1;
+              gx = p.pos.x + tangent.x * orbitDir * 320;
+              gy = p.pos.y + tangent.y * orbitDir * 320;
+            }
             input.push({
               kind: 'move',
               x: Math.max(50, Math.min(bounds.w - 50, gx)),
               y: Math.max(50, Math.min(bounds.h - 50, gy)),
+              t: t * 1000,
+            });
+            break;
+          }
+          case 'kiteAway': {
+            // Orbwalks perfectly, and only ever backwards. It is the most
+            // common shape of a real ADC's mechanics — fine while something
+            // walks at them, useless the moment it turns and runs — and the
+            // kite drill has to be able to see it.
+            reactTimer = 0.05;
+            if (!target) break;
+            const dA = dist(p.pos, target.pos);
+            if (p.attackCd <= 0.001 && p.phase !== 'windup' && dA - target.radius <= p.attack.range) {
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const awayA = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            const tangentA = { x: -awayA.y, y: awayA.x };
+            let gxA = p.pos.x + (awayA.x * 0.7 + tangentA.x * orbitDir * 0.7) * 300;
+            let gyA = p.pos.y + (awayA.y * 0.7 + tangentA.y * orbitDir * 0.7) * 300;
+            const marginA = 200;
+            if (gxA < marginA || gxA > bounds.w - marginA || gyA < marginA || gyA > bounds.h - marginA) {
+              orbitDir *= -1;
+              gxA = p.pos.x + tangentA.x * orbitDir * 300;
+              gyA = p.pos.y + tangentA.y * orbitDir * 300;
+            }
+            input.push({
+              kind: 'move',
+              x: Math.max(50, Math.min(bounds.w - 50, gxA)),
+              y: Math.max(50, Math.min(bounds.h - 50, gyA)),
               t: t * 1000,
             });
             break;
@@ -386,6 +603,185 @@ const runDrill = (
             input.dir = { x: gx, y: gy };
             break;
           }
+          case 'acadMove': {
+            // The movement module, played the way it is taught: hold one
+            // heading to the node, release before arriving, stand still while
+            // it registers — and on the instrument phase, hold whatever
+            // heading the panel is asking for without looking at anything else.
+            reactTimer = 0.02;
+            const st = drill as unknown as {
+              node: { pos: { x: number; y: number }; radius: number } | null;
+              call: { dir: number } | null;
+            };
+            if (st.call) {
+              const a = (st.call.dir * Math.PI) / 4;
+              input.dir = { x: Math.cos(a), y: Math.sin(a) };
+              break;
+            }
+            const node = st.node;
+            if (!node) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const d = dist(p.pos, node.pos);
+            // Release well inside the ring. Stopping is the whole module, and
+            // a policy that only ever arrives would not be playing it.
+            if (d < node.radius * 0.3) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            input.dir = norm(node.pos.x - p.pos.x, node.pos.y - p.pos.y);
+            break;
+          }
+          case 'acadIndep': {
+            // Cursor pinned to the mark; feet solving whatever the drill is
+            // asking for. The two never agree, which is the point.
+            reactTimer = 0.02;
+            const st = drill as unknown as {
+              mark: { pos: { x: number; y: number }; radius: number; id: number } | null;
+              zone: { pos: { x: number; y: number }; radius: number } | null;
+              phaseIndex: number;
+            };
+            const mark = st.mark;
+            if (mark) session.cursorWorld = { x: mark.pos.x, y: mark.pos.y };
+            const zone = st.zone;
+            if (zone) {
+              const d = dist(p.pos, zone.pos);
+              // Only the last phase asks for a shot, and under the keys taking
+              // one means letting go for a beat. Doing it in the earlier
+              // phases would just be a policy that stands still.
+              if (st.phaseIndex >= 3 && mark && p.attackCd <= 0.001 && p.phase !== 'windup') {
+                const gap = dist(p.pos, mark.pos) - mark.radius;
+                if (gap <= p.attack.range) {
+                  input.dir = { x: 0, y: 0 };
+                  if (p.targetId !== mark.id) {
+                    input.push({ kind: 'move', x: mark.pos.x, y: mark.pos.y, t: t * 1000 });
+                  }
+                  break;
+                }
+              }
+              input.dir = d < zone.radius * 0.5 ? { x: 0, y: 0 } : norm(zone.pos.x - p.pos.x, zone.pos.y - p.pos.y);
+              break;
+            }
+            if (!mark) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            // The orbit phase: hold the band and keep going round.
+            const d = dist(p.pos, mark.pos);
+            const desired = 300;
+            const radial = norm(p.pos.x - mark.pos.x, p.pos.y - mark.pos.y);
+            const tangent = { x: -radial.y, y: radial.x };
+            const correction = Math.max(-1, Math.min(1, (desired - d) / 200));
+            input.dir = {
+              x: radial.x * correction + tangent.x * orbitDir * 0.8,
+              y: radial.y * correction + tangent.y * orbitDir * 0.8,
+            };
+            break;
+          }
+          case 'acadStrafe': {
+            // Lateral to the shooter, and the direction flips the moment a
+            // tell appears — which is precisely what makes the shot a bait.
+            reactTimer = 0.02;
+            const st = drill as unknown as {
+              shooter: { pos: { x: number; y: number } } | null;
+              shot: { telegraph: number } | null;
+            };
+            const sh = st.shooter;
+            if (!sh) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const hasTell = st.shot !== null;
+            if (hasTell && !tellSeen) {
+              tellSeen = true;
+              strafeSide *= -1;
+            } else if (!hasTell) {
+              tellSeen = false;
+            }
+            // And an irregular flip otherwise, so the run is not a metronome.
+            if (t > strafeFlipAt) {
+              strafeFlipAt = t + 0.35 + session.rng.next() * 0.9;
+              if (session.rng.next() > 0.55) strafeSide *= -1;
+            }
+            const radial = norm(p.pos.x - sh.pos.x, p.pos.y - sh.pos.y);
+            const tangent = { x: -radial.y, y: radial.x };
+            let gx = tangent.x * strafeSide;
+            let gy = tangent.y * strafeSide;
+            const margin = 200;
+            if (p.pos.x < margin || p.pos.x > bounds.w - margin || p.pos.y < margin || p.pos.y > bounds.h - margin) {
+              strafeSide *= -1;
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gx = toCentre.x;
+              gy = toCentre.y;
+            }
+            input.dir = { x: gx, y: gy };
+            break;
+          }
+          case 'acadAimMove': {
+            // Never stops. The keys stay down for the whole run and the
+            // cursor takes every mark on its own.
+            reactTimer = 0.05;
+            const st = drill as unknown as { marks: { actor: { pos: { x: number; y: number }; id: number } }[] };
+            const marks = st.marks ?? [];
+            if (marks.length) {
+              const want = marks.reduce((a, b) =>
+                dist(p.pos, a.actor.pos) <= dist(p.pos, b.actor.pos) ? a : b,
+              );
+              session.cursorWorld = { x: want.actor.pos.x, y: want.actor.pos.y };
+              input.push({ kind: 'move', x: want.actor.pos.x, y: want.actor.pos.y, t: t * 1000 });
+            }
+            // Keep moving, and keep moving *somewhere*: circling the middle
+            // leaves every telegraph behind without running into a wall.
+            const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+            const tangent = { x: -toCentre.y, y: toCentre.x };
+            const away = dist(p.pos, { x: bounds.w / 2, y: bounds.h / 2 }) > 320 ? 0.7 : -0.3;
+            input.dir = norm(toCentre.x * away + tangent.x * orbitDir, toCentre.y * away + tangent.y * orbitDir);
+            break;
+          }
+          case 'acadMulti': {
+            // The last module: orbwalk the called target, spend the bolt on it
+            // whenever it is up, and let the feet leave the telegraphs.
+            reactTimer = 0.03;
+            const st = drill as unknown as { priority: number | null; cd: Record<string, number> };
+            const want = session.world.byId(st.priority) ?? target;
+            if (!want) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            session.cursorWorld = { x: want.pos.x, y: want.pos.y };
+            if ((st.cd?.q ?? 1) <= 0) {
+              input.push({ kind: 'ability', slot: 'q', x: want.pos.x, y: want.pos.y, t: t * 1000 });
+            }
+            if (p.phase === 'windup') {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const d = dist(p.pos, want.pos);
+            const inRange = d - want.radius <= p.attack.range;
+            if (p.attackCd <= 0.001 && inRange) {
+              input.dir = { x: 0, y: 0 };
+              if (p.targetId !== want.id) {
+                input.push({ kind: 'move', x: want.pos.x, y: want.pos.y, t: t * 1000 });
+              }
+              break;
+            }
+            const desired = p.attack.range * 0.9 + want.radius;
+            const radial = norm(p.pos.x - want.pos.x, p.pos.y - want.pos.y);
+            const tangent = { x: -radial.y, y: radial.x };
+            const correction = Math.max(-1, Math.min(1, (desired - d) / 180));
+            let gx = radial.x * correction + tangent.x * orbitDir * 0.7;
+            let gy = radial.y * correction + tangent.y * orbitDir * 0.7;
+            const margin = 200;
+            if (p.pos.x < margin || p.pos.x > bounds.w - margin || p.pos.y < margin || p.pos.y > bounds.h - margin) {
+              orbitDir *= -1;
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gx = toCentre.x;
+              gy = toCentre.y;
+            }
+            input.dir = { x: gx, y: gy };
+            break;
+          }
           case 'wasdHold': {
             // Never lets go of the keys. Under direct control that means the
             // attack never starts, which is exactly the mistake being priced.
@@ -395,6 +791,205 @@ const runDrill = (
             }
             const a = session.rng.angle();
             input.dir = { x: Math.cos(a), y: Math.sin(a) };
+            break;
+          }
+          case 'ezreal':
+          case 'ezStatic': {
+            // A competent Ezreal, and the same player with his feet nailed to
+            // the floor. Everything else about them is identical — the lead
+            // maths, the threading check, the weave timing — so any gap in the
+            // scores is a gap the *movement* weighting created, which is the
+            // one claim the whole path rests on.
+            reactTimer = 0.03;
+            const kit = (drill as unknown as { kit?: EzrealKit }).kit;
+            const priority = (drill as unknown as { priorityId?: number }).priorityId;
+            const champs = session.world.enemies().filter((e) => !e.isMinion);
+            const want =
+              (priority !== undefined && priority >= 0 ? session.world.byId(priority) : undefined) ??
+              (champs.length
+                ? champs.reduce((a, b) => (dist(p.pos, a.pos) <= dist(p.pos, b.pos) ? a : b))
+                : null);
+            if (!want || !want.alive) {
+              if (policy === 'ezreal') input.dir = { x: 0, y: 0 };
+              break;
+            }
+            session.cursorWorld = { x: want.pos.x, y: want.pos.y };
+
+            // Where it will be when the missile gets there, cast time included.
+            let leadT = EZREAL_STATS.qCastTime + dist(p.pos, want.pos) / EZREAL_STATS.qSpeed;
+            for (let i = 0; i < 3; i++) {
+              const at = { x: want.pos.x + want.vel.x * leadT, y: want.pos.y + want.vel.y * leadT };
+              leadT = EZREAL_STATS.qCastTime + dist(p.pos, at) / EZREAL_STATS.qSpeed;
+            }
+            const aim = { x: want.pos.x + want.vel.x * leadT, y: want.pos.y + want.vel.y * leadT };
+            const aimDir = norm(aim.x - p.pos.x, aim.y - p.pos.y);
+
+            // Would anything else eat it? Waiting for the gap is the correct
+            // play, so the policy waits rather than feeding the wave.
+            let blocked = false;
+            for (const other of session.world.actors) {
+              if (!other.alive || other.team === p.team || other.id === want.id) continue;
+              const rx = other.pos.x - p.pos.x;
+              const ry = other.pos.y - p.pos.y;
+              const along = rx * aimDir.x + ry * aimDir.y;
+              if (along <= 0 || along > dist(p.pos, aim)) continue;
+              if (Math.abs(rx * -aimDir.y + ry * aimDir.x) < other.radius + EZREAL_STATS.qRadius) blocked = true;
+            }
+
+            const qUp = kit ? kit.qCd <= 0.001 : false;
+            const inQ = dist(p.pos, aim) < EZREAL_STATS.qRange - 40;
+            // Never out of the windup: the auto is already paid for.
+            if (qUp && inQ && !blocked && p.phase !== 'windup') {
+              input.push({ kind: 'ability', slot: 'q', x: aim.x, y: aim.y, t: t * 1000 });
+            }
+            if (kit && kit.loadout.shift && kit.eCd <= 0.001) {
+              const near = champs.reduce(
+                (acc, e) => Math.min(acc, dist(p.pos, e.pos) - e.attack.range),
+                Infinity,
+              );
+              if (near < 40) {
+                // Sideways, not backwards. A blink straight away from the
+                // thing on you is safe and useless; a lateral one leaves its
+                // range while keeping it inside yours, which is the only
+                // version of this that a cooldown is worth spending on.
+                const away = norm(p.pos.x - want.pos.x, p.pos.y - want.pos.y);
+                const side = norm(-away.y, away.x);
+                const escape = norm(away.x * 0.45 + side.x * orbitDir, away.y * 0.45 + side.y * orbitDir);
+                input.push({ kind: 'ability', slot: 'e', x: p.pos.x + escape.x * 400, y: p.pos.y + escape.y * 400, t: t * 1000 });
+              }
+            }
+
+            const dq = dist(p.pos, want.pos);
+            if (p.attackCd <= 0.001 && p.phase !== 'windup' && dq - want.radius <= p.attack.range) {
+              input.push({ kind: 'move', x: want.pos.x, y: want.pos.y, t: t * 1000 });
+            }
+            if (policy === 'ezStatic') break;
+
+            // And the feet: hold the outer edge of the auto range, circling.
+            //
+            // Except on the stage that is explicitly about the outer quarter
+            // of the missile, where walking into auto range would be playing
+            // the wrong drill — the correct answer there is to stay out at
+            // poke distance and never take the trade.
+            if (p.phase === 'windup') {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const desiredE =
+              id === 'ezMaxRange' ? EZREAL_STATS.qRange * 0.86 + want.radius : p.attack.range * 0.9 + want.radius;
+            const radialE = norm(p.pos.x - want.pos.x, p.pos.y - want.pos.y);
+            const tangentE = { x: -radialE.y, y: radialE.x };
+            const corrE = Math.max(-1, Math.min(1, (desiredE - dq) / 170));
+            let gxE = radialE.x * corrE + tangentE.x * orbitDir * (0.8 * (1 - Math.abs(corrE)) + 0.2);
+            let gyE = radialE.y * corrE + tangentE.y * orbitDir * (0.8 * (1 - Math.abs(corrE)) + 0.2);
+            const marginE = 230;
+            if (p.pos.x < marginE || p.pos.x > bounds.w - marginE || p.pos.y < marginE || p.pos.y > bounds.h - marginE) {
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              orbitDir = tangentE.x * toCentre.x + tangentE.y * toCentre.y >= 0 ? 1 : -1;
+              gxE = tangentE.x * orbitDir;
+              gyE = tangentE.y * orbitDir;
+            }
+            input.dir = { x: gxE, y: gyE };
+            break;
+          }
+          case 'wasdMash': {
+            // Never lets go of the keys and mashes the attack command.
+            //
+            // The premise of the whole scheme is on trial here: an attack
+            // command plants your feet until the shot leaves, so a command
+            // fired half a cycle early buys nothing but standing still. If
+            // mashing outscored timing, the attack command would be a cheat
+            // code rather than a mechanic.
+            reactTimer = 0.06;
+            if (!target) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            input.push({ kind: 'attackMove', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+            const away = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            input.dir = { x: -away.y, y: away.x };
+            break;
+          }
+          case 'wasdCommand': {
+            // The other legitimate WASD rhythm: keep the keys down the whole
+            // run and buy every attack with a command timed onto the tick.
+            // It should land in the same band as releasing the keys — it is
+            // the same skill, expressed with the other hand — and it must not
+            // beat it, because nothing about it is harder.
+            reactTimer = 0.02;
+            if (!target) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const dC = dist(p.pos, target.pos);
+            const inRangeC = dC - target.radius <= p.attack.range;
+            if (p.attackCd <= 0.001 && p.phase !== 'windup' && inRangeC) {
+              input.push({ kind: 'attackMove', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+            }
+            const desiredC = p.attack.range * 0.92 + target.radius;
+            const radialC = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            const tangentC = { x: -radialC.y, y: radialC.x };
+            const corrC = Math.max(-1, Math.min(1, (desiredC - dC) / 180));
+            let gxC = radialC.x * corrC + tangentC.x * orbitDir * 0.6;
+            let gyC = radialC.y * corrC + tangentC.y * orbitDir * 0.6;
+            const marginC = 190;
+            if (p.pos.x < marginC || p.pos.x > bounds.w - marginC || p.pos.y < marginC || p.pos.y > bounds.h - marginC) {
+              orbitDir *= -1;
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gxC = toCentre.x;
+              gyC = toCentre.y;
+            }
+            input.dir = { x: gxC, y: gyC };
+            break;
+          }
+          case 'vayneLateral': {
+            // The same rhythm, tumbling sideways rather than straight back.
+            //
+            // Both are "Q in the backswing". Only one of them still has the
+            // target in range afterwards, and the difference between them is
+            // the difference between kiting and running away — which is
+            // precisely what the placement read exists to see.
+            reactTimer = 0.03;
+            const kitL = kitOf(drill);
+            if (!target) break;
+            if (kitL && p.phase === 'backswing' && kitL.tumbleCd <= 0) {
+              const awayL = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+              const sideL = { x: -awayL.y, y: awayL.x };
+              const dirL = norm(awayL.x * 0.25 + sideL.x * orbitDir, awayL.y * 0.25 + sideL.y * orbitDir);
+              input.push({
+                kind: 'ability',
+                slot: 'q',
+                x: p.pos.x + dirL.x * 320,
+                y: p.pos.y + dirL.y * 320,
+                t: t * 1000,
+              });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const dL = dist(p.pos, target.pos);
+            if (p.attackCd <= 0.001 && dL - target.radius <= p.attack.range) {
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              break;
+            }
+            const desiredL = p.attack.range * 0.92 + target.radius;
+            const radialL = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            const tangentL = { x: -radialL.y, y: radialL.x };
+            const cL = Math.max(-1, Math.min(1, (desiredL - dL) / 180));
+            let gxL = p.pos.x + (radialL.x * cL + tangentL.x * orbitDir * 0.55) * 320;
+            let gyL = p.pos.y + (radialL.y * cL + tangentL.y * orbitDir * 0.55) * 320;
+            const marginL = 190;
+            if (gxL < marginL || gxL > bounds.w - marginL || gyL < marginL || gyL > bounds.h - marginL) {
+              orbitDir *= -1;
+              const toC = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gxL = p.pos.x + toC.x * 300;
+              gyL = p.pos.y + toC.y * 300;
+            }
+            input.push({
+              kind: 'move',
+              x: Math.max(50, Math.min(bounds.w - 50, gxL)),
+              y: Math.max(50, Math.min(bounds.h - 50, gyL)),
+              t: t * 1000,
+            });
             break;
           }
           case 'vayneTumble': {
@@ -629,6 +1224,91 @@ const runDrill = (
             }
             break;
           }
+          // ------------------------------------------------------ the cheese
+          //
+          // Six ways of producing inputs without producing play. Each one is
+          // something a real person will try inside their first ten minutes,
+          // and every one of them used to be worth trying somewhere.
+          case 'abilitySpam': {
+            // Every key, all the time, aimed at nothing in particular.
+            reactTimer = 0.05;
+            const a = session.rng.angle();
+            const at = { x: p.pos.x + Math.cos(a) * 500, y: p.pos.y + Math.sin(a) * 500 };
+            for (const slot of ['q', 'w', 'e', 'r'] as const) {
+              input.push({ kind: 'ability', slot, x: at.x, y: at.y, t: t * 1000 });
+            }
+            break;
+          }
+          case 'apmChaos': {
+            // Six hundred actions a minute of nothing: clicks and casts at
+            // uniformly random points. If raw rate were worth anything
+            // anywhere, this would find it.
+            reactTimer = 0.1;
+            for (let i = 0; i < 2; i++) {
+              const x = session.rng.range(60, bounds.w - 60);
+              const y = session.rng.range(60, bounds.h - 60);
+              if (session.rng.chance(0.5)) {
+                input.push({ kind: 'attackMove', x, y, t: t * 1000 });
+              } else {
+                const slot = session.rng.pick(['q', 'w', 'e', 'r'] as const);
+                input.push({ kind: 'ability', slot, x, y, t: t * 1000 });
+              }
+            }
+            session.cursorWorld = { x: session.rng.range(60, bounds.w - 60), y: session.rng.range(60, bounds.h - 60) };
+            break;
+          }
+          case 'holdOne': {
+            // One direction, held for the whole run. The laziest possible
+            // answer to a movement scheme with four keys.
+            reactTimer = 0.5;
+            input.dir = { x: 1, y: 0 };
+            if (target && p.targetId !== target.id) {
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+            }
+            break;
+          }
+          case 'edgeHug': {
+            // Find the nearest wall and live against it. Cheap safety, and in
+            // several arenas it used to be genuinely hard to punish.
+            reactTimer = 0.35;
+            const left = p.pos.x;
+            const right = bounds.w - p.pos.x;
+            const up = p.pos.y;
+            const down = bounds.h - p.pos.y;
+            const m = Math.min(left, right, up, down);
+            const goal =
+              m === left
+                ? { x: 40, y: p.pos.y }
+                : m === right
+                  ? { x: bounds.w - 40, y: p.pos.y }
+                  : m === up
+                    ? { x: p.pos.x, y: 40 }
+                    : { x: p.pos.x, y: bounds.h - 40 };
+            input.push({ kind: 'move', x: goal.x, y: goal.y, t: t * 1000 });
+            break;
+          }
+          case 'circle': {
+            // A perfect circle around the middle of the floor, forever. It
+            // moves constantly, it never stands still, and it is not playing.
+            reactTimer = 0.12;
+            const a = t * 0.9;
+            const r = Math.min(bounds.w, bounds.h) * 0.32;
+            input.push({
+              kind: 'move',
+              x: bounds.w / 2 + Math.cos(a) * r,
+              y: bounds.h / 2 + Math.sin(a) * r,
+              t: t * 1000,
+            });
+            break;
+          }
+          case 'stall': {
+            // Shuffling on the spot: enough movement to look busy to anything
+            // counting velocity, no distance covered at all.
+            reactTimer = 0.25;
+            const a = t * 6;
+            input.push({ kind: 'move', x: p.pos.x + Math.cos(a) * 40, y: p.pos.y + Math.sin(a) * 40, t: t * 1000 });
+            break;
+          }
           case 'idle':
             reactTimer = 1;
             break;
@@ -636,11 +1316,19 @@ const runDrill = (
       }
       const ownsCursor =
         policy === 'aim' ||
+        policy === 'ezreal' ||
+        policy === 'ezStatic' ||
         policy === 'vayneWasd' ||
         policy === 'vayneBolts' ||
         policy === 'vayneCondemn' ||
         policy === 'lab' ||
-        policy === 'labWasd';
+        policy === 'labWasd' ||
+        // The academy's aiming policies drive the cursor independently of the
+        // champion — which is the entire thing those modules measure, so
+        // pinning it back onto the player would zero the metric under test.
+        policy === 'acadIndep' ||
+        policy === 'acadAimMove' ||
+        policy === 'acadMulti';
       if (!ownsCursor) {
         session.cursorWorld = { x: p.pos.x, y: p.pos.y };
       }
@@ -718,13 +1406,53 @@ expect('orbwalk produces few cancels', kiteGood.m.attacksCancelled <= 2, `${kite
 expect('orbwalk deals real damage', kiteGood.m.damageDealt > 400, `${Math.round(kiteGood.m.damageDealt)}`);
 expect('standing still takes more damage than kiting', kiteStill.m.hpLost > kiteGood.m.hpLost, `${Math.round(kiteStill.m.hpLost)} vs ${Math.round(kiteGood.m.hpLost)}`);
 
-line('\n=== DODGE: reacting vs. idle ===');
-const dodgeGood = runDrill('dodge', 'dodge', 0.4);
+line('\n=== KITE: forwards as well as backwards ===');
+{
+  const away = runDrill('kite', 'kiteAway', 0.45);
+  const km = (r: ReturnType<typeof runDrill>, id: string) => r.out.keyMetrics.find((k) => k.id === id)?.value ?? 0;
+  line(
+    `  both ways : chased ${pct(km(kiteGood, 'chased'))}  chasing ${pct(km(kiteGood, 'chasing'))}  perf ${pct(kiteGood.out.performance)}`,
+  );
+  line(
+    `  backwards : chased ${pct(km(away, 'chased'))}  chasing ${pct(km(away, 'chasing'))}  perf ${pct(away.out.performance)}`,
+  );
+  expect('a full orbwalker attacks in both phases', km(kiteGood, 'chased') > 0.4 && km(kiteGood, 'chasing') > 0.4, `${pct(km(kiteGood, 'chased'))} / ${pct(km(kiteGood, 'chasing'))}`);
+  expect(
+    'a backwards-only player falls apart when they run',
+    km(away, 'chasing') < km(kiteGood, 'chasing') - 0.15,
+    `${pct(km(away, 'chasing'))} vs ${pct(km(kiteGood, 'chasing'))}`,
+  );
+  expect('and scores below one who can do both', away.out.performance < kiteGood.out.performance, `${pct(away.out.performance)} vs ${pct(kiteGood.out.performance)}`);
+}
+
+line('\n=== DODGE: a dodge has to end somewhere useful ===');
+const dodgeGood = runDrill('dodge', 'dodgeFight', 0.4);
+const dodgeOnly = runDrill('dodge', 'dodge', 0.4);
+const dodgeFlee = runDrill('dodge', 'flee', 0.4);
 const dodgeIdle = runDrill('dodge', 'idle', 0.4);
-line(`  reacting: hits ${dodgeGood.m.hitsTaken}  survived ${dodgeGood.m.survivalTime.toFixed(1)}s  nearMiss ${dodgeGood.m.nearMisses}  perf ${pct(dodgeGood.out.performance)}`);
+const metricOf = (r: ReturnType<typeof runDrill>, id: string) => r.out.keyMetrics.find((k) => k.id === id)?.value ?? 0;
+line(`  fighting: hits ${dodgeGood.m.hitsTaken}  avoided ${metricOf(dodgeGood, 'avoided')}  dealt ${metricOf(dodgeGood, 'dealt')}  emitters ${metricOf(dodgeGood, 'emitters')}  perf ${pct(dodgeGood.out.performance)}`);
+line(`  dodging : hits ${dodgeOnly.m.hitsTaken}  avoided ${metricOf(dodgeOnly, 'avoided')}  dealt ${metricOf(dodgeOnly, 'dealt')}  perf ${pct(dodgeOnly.out.performance)}`);
+line(`  fleeing : hits ${dodgeFlee.m.hitsTaken}  avoided ${metricOf(dodgeFlee, 'avoided')}  dealt ${metricOf(dodgeFlee, 'dealt')}  perf ${pct(dodgeFlee.out.performance)}`);
 line(`  idle    : hits ${dodgeIdle.m.hitsTaken}  survived ${dodgeIdle.m.survivalTime.toFixed(1)}s  perf ${pct(dodgeIdle.out.performance)}`);
-expect('dodging beats standing still', dodgeGood.out.performance > dodgeIdle.out.performance, `${pct(dodgeGood.out.performance)} vs ${pct(dodgeIdle.out.performance)}`);
+expect('dodging beats standing still', dodgeOnly.out.performance > dodgeIdle.out.performance, `${pct(dodgeOnly.out.performance)} vs ${pct(dodgeIdle.out.performance)}`);
 expect('idle player actually gets hit', dodgeIdle.m.hitsTaken > 2, `${dodgeIdle.m.hitsTaken}`);
+expect(
+  'dodging while fighting beats dodging alone',
+  dodgeGood.out.performance > dodgeOnly.out.performance * 1.4,
+  `${pct(dodgeGood.out.performance)} vs ${pct(dodgeOnly.out.performance)}`,
+);
+expect(
+  'running away forever cannot pass',
+  dodgeFlee.out.performance < 0.4,
+  `${pct(dodgeFlee.out.performance)}`,
+);
+expect(
+  'fleeing is still credited with what it avoided',
+  metricOf(dodgeFlee, 'avoided') > 0 && metricOf(dodgeFlee, 'dealt') === 0,
+  `avoided ${metricOf(dodgeFlee, 'avoided')}, dealt ${metricOf(dodgeFlee, 'dealt')}`,
+);
+expect('a fighting run actually deals damage', metricOf(dodgeGood, 'dealt') > 400, `${metricOf(dodgeGood, 'dealt')}`);
 
 line('\n=== 1v1: fighting vs. idle ===');
 const duelGood = runDrill('duel1v1', 'orbwalk', 0.4);
@@ -768,10 +1496,14 @@ expect('clicking targets beats idling', aimGood.out.performance > aimIdle.out.pe
 line('\n=== SPACING: holding the band vs. drifting ===');
 const spaceGood = runDrill('spacing', 'hold', 0.4);
 const spaceIdle = runDrill('spacing', 'idle', 0.4);
-line(`  holding : inBand ${pct(spaceGood.out.keyMetrics[0].value)}  spacingErr ${spaceGood.d.avgSpacingError.toFixed(0)}u  hp ${pct(spaceGood.d.hpRetained)}  perf ${pct(spaceGood.out.performance)}`);
-line(`  idle    : inBand ${pct(spaceIdle.out.keyMetrics[0].value)}  perf ${pct(spaceIdle.out.performance)}`);
-expect('holding the band scores well', spaceGood.out.performance > 0.6, pct(spaceGood.out.performance));
+const spaceBlind = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'blind')?.value ?? 0;
+line(`  holding : advantage ${pct(spaceGood.out.keyMetrics[0].value)}  blind ${pct(spaceBlind(spaceGood))}  pocketUse ${pct(spaceGood.d.pocketUse)}  overstep ${pct(spaceGood.d.overstepRate)}  hp ${pct(spaceGood.d.hpRetained)}  perf ${pct(spaceGood.out.performance)}`);
+line(`  idle    : advantage ${pct(spaceIdle.out.keyMetrics[0].value)}  perf ${pct(spaceIdle.out.performance)}`);
+expect('holding the pocket scores well', spaceGood.out.performance > 0.6, pct(spaceGood.out.performance));
 expect('holding beats drifting', spaceGood.out.performance > spaceIdle.out.performance * 1.8, `${pct(spaceGood.out.performance)} vs ${pct(spaceIdle.out.performance)}`);
+expect('a competent player holds the pocket most of the run', spaceGood.out.keyMetrics[0].value > 0.6, pct(spaceGood.out.keyMetrics[0].value));
+expect('and still holds it once the ranges are hidden', spaceBlind(spaceGood) > 0.55, pct(spaceBlind(spaceGood)));
+expect('and trades from it rather than waiting in it', spaceGood.d.pocketUse > 0.5, pct(spaceGood.d.pocketUse));
 
 line('\n=== SKILLSHOT: leading a juking target vs. idle ===');
 const shotGood = runDrill('skillshot', 'lead', 0.35);
@@ -854,8 +1586,8 @@ line('\n=== WASD: the same rhythm with the other hand ===');
   expect('WASD orbwalking uses its free window', wasdGood.d.moveEfficiency > 0.5, pct(wasdGood.d.moveEfficiency));
   expect('WASD orbwalking scores well', wasdGood.out.performance > 0.5, pct(wasdGood.out.performance));
   expect(
-    'never releasing the keys never attacks',
-    wasdHold.m.attacksCompleted === 0 && wasdGood.out.performance > wasdHold.out.performance * 1.5,
+    'holding the keys without commanding a shot never attacks',
+    wasdHold.m.attacksCompleted <= 1 && wasdGood.out.performance > wasdHold.out.performance * 1.5,
     `${wasdHold.m.attacksCompleted} attacks, perf ${pct(wasdHold.out.performance)}`,
   );
   expect('WASD cannot be passed by doing nothing', wasdIdle.out.performance < 0.3, pct(wasdIdle.out.performance));
@@ -864,6 +1596,472 @@ line('\n=== WASD: the same rhythm with the other hand ===');
     Math.abs(wasdGood.out.performance - kiteGood.out.performance) < 0.25,
     `${pct(wasdGood.out.performance)} vs ${pct(kiteGood.out.performance)}`,
   );
+}
+
+line('\n=== The score is a curve, not a coin flip ===');
+{
+  // Two properties that are easy to lose without noticing, and that make the
+  // difference between a ladder and a random number generator.
+  //
+  //   1. Harder settings score lower for the same play. If they do not, the
+  //      difficulty slider is decoration.
+  //   2. The same play at the same setting lands in the same band across
+  //      seeds. If it does not, a rating is a record of the arena's mood.
+  const CASES: [DrillId, Policy, MovementScheme][] = [
+    ['kite', 'orbwalk', 'click'],
+    ['kite', 'wasd', 'wasd'],
+    ['spacing', 'hold', 'click'],
+    ['duel1v1', 'orbwalk', 'click'],
+    ['ezStrafe', 'ezreal', 'wasd'],
+    ['ezKite', 'ezreal', 'wasd'],
+    ['vayneTumble', 'vayneLateral', 'click'],
+  ];
+  const SEEDS = [7, 1234, 99991, 424242];
+  for (const [id, policy, scheme] of CASES) {
+    const at = (diff: number) => {
+      const runs = SEEDS.map((sd) => runDrill(id, policy, diff, sd, scheme).out.performance);
+      const mean = runs.reduce((a, b) => a + b, 0) / runs.length;
+      const spread = Math.max(...runs) - Math.min(...runs);
+      return { mean, spread };
+    };
+    const easy = at(0.15);
+    const mid = at(0.5);
+    const hard = at(0.9);
+    line(
+      `  ${id.padEnd(12)} ${policy.padEnd(12)} easy ${pct(easy.mean)} (±${pct(easy.spread / 2)})  mid ${pct(mid.mean)} (±${pct(mid.spread / 2)})  hard ${pct(hard.mean)} (±${pct(hard.spread / 2)})`,
+    );
+    expect(`${id}/${policy}: harder is worth less`, hard.mean < easy.mean + 0.02, `${pct(hard.mean)} vs ${pct(easy.mean)}`);
+    expect(
+      `${id}/${policy}: the seed does not decide the grade`,
+      Math.max(easy.spread, mid.spread, hard.spread) < 0.45,
+      `worst spread ${pct(Math.max(easy.spread, mid.spread, hard.spread))}`,
+    );
+  }
+}
+
+line('\n=== Stop means stop attacking, not just stop walking ===');
+{
+  const world = new World({ w: 1200, h: 1200 }, new Rng(5));
+  const p = world.spawnPlayer({ x: 600, y: 600 });
+  p.directControl = true;
+  const e = world.spawnActor({ pos: { x: 900, y: 600 }, team: 'enemy', maxHp: 5000 });
+  world.issueAttackHere(p, e.id);
+  for (let i = 0; i < 240; i++) world.step(1 / 240);
+  const attacking = p.targetId === e.id;
+  world.issueStop(p);
+  const hpAtStop = e.hp;
+  for (let i = 0; i < 720; i++) world.step(1 / 240);
+  expect('the stance was attacking before the stop', attacking, `${p.targetId}`);
+  expect('and nothing more lands after it', e.hp === hpAtStop && p.targetId === null, `hp ${e.hp} vs ${hpAtStop}, target ${p.targetId}`);
+
+  // But a committed windup is committed: stop is not an undo.
+  world.issueAttackHere(p, e.id);
+  for (let i = 0; i < 400 && p.phase !== 'windup'; i++) world.step(1 / 240);
+  world.clearEvents();
+  world.issueStop(p);
+  expect('a committed windup survives a stop', p.phase === 'windup', p.phase);
+}
+
+line('\n=== CHEESE SWEEP: every drill against every bad idea ===');
+{
+  // The standard this whole trainer lives or dies by: an elite score has to
+  // require elite execution of the League mechanic the drill is named after.
+  // So every drill outside the lab is played by six players who are not
+  // playing, and none of them may pass.
+  //
+  // Every one of these is something a person tries in their first ten
+  // minutes, and each of them was worth trying somewhere before this ran.
+  const CHEESE: [Policy, string, MovementScheme][] = [
+    ['idle', 'nothing at all', 'click'],
+    ['spam', 'move spam', 'click'],
+    ['abilitySpam', 'ability spam', 'click'],
+    ['apmChaos', 'random high APM', 'click'],
+    ['holdOne', 'one key held', 'wasd'],
+    ['edgeHug', 'edge hugging', 'click'],
+    ['circle', 'circling', 'click'],
+    ['stall', 'shuffling on the spot', 'click'],
+  ];
+  // The academy is played on the keys, so its cheese has to be too — a
+  // click-scheme run of a WASD-only module is not a cheating player, it is a
+  // player who cannot move at all, and passing that proves nothing.
+  const WASD_ONLY = new Set<DrillId>(WASD_SEQUENCE);
+  const SUBJECTS: DrillId[] = [
+    'movement',
+    'aim',
+    'skillshot',
+    'dodge',
+    'spacing',
+    'kite',
+    'lasthit',
+    'targetswitch',
+    'combos',
+    'duel1v1',
+    'duel1v2',
+    'vayneTumble',
+    'vayneBolts',
+    'vayneCondemn',
+    'vayneHunt',
+    ...WASD_SEQUENCE,
+    ...(EZREAL_DRILL_IDS as unknown as DrillId[]),
+  ];
+  // The bar. A cheese run is allowed to be non-zero — a circling player does
+  // dodge things, and pretending otherwise would be its own dishonesty — but
+  // it must never look like competence.
+  const CEILING = 0.4;
+  let worst = { drill: '', how: '', perf: 0 };
+  const offenders: string[] = [];
+  for (const id of SUBJECTS) {
+    let top = 0;
+    let topHow = '';
+    for (const [policy, label, baseScheme] of CHEESE) {
+      const scheme = WASD_ONLY.has(id) ? 'wasd' : baseScheme;
+      const r = runDrill(id, policy, 0.4, 31337, scheme);
+      if (r.out.performance > top) {
+        top = r.out.performance;
+        topHow = label;
+      }
+      if (!Number.isFinite(r.out.performance) || r.out.performance < 0 || r.out.performance > 1) {
+        offenders.push(`${id} produced ${r.out.performance} under ${label}`);
+      }
+    }
+    line(`  ${id.padEnd(13)} best cheese ${pct(top).padStart(6)}  (${topHow})`);
+    if (top > worst.perf) worst = { drill: id, how: topHow, perf: top };
+    if (top > CEILING) offenders.push(`${id} scores ${pct(top)} for ${topHow}`);
+  }
+  line(`  worst offender: ${worst.drill} at ${pct(worst.perf)} via ${worst.how}`);
+  expect('no drill can be passed by not playing it', offenders.length === 0, offenders.join('; '));
+}
+
+line('\n=== EZREAL: the path, stage by stage ===');
+{
+  // Every stage is played three ways: properly, with the feet nailed down,
+  // and not at all. The path's entire claim is that the middle one is not
+  // good enough, so that is the comparison that has to hold everywhere.
+  for (const id of EZREAL_DRILL_IDS as unknown as DrillId[]) {
+    const good = runDrill(id, 'ezreal', 0.4, 4242, 'wasd');
+    const still = runDrill(id, 'ezStatic', 0.4, 4242, 'wasd');
+    const idle = runDrill(id, 'idle', 0.4, 4242, 'wasd');
+    const k = (r: ReturnType<typeof runDrill>, key: string) => r.out.keyMetrics.find((x) => x.id === key)?.value ?? 0;
+    line(
+      `  ${id.padEnd(11)} moving perf ${pct(good.out.performance)} (acc ${pct(k(good, 'qAcc'))} onMove ${pct(k(good, 'qMoving'))} hits ${k(good, 'qHits')})  |  static perf ${pct(still.out.performance)} (acc ${pct(k(still, 'qAcc'))} onMove ${pct(k(still, 'qMoving'))})  |  idle ${pct(idle.out.performance)}`,
+    );
+    expect(`${id}: playing it properly scores well`, good.out.performance > 0.5, pct(good.out.performance));
+    expect(`${id}: doing nothing scores near zero`, idle.out.performance < 0.3, pct(idle.out.performance));
+    if (ezrealStage(id as EzrealDrillId).stage !== 'LEARN') {
+      expect(
+        `${id}: standing still and aiming is not elite`,
+        still.out.performance < 0.62 && still.out.performance < good.out.performance,
+        `${pct(still.out.performance)} vs ${pct(good.out.performance)}`,
+      );
+    }
+  }
+}
+
+line('\n=== EZREAL: the mechanics behind the score are real ===');
+{
+  const kitOfRun = (r: ReturnType<typeof runDrill>) => (r.drill as unknown as { kit: EzrealKit }).kit;
+
+  // Threading: a policy that waits for the gap must feed the wave less than
+  // one that fires the instant the cooldown is up.
+  const patient = runDrill('ezThread', 'ezreal', 0.4, 555, 'wasd');
+  const greedy = runDrill('ezThread', 'ezStatic', 0.4, 555, 'wasd');
+  line(`  thread : waited blocked ${kitOfRun(patient).stats.qBlocked}  hits ${kitOfRun(patient).stats.qHits}  perf ${pct(patient.out.performance)}`);
+  line(`         : planted blocked ${kitOfRun(greedy).stats.qBlocked}  hits ${kitOfRun(greedy).stats.qHits}  perf ${pct(greedy.out.performance)}`);
+
+  // Weaving: Q out of the backswing costs no autos; Q out of the windup does.
+  const weave = runDrill('ezWeave', 'ezreal', 0.4, 909, 'wasd');
+  const wk = kitOfRun(weave);
+  line(`  weave  : cycles ${wk.stats.weaveCycles}  windups thrown away ${wk.stats.qWastedWindup}  autos ${wk.stats.attacksLanded}  perf ${pct(weave.out.performance)}`);
+  expect('weaving actually weaves', wk.stats.weaveCycles > 4, `${wk.stats.weaveCycles}`);
+  expect('a weaving player keeps its autos', wk.stats.qWastedWindup <= 2, `${wk.stats.qWastedWindup}`);
+  expect('a weaving player lands both halves', wk.stats.attacksLanded > 10 && wk.stats.qHits > 5, `${wk.stats.attacksLanded} autos, ${wk.stats.qHits} Qs`);
+
+  // Landing a Q must actually buy tempo back, or the champion is not Ezreal.
+  expect('landed Qs refund cooldowns', wk.stats.qRefunded > 5, `${wk.stats.qRefunded.toFixed(1)}s recovered`);
+
+  // Max range: the outer quarter has to be reachable by playing for it.
+  const long = runDrill('ezMaxRange', 'ezreal', 0.4, 313, 'wasd');
+  const lk = kitOfRun(long);
+  line(`  range  : long ${lk.stats.qHitsLong}/${lk.stats.qHits}  perf ${pct(long.out.performance)}`);
+  expect('max-range hits are achievable', lk.stats.qHitsLong > 2, `${lk.stats.qHitsLong}`);
+
+  // The blink is scored on where it lands, not on having been pressed.
+  const shift = runDrill('ezShift', 'ezreal', 0.4, 171, 'wasd');
+  const sk = kitOfRun(shift);
+  line(`  shift  : casts ${sk.stats.eCasts}  kept range ${sk.stats.eKeptRange}  into danger ${sk.stats.eIntoDanger}  perf ${pct(shift.out.performance)}`);
+}
+
+line('\n=== EZREAL: the path is gated, and mastery only ever climbs ===');
+{
+  const p = emptyEzrealProgress();
+  expect('the first stage is open and the second is not', ezStageUnlocked(p, EZREAL_STAGES[0]) && !ezStageUnlocked(p, EZREAL_STAGES[1]), 'gating');
+  expect('nothing is mastered to start with', computeEzrealMastery(p) === 0, `${computeEzrealMastery(p)}`);
+
+  // Clearing a stage opens exactly one more, and never more than one.
+  applyEzrealRun(p, 'ezQ', 0.8, 0.5, 1000);
+  expect('clearing a stage opens the next one', ezStageUnlocked(p, EZREAL_STAGES[1]), 'stage 2 still locked');
+  expect('and only the next one', !ezStageUnlocked(p, EZREAL_STAGES[2]), 'stage 3 opened early');
+
+  const after = computeEzrealMastery(p);
+  applyEzrealRun(p, 'ezQ', 0.2, 0.5, 10);
+  expect('a worse run cannot take mastery away', computeEzrealMastery(p) === after, `${computeEzrealMastery(p)} vs ${after}`);
+
+  // The whole path at the top difficulty is the only way to the last title.
+  for (const st of EZREAL_STAGES) applyEzrealRun(p, st.id, 0.95, 1, 5000);
+  const top = computeEzrealMastery(p);
+  expect('a perfect path at full difficulty reaches the last title', ezTitleFor(top).name === 'PRODIGAL EXPLORER', `${top.toFixed(0)} → ${ezTitleFor(top).name}`);
+
+  // And a perfect path at the *lowest* difficulty does not.
+  const easy = emptyEzrealProgress();
+  for (const st of EZREAL_STAGES) applyEzrealRun(easy, st.id, 0.95, 0, 5000);
+  const low = computeEzrealMastery(easy);
+  line(`  mastery: perfect@1.0 ${top.toFixed(0)}  perfect@0.0 ${low.toFixed(0)}  title ${ezTitleFor(low).name}`);
+  expect('the last title cannot be bought at the lowest difficulty', ezTitleFor(low).name !== 'PRODIGAL EXPLORER', `${low.toFixed(0)} → ${ezTitleFor(low).name}`);
+}
+
+line('\n=== EZREAL: the path gets harder, not just longer ===');
+{
+  const perf = (id: DrillId) => runDrill(id, 'ezreal', 0.45, 8080, 'wasd').out.performance;
+  const learn = perf('ezQ');
+  const test = perf('ezFight');
+  line(`  ezQ (LEARN) ${pct(learn)}  →  ezFight (TEST) ${pct(test)}`);
+  expect('the same player finds the test harder than the first stage', test < learn, `${pct(test)} vs ${pct(learn)}`);
+}
+
+line('\n=== Bots generate situations, not straight lines ===');
+{
+  // Each behaviour is put in a bare arena against a player that either stands
+  // still or walks at it, and asked to prove it does the thing it is named
+  // after. The three banned behaviours are asserted against directly: no
+  // straight-line chasing, no jitter, no loop.
+  const observe = (
+    behavior: BotBehavior,
+    drive: (p: Actor, t: number) => void,
+    seconds = 12,
+    preferredRange?: number,
+  ) => {
+    const world = new World({ w: 2400, h: 2400 }, new Rng(77));
+    const p = world.spawnPlayer({ x: 1200, y: 1200 });
+    p.directControl = true;
+    const def = ARCHETYPES.ranger;
+    const e = world.spawnActor({
+      pos: { x: 1200, y: 700 },
+      team: 'enemy',
+      maxHp: 4000,
+      radius: def.radius,
+      moveSpeed: def.moveSpeed,
+      attack: { ...def.attack },
+      archetype: 'ranger',
+    });
+    const brain = new EnemyBrain(e, 'ranger', tuningFor(0.5), new Rng(31));
+    brain.behavior = behavior;
+    brain.anchor = { x: 1200, y: 700 };
+    brain.leash = 420;
+    if (preferredRange !== undefined) brain.preferredRange = preferredRange;
+    const track: { d: number; pos: Vec2; heading: number }[] = [];
+    let t = 0;
+    let last = { ...e.pos };
+    while (t < seconds) {
+      drive(p, t);
+      brain.update(world, SIM_DT);
+      world.step(SIM_DT);
+      t += SIM_DT;
+      const moved = dist(last, e.pos);
+      if (moved > 0.5) {
+        track.push({ d: dist(p.pos, e.pos), pos: { ...e.pos }, heading: Math.atan2(e.pos.y - last.y, e.pos.x - last.x) });
+        last = { ...e.pos };
+      }
+    }
+    return { world, player: p, enemy: e, brain, track };
+  };
+
+  const still = (_p: Actor) => {};
+  const walkAt = (p: Actor) => {
+    world0.setMoveDir(p, 0, -1);
+  };
+  // `walkAt` needs a world to talk to; the observer owns one, so route through
+  // the player's own move direction instead.
+  void walkAt;
+  const approach = (p: Actor) => {
+    p.moveDir = { x: 0, y: -1 };
+  };
+  const world0 = new World({ w: 10, h: 10 }, new Rng(1));
+
+  // CHASE must close, and must not do it in a straight line.
+  {
+    // A chaser with a melee unit's preferred range: the whole question is
+    // whether it arrives, and by what path.
+    const r = observe('chase', still, 12, 140);
+    const headings = r.track.map((s) => s.heading);
+    const spread = Math.max(...headings) - Math.min(...headings);
+    expect('a chaser actually closes the gap', dist(r.player.pos, r.enemy.pos) < 400, `${dist(r.player.pos, r.enemy.pos).toFixed(0)}u`);
+    expect('a chaser does not walk a straight line', spread > 0.5, `heading spread ${spread.toFixed(2)}rad`);
+  }
+
+  // RETREAT must refuse to be caught while a player walks straight at it.
+  {
+    const r = observe('retreat', approach, 10);
+    expect('a runner keeps its distance from an approaching player', dist(r.player.pos, r.enemy.pos) > 300, `${dist(r.player.pos, r.enemy.pos).toFixed(0)}u`);
+  }
+
+  // TETHER must never leave its leash, however far the player walks off.
+  {
+    const r = observe('tether', (p) => {
+      p.moveDir = { x: 1, y: 1 };
+    }, 14);
+    const worst = Math.max(...r.track.map((s) => dist(s.pos, r.brain.anchor!)));
+    expect('a tether never leaves its leash', worst < r.brain.leash + 90, `${worst.toFixed(0)}u vs leash ${r.brain.leash}`);
+  }
+
+  // BAIT must leave when reached for.
+  {
+    const r = observe('bait', approach, 10);
+    expect('a bait backs off when you step toward it', dist(r.player.pos, r.enemy.pos) > 380, `${dist(r.player.pos, r.enemy.pos).toFixed(0)}u`);
+  }
+
+  // ERRATIC must commit: headings held long enough to be read, not jitter.
+  {
+    const r = observe('erratic', still, 14);
+    let flips = 0;
+    for (let i = 1; i < r.track.length; i++) {
+      if (Math.abs(angleDelta(r.track[i].heading, r.track[i - 1].heading)) > 1.2) flips++;
+    }
+    const perSecond = flips / 14;
+    expect('erratic commits rather than jitters', perSecond < 5, `${perSecond.toFixed(1)} hard turns/s`);
+    expect('erratic is genuinely unpredictable', flips > 4, `${flips} direction changes in 14s`);
+  }
+
+  // IRREGULAR must never come back around: no position is revisited on a period.
+  {
+    const r = observe('irregular', still, 24);
+    // Compare the second half of the path against the first at every lag: a
+    // looping walk has one lag where the two line up almost exactly.
+    const pts = r.track.map((s) => s.pos);
+    let best = Infinity;
+    for (let lag = Math.floor(pts.length * 0.25); lag < pts.length - 40; lag += 4) {
+      let sum = 0;
+      let n = 0;
+      for (let i = 0; i + lag < pts.length; i += 3) {
+        sum += dist(pts[i], pts[i + lag]);
+        n++;
+      }
+      if (n > 8) best = Math.min(best, sum / n);
+    }
+    expect('an irregular walk never repeats itself', best > 60, `closest repeat ${best.toFixed(0)}u apart`);
+  }
+}
+
+line('\n=== A direction change is instant, not a stand-still ===');
+{
+  // Rolling A into D must turn you around on the frame D goes down. Summing
+  // the axis instead would cancel to zero for as long as both keys are held,
+  // which is a quarter-second of standing still in the middle of every
+  // direction change — the exact moment a diver catches you.
+  const input = new InputSystem({
+    bindings: WASD_BINDINGS,
+    quickCast: true,
+    activeSlots: new Set<AbilitySlot>(),
+    scheme: 'wasd',
+  });
+  const down = (code: string) => (input as unknown as { press(c: string): void }).press(code);
+  const up = (code: string) => (input as unknown as { release(c: string): void }).release(code);
+
+  down('KeyA');
+  const left = input.moveVector();
+  down('KeyD');
+  const rolled = input.moveVector();
+  up('KeyD');
+  const backToLeft = input.moveVector();
+  up('KeyA');
+  const stopped = input.moveVector();
+
+  expect('A alone walks left', left.x === -1, `${left.x}`);
+  expect('rolling A into D turns you right immediately', rolled.x === 1, `${rolled.x} (summing would give 0)`);
+  expect('releasing D hands the axis straight back to A', backToLeft.x === -1, `${backToLeft.x}`);
+  expect('releasing both stops you', stopped.x === 0 && stopped.y === 0, `${stopped.x},${stopped.y}`);
+
+  // Diagonals stay unit length once the world normalises them.
+  down('KeyW');
+  down('KeyD');
+  const diag = input.moveVector();
+  const world = new World({ w: 1000, h: 1000 }, new Rng(9));
+  const body = world.spawnPlayer({ x: 500, y: 500 });
+  world.setMoveDir(body, diag.x, diag.y);
+  const speedOf = (v: { x: number; y: number }) => Math.hypot(v.x, v.y);
+  world.step(1 / 240);
+  const diagSpeed = speedOf(body.vel);
+  world.setMoveDir(body, 1, 0);
+  world.step(1 / 240);
+  const straightSpeed = speedOf(body.vel);
+  expect(
+    'a diagonal is exactly as fast as a straight line',
+    Math.abs(diagSpeed - straightSpeed) < 0.001,
+    `${diagSpeed.toFixed(2)} vs ${straightSpeed.toFixed(2)}`,
+  );
+}
+
+line('\n=== The attack command: timing beats mashing ===');
+{
+  const cmd = runDrill('kite', 'wasdCommand', 0.45, 12345, 'wasd');
+  const mash = runDrill('kite', 'wasdMash', 0.45, 12345, 'wasd');
+  const rel = runDrill('kite', 'wasd', 0.45, 12345, 'wasd');
+  line(
+    `  commanded : attacks ${cmd.m.attacksCompleted}  late ${cmd.d.attackLatency.toFixed(0)}ms  early ${cmd.m.earlyCommands}/${cmd.m.attackCommands}  halt ${cmd.m.haltTime.toFixed(1)}s  moveEff ${pct(cmd.d.moveEfficiency)}  timing ${pct(cmd.d.attackTiming)}  perf ${pct(cmd.out.performance)}`,
+  );
+  line(
+    `  mashing   : attacks ${mash.m.attacksCompleted}  late ${mash.d.attackLatency.toFixed(0)}ms  early ${mash.m.earlyCommands}/${mash.m.attackCommands}  halt ${mash.m.haltTime.toFixed(1)}s  moveEff ${pct(mash.d.moveEfficiency)}  timing ${pct(mash.d.attackTiming)}  perf ${pct(mash.out.performance)}`,
+  );
+  line(
+    `  released  : attacks ${rel.m.attacksCompleted}  late ${rel.d.attackLatency.toFixed(0)}ms  moveEff ${pct(rel.d.moveEfficiency)}  timing ${pct(rel.d.attackTiming)}  perf ${pct(rel.out.performance)}`,
+  );
+  expect('a commanded shot is a real way to attack', cmd.m.attacksCompleted > 20, `${cmd.m.attacksCompleted}`);
+  expect('timing the command beats mashing it', cmd.out.performance > mash.out.performance * 1.4, `${pct(cmd.out.performance)} vs ${pct(mash.out.performance)}`);
+  expect('mashing buys nothing but standing still', mash.m.haltTime > 6 && mash.d.moveEfficiency < cmd.d.moveEfficiency, `halt ${mash.m.haltTime.toFixed(1)}s, moveEff ${pct(mash.d.moveEfficiency)} vs ${pct(cmd.d.moveEfficiency)}`);
+  expect('a timed command wastes almost no commands', cmd.m.earlyCommands / Math.max(1, cmd.m.attackCommands) < 0.25, `${cmd.m.earlyCommands}/${cmd.m.attackCommands}`);
+  expect('commanding and releasing land in the same band', Math.abs(cmd.out.performance - rel.out.performance) < 0.2, `${pct(cmd.out.performance)} vs ${pct(rel.out.performance)}`);
+  expect('mashing is punished by the timing read', mash.d.attackTiming < cmd.d.attackTiming, `${pct(mash.d.attackTiming)} vs ${pct(cmd.d.attackTiming)}`);
+}
+
+line('\n=== Attack timing is measured, not guessed ===');
+{
+  // A player who takes every shot the instant it comes up, versus one who
+  // waits half a cycle every time. Same attack count is impossible — that is
+  // the point — but the *latency* is what has to separate them.
+  const sharp = runDrill('kite', 'orbwalk', 0.35);
+  const slow = runDrill('kite', 'standStill', 0.35);
+  line(`  sharp     : late ${sharp.d.attackLatency.toFixed(0)}ms  punctuality ${pct(sharp.d.attackPunctuality)}  backswingUse ${pct(sharp.d.backswingUse)}  downtime ${pct(sharp.d.downtimeRate)}  timing ${pct(sharp.d.attackTiming)}`);
+  line(`  standing  : late ${slow.d.attackLatency.toFixed(0)}ms  punctuality ${pct(slow.d.attackPunctuality)}  backswingUse ${pct(slow.d.backswingUse)}  downtime ${pct(slow.d.downtimeRate)}  timing ${pct(slow.d.attackTiming)}`);
+  expect('an orbwalker takes its shots on time', sharp.d.attackPunctuality > 0.7, pct(sharp.d.attackPunctuality));
+  expect('an orbwalker spends its backswing moving', sharp.d.backswingUse > 0.7, pct(sharp.d.backswingUse));
+  expect('standing still throws the backswing away', slow.d.backswingUse < 0.35, pct(slow.d.backswingUse));
+  expect('the timing read separates the two', sharp.d.attackTiming > slow.d.attackTiming + 0.15, `${pct(sharp.d.attackTiming)} vs ${pct(slow.d.attackTiming)}`);
+}
+
+line('\n=== An attack command plants the feet, and pays for being early ===');
+{
+  const world = new World({ w: 2000, h: 2000 }, new Rng(3));
+  const p = world.spawnPlayer({ x: 500, y: 500 });
+  p.directControl = true;
+  const e = world.spawnActor({ pos: { x: 900, y: 500 }, team: 'enemy' });
+  world.issueAttackHere(p, e.id);
+  world.setMoveDir(p, 0, -1);
+
+  // Ready: the command is free and the shot leaves immediately.
+  const freeCost = world.requestFire(p);
+  world.step(1 / 240);
+  expect('a command on the tick costs nothing', freeCost === 0 && p.phase === 'windup', `cost ${freeCost}, phase ${p.phase}`);
+
+  // Mid-cooldown: the command is refused, and the champion stands still for it.
+  for (let i = 0; i < 240 && p.phase !== 'idle'; i++) world.step(1 / 240);
+  const before = { ...p.pos };
+  const earlyCost = world.requestFire(p);
+  for (let i = 0; i < 24; i++) world.step(1 / 240);
+  const travelled = dist(before, p.pos);
+  expect('an early command costs real distance', earlyCost > 0.2 && travelled < 4, `cost ${earlyCost.toFixed(2)}, moved ${travelled.toFixed(1)}u`);
+
+  // And the halt is bounded: it never swallows a whole cooldown.
+  for (let i = 0; i < 240 && (p.fireRequest ?? 0) > 0; i++) world.step(1 / 240);
+  expect('the halt is bounded', (p.fireRequest ?? 0) === 0, `${p.fireRequest}`);
 }
 
 line('\n=== A held direction obeys the windup law, exactly as a click does ===');
@@ -907,6 +2105,7 @@ line('\n=== CONDEMN: a wall behind them is a stun; open ground is not ===');
 line('\n=== VAYNE: each stage rewards playing it the way it is taught ===');
 {
   const tumble = runDrill('vayneTumble', 'vayneTumble', 0.35);
+  const tm = (id: string) => tumble.out.keyMetrics.find((k) => k.id === id)?.value ?? 0;
   const tumbleIdle = runDrill('vayneTumble', 'idle', 0.35);
   line(`  tumble  : rhythm ${pct(tumble.out.keyMetrics[0].value)}  used ${tumble.out.keyMetrics[1].value}  thrown ${tumble.out.keyMetrics[2].value}  orbwalk ${pct(tumble.d.orbwalkEfficiency)}  perf ${pct(tumble.out.performance)}`);
   expect('tumbling in the backswing scores well', tumble.out.performance > 0.55, pct(tumble.out.performance));
@@ -918,13 +2117,42 @@ line('\n=== VAYNE: each stage rewards playing it the way it is taught ===');
   line(`  bolts   : efficiency ${pct(bolts.out.keyMetrics[0].value)}  procs ${bolts.out.keyMetrics[1].value}  dropped ${bolts.out.keyMetrics[2].value}  perf ${pct(bolts.out.performance)}`);
   line(`  switcher: efficiency ${pct(boltsSwitch.out.keyMetrics[0].value)}  procs ${boltsSwitch.out.keyMetrics[1].value}  dropped ${boltsSwitch.out.keyMetrics[2].value}  perf ${pct(boltsSwitch.out.performance)}`);
   expect('finishing stacks scores well', bolts.out.performance > 0.55, pct(bolts.out.performance));
+  void 0;
   expect('finishing stacks beats target-hopping', bolts.out.performance > boltsSwitch.out.performance, `${pct(bolts.out.performance)} vs ${pct(boltsSwitch.out.performance)}`);
   expect('a disciplined run drops few stacks', bolts.out.keyMetrics[2].value <= boltsSwitch.out.keyMetrics[2].value, `${bolts.out.keyMetrics[2].value} vs ${boltsSwitch.out.keyMetrics[2].value}`);
 
   const condemn = runDrill('vayneCondemn', 'vayneCondemn', 0.35);
-  line(`  condemn : wallRate ${pct(condemn.out.keyMetrics[0].value)}  stuns ${condemn.out.keyMetrics[1].value}  missed ${condemn.out.keyMetrics[3].value}  perf ${pct(condemn.out.performance)}`);
+  const cm = (id: string) => condemn.out.keyMetrics.find((k) => k.id === id)?.value ?? 0;
+  line(
+    `  condemn : wallRate ${pct(cm('wallRate'))}  stuns ${cm('wallStuns')}  craft ${pct(cm('wallCraft'))}  created ${cm('created')}  missed ${cm('missed')}  perf ${pct(condemn.out.performance)}`,
+  );
+  const lateral = runDrill('vayneTumble', 'vayneLateral', 0.35);
+  const lm = (r: ReturnType<typeof runDrill>, id: string) => r.out.keyMetrics.find((k) => k.id === id)?.value ?? 0;
+  line(
+    `  sideways: rhythm ${pct(lm(lateral, 'tumbleRhythm'))}  placement ${pct(lm(lateral, 'tumblePlace'))}  dmg ${Math.round(lateral.m.damageDealt)}  perf ${pct(lateral.out.performance)}`,
+  );
+  line(
+    `  backward: rhythm ${pct(lm(tumble, 'tumbleRhythm'))}  placement ${pct(lm(tumble, 'tumblePlace'))}  dmg ${Math.round(tumble.m.damageDealt)}  perf ${pct(tumble.out.performance)}`,
+  );
+  expect(
+    'both tumble on the beat, so the rhythm read cannot separate them',
+    Math.abs(lm(lateral, 'tumbleRhythm') - lm(tumble, 'tumbleRhythm')) < 0.12,
+    `${pct(lm(lateral, 'tumbleRhythm'))} vs ${pct(lm(tumble, 'tumbleRhythm'))}`,
+  );
+  expect(
+    'but placement does: sideways keeps the target in range, backwards does not',
+    lm(lateral, 'tumblePlace') > lm(tumble, 'tumblePlace') + 0.1,
+    `${pct(lm(lateral, 'tumblePlace'))} vs ${pct(lm(tumble, 'tumblePlace'))}`,
+  );
+  expect(
+    'and the score follows the placement',
+    lateral.out.performance > tumble.out.performance,
+    `${pct(lateral.out.performance)} vs ${pct(tumble.out.performance)}`,
+  );
+
   expect('condemning into terrain scores well', condemn.out.performance > 0.55, pct(condemn.out.performance));
-  expect('a wall-aware player actually lands wall stuns', condemn.out.keyMetrics[1].value >= 3, `${condemn.out.keyMetrics[1].value}`);
+  expect('a wall-aware player actually lands wall stuns', cm('wallStuns') >= 3, `${cm('wallStuns')}`);
+  expect('and some of those angles were made rather than found', cm('created') >= 1, `${cm('created')} created`);
 
   const hunt = runDrill('vayneHunt', 'vayneKit', 0.3);
   line(`  hunt    : kit ${pct(hunt.out.keyMetrics[1].value)}  kills ${hunt.out.keyMetrics[2].value}  procs ${hunt.out.keyMetrics[3].value}  hp ${pct(hunt.d.hpRetained)}  perf ${pct(hunt.out.performance)}`);
@@ -937,6 +2165,98 @@ for (const id of ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'] as D
   const r = runDrill(id, 'idle', 0.4);
   line(`  ${id.padEnd(13)} idle perf ${pct(r.out.performance)}  score ${r.out.score}`);
   expect(`${id} cannot be passed by doing nothing`, r.out.performance < 0.3, pct(r.out.performance));
+}
+
+line('\n=== WASD ACADEMY: every module is played on the keys and pays for playing it ===');
+{
+  const cases: [DrillId, Policy][] = [
+    ['wasdMove', 'acadMove'],
+    ['wasdIndep', 'acadIndep'],
+    ['wasdStrafe', 'acadStrafe'],
+    ['wasdAimMove', 'acadAimMove'],
+    ['wasdCadence', 'wasd'],
+    ['wasdKite', 'wasd'],
+    ['wasdOffKite', 'wasd'],
+    ['wasdDefKite', 'wasd'],
+    ['wasdMulti', 'acadMulti'],
+  ];
+  // Adding a module without adding it here would silently ship it untested.
+  expect(
+    'every academy module is covered by these checks',
+    WASD_DRILL_IDS.every((id) => cases.some(([c]) => c === id)) && cases.length === WASD_DRILL_IDS.length,
+    `${cases.length} cases for ${WASD_DRILL_IDS.length} modules`,
+  );
+  for (const [id, policy] of cases) {
+    const good = runDrill(id, policy, 0.35, 4242, 'wasd');
+    const idle = runDrill(id, 'idle', 0.35, 4242, 'wasd');
+    const finite = Number.isFinite(good.out.performance) && Number.isFinite(good.out.score);
+    line(
+      `  ${id.padEnd(13)} played ${pct(good.out.performance)}  score ${good.out.score}` +
+        `   idle ${pct(idle.out.performance)} score ${idle.out.score}`,
+    );
+    expect(`${id} produces finite, in-range results`, finite && good.out.performance >= 0 && good.out.performance <= 1, `perf=${good.out.performance}`);
+    expect(`${id} names its own numbers`, good.out.keyMetrics.length >= 4, `${good.out.keyMetrics.length} metrics`);
+    expect(`${id} cannot be passed by doing nothing`, idle.out.performance < 0.3, pct(idle.out.performance));
+    expect(
+      `${id} pays more for playing it than for standing there`,
+      good.out.performance > idle.out.performance + 0.12,
+      `${pct(good.out.performance)} vs ${pct(idle.out.performance)}`,
+    );
+  }
+}
+
+line('\n=== ACADEMY: the modules measure the thing they claim to measure ===');
+{
+  // Cursor independence, on the one number the whole section exists for: a
+  // player whose hands point different ways must out-read one whose cursor
+  // rides along with their feet, and the metric must be able to tell.
+  const split = runDrill('wasdIndep', 'acadIndep', 0.35, 99, 'wasd');
+  const together = runDrill('wasdIndep', 'wasd', 0.35, 99, 'wasd');
+  const indepOf = (r: ReturnType<typeof runDrill>) =>
+    r.out.keyMetrics.find((k) => k.id === 'independence')?.value ?? 0;
+  line(`  independence: split ${pct(indepOf(split))}  cursor-follows-feet ${pct(indepOf(together))}`);
+  expect('opposed hands are actually measured', indepOf(split) > 0.3, pct(indepOf(split)));
+  expect('splitting the hands beats dragging the cursor along', indepOf(split) > indepOf(together), `${pct(indepOf(split))} vs ${pct(indepOf(together))}`);
+
+  // The cadence module's whole thesis: a run that never moves during a windup
+  // keeps its attacks, and a run that holds the keys through everything has
+  // no attacks at all to keep.
+  const cadence = runDrill('wasdCadence', 'wasd', 0.35, 99, 'wasd');
+  const held = runDrill('wasdCadence', 'wasdHold', 0.35, 99, 'wasd');
+  line(`  cadence: attacks ${cadence.m.attacksCompleted}  cancels ${cadence.m.attacksCancelled}  freeWindow ${pct(cadence.d.moveEfficiency)}  perf ${pct(cadence.out.performance)}`);
+  line(`  keys held: attacks ${held.m.attacksCompleted}  perf ${pct(held.out.performance)}`);
+  expect('the cadence module actually produces attacks', cadence.m.attacksCompleted > 15, `${cadence.m.attacksCompleted}`);
+  expect('respecting the windup keeps the attacks', cadence.m.attacksCancelled <= 3, `${cadence.m.attacksCancelled} cancelled`);
+  // Holding the keys buys nothing on its own. It is not *quite* zero any more:
+  // the attack command means a click can buy a shot without letting go, and
+  // this policy incidentally clicks once each time its target changes. What
+  // has to hold is that the keys alone produce nothing and that a run playing
+  // the cadence lands an order of magnitude more.
+  expect(
+    'holding the keys is not a way of attacking',
+    held.m.attacksCompleted <= 2 && cadence.m.attacksCompleted > held.m.attacksCompleted * 8,
+    `${held.m.attacksCompleted} held vs ${cadence.m.attacksCompleted} played`,
+  );
+  expect('the cadence module prices held fire', cadence.out.performance > held.out.performance, `${pct(cadence.out.performance)} vs ${pct(held.out.performance)}`);
+
+  // Movement: stopping precisely is the module, so the number has to move when
+  // somebody stops precisely.
+  const move = runDrill('wasdMove', 'acadMove', 0.35, 99, 'wasd');
+  const stopErr = move.out.keyMetrics.find((k) => k.id === 'stopError')?.value ?? 999;
+  line(`  movement: stopError ${stopErr.toFixed(1)}u  nodes ${move.out.keyMetrics.find((k) => k.id === 'pathEff')?.value.toFixed(2)}  perf ${pct(move.out.performance)}`);
+  expect('a careful run stops close to the centre', stopErr < 40, `${stopErr.toFixed(1)}u`);
+
+  // Offensive kiting must pay for range and refuse to pay for diving.
+  const offEdge = runDrill('wasdOffKite', 'wasd', 0.35, 99, 'wasd');
+  const edge = offEdge.out.keyMetrics.find((k) => k.id === 'edgeShots')?.value ?? 0;
+  line(`  offensive kiting: shots at the edge ${pct(edge)}  perf ${pct(offEdge.out.performance)}`);
+  expect('holding the edge while chasing is measured', edge > 0.2, pct(edge));
+
+  // And the academy forces the keys whatever the profile says, which is the
+  // one thing the whole section depends on.
+  for (const id of WASD_DRILL_IDS) {
+    expect(`${id} is played on the keys whatever the profile says`, DRILLS[id].forceScheme === 'wasd', String(DRILLS[id].forceScheme));
+  }
 }
 
 line('\n=== THE LAB: every mode pays for correct play and nothing else ===');

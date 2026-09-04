@@ -3,6 +3,7 @@ import { audio } from '../engine/audio';
 import { DRILL_LIST, type DrillId } from '../drills/catalog';
 import { TEST_LIST, type TestId } from '../tests/catalog';
 import { isApmDrill } from '../progression/apm';
+import { buildPlan } from '../progression/plan';
 import { isVayneStage, stageUnlocked, VAYNE_STAGES } from '../progression/vayne';
 import type { Profile } from '../progression/profile';
 import './palette.css';
@@ -91,7 +92,7 @@ export function Palette({
         id: 'act-session',
         kind: 'ACTION',
         label: "Start today's session",
-        hint: profile.daily.focus || undefined,
+        hint: buildPlan(profile).headline || undefined,
         keywords: 'begin continue training',
         disabled: profile.placed ? undefined : 'Take the assessment first',
         run: onStartSession,

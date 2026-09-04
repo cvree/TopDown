@@ -29,6 +29,24 @@ export interface RunMetrics {
   // --- spacing --------------------------------------------------------
   spacingSamples: number;
   spacingErrorSum: number;
+  /**
+   * The free-trade pocket, in seconds: close enough to hit them, far enough
+   * that they cannot hit you.
+   *
+   * This is the whole of spacing reduced to one number. Every other spacing
+   * figure — average error, time too close, distance held — describes where
+   * you were standing. This one says whether standing there was *profitable*,
+   * which is the only question a lane ever asks.
+   */
+  advantageTime: number;
+  /** Seconds inside their reach: they can trade back, so the trade is not free. */
+  overstepTime: number;
+  /** Seconds out of your own reach, doing nothing to anybody. */
+  passiveTime: number;
+  /** Seconds with a live enemy on the field at all — the denominator. */
+  engagedTime: number;
+  /** Seconds spent in the pocket while actually attacking from it. */
+  advantageTrading: number;
   /** Seconds spent inside the nearest enemy's attack range. */
   dangerExposure: number;
   /** Seconds spent inside an active or telegraphed hazard. */
@@ -54,6 +72,29 @@ export interface RunMetrics {
   csSuccess: number;
   csPerfect: number;
   csMissed: number;
+
+  // --- attack timing ------------------------------------------------------
+  /**
+   * Per attack, the seconds between the shot becoming possible and being
+   * taken.
+   *
+   * This is the number the whole trainer is about. An attack cycle is only
+   * ever wasted at one of two ends: you took the shot late, or you gave the
+   * windup away. Everything else — chain length, DPS uptime, damage — is
+   * downstream of these, and none of them can tell you *which* end you are
+   * losing on. This can.
+   */
+  attackLateness: number[];
+  /** Seconds the attack was up, a target was in range, and nothing was fired. */
+  attackDowntime: number;
+  /** Seconds spent in backswing, and of those, seconds spent actually moving. */
+  backswingTime: number;
+  backswingMoving: number;
+  /** Explicit fire commands issued, how many were premature, and what they cost. */
+  attackCommands: number;
+  earlyCommands: number;
+  /** Seconds of standing still bought by a premature fire command. */
+  haltTime: number;
 
   // --- direct control (WASD) ---------------------------------------------
   /**
@@ -102,6 +143,11 @@ export const emptyMetrics = (): RunMetrics => ({
   committedTime: 0,
   spacingSamples: 0,
   spacingErrorSum: 0,
+  advantageTime: 0,
+  overstepTime: 0,
+  passiveTime: 0,
+  engagedTime: 0,
+  advantageTrading: 0,
   dangerExposure: 0,
   hazardExposure: 0,
   projectilesFaced: 0,
@@ -118,6 +164,13 @@ export const emptyMetrics = (): RunMetrics => ({
   csSuccess: 0,
   csPerfect: 0,
   csMissed: 0,
+  attackLateness: [],
+  attackDowntime: 0,
+  backswingTime: 0,
+  backswingMoving: 0,
+  attackCommands: 0,
+  earlyCommands: 0,
+  haltTime: 0,
   heldFire: 0,
   windupBreaks: 0,
   clicks: 0,
@@ -144,6 +197,15 @@ export interface DerivedMetrics {
   cancelRate: number; // cancelled / started
   dpsUptime: number; // 0..1
   avgSpacingError: number; // units
+  /**
+   * Share of the engaged run spent where you could hit them and they could
+   * not hit you. APEX's core spacing number.
+   */
+  advantageousSpacing: number;
+  /** Share of the engaged run spent inside their reach. */
+  overstepRate: number;
+  /** Of the time held in the pocket, how much of it was spent trading from it. */
+  pocketUse: number;
   dodgeRate: number; // 0..1
   accuracy: number; // 0..1
   avgReaction: number; // ms
@@ -151,6 +213,21 @@ export interface DerivedMetrics {
   avgTargetSwitch: number; // ms
   csAccuracy: number; // 0..1
   redundantClickRate: number; // 0..1
+  /** Median milliseconds between a shot becoming possible and being taken. */
+  attackLatency: number;
+  /** 1 = every attack taken the instant it came up. */
+  attackPunctuality: number;
+  /** Share of backswing seconds spent moving. Standing through it is free damage thrown away. */
+  backswingUse: number;
+  /** Share of the run in which an attack was available on a live target and refused. */
+  downtimeRate: number;
+  /** 1 = no fire command was ever issued before the timer was up. */
+  commandDiscipline: number;
+  /**
+   * The single honest read on the attack cycle: taken on time, backswing
+   * spent moving, windup never thrown away, no dead air.
+   */
+  attackTiming: number;
   /** Milliseconds of held fire per attack. Always 0 under the click scheme. */
   triggerDelay: number;
   /** 1 = the keys were never down while the shot was ready. */
@@ -161,6 +238,12 @@ export interface DerivedMetrics {
   /** hpLost never exceeds the health bar, for display. */
   hpLostCapped: number;
 }
+
+/** Maps a raw value onto 0..1 where `good` scores 1 and `bad` scores 0. */
+const band01 = (value: number, bad: number, good: number): number => {
+  if (good === bad) return 0;
+  return clamp((value - bad) / (good - bad), 0, 1);
+};
 
 export const derive = (m: RunMetrics, maxHp = 720): DerivedMetrics => {
   const attackEfficiency = m.theoreticalAttacks > 0 ? clamp(m.attacksCompleted / m.theoreticalAttacks, 0, 1) : 0;
@@ -185,13 +268,57 @@ export const derive = (m: RunMetrics, maxHp = 720): DerivedMetrics => {
   const heldPerAttack = m.heldFire / Math.max(1, m.attacksStarted);
   const rt = m.reactionTimes;
   const sd = stdev(rt);
+
+  // Punctuality is measured against the cycle, not against a fixed number of
+  // milliseconds: a third of a cycle late is a third of your damage gone
+  // whether the champion attacks twice a second or once every two seconds.
+  const lateness = m.attackLateness.length ? median(m.attackLateness) : 0;
+  const attackPunctuality = m.attackLateness.length
+    ? clamp(1 - lateness / Math.max(0.08, cycleLen * 0.4), 0, 1)
+    : 0;
+  const backswingUse = m.backswingTime > 0.2 ? clamp(m.backswingMoving / m.backswingTime, 0, 1) : 0;
+  const downtimeRate = m.duration > 0.5 ? clamp(m.attackDowntime / m.duration, 0, 1) : 0;
+  const commandDiscipline = m.attackCommands > 0 ? clamp(1 - m.earlyCommands / m.attackCommands, 0, 1) : 1;
+  // Weighted so that no single half can carry a run: punctuality is the
+  // largest term, but a player who fires on the tick and then stands through
+  // every backswing is not orbwalking and does not get to score as if he is.
+  //
+  // And the whole thing is multiplied by how many of the attacks *finished*,
+  // which is not a refinement — it is load-bearing. Every term above is a
+  // statement about a cycle that ran, and a player mashing move commands
+  // starts an attack the instant it is available (perfectly punctual) and
+  // throws it away a tenth of a second later, over and over. That run read as
+  // 0.88 here before this line existed, on a 98% cancel rate, which is the
+  // opposite of what the number is for.
+  const completion = m.attacksStarted > 0 ? clamp(m.attacksCompleted / m.attacksStarted, 0, 1) : 0;
+  const attackTiming = clamp(
+    (attackPunctuality * 0.36 +
+      backswingUse * 0.26 +
+      band01(downtimeRate, 0.35, 0.02) * 0.16 +
+      band01(cancelRate, 0.25, 0) * 0.22) *
+      (0.22 + 0.78 * completion),
+    0,
+    1,
+  );
+
   return {
+    attackLatency: lateness * 1000,
+    attackPunctuality,
+    backswingUse,
+    downtimeRate,
+    commandDiscipline,
+    attackTiming,
     orbwalkEfficiency,
     attackEfficiency,
     moveEfficiency,
     cancelRate,
     dpsUptime: attackEfficiency,
     avgSpacingError: m.spacingSamples > 0 ? m.spacingErrorSum / m.spacingSamples : 0,
+    advantageousSpacing: m.engagedTime > 0.5 ? clamp(m.advantageTime / m.engagedTime, 0, 1) : 0,
+    overstepRate: m.engagedTime > 0.5 ? clamp(m.overstepTime / m.engagedTime, 0, 1) : 0,
+    // Holding the pocket and never firing from it is not spacing, it is
+    // hiding at a flattering distance. This is the term that says so.
+    pocketUse: m.advantageTime > 0.5 ? clamp(m.advantageTrading / m.advantageTime, 0, 1) : 0,
     dodgeRate: m.projectilesFaced > 0 ? clamp(m.projectilesDodged / m.projectilesFaced, 0, 1) : 1,
     accuracy: m.shotsFired > 0 ? clamp(m.shotsHit / m.shotsFired, 0, 1) : 0,
     avgReaction: rt.length ? median(rt) : 0,
@@ -218,6 +345,18 @@ export class MetricsRecorder {
   private cursorAccum = 0;
   private seriesAccum = 0;
   private lastClick: { pos: Vec2; t: number } | null = null;
+  /**
+   * World time at which the current shot first became takeable, or null if it
+   * is not takeable right now.
+   *
+   * The whole attack-timing read hangs off this one variable: the instant the
+   * cooldown ends with something in range, the clock starts, and the attack
+   * that eventually begins is stamped with how long it ran. It is deliberately
+   * *not* reset by moving out of range and back — drifting out of range and
+   * back in is one of the ways a shot is taken late, and hiding it would make
+   * the number flattering rather than useful.
+   */
+  private readySince: number | null = null;
 
   reset(): void {
     Object.assign(this.m, emptyMetrics());
@@ -225,6 +364,24 @@ export class MetricsRecorder {
     this.cursorAccum = 0;
     this.seriesAccum = 0;
     this.lastClick = null;
+    this.readySince = null;
+  }
+
+  /**
+   * An explicit fire command, and what it is about to cost.
+   *
+   * `cost` is the seconds of standing still the world has just committed to,
+   * which is zero when the press landed on the tick and grows the earlier it
+   * was. Counting the command *and* its cost is what lets the score tell a
+   * player who times one attack badly apart from one who is holding the button
+   * down: both show early commands, only the second shows seconds of them.
+   */
+  noteFireCommand(cost: number): void {
+    this.m.attackCommands++;
+    if (cost > 0.06) {
+      this.m.earlyCommands++;
+      this.m.haltTime += cost;
+    }
   }
 
   /**
@@ -246,6 +403,8 @@ export class MetricsRecorder {
           if (e.actorId === pid) {
             this.m.attacksStarted++;
             this.m.timeline.push({ t: world.time, kind: 'attack' });
+            if (this.readySince !== null) this.m.attackLateness.push(Math.max(0, world.time - this.readySince));
+            this.readySince = null;
           }
           break;
         case 'attackRelease':
@@ -317,10 +476,29 @@ export class MetricsRecorder {
     const free = player.phase !== 'windup' && player.attackCd > 0.01;
     if (free) {
       m.freeWindow += dt;
-      const moving = Math.hypot(player.vel.x, player.vel.y) > 8;
-      if (moving) m.freeWindowMoving += dt;
+      if (Math.hypot(player.vel.x, player.vel.y) > 8) m.freeWindowMoving += dt;
     }
     if (player.phase === 'windup') m.committedTime += dt;
+
+    // ---- the attack cycle, measured -------------------------------------
+    const moving = Math.hypot(player.vel.x, player.vel.y) > 8;
+    if (player.phase === 'backswing') {
+      m.backswingTime += dt;
+      if (moving) m.backswingMoving += dt;
+    }
+    // A shot is takeable when the timer is up, nothing is mid-swing, and
+    // something hostile is standing inside your reach. Anything else is not
+    // the player's fault and must not be charged to them.
+    const takeable =
+      player.attackCd <= 0 && player.phase !== 'windup' && world.findTarget(player, player.pos, player.attack.range) !== null;
+    if (takeable) {
+      if (this.readySince === null) this.readySince = world.time;
+      if (player.phase === 'idle') m.attackDowntime += dt;
+    } else if (player.attackCd > 0.001) {
+      // The cooldown running again means the shot was taken (or the window is
+      // legitimately gone); either way the clock stops.
+      this.readySince = null;
+    }
 
     // Held fire. Under direct control the world refuses to start an attack
     // while a direction is down, so these are seconds in which the champion
@@ -349,7 +527,23 @@ export class MetricsRecorder {
       const ideal = player.attack.range + nearest.radius - 20;
       m.spacingSamples++;
       m.spacingErrorSum += Math.abs(nd - ideal);
-      if (nd <= nearest.attack.range + player.radius) m.dangerExposure += dt;
+      const theirReach = nearest.attack.range + player.radius;
+      const myReach = player.attack.range + nearest.radius;
+      if (nd <= theirReach) m.dangerExposure += dt;
+
+      // The pocket. Measured against the nearest live threat only, because a
+      // second enemy behind you is a different mistake with its own name.
+      m.engagedTime += dt;
+      if (nd <= theirReach) {
+        m.overstepTime += dt;
+      } else if (nd <= myReach) {
+        m.advantageTime += dt;
+        // Trading from it means the attack cycle is running, not that a shot
+        // happens to be in the air this instant.
+        if (player.phase !== 'idle' || player.attackCd > 0.05) m.advantageTrading += dt;
+      } else {
+        m.passiveTime += dt;
+      }
     }
     for (const h of world.hazards) {
       if (h.team !== 'enemy') continue;

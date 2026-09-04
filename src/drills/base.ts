@@ -1,4 +1,4 @@
-import { EnemyBrain, applyTuningToActor, tuningFor } from '../engine/ai';
+import { EnemyBrain, applyTuningToActor, tuningFor, type BotBehavior } from '../engine/ai';
 import { ARCHETYPES } from '../engine/archetypes';
 import type { DrillPaint } from '../engine/paint';
 import { DrillBase, type Session } from '../engine/session';
@@ -46,7 +46,7 @@ export abstract class Drill extends DrillBase {
   protected spawnEnemy(
     archetype: ArchetypeId,
     pos: Vec2,
-    opts: { hpScale?: number; level?: number } = {},
+    opts: { hpScale?: number; level?: number; behavior?: BotBehavior; leash?: number; anchor?: Vec2 } = {},
   ): Actor {
     const def = ARCHETYPES[archetype];
     const level = opts.level ?? this.s.config.difficulty;
@@ -62,8 +62,17 @@ export abstract class Drill extends DrillBase {
       label: def.name,
     });
     applyTuningToActor(a, def, tune);
-    this.brains.push(new EnemyBrain(a, archetype, tune, this.s.rng));
+    const brain = new EnemyBrain(a, archetype, tune, this.s.rng);
+    if (opts.behavior) brain.behavior = opts.behavior;
+    if (opts.anchor) brain.anchor = { ...opts.anchor };
+    if (opts.leash !== undefined) brain.leash = opts.leash;
+    this.brains.push(brain);
     return a;
+  }
+
+  /** The brain driving the most recently spawned enemy, for further tuning. */
+  protected get lastBrain(): EnemyBrain | undefined {
+    return this.brains[this.brains.length - 1];
   }
 
   protected updateBrains(dt: number): void {

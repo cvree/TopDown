@@ -200,13 +200,19 @@ export class ArenaDrill extends Drill {
     const speed = won ? band(this.s.elapsed, 90, 22) : 0;
     const survival = m.survived ? 1 : clamp(m.survivalTime / 45, 0, 0.85);
 
+    // The arena is where everything else is supposed to transfer to, so the
+    // two reads the rhythm drills are built around are graded here as well.
+    // Winning a 1v1 by standing still and out-statting somebody is not the
+    // thing the other eight drills spent an hour teaching.
     const performance = clamp(
-      outcomeScore * 0.3 +
-        d.hpRetained * 0.18 +
-        d.orbwalkEfficiency * 0.16 +
-        survival * 0.14 +
-        band(m.hitsTaken / Math.max(1, this.s.elapsed / 10), 4, 0.3) * 0.12 +
-        speed * 0.1,
+      outcomeScore * 0.26 +
+        d.hpRetained * 0.16 +
+        d.orbwalkEfficiency * 0.12 +
+        d.attackTiming * 0.12 +
+        d.advantageousSpacing * 0.08 +
+        survival * 0.12 +
+        band(m.hitsTaken / Math.max(1, this.s.elapsed / 10), 4, 0.3) * 0.08 +
+        speed * 0.06,
       0,
       1,
     );
@@ -218,6 +224,9 @@ export class ArenaDrill extends Drill {
     if (m.nearMisses > 5) helped.push(`${m.nearMisses} near misses dodged mid-fight.`);
     if (!m.survived) hurt.push(`You died at ${m.survivalTime.toFixed(1)}s.`);
     if (d.cancelRate > 0.15) hurt.push(`${Math.round(d.cancelRate * 100)}% of your attacks were cancelled — panic movement.`);
+    if (d.advantageousSpacing > 0.6) helped.push(`${Math.round(d.advantageousSpacing * 100)}% of the fight spent where they could not reach you.`);
+    if (d.advantageousSpacing < 0.3) hurt.push('You fought most of it from inside their range. The fight was winnable from further out.');
+    if (d.attackLatency > 240) hurt.push(`Your attacks went out ${Math.round(d.attackLatency)}ms late under pressure — that is a fifth of your damage.`);
     if (m.hazardExposure > 1.2) hurt.push(`${m.hazardExposure.toFixed(1)}s standing inside telegraphed ground.`);
     if (d.hpRetained < 0.4 && won) hurt.push('You won, but at close to full health cost.');
 
@@ -238,7 +247,7 @@ export class ArenaDrill extends Drill {
         combat: performance,
         kiting: clamp(d.orbwalkEfficiency, 0, 1),
         dodging: clamp(band(m.hitsTaken / Math.max(1, this.s.elapsed / 10), 4, 0.3), 0, 1),
-        spacing: clamp(band(d.avgSpacingError, 260, 40), 0, 1),
+        spacing: clamp(d.advantageousSpacing * 0.6 + band(d.avgSpacingError, 260, 40) * 0.4, 0, 1),
         targeting: clamp(band(this.focusChanges / Math.max(1, this.startedWith), 1, 6), 0, 1),
       },
       keyMetrics: [
@@ -246,6 +255,8 @@ export class ArenaDrill extends Drill {
         secs('fightTime', won ? 'TIME TO WIN' : 'SURVIVED', won ? this.s.elapsed : m.survivalTime, won ? 'lower' : 'higher'),
         count('kills', 'ENEMIES DOWN', this.killed),
         pct('orbwalk', 'ORBWALK EFFICIENCY', d.orbwalkEfficiency),
+        pct('timing', 'ATTACK TIMING', d.attackTiming),
+        pct('advantage', 'ADVANTAGEOUS SPACING', d.advantageousSpacing),
         count('hitsTaken', 'HITS TAKEN', m.hitsTaken, 'lower'),
       ],
       helped,
