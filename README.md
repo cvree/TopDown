@@ -603,6 +603,23 @@ depends on:
   starts at zero, which would otherwise make a run in which nothing happened
   look like a flawless one.
 
+The same command then runs `test:profile`, which covers the other thing every
+session depends on: reading a saved profile back and drawing the client with
+it. It loads a profile written by a build whose catalogue has since moved on —
+one full of drills that no longer exist — and a profile that is wrong in every
+way an object can be wrong, and asserts that neither can take a screen down:
+
+- **Nothing stored can name a drill that is gone.** Every drill reference in a
+  loaded profile — history, records, recent bests, the error log, today's
+  completed list — is checked against the catalogue, because the client is
+  entitled to assume a stored id still means something.
+- **A returning player comes back to the rank they left with.** Rating, peak,
+  every per-axis reading and sample count, lifetime totals and the streak all
+  survive a catalogue change, because none of them are stored per drill.
+- **Every screen that reads a profile draws all three of them.** Today, Drills,
+  Progress, Records, the academy, the lab, the champion path and the tests are
+  each rendered against a new profile, a legacy profile and a hostile one.
+
 `npm run test:drill <drill> <difficulty>` plays a single drill headlessly and
 prints a per-5-second trace — the fastest way to see why a tuning change
 changed a score.

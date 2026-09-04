@@ -111,6 +111,27 @@ export const emptyVayneProgress = (): VayneProgress => ({
   peak: 0,
 });
 
+/** Repairs a progress object loaded from storage, whatever shape it is in. */
+export const normalizeVayneProgress = (raw: Partial<VayneProgress> | undefined): VayneProgress => {
+  const out = emptyVayneProgress();
+  if (!raw) return out;
+  for (const id of VAYNE_STAGE_IDS) {
+    const src = raw.stages?.[id];
+    if (!src) continue;
+    out.stages[id] = {
+      best: clamp(src.best ?? 0, 0, 1),
+      difficulty: clamp(src.difficulty ?? 0, 0, 1),
+      bestScore: Math.max(0, src.bestScore ?? 0),
+      runs: Math.max(0, src.runs ?? 0),
+      habits: src.habits ?? undefined,
+      onKeys: src.onKeys ?? undefined,
+    };
+  }
+  out.mastery = computeMastery(out);
+  out.peak = Math.max(out.mastery, raw.peak ?? 0);
+  return out;
+};
+
 /** How much a stage's best run is worth, difficulty included. */
 export const stageValue = (rec: VayneStageRecord): number =>
   clamp(rec.best, 0, 1) * (0.55 + 0.45 * clamp(rec.difficulty, 0, 1));

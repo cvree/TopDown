@@ -102,6 +102,27 @@ export const emptyEzrealProgress = (): EzrealProgress => ({
   peak: 0,
 });
 
+/** Repairs a progress object loaded from storage, whatever shape it is in. */
+export const normalizeEzrealProgress = (raw: Partial<EzrealProgress> | undefined): EzrealProgress => {
+  const out = emptyEzrealProgress();
+  if (!raw) return out;
+  for (const id of EZREAL_STAGE_IDS) {
+    const src = raw.stages?.[id];
+    if (!src) continue;
+    out.stages[id] = {
+      best: clamp(src.best ?? 0, 0, 1),
+      difficulty: clamp(src.difficulty ?? 0, 0, 1),
+      bestScore: Math.max(0, src.bestScore ?? 0),
+      runs: Math.max(0, src.runs ?? 0),
+      habits: src.habits ?? undefined,
+      onKeys: src.onKeys ?? undefined,
+    };
+  }
+  out.mastery = computeEzrealMastery(out);
+  out.peak = Math.max(out.mastery, raw.peak ?? 0);
+  return out;
+};
+
 export const ezStageValue = (rec: EzrealStageRecord): number =>
   clamp(rec.best, 0, 1) * (0.55 + 0.45 * clamp(rec.difficulty, 0, 1));
 

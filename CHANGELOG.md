@@ -42,6 +42,8 @@ The trainer stopped handing you a score and started telling you what went wrong,
 
 ### Fixed
 
+- Coming back to a profile saved by an older build no longer lands on “TODAY FAILED TO LOAD”. The lab replaced thirteen in-game APM modes with thirteen bench modes under new names, and every run, record and mistake stored against the old names read back as a drill that no longer exists — which the home screen died on, on the way in, with nothing to click but two buttons that led straight back to it. A saved profile is now checked against the catalogue as it loads: anything naming a drill that is gone is dropped, and the ladder itself — your rating, your rank, your peak, every per-axis reading and your streak — is kept, because none of it was ever stored per drill.
+- The champion paths, the academy and the lab are all repaired on load rather than trusted: a half-written record, a missing section or a stage saved by a build that shaped it differently comes back playable instead of coming back as a crash.
 - A black screen after choosing a champion. Clicking through the roster rebuilt the portrait’s renderer every time, each one taking over a graphics context whose resources the last one had just released — twenty-eight clicks meant twenty-nine renderers over one increasingly broken context. The portrait now builds once and swaps the body inside it.
 - The arena behind the menus survives losing its graphics context: it stops drawing to a dead one and the painted background takes over, rather than leaving a black rectangle behind the whole client.
 - Anything that fails now lands on a screen that says what happened and offers a reload. Nothing in the app can leave you on a blank page any more.

@@ -2,9 +2,9 @@ import { DEFAULT_HERO, isHeroId, type HeroId } from '../engine/heroes';
 import { VERSION } from '../patchnotes/notes';
 import { clamp, mean } from '../engine/math';
 import type { DerivedMetrics, RunMetrics, TimelineMark } from '../engine/metrics';
-import { DRILLS, type DrillId } from '../drills/catalog';
-import { gradeTest, TESTS, type TestId } from '../tests/catalog';
-import { detectErrors, primaryLimiter, type DetectedError, type ErrorCode } from './errors';
+import { DRILLS, isDrillId, type DrillId } from '../drills/catalog';
+import { gradeTest, isTestId, TESTS, type TestId } from '../tests/catalog';
+import { detectErrors, isErrorCode, primaryLimiter, type DetectedError, type ErrorCode } from './errors';
 import {
   applyApmRun,
   emptyApmProgress,
@@ -22,6 +22,7 @@ import {
   applyVayneRun,
   emptyVayneProgress,
   isVayneStage,
+  normalizeVayneProgress,
   type VayneProgress,
   type VayneRunReport,
 } from './vayne';
@@ -37,6 +38,7 @@ import {
   applyEzrealRun,
   emptyEzrealProgress,
   isEzrealStage,
+  normalizeEzrealProgress,
   type EzrealProgress,
   type EzrealRunReport,
 } from './ezreal';
@@ -354,6 +356,54 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   recentBests: [],
 });
 
+/**
+ * DRILLS THAT NO LONGER EXIST.
+ *
+ * A saved profile is stamped with a version, and that version has not moved
+ * since the first release — but the catalogue underneath it has. The lab
+ * replaced thirteen in-game APM modes with thirteen bench modes under new
+ * ids, and every profile written before that still names the old ones in its
+ * history, its records, its error log and today's completed list.
+ *
+ * Read straight back, those names hand the client an `undefined` where a
+ * drill should be, and the first screen that asks one for its axes dies on
+ * it. That screen is Today, which is the screen the client opens on: the
+ * failure card's two ways out are "back to today" and "reload", so a
+ * returning player was locked out of their own profile with no way back in.
+ *
+ * So every stored reference is checked against the catalogue on the way in
+ * and anything that no longer names a drill is dropped. Dropped rather than
+ * remapped, because the bench modes are not the old modes renamed — they are
+ * a different instrument, measured differently — and carrying a score across
+ * would invent a record nobody set.
+ *
+ * What a returning player keeps is everything the ladder is actually made of:
+ * ratings, samples, difficulty, totals, rank and peak are stored per *axis*,
+ * not per drill, so the rank they left with is the rank they come back to.
+ * What they lose is the runs and records belonging to drills that are gone,
+ * which is the only honest reading of them.
+ */
+const keepKnownDrills = <T>(list: unknown, drillOf: (x: T) => unknown, cap: number): T[] =>
+  Array.isArray(list) ? (list as T[]).filter((x) => x && isDrillId(drillOf(x))).slice(-cap) : [];
+
+const keepKnownBests = (raw: unknown): Partial<Record<DrillId, BestRecord>> => {
+  const out: Partial<Record<DrillId, BestRecord>> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [id, rec] of Object.entries(raw as Record<string, BestRecord>)) {
+    if (isDrillId(id) && rec) out[id] = rec;
+  }
+  return out;
+};
+
+const keepKnownTests = (raw: unknown): Partial<Record<TestId, TestRecord>> => {
+  const out: Partial<Record<TestId, TestRecord>> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [id, rec] of Object.entries(raw as Record<string, TestRecord>)) {
+    if (isTestId(id) && rec) out[id] = rec;
+  }
+  return out;
+};
+
 export const loadProfile = (): Profile => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -385,29 +435,37 @@ export const loadProfile = (): Profile => {
       // unknowable, so the notes screen highlights the current one rather than
       // inventing a history for it.
       seenVersion: parsed.seenVersion ?? null,
-      daily: { ...p.daily, ...parsed.daily },
-      // A profile written before the champion track existed simply starts it.
-      vayne: parsed.vayne
-        ? { ...p.vayne, ...parsed.vayne, stages: { ...p.vayne.stages, ...parsed.vayne.stages } }
-        : p.vayne,
-      ezreal: parsed.ezreal
-        ? { ...p.ezreal, ...parsed.ezreal, stages: { ...p.ezreal.stages, ...parsed.ezreal.stages } }
-        : p.ezreal,
+      // Today's completed list is a list of drill ids like any other, and a
+      // stale one in it would strike the plan's ticks out against nothing.
+      daily: {
+        ...p.daily,
+        ...parsed.daily,
+        completed: Array.isArray(parsed.daily?.completed) ? parsed.daily.completed.filter(isDrillId) : [],
+      },
+      // The two champion tracks are repaired rather than merged, for the same
+      // reason the ladders below are: a profile written before one existed —
+      // or before a stage did, or with a stage half-written — has to come back
+      // playable rather than come back with a hole in the middle of it.
+      vayne: normalizeVayneProgress(parsed.vayne),
+      ezreal: normalizeEzrealProgress(parsed.ezreal),
       // The APM ladder is repaired rather than merged: a profile written
       // before it existed, or before a mode did, has to come back playable.
       apm: normalizeApmProgress(parsed.apm),
-      bests: parsed.bests ?? {},
-      history: Array.isArray(parsed.history) ? parsed.history.slice(-400) : [],
+      bests: keepKnownBests(parsed.bests),
+      history: keepKnownDrills<HistoryEntry>(parsed.history, (h) => h.drill, 400),
       dailyMarks: Array.isArray(parsed.dailyMarks) ? parsed.dailyMarks.slice(-120) : [],
-      // Written from v1.4. An older profile starts it empty rather than
-      // having a history of mistakes invented for it.
-      errorLog: Array.isArray(parsed.errorLog) ? parsed.errorLog.slice(-800) : [],
+      // Written from v1.4. An older profile starts it empty rather than having
+      // a history of mistakes invented for it. Both halves of a logged mistake
+      // are names that can go stale: the drill it happened in, and the code.
+      errorLog: keepKnownDrills<ErrorLogEntry>(parsed.errorLog, (e) => e.drill, 800).filter((e) =>
+        isErrorCode(e.code),
+      ),
       // Same for the academy: a profile written before it existed comes back
       // with an empty course rather than a crash on modules.wasdMove.
       wasd: normalizeWasdProgress(parsed.wasd),
       // A profile written before the tests existed simply has none yet.
-      tests: parsed.tests ?? {},
-      recentBests: Array.isArray(parsed.recentBests) ? parsed.recentBests.slice(-60) : [],
+      tests: keepKnownTests(parsed.tests),
+      recentBests: keepKnownDrills<RecentBest>(parsed.recentBests, (b) => b.drill, 60),
     };
   } catch {
     return newProfile();

@@ -375,6 +375,10 @@ export const TESTS: Record<TestId, TestMeta> = {
 
 export const TEST_LIST = Object.values(TESTS).sort((a, b) => a.order - b.order);
 
+/** Same guard as the catalogue's, for ids read back out of a saved profile. */
+export const isTestId = (v: unknown): v is TestId =>
+  typeof v === 'string' && Object.prototype.hasOwnProperty.call(TESTS, v);
+
 export const TEST_GROUPS: { id: TestGroup; title: string; blurb: string }[] = [
   { id: 'REFLEX', title: 'Reflex', blurb: 'How fast the signal gets from your eyes to your hand' },
   { id: 'PRECISION', title: 'Precision', blurb: 'Where the cursor lands and when the key goes down' },

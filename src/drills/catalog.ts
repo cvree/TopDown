@@ -805,6 +805,19 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
 
 export const DRILL_LIST = Object.values(DRILLS).sort((a, b) => a.order - b.order);
 
+/**
+ * Does this string still name a drill?
+ *
+ * The catalogue is not frozen — the lab replaced thirteen in-game APM modes
+ * with thirteen bench modes under new ids — but a saved profile is: it keeps
+ * naming the drills it was written with, for as long as its owner keeps it.
+ * So anything read back out of storage is checked here before it is used as a
+ * key, because `DRILLS[somethingRemoved]` is `undefined` and the first screen
+ * that asks it for its axes takes the whole client down with it.
+ */
+export const isDrillId = (v: unknown): v is DrillId =>
+  typeof v === 'string' && Object.prototype.hasOwnProperty.call(DRILLS, v);
+
 /** The five calibration drills, in the order the placement runs them. */
 export const PLACEMENT_SEQUENCE: DrillId[] = ['movement', 'aim', 'dodge', 'kite', 'duel1v1'];
 

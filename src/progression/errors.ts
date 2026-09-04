@@ -36,6 +36,10 @@ export const ERROR_CODES = [
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
+/** Same guard as the catalogue's, for codes read back out of a saved profile. */
+export const isErrorCode = (v: unknown): v is ErrorCode =>
+  typeof v === 'string' && (ERROR_CODES as readonly string[]).includes(v);
+
 export interface ErrorMeta {
   code: ErrorCode;
   /** Two words, screaming. This is what the UI leads with. */
