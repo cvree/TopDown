@@ -65,6 +65,27 @@
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-metal: cubic-bezier(0.16, 1.1, 0.3, 1);
 
+  /* ---------------------------------------------------------- extra scale
+     A handful of additional tokens for the Academy/CoursePath screens'
+     shared primitives below (.stat/.tag/.meter/.link/.page-head/.sec-head).
+     Additive only — nothing above is touched or renamed. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 72px;
+
+  --t-micro: 10px;
+  --t-tiny: 11px;
+  --t-sm: 13px;
+  --t-lg: 21px;
+  --t-xl: 30px;
+
+  --line: rgba(200, 170, 110, 0.11);
+
   color-scheme: dark;
 }
 
@@ -772,4 +793,175 @@ h3 {
   font-size: 11px;
   color: var(--text-3);
   word-break: break-word;
+}
+
+
+/* ============================================================
+   Shared primitives for the Academy / CoursePath screens
+
+   New, additive-only classes — nothing above is modified. `.sec-head`
+   deliberately does not join `.panel-title`'s selector group so this
+   stays a pure append with zero risk to any existing screen.
+   ============================================================ */
+
+.wrap.wide {
+  width: min(1560px, 100%);
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-6);
+  padding: var(--sp-7) 0 var(--sp-5);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--sp-6);
+}
+.page-head h1 {
+  font-size: var(--t-xl);
+  margin: var(--sp-2) 0 0;
+  letter-spacing: 0.06em;
+}
+.page-head p {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-2);
+  font-size: var(--t-sm);
+  max-width: 62ch;
+}
+
+.sec-head {
+  font-family: var(--ui);
+  font-size: var(--t-micro);
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  color: var(--gold);
+  text-transform: uppercase;
+  margin: 0 0 var(--sp-4);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.sec-head::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.sec-head .sec-note {
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.14em;
+  color: var(--text-3);
+  text-transform: none;
+  order: 3;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.stat > .stat-k {
+  font-family: var(--ui);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.stat > .stat-v {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: var(--t-lg);
+  letter-spacing: 0.01em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.stat > .stat-s {
+  font-size: var(--t-tiny);
+  color: var(--text-3);
+}
+.stat.lg > .stat-v {
+  font-size: var(--t-xl);
+}
+.stat.sm > .stat-v {
+  font-family: var(--ui);
+  font-size: var(--t-sm);
+}
+
+.stat-row {
+  display: flex;
+  gap: var(--sp-5);
+}
+.stat-row > .stat {
+  flex: 1;
+  padding-left: var(--sp-5);
+  border-left: 1px solid var(--line);
+}
+.stat-row > .stat:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  font-family: var(--ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c, var(--text-3));
+  border: 1px solid color-mix(in srgb, var(--c, var(--text-4)) 40%, transparent);
+  background: color-mix(in srgb, var(--c, var(--text-4)) 10%, transparent);
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.tag.solid {
+  color: #080d14;
+  background: var(--c, var(--gold));
+  border-color: transparent;
+}
+.tag.quiet {
+  border-color: var(--line);
+  background: none;
+  color: var(--text-3);
+}
+
+.meter {
+  position: relative;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  border-radius: 2px;
+}
+.meter > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--c, var(--gold));
+  transition: width 0.5s var(--ease);
+}
+.meter.tall {
+  height: 6px;
+}
+
+.link {
+  font-family: var(--ui);
+  font-size: var(--t-micro);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.link:hover {
+  color: var(--gold-hot);
 }
