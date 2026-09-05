@@ -110,6 +110,25 @@ export class Minimap {
 
     this.drawFog(world, ox, oy, w * scale, h * scale);
 
+    // Wards, over the fog rather than under it — the whole point of one is
+    // that it is a piece of the map you own, and a pip the fog could dim would
+    // be answering "is it still alight" with "look harder". The circle is what
+    // it holds; the pip fades as it burns down, which is the only place on the
+    // interface where "you are about to go blind there" is visible at a glance.
+    for (const ward of world.wards) {
+      if (ward.team !== 'player') continue;
+      const left = Math.max(0, Math.min(1, ward.life / Math.max(0.001, ward.maxLife)));
+      g.strokeStyle = `rgba(124,232,164,${0.1 + 0.18 * left})`;
+      g.lineWidth = 1;
+      g.beginPath();
+      g.arc(px(ward.pos.x), py(ward.pos.y), ward.radius * scale, 0, Math.PI * 2);
+      g.stroke();
+      g.fillStyle = `rgba(124,232,164,${0.4 + 0.5 * left})`;
+      g.beginPath();
+      g.arc(px(ward.pos.x), py(ward.pos.y), 2.6, 0, Math.PI * 2);
+      g.fill();
+    }
+
     // Where the camera is pointing, drawn under the units: an enemy blip has
     // to win against the frame it sits in.
     const vw = coverage.w * scale;

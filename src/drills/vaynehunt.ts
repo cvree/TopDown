@@ -196,6 +196,8 @@ export class VayneHuntDrill extends VayneDrill {
           ]
         : []),
       this.boltField(),
+      // The trinket only earns a row where there is a fog for it to lift.
+      ...(fog ? [this.wardField()] : []),
       ...(this.triggerField() ? [this.triggerField() as HudField] : []),
       {
         label: this.kit.inFinalHour ? 'FINAL HOUR' : 'ULTIMATE',
@@ -274,6 +276,12 @@ export class VayneHuntDrill extends VayneDrill {
     if (st.finalHours > 0 && won) helped.push('Final Hour used and converted.');
     if (fog && this.s.visionUptime > 0.72) helped.push(`You held eyes on the fight ${Math.round(this.s.visionUptime * 100)}% of the run — that is camera work, not luck.`);
     if (fog && this.s.unseenHits === 0 && m.hitsTaken > 0) helped.push('Nothing hit you from a place you had not looked.');
+    if (fog && st.wards > 2 && st.wardsIdle === 0)
+      helped.push(`All ${st.wards} wards showed you somebody. That is vision spent on ground the fight was actually going to reach.`);
+    if (fog && st.wards === 0)
+      hurt.push('You never used the trinket. It comes back every twelve seconds here — a ward on the ground you are about to kite into is the cheapest information in the mode.');
+    else if (fog && st.wardsIdle > 1 && st.wardsIdle >= st.wards - 1)
+      hurt.push(`${st.wardsIdle} of your ${st.wards} wards burned down without lighting anybody. Ward where you are going, not where you have been.`);
     if (!m.survived) hurt.push(`You died at ${m.survivalTime.toFixed(1)}s.`);
     if (st.tumblesWasted > 1) hurt.push(`${st.tumblesWasted} tumbles thrown mid-windup under pressure.`);
     if (bolts < 0.55 && st.attacksLanded > 10) hurt.push('Your bolts fell apart in the fight — you switched targets on instinct.');
@@ -289,7 +297,9 @@ export class VayneHuntDrill extends VayneDrill {
       : fog && ambushShare > 0.35
         ? 'You are being opened on from the dark. Check the bush before you walk past it — and stop kiting backwards into ground you have not looked at.'
         : fog && this.s.visionUptime < 0.5
-        ? 'Unlock the camera with Y and drive it. You cannot kite a champion you are not looking at, and the minimap only shows you what your champion can already see.'
+        ? st.wards === 0
+          ? 'Unlock the camera with Y and drive it — and drop a ward. The trinket is back every twelve seconds, and an eye on the ground you are about to fight over is vision you do not have to hold with your camera.'
+          : 'Unlock the camera with Y and drive it. You cannot kite a champion you are not looking at, and the minimap only shows you what your champion can already see.'
         : bolts < 0.6
         ? 'Pick your target and finish three attacks on it. Switching mid-stack is why the fight is going long.'
         : st.finalHours === 0
@@ -314,6 +324,7 @@ export class VayneHuntDrill extends VayneDrill {
         count('procs', 'BOLT PROCS', st.boltProcs),
         secs('fightTime', won ? 'TIME TO WIN' : 'SURVIVED', won ? this.s.elapsed : m.survivalTime, won ? 'lower' : 'higher'),
         ...(fog ? [pct('vision', 'VISION HELD', this.s.visionUptime)] : []),
+        ...(fog ? [count('wards', 'WARDS PLACED', st.wards)] : []),
       ],
       helped,
       hurt,

@@ -31,7 +31,7 @@ import { EnemyBrain, tuningFor, type BotBehavior } from '../src/engine/ai';
 import type { Actor, Vec2 } from '../src/engine/types';
 import { incomingDamage } from '../src/engine/lane';
 import type { VayneKit } from '../src/engine/vayne';
-import { VAYNE_STATS } from '../src/engine/vayne';
+import { VAYNE_STATS, condemnCdAt, condemnPracticeCdAt } from '../src/engine/vayne';
 import { EZREAL_STATS, type EzrealKit } from '../src/engine/ezreal';
 import { EZREAL_DRILL_IDS, ezrealStage, type EzrealDrillId } from '../src/drills/ezreal';
 import {
@@ -2708,6 +2708,10 @@ line('\n=== BINDINGS: a rebound key is the binding ===');
   const key = (down: boolean, code: string, mods: Record<string, boolean> = {}) =>
     win.fire(down ? 'keydown' : 'keyup', { code, repeat: false, timeStamp: 0, ...mods });
 
+  /** A press of a mouse button on the arena itself. */
+  const click = (button: number) =>
+    el.fire('pointerdown', { button, clientX: 220, clientY: 140, timeStamp: 0 });
+
   /** Everything the queue holds after a burst of keys, as compact strings. */
   const kinds = (input: InputSystem) =>
     input.drain().map((e) => (e.kind === 'ability' ? `ability:${e.slot}` : e.kind));
@@ -2769,6 +2773,53 @@ line('\n=== BINDINGS: a rebound key is the binding ===');
     input.detach();
   }
 
+  // --- a mouse button is a binding like any other -----------------------
+  //
+  // Every row on the settings screen accepts a mouse button, and for the whole
+  // life of that screen putting an ability on one bound it to nothing: only
+  // the keyboard ever consulted the ability bindings, so Q on right click cost
+  // you the move order that used to live there and gave you no Q for it.
+  {
+    const input = rig(resolveBindings('click', {}));
+    click(2);
+    expect('right click moves by default', kinds(input).join() === 'move', 'the default right click stopped moving');
+    input.detach();
+  }
+  {
+    // Exactly what the settings screen writes when Q is rebound onto right
+    // click: Q takes the button, and move — evicted — is left unbound.
+    const input = rig(resolveBindings('click', { q: { primary: 'Mouse2' }, move: { primary: UNBOUND } }));
+    click(2);
+    expect('right click casts Q once Q is bound to it', kinds(input).join() === 'ability:q', 'right click did not cast Q');
+    key(true, 'KeyQ');
+    expect('and the key it came from goes quiet', kinds(input).length === 0, 'KeyQ still cast Q');
+    input.detach();
+  }
+  {
+    // A mouse binding quick-casts whatever the setting says: arming a slot
+    // means "the next left click picks the point", and a press that is already
+    // a click at a point has nothing left to confirm.
+    const input = new InputSystem({
+      bindings: resolveBindings('click', { e: { primary: 'Mouse2' }, move: { primary: UNBOUND } }),
+      quickCast: false,
+      activeSlots: new Set<AbilitySlot>(['q', 'w', 'e', 'r']),
+      scheme: 'click',
+    });
+    input.attach(el as unknown as HTMLElement);
+    click(2);
+    expect('a mouse-bound ability fires on the press', kinds(input).join() === 'ability:e', 'the press only armed it');
+    input.detach();
+  }
+  {
+    // A slot this drill does not use still falls through to the click it
+    // displaced nothing for — an ability bound onto a button must not eat the
+    // button in a mode that has no such ability.
+    const input = rig(resolveBindings('click', { r: { primary: 'Mouse2' } }), 'click', ['q']);
+    click(2);
+    expect('an inactive slot leaves the button alone', kinds(input).join() === 'move', 'a locked slot swallowed the click');
+    input.detach();
+  }
+
   // --- WASD movement follows its bindings ------------------------------
   {
     const input = rig(
@@ -2824,6 +2875,180 @@ line('\n=== BINDINGS: a rebound key is the binding ===');
 
   g.window = savedWindow;
   g.document = savedDocument;
+}
+
+line('\n=== TERRAIN: bots go around walls rather than into them ===');
+{
+  /**
+   * One bot, one player, and a wall between them.
+   *
+   * The wall is long and the bot is started level with its middle, so the
+   * straight line is blocked and staying on it is the failure: a unit that
+   * cannot get round this is the unit players describe as walking into walls.
+   * The control run is the same fight with nothing in the way, which is what
+   * "arrives" means in units.
+   */
+  const chaseAcross = (walls: boolean) => {
+    const rng = new Rng(4242);
+    const world = new World({ w: 1800, h: 1200 }, rng);
+    if (walls) world.walls = [{ x: 900, y: 600, w: 80, h: 700 }];
+    const player = world.spawnPlayer({ x: 1500, y: 600 });
+    const bot = world.spawnActor({ pos: { x: 300, y: 600 }, team: 'enemy', radius: 26 });
+    bot.moveSpeed = 340;
+    const brain = new EnemyBrain(bot, 'juggernaut', tuningFor(0.5), rng);
+    brain.behavior = 'chase';
+    let closest = Infinity;
+    for (let i = 0; i < 240 * 12; i++) {
+      brain.update(world, SIM_DT);
+      world.step(SIM_DT);
+      // The player is a post: the question is entirely about the bot's path.
+      player.pos.x = 1500;
+      player.pos.y = 600;
+      closest = Math.min(closest, dist(bot.pos, player.pos));
+    }
+    return { closest, end: { ...bot.pos } };
+  };
+
+  const open = chaseAcross(false);
+  const blocked = chaseAcross(true);
+  line(`  open floor: closest ${open.closest.toFixed(0)}u    wall between: closest ${blocked.closest.toFixed(0)}u`);
+  expect('a chaser reaches a player across open floor', open.closest < 200, `${open.closest.toFixed(0)}u`);
+  expect(
+    'and a wall in the way is walked around rather than into',
+    blocked.closest < 260,
+    `stopped ${blocked.closest.toFixed(0)}u away at (${blocked.end.x.toFixed(0)},${blocked.end.y.toFixed(0)})`,
+  );
+
+  // The routing itself, at the altitude it is written: a body flat against a
+  // wall must be told that walking away from it is allowed. Answering "no room
+  // that way" to every heading is what made the old probe useless exactly when
+  // it was needed.
+  {
+    const world = new World({ w: 1800, h: 1200 }, new Rng(9));
+    world.walls = [{ x: 900, y: 600, w: 80, h: 700 }];
+    const against = { x: 900 - 40 - 26, y: 600 };
+    expect(
+      'a body touching a wall is still blocked into it',
+      world.roomAhead(against, { x: 1, y: 0 }, 200, 26) < 10,
+      `${world.roomAhead(against, { x: 1, y: 0 }, 200, 26).toFixed(0)}u`,
+    );
+    expect(
+      'but is free to walk along it',
+      world.roomAhead(against, { x: 0, y: -1 }, 200, 26) > 190,
+      `${world.roomAhead(against, { x: 0, y: -1 }, 200, 26).toFixed(0)}u`,
+    );
+    expect(
+      'and free to walk away from it',
+      world.roomAhead(against, { x: -1, y: 0 }, 200, 26) > 190,
+      `${world.roomAhead(against, { x: -1, y: 0 }, 200, 26).toFixed(0)}u`,
+    );
+    // The arena edge is terrain to a knockback and floor to a walk.
+    expect(
+      'the arena edge does not steer a walking body',
+      world.roomAhead({ x: 40, y: 600 }, { x: -1, y: 0 }, 200, 26) > 190,
+      'the boundary was treated as a rock',
+    );
+  }
+}
+
+line('\n=== VISION: wards are eyes a champion leaves behind ===');
+{
+  const world = new World({ w: 2000, h: 1400 }, new Rng(1));
+  world.enableVision();
+  const me = world.spawnPlayer({ x: 200, y: 200 });
+  me.sight = 500;
+  const far = world.spawnActor({ pos: { x: 1500, y: 1200 }, team: 'enemy', radius: 26 });
+  expect('the far side of the map is dark to begin with', !world.canSee('player', far), 'it was already visible');
+  world.placeWard('player', { x: 1500, y: 1200 }, 1100, 8, 2);
+  expect('a ward lights what it is standing next to', world.canSee('player', far), 'the ward showed nothing');
+
+  // A ward is on a clock, and the clock is the whole reason placing one is a
+  // decision rather than a chore done once at the start of a run.
+  for (let i = 0; i < 240 * 9; i++) world.step(SIM_DT);
+  expect('and burns down on its own', world.wards.length === 0, `${world.wards.length} still alight`);
+  expect('taking its vision with it', !world.canSee('player', far), 'the ground stayed lit');
+
+  // The cap drops the oldest rather than refusing the cast: a player asking
+  // for vision here has decided this is the more important place to see.
+  for (const x of [100, 300, 500]) world.placeWard('player', { x, y: 100 }, 1100, 8, 2);
+  expect(
+    'a third ward replaces the first',
+    world.wards.length === 2 && world.wards.every((w) => w.pos.x !== 100),
+    world.wards.map((w) => w.pos.x).join(),
+  );
+
+  // Terrain stops a throw. A ward flung at the far side of a wall lands in
+  // front of it and lights the wrong ground, which is League and is the
+  // mistake the mode is trying to make visible.
+  {
+    const w2 = new World({ w: 2000, h: 1400 }, new Rng(2));
+    w2.walls = [{ x: 1000, y: 700, w: 80, h: 900 }];
+    const reach = w2.terrainAlong({ x: 700, y: 700 }, { x: 1, y: 0 }, 600, 10);
+    expect('a ward throw is stopped by terrain', reach.hit && reach.distance < 300, `${reach.distance.toFixed(0)}u`);
+  }
+}
+
+line('\n=== VAYNE: the trinket, and a condemn that comes back ===');
+{
+  // Condemn's practice cooldown. It is shorter at every rank than League's,
+  // and it is shorter in every mode, because the ability is unlearnable at
+  // three casts a run.
+  for (const r of [1, 2, 3, 4, 5]) {
+    expect(
+      `condemn at rank ${r} is faster to practise than it is in League`,
+      condemnPracticeCdAt(r) < condemnCdAt(r) * 0.6,
+      `${condemnPracticeCdAt(r)}s vs ${condemnCdAt(r)}s`,
+    );
+  }
+  // Rank still shapes it: a maxed E is a different champion from a single
+  // point, and flattening that would be a different lie from the old one.
+  expect(
+    'and rank still means something',
+    condemnPracticeCdAt(5) < condemnPracticeCdAt(1) - 1,
+    `${condemnPracticeCdAt(1)}s vs ${condemnPracticeCdAt(5)}s`,
+  );
+
+  for (const id of ['vayneCondemn', 'vayneHunt'] as DrillId[]) {
+    const r = runDrill(id, 'idle', 0.3);
+    const kit = kitOf(r.drill);
+    const league = condemnCdAt(kit ? kit.ranks.e : 1);
+    line(`  ${id.padEnd(13)} condemn ${kit?.condemnCdTotal ?? 0}s  (League ${league}s)`);
+    expect(
+      `${id} runs on the practice cooldown`,
+      !!kit && kit.condemnCdTotal < league,
+      `${kit?.condemnCdTotal ?? 0}s vs ${league}s`,
+    );
+  }
+
+  // Every mode hands you the trinket, on the same key, whatever else it has
+  // taken away: the ward is part of the hands rather than part of the kit.
+  for (const id of ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'] as DrillId[]) {
+    expect(`${id} keeps the trinket`, DRILLS[id].abilities.includes('d'), DRILLS[id].abilities.join());
+    const r = runDrill(id, 'idle', 0.3);
+    const bar = r.drill.abilities().find((a) => a.slot === 'd');
+    expect(`${id} shows the ward on the bar`, !!bar && !bar.locked, JSON.stringify(bar));
+  }
+
+  // And casting it puts one on the floor, on a cooldown, at the cursor.
+  {
+    const r = runDrill('vayneHunt', 'idle', 0.3);
+    const kit = kitOf(r.drill);
+    const p = r.session.world.player;
+    if (!kit || !p) throw new Error('no kit');
+    const at = { x: p.pos.x + 300, y: p.pos.y };
+    // The run is over by the time we get here and she may not have survived
+    // it; the trinket is being asked a question about aiming, not about how
+    // the minute went.
+    p.alive = true;
+    p.hp = p.maxHp;
+    kit.wardCd = 0;
+    r.session.world.wards.length = 0;
+    kit.cast('d', at);
+    const placed = r.session.world.wards[0];
+    expect('the trinket leaves a ward where it was aimed', !!placed && dist(placed.pos, at) < 40, JSON.stringify(placed?.pos));
+    expect('and goes on cooldown for it', kit.wardCd > 0, `${kit.wardCd}`);
+    expect('a second one is refused while it is down', kit.cast('d', at) === 'refused', 'the trinket was free');
+  }
 }
 
 line('\n=== BINDINGS: the layouts themselves ===');

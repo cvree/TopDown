@@ -56,10 +56,25 @@ SURVIVE on it.
 
 | Mode | Keys | Measures | The habit it builds |
 | --- | --- | --- | --- |
-| **Tumble** | Q | Tumble rhythm, windups thrown away, where the roll put you | Q in the backswing — Vayne's whole movement game |
-| **Silver Bolts** | Q W | Bolt efficiency, stacks dropped | Finishing the third hit instead of switching at two |
-| **Condemn** | Q E | Wall stun rate, angles you made rather than found | Standing on the right side of the wall *before* the fight |
-| **Night Hunter** | Q W E R | Kit execution and vision held, against a floor that refills | Playing Vayne rather than an ADC who owns her abilities — in the dark |
+| **Tumble** | Q D | Tumble rhythm, windups thrown away, where the roll put you | Q in the backswing — Vayne's whole movement game |
+| **Silver Bolts** | Q W D | Bolt efficiency, stacks dropped | Finishing the third hit instead of switching at two |
+| **Condemn** | Q E D | Wall stun rate, angles you made rather than found | Standing on the right side of the wall *before* the fight |
+| **Night Hunter** | Q W E R D | Kit execution, vision held and wards placed, against a floor that refills | Playing Vayne rather than an ADC who owns her abilities — in the dark |
+
+D is the trinket, and it is on every mode because it is not part of the
+champion: it is not levelled, it is not hers, and in a real game it is on the
+same key at level one as at eighteen. A ward throws 600 units, lights 1100
+around itself for eight seconds and comes back every twelve, two out at a time.
+Both clocks are far shorter than League's on purpose — holding a piece of the
+map for two minutes is a macro skill, and what a sixty second rep can build is
+the habit of spending vision on the ground the next ten seconds happen on.
+Night Hunter is the mode with a fog for it to lift, and it counts them.
+
+Condemn is the one cooldown deliberately shortened everywhere: every mode
+charges 45% of League's figure, so a maxed E is 5.4 seconds rather than twelve
+and Night Hunter's single point is nine rather than twenty. Rank still shapes
+it, and the practice screen prints both numbers — three casts a run is not a
+number of attempts anybody learns a positional ability from.
 
 ### Fog of war
 
@@ -546,8 +561,9 @@ one champion — and two buttons, PLAY and SURVIVE, each with the record it is
 asking you to beat printed under it.
 
 Under the cards is the kit in numbers: the roll's distance and how long it
-takes, the bolt count and what the third one does, Condemn's cast time and
-knockback, Final Hour, and the passive. It also says which Vayne each mode
+takes, the bolt count and what the third one does, Condemn's cast time,
+knockback and both of its cooldowns — League's and the practice one — the
+trinket, Final Hour, and the passive. It also says which Vayne each mode
 hands you and why — one point in Q where the rhythm is the lesson, a maxed E
 where the reps are — because a trainer claiming to feel like the champion owes
 you the figures it is claiming it with.
@@ -588,7 +604,7 @@ project shipped continuously before it started numbering itself.
 
 ```
 src/engine/     simulation: world, combat, AI, metrics, audio, input, paint
-src/engine/vayne.ts   the champion kit: tumble, bolts, condemn, final hour, passive
+src/engine/vayne.ts   the champion kit: tumble, bolts, condemn, final hour, passive, trinket
 src/drills/modes.ts   PLAY and SURVIVE, and which drills the menu offers
 src/drills/vayne*.ts  the four modes; each owns its rules and its scoring
 src/drills/     the wider mechanics catalogue the ratings were built on. Still

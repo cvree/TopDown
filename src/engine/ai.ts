@@ -2,7 +2,7 @@ import { ARCHETYPES } from './archetypes';
 import { angleDelta, clamp, dist, norm, v2 } from './math';
 import type { Rng } from './rng';
 import type { Actor, AiTuning, ArchetypeDef, ArchetypeId, Vec2 } from './types';
-import { World } from './world';
+import { NAV_CONTACT, World } from './world';
 
 /**
  * Difficulty is expressed entirely through behaviour. A "harder" Ranger is not
@@ -28,6 +28,21 @@ export const TUNING_CEILING: AiTuning = {
   aggression: 1.7,
   tempo: 1.3,
 };
+
+/**
+ * How long a body has to be going nowhere before it is treated as wedged, and
+ * how long it commits to getting out.
+ *
+ * A third of a second is longer than any legitimate hesitation — a step around
+ * another unit, a shove, a frame against a corner — and short enough that a
+ * player never watches a bot grind. The detour is longer than the stuck window
+ * on purpose: a body that turned around and immediately re-decided would walk
+ * straight back into the thing it just left.
+ */
+const STUCK_SECONDS = 0.3;
+const DETOUR_SECONDS = 0.75;
+/** How far along a wall the two ways round are compared before choosing. */
+const DETOUR_LOOK = 360;
 
 /** `level` runs 0..1 and interpolates every behavioural knob. */
 export const tuningFor = (level: number): AiTuning => {
@@ -165,6 +180,35 @@ export class EnemyBrain {
   private lostFor = 0;
   /** Seconds until it commits to its next guess about where you went. */
   private searchCd = 0;
+  /**
+   * The wall problem, and why it is solved here rather than in the steering.
+   *
+   * Every behaviour above answers "where do I want to be standing", and the
+   * walk toward that answer is a straight line that stops dead against
+   * terrain. So a bot whose preferred spot sits behind a rock does not go
+   * around the rock: it leans on it, reissuing the same impossible order eight
+   * times a second while the confinement pass eats every step, and it does
+   * that until the run ends. That is the "spam walk into walls" a player sees.
+   *
+   * The fix is deliberately *reactive*. A bot that pre-emptively steers around
+   * every wall in front of it is a different opponent — it stops committing to
+   * a charge, it never ends up with terrain at its back, and the modes built
+   * on bots arriving at you stop working. So nothing changes until a body has
+   * actually failed to move: only then does it turn, pick a heading with real
+   * room in it, and commit to that heading long enough to get out, and only
+   * until the way it wanted to go is clear again.
+   *
+   * `slideSide` is what keeps it stable. Without a remembered side a wedged
+   * body picks left, then right, then left, and vibrates against the wall
+   * instead of travelling along it.
+   */
+  private slideSide: 1 | -1 = 1;
+  /** How long it has been under orders and not moving. */
+  private stuckFor = 0;
+  private lastPos: Vec2 | null = null;
+  /** Seconds left of a committed detour, and the heading it commits to. */
+  private detourFor = 0;
+  private detourDir = v2();
 
   constructor(actor: Actor, archetype: ArchetypeId, tune: AiTuning, rng: Rng) {
     this.actor = actor;
@@ -228,11 +272,14 @@ export class EnemyBrain {
     if (this.strafeCd > 0) this.strafeCd -= dt;
     if (this.dodgeCd > 0) this.dodgeCd -= dt;
 
-    // Dash movement overrides normal steering while it lasts.
+    // Dash movement overrides normal steering while it lasts. It is clipped to
+    // the terrain at the cast and confined the same way every other body is
+    // while it runs, so a diver leaping at somebody standing behind a rock
+    // arrives at the rock instead of inside it — and, more to the point, does
+    // not spend the following second embedded in geometry.
     if (this.dashTime > 0) {
       this.dashTime -= dt;
-      me.pos.x = clamp(me.pos.x + this.dashVel.x * dt, me.radius, world.bounds.w - me.radius);
-      me.pos.y = clamp(me.pos.y + this.dashVel.y * dt, me.radius, world.bounds.h - me.radius);
+      world.place(me, me.pos.x + this.dashVel.x * dt, me.pos.y + this.dashVel.y * dt);
       me.order = null;
       return;
     }
@@ -309,7 +356,8 @@ export class EnemyBrain {
 
     if (!freeToMove) return;
 
-    const goal = this.steer(world, me, player, believed, { d, pref, slack, aggr, inRange, dt });
+    let goal = this.steer(world, me, player, believed, { d, pref, slack, aggr, inRange, dt });
+    if (goal) goal = this.unwedge(world, me, goal, dt);
 
     if (goal && this.repathCd <= 0) {
       this.repathCd = 0.08;
@@ -319,6 +367,73 @@ export class EnemyBrain {
     } else if (!goal) {
       me.order = { kind: 'attackTarget', pos: { ...player.pos }, targetId: player.id };
     }
+  }
+
+  /**
+   * The goal a behaviour asked for, or a way out of the wall it is standing in.
+   *
+   * Called every frame with the freshly steered goal, and it does nothing at
+   * all in the ordinary case — which is most of the run, and the point. It
+   * only speaks up once a body under orders has stopped covering ground, and
+   * "stopped covering ground" is measured against what this body could have
+   * covered in the time, so it stays true of a mode that hands out a different
+   * move speed.
+   */
+  private unwedge(world: World, me: Actor, goal: Vec2, dt: number): Vec2 {
+    const travelled = this.lastPos ? dist(me.pos, this.lastPos) : Infinity;
+    this.lastPos = { x: me.pos.x, y: me.pos.y };
+
+    if (this.detourFor > 0) {
+      this.detourFor -= dt;
+      // The detour ends the moment the way it actually wanted to go opens up:
+      // a body that keeps sliding along a wall after clearing its corner is
+      // one that has left the fight to finish a manoeuvre nobody needed.
+      if (world.navigate(me.pos, goal, me.radius, this.slideSide).clear) {
+        this.detourFor = 0;
+      } else {
+        this.stuckFor = 0;
+        return { x: me.pos.x + this.detourDir.x * 300, y: me.pos.y + this.detourDir.y * 300 };
+      }
+    }
+
+    const wants = dist(me.pos, goal) > 60 && me.phase !== 'windup' && me.rootedFor <= 0;
+    // Two ways to be getting nowhere, and the second one is the one that used
+    // to go unnoticed. A body flat against a wall is not always still: the
+    // heading a behaviour hands it wanders by half a radian either way, so it
+    // slides up and down the face for the whole run, covering ground the
+    // whole time and arriving nowhere. Pushing into terrain *is* the symptom;
+    // standing still is only its most obvious form.
+    const heading = norm(goal.x - me.pos.x, goal.y - me.pos.y);
+    const pressing = world.roomAhead(me.pos, heading, NAV_CONTACT * 2, me.radius) < NAV_CONTACT;
+    if (wants && (pressing || travelled < me.moveSpeed * dt * 0.3)) this.stuckFor += dt;
+    else this.stuckFor = 0;
+    if (this.stuckFor < STUCK_SECONDS) return goal;
+
+    // Wedged. Getting out of a wall is not the same manoeuvre as walking
+    // around one: the way past a face is *along* it, at a right angle to the
+    // direction that will not go, and a detour that insisted on making
+    // progress toward the goal would rule out the only heading that works.
+    // So the detour is lateral and committed, and it is committed because a
+    // body that re-decided every frame would turn back into the wall the
+    // instant leaning became marginally more direct than leaving.
+    this.stuckFor = 0;
+    const left = { x: -heading.y, y: heading.x };
+    const right = { x: heading.y, y: -heading.x };
+    // Which way round. Room first — a side with a second wall on it is not a
+    // side — and then whether going that way actually opens the approach,
+    // which is what tells the near end of a wall from the far one.
+    const look = (d: Vec2) => {
+      const room = world.roomAhead(me.pos, d, DETOUR_LOOK, me.radius);
+      const at = { x: me.pos.x + d.x * room, y: me.pos.y + d.y * room };
+      return { room, opens: room > DETOUR_LOOK * 0.8 && world.navigate(at, goal, me.radius, 1).clear };
+    };
+    const l = look(left);
+    const r = look(right);
+    if (l.opens !== r.opens) this.slideSide = l.opens ? 1 : -1;
+    else if (Math.abs(l.room - r.room) > 60) this.slideSide = l.room > r.room ? 1 : -1;
+    this.detourDir = this.slideSide === 1 ? left : right;
+    this.detourFor = DETOUR_SECONDS;
+    return { x: me.pos.x + this.detourDir.x * 300, y: me.pos.y + this.detourDir.y * 300 };
   }
 
   /**
@@ -493,11 +608,16 @@ export class EnemyBrain {
       if (Math.abs(angleDelta(travel, bearing)) > 0.45) continue;
       const side = angleDelta(travel, bearing) > 0 ? 1 : -1;
       const a = travel + (Math.PI / 2) * side;
+      // Sidestepping into a rock is not a sidestep, and unlike an approach
+      // there is nothing to be gained by committing to it: the whole move is
+      // one step, so it may as well be a step that exists.
+      const want = { x: me.pos.x + Math.cos(a) * 260, y: me.pos.y + Math.sin(a) * 260 };
+      const routed = world.navigate(me.pos, want, me.radius, side as 1 | -1);
       me.order = {
         kind: 'move',
         pos: {
-          x: clamp(me.pos.x + Math.cos(a) * 260, me.radius, world.bounds.w - me.radius),
-          y: clamp(me.pos.y + Math.sin(a) * 260, me.radius, world.bounds.h - me.radius),
+          x: clamp(routed.pos.x, me.radius, world.bounds.w - me.radius),
+          y: clamp(routed.pos.y, me.radius, world.bounds.h - me.radius),
         },
       };
       return true;
@@ -513,6 +633,19 @@ export class EnemyBrain {
       x: target.x + this.rng.gauss() * spread * 0.5,
       y: target.y + this.rng.gauss() * spread * 0.5,
     };
+  }
+
+  /**
+   * How long a dash may run before it would end inside terrain.
+   *
+   * A dash that ends in a wall does not stop there: the confinement pass shoves
+   * the body back out, so the unit arrives somewhere it never aimed at with its
+   * telegraph drawn somewhere else. Clipping the duration stops the leap at the
+   * rock, which is what a player who stepped behind one is owed.
+   */
+  private clipDash(world: World, me: Actor, dir: Vec2, speed: number, seconds: number): number {
+    const reach = world.terrainAlong(me.pos, dir, speed * seconds, me.radius);
+    return clamp(reach.distance / speed, 0, seconds);
   }
 
   private castAbility(world: World, me: Actor, player: Actor, believed: Vec2): void {
@@ -543,7 +676,7 @@ export class EnemyBrain {
         const d = dist(me.pos, player.pos);
         const speed = 1500;
         this.dashVel = { x: dir.x * speed, y: dir.y * speed };
-        this.dashTime = clamp(d / speed, 0.08, 0.45);
+        this.dashTime = this.clipDash(world, me, dir, speed, clamp(d / speed, 0.08, 0.45));
         // The dash gets a real telegraph — it is meant to be sidestepped, not
         // to feel like an ambush.
         world.spawnHazard({
@@ -592,7 +725,7 @@ export class EnemyBrain {
         // Dashes past you, then immediately threatens. Trains target switching.
         const speed = 1700;
         this.dashVel = { x: dir.x * speed, y: dir.y * speed };
-        this.dashTime = 0.2;
+        this.dashTime = this.clipDash(world, me, dir, speed, 0.2);
         me.attackCd = Math.min(me.attackCd, 0.1);
         break;
       }

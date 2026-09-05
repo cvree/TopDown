@@ -263,3 +263,26 @@ export interface Brush {
   w: number;
   h: number;
 }
+
+/**
+ * A ward: an eye a champion left behind.
+ *
+ * Not an actor, and deliberately so. A ward has no body — nothing walks into
+ * it, nothing shoves it, nothing can shoot it — and giving it one would mean
+ * every collision pass, every targeting query and every archetype table in the
+ * engine growing a special case for a thing that only ever does one job. What
+ * it is instead is the second kind of vision source the fog was written for:
+ * a circle of sight that is not standing on a pair of legs, which is the whole
+ * reason vision is a resource in League rather than a property of where your
+ * champion happens to be.
+ */
+export interface Ward {
+  id: number;
+  team: Team;
+  pos: Vec2;
+  /** How far it sees. */
+  radius: number;
+  /** Seconds left, and how many it started with. */
+  life: number;
+  maxLife: number;
+}

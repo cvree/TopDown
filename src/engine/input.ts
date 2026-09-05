@@ -538,6 +538,24 @@ export class InputSystem {
       return;
     }
 
+    // A mouse button bound to an ability is an ability, not a click.
+    //
+    // Every slot on the bar can be rebound onto Mouse0/1/2 from the settings
+    // screen, and until this existed doing so bound the slot to *nothing*: the
+    // keyboard path was the only one that ever consulted the ability bindings,
+    // so putting Tumble on right click cost you the move order that used to
+    // live there and gave you no tumble in exchange.
+    //
+    // A mouse binding always quick-casts, whatever the quick-cast setting
+    // says. Arming a slot means "the next left click picks the point", and a
+    // press that is already a click at a point has nothing left to confirm.
+    for (const slot of ABILITY_SLOTS) {
+      if (this.matches(slot, code) && this.opts.activeSlots.has(slot)) {
+        this.queue.push({ kind: 'ability', slot, x, y, t });
+        return;
+      }
+    }
+
     if (this.matches('move', code)) {
       this.queue.push({ kind: 'move', x, y, t });
       return;

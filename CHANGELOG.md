@@ -6,10 +6,33 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.3.0**.
+Currently shipping **v2.4.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.4.0 — EYES
+
+*2026-09-05*
+
+A trinket on the bar, a condemn that comes back before you have forgotten what you were practising, bots that walk around walls instead of into them, and abilities that answer to a mouse button when you put them on one.
+
+### Added
+
+- A warding trinket, on D, in every Vayne mode. It throws 600 units, lights 1100 around itself for eight seconds, and comes back every twelve — two out at once, and a third replaces the oldest. Both of those clocks are far shorter than League’s on purpose: holding a piece of the map for two minutes is a macro skill, and what a sixty second rep can actually build is the habit of spending vision on the ground the next ten seconds happen on.
+- The ward is drawn as the three things a ward is: the circle it holds, a ring counting down what is left of it, and a pip that blinks through its last two seconds so going blind is something you see coming. It shows on the minimap over the fog, because a pip the fog could dim would be answering "is it still lit" with "look harder".
+- Night Hunter — the mode with a fog to lift — puts wards on the HUD as how many are out and how long the shortest has left, counts them on the results screen, and has something to say about the ones that burned down without lighting anybody.
+
+### Changed
+
+- Condemn comes back in 45% of League’s cooldown in every mode: 5.4 seconds on a maxed E instead of twelve, nine instead of twenty in Night Hunter. Rank still shapes it and the practice screen still prints both figures. Three casts a run is not a number of attempts anybody learns a positional ability from.
+- Scoring no longer measures Condemn usage against its own cooldown, so shortening it hands you more attempts rather than raising the bar for taking them.
+- Bots notice when they are getting nowhere. A unit that has spent a third of a second pushing into terrain now turns, picks the way round with room in it, commits to that for long enough to actually leave, and drops it the moment its own approach opens up again. Nothing else about how they fight has changed — they still commit to a charge, and they still end up with their backs to walls.
+- Dashes stop at walls. A diver leaping at somebody standing behind a rock arrives at the rock instead of inside it and being shoved back out somewhere it never aimed at.
+
+### Fixed
+
+- Putting an ability on a mouse button now casts it. Every row in the rebind list has always accepted one, and every ability bound to one did nothing at all — only the keyboard consulted the ability bindings — so Tumble on right click cost you the move order that lived there and gave you no tumble for it. A mouse-bound ability quick-casts at the cursor whatever the quick-cast setting says, because a press that is already a click at a point has nothing left to confirm.
 
 ## v2.3.0 — CONTRAST
 

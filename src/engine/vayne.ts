@@ -19,6 +19,10 @@
  * - **R Final Hour** is a window: more damage, a shorter tumble, and
  *   invisibility on each tumble. It trains committing to a burst of time.
  *
+ * The trinket lives here too, on D, and is the one thing on the bar that is
+ * not the champion — not levelled, not hers, and on the same key at level one
+ * as at eighteen. It sits in the kit because that is where the hands are.
+ *
  * The kit owns its own state and stats and knows nothing about drills, so all
  * four Vayne drills and the gauntlet share exactly one implementation of the
  * champion.
@@ -34,6 +38,10 @@ import type { WorldEvent } from './world';
 
 export const VAYNE_COLOR = '#c86bff';
 export const VAYNE_SILVER = '#e6f0ff';
+/** Vision is its own colour on the floor: nothing else in the kit is green. */
+export const WARD_COLOR = '#7ce8a4';
+/** The ward's own footprint, only ever used to keep it out of walls. */
+const WARD_RADIUS = 10;
 
 /** Which parts of the kit a drill hands the player, and at what rank. */
 export interface VayneLoadout {
@@ -41,6 +49,17 @@ export interface VayneLoadout {
   bolts?: boolean;
   condemn?: boolean;
   finalHour?: boolean;
+  /**
+   * The trinket, which defaults to *on*.
+   *
+   * Every other flag here defaults to off because every other flag is a piece
+   * of the champion a mode chooses to hand you. A ward is not part of the kit
+   * and never was: it is not levelled, it is not hers, and in a real game it
+   * is on the same key whether you are level one or level eighteen. Making the
+   * modes opt out rather than in is the same statement — the trinket is part
+   * of the hands, not part of the champion.
+   */
+  ward?: boolean;
   /** Defaults to the laning Vayne — one point in everything. */
   ranks?: Partial<VayneRanks>;
 }
@@ -162,6 +181,26 @@ export const VAYNE_STATS = {
   /** League: 20 / 18 / 16 / 14 / 12 seconds. */
   condemnCdByRank: [20, 18, 16, 14, 12],
   /**
+   * How much of that cooldown a *practice* run actually charges.
+   *
+   * The one number about the champion herself that is deliberately not
+   * League's — the trinket below is not hers — and it is the difference
+   * between a trainer and a simulator. Condemn's real cooldown
+   * is built for a game with twenty-five minutes in it: at rank one you get
+   * three casts in a sixty second run, and two of them arrive while nothing is
+   * standing in front of a wall. A mechanic you touch three times an hour is a
+   * mechanic you never learn, and the whole claim this client makes is that a
+   * rep is cheap and repeatable.
+   *
+   * So every mode charges this share of the real figure — a little under half,
+   * which turns a minute into eight or ten real attempts at the same question
+   * without making the ability free. The rank table above still decides the
+   * shape (a maxed E is still meaningfully faster than a single point), and
+   * the practice screen prints both numbers rather than quietly showing the
+   * trainer's and calling it League's.
+   */
+  condemnPracticeShare: 0.45,
+  /**
    * League: Condemn has a 0.25s cast time, and Vayne is rooted for it. It is
    * why a condemn thrown at a diver already on top of you is not free.
    */
@@ -185,12 +224,48 @@ export const VAYNE_STATS = {
   finalHourTumbleCdShare: 0.5,
   /** League: a tumble during Final Hour grants 1 second of invisibility. */
   finalHourStealth: 1,
+
+  // ------------------------------------------------------------- trinket
+  /** League: a trinket ward is thrown up to 600 units. */
+  wardRange: 600,
+  /** League: a stealth ward lights 1100 units around itself. */
+  wardSight: 1100,
+  /**
+   * Cooldown and lifetime, and neither of these is League's.
+   *
+   * League's trinket is balanced for a game with objectives in it: it comes
+   * back every couple of minutes and the ward it leaves stands for a minute
+   * and a half. Both of those numbers are about *holding* a piece of the map,
+   * which is a macro skill and not one a sixty second rep can rehearse.
+   *
+   * What a rep can rehearse is the habit underneath it — that vision is
+   * something you spend, at a moment you chose, on the piece of ground the
+   * next ten seconds happen on. So the trinket here comes back fast enough to
+   * be part of a fight rather than part of a plan, and what it leaves burns
+   * down fast enough that placing one is never a thing you did once at the
+   * start of the run and forgot. You are meant to ward five or six times a
+   * minute, badly at first, and to notice which of them told you something.
+   */
+  wardCd: 12,
+  wardLife: 8,
+  /** How many of hers may be alight at once. */
+  wardMax: 2,
 } as const;
 
 /** Tumble's cooldown at a given rank, in seconds. */
 export const tumbleCdAt = (r: number): number => rank(VAYNE_STATS.tumbleCdByRank, r);
-/** Condemn's cooldown at a given rank, in seconds. */
+/** Condemn's cooldown at a given rank in League, in seconds. */
 export const condemnCdAt = (r: number): number => rank(VAYNE_STATS.condemnCdByRank, r);
+
+/**
+ * Condemn's cooldown as every mode in this trainer actually charges it.
+ *
+ * This is the figure the kit, the HUD and the scoring all run on; `condemnCdAt`
+ * remains League's, and stays exported because the practice screen quotes both
+ * and a number the player cannot check against the game is worth nothing.
+ */
+export const condemnPracticeCdAt = (r: number): number =>
+  Math.round(condemnCdAt(r) * VAYNE_STATS.condemnPracticeShare * 10) / 10;
 
 export type VayneCastResult = 'cast' | 'refused' | 'locked' | 'noTarget';
 
@@ -264,6 +339,10 @@ export interface VayneStats {
 
   finalHours: number;
   finalHourSeconds: number;
+
+  /** Wards placed, and the ones that burned down without ever lighting a body. */
+  wards: number;
+  wardsIdle: number;
 }
 
 const emptyStats = (): VayneStats => ({
@@ -290,6 +369,8 @@ const emptyStats = (): VayneStats => ({
   condemnAngleSum: 0,
   finalHours: 0,
   finalHourSeconds: 0,
+  wards: 0,
+  wardsIdle: 0,
 });
 
 interface PendingHit {
@@ -310,6 +391,11 @@ export class VayneKit {
   condemnCd = 0;
   hourCd = 0;
   hourLeft = 0;
+  wardCd = 0;
+  /** Ids of the wards she owns, so the kit can tell hers from anyone's. */
+  private wardIds = new Set<number>();
+  /** Which of those have lit an enemy at least once. */
+  private wardSaw = new Set<number>();
 
   /** Bolt stacks on the target they belong to. */
   stacks = 0;
@@ -343,6 +429,7 @@ export class VayneKit {
       bolts: loadout.bolts ?? false,
       condemn: loadout.condemn ?? false,
       finalHour: loadout.finalHour ?? false,
+      ward: loadout.ward ?? true,
       ranks: loadout.ranks ?? {},
     };
     this.ranks = { ...LANE_RANKS, ...(loadout.ranks ?? {}) };
@@ -398,6 +485,8 @@ export class VayneKit {
 
     if (this.tumbleCd > 0) this.tumbleCd = Math.max(0, this.tumbleCd - dt);
     if (this.condemnCd > 0) this.condemnCd = Math.max(0, this.condemnCd - dt);
+    if (this.wardCd > 0) this.wardCd = Math.max(0, this.wardCd - dt);
+    this.watchWards();
     if (this.hourCd > 0) this.hourCd = Math.max(0, this.hourCd - dt);
     if (this.hourLeft > 0) {
       this.hourLeft = Math.max(0, this.hourLeft - dt);
@@ -525,6 +614,8 @@ export class VayneKit {
         return this.condemn(at);
       case 'r':
         return this.finalHour();
+      case 'd':
+        return this.ward(at);
       default:
         return 'locked';
     }
@@ -828,6 +919,88 @@ export class VayneKit {
     return best && bd < best.radius + 190 ? best : null;
   }
 
+  /**
+   * The trinket — a ward, thrown at the cursor.
+   *
+   * The one thing on the bar that is not the champion, and the only one whose
+   * whole payoff arrives later. Everything else Vayne presses answers a
+   * question she has right now; this answers one she is about to have, which
+   * is why it is the ability people never learn: at the moment you spend it,
+   * spending it feels like nothing happened.
+   *
+   * Two rules make it a decision rather than a reflex. It lands where the
+   * throw actually reaches — terrain stops it, so a ward flung at the far side
+   * of a wall lands in front of the wall and lights the wrong ground, exactly
+   * as it does in League. And it is placed at the *cursor*, never at her feet,
+   * so warding is a thing you aim at a piece of the map, not a button you hold
+   * down while standing somewhere.
+   */
+  private ward(at: Vec2): VayneCastResult {
+    if (!this.loadout.ward) return 'locked';
+    const p = this.s.world.player;
+    if (!p || !p.alive) return 'refused';
+    if (this.wardCd > 0) return 'refused';
+
+    const dx = at.x - p.pos.x;
+    const dy = at.y - p.pos.y;
+    const d = Math.hypot(dx, dy);
+    const dir = d < 1 ? { x: Math.cos(p.facing), y: Math.sin(p.facing) } : { x: dx / d, y: dy / d };
+    const throwTo = Math.min(d, VAYNE_STATS.wardRange);
+    const reach = this.s.world.terrainAlong(p.pos, dir, throwTo, WARD_RADIUS);
+    const pos = { x: p.pos.x + dir.x * reach.distance, y: p.pos.y + dir.y * reach.distance };
+
+    const ward = this.s.world.placeWard(
+      'player',
+      pos,
+      VAYNE_STATS.wardSight,
+      VAYNE_STATS.wardLife,
+      VAYNE_STATS.wardMax,
+    );
+    this.wardIds.add(ward.id);
+    this.wardCd = VAYNE_STATS.wardCd;
+    this.stats.wards++;
+
+    this.s.fx.trace([{ ...p.pos }, pos], WARD_COLOR, 0.35, 3);
+    this.s.fx.ring(pos.x, pos.y, 4, 78, 0.45, WARD_COLOR, 3, 'pulse');
+    this.s.fx.burst(pos.x, pos.y, 9, { color: WARD_COLOR, speed: 170, life: 0.4, size: 1.8 });
+    // No sound here: the session plays the summoner voice for any slot that
+    // fires, and a second one from the kit would be the same cast twice.
+    return 'cast';
+  }
+
+  /**
+   * Did that ward ever show her anything?
+   *
+   * A ward is scored on the only thing a ward is for. Not where it was put —
+   * there is no such thing as a correct piece of ground in the abstract — but
+   * whether, at any point in its eight seconds, it was the reason she could
+   * see somebody. A ward that burns down having lit nothing but empty floor is
+   * the mistake, and it is a mistake with two quite different causes worth
+   * telling apart later: warding ground the fight was never going to reach,
+   * and warding ground she was standing on anyway.
+   */
+  private watchWards(): void {
+    if (this.wardIds.size === 0) return;
+    const live = new Set<number>();
+    for (const w of this.s.world.wards) {
+      if (!this.wardIds.has(w.id)) continue;
+      live.add(w.id);
+      if (this.wardSaw.has(w.id)) continue;
+      for (const e of this.s.world.actors) {
+        if (!e.alive || e.team === 'player') continue;
+        if (Math.hypot(e.pos.x - w.pos.x, e.pos.y - w.pos.y) > w.radius) continue;
+        this.wardSaw.add(w.id);
+        break;
+      }
+    }
+    for (const id of this.wardIds) {
+      if (live.has(id)) continue;
+      this.wardIds.delete(id);
+      if (this.wardSaw.has(id)) this.wardSaw.delete(id);
+      else this.stats.wardsIdle++;
+    }
+  }
+
   private finalHour(): VayneCastResult {
     if (!this.loadout.finalHour) return 'locked';
     if (this.hourCd > 0) return 'refused';
@@ -886,6 +1059,18 @@ export class VayneKit {
                 highlight: this.inFinalHour,
               }
             : a;
+        case 'd':
+          return this.loadout.ward
+            ? {
+                ...a,
+                name: `WARD ${this.wardsOut}/${VAYNE_STATS.wardMax}`,
+                locked: false,
+                cd: clamp(this.wardCd / VAYNE_STATS.wardCd, 0, 1),
+                // Lit when it is up and she has none out: the moment the
+                // trinket is a decision rather than a spare charge.
+                highlight: this.wardCd <= 0 && this.wardsOut === 0,
+              }
+            : a;
         default:
           return a;
       }
@@ -899,7 +1084,12 @@ export class VayneKit {
   }
 
   get condemnCdTotal(): number {
-    return condemnCdAt(this.ranks.e);
+    return condemnPracticeCdAt(this.ranks.e);
+  }
+
+  /** How many of hers are alight right now. */
+  get wardsOut(): number {
+    return this.s.world.wards.reduce((n, w) => (this.wardIds.has(w.id) ? n + 1 : n), 0);
   }
 
   /** The share of the target's maximum health the third bolt takes. */
@@ -1005,6 +1195,74 @@ export class VayneKit {
           width: blocked ? 2 : 3,
           dash: blocked ? 14 : 0,
           rise: 1.15,
+        });
+      }
+    }
+
+    // The wards. Three things drawn about each one, because a ward answers
+    // three questions and only one of them is "where is it": the circle it
+    // lights, how long that circle has left, and the pip itself, which is the
+    // bit you look for when you are deciding whether you still have cover.
+    for (const w of this.s.world.wards) {
+      if (w.team !== 'player') continue;
+      const left = clamp(w.life / Math.max(0.001, w.maxLife), 0, 1);
+      // Fading, and quickening: a ward on its last two seconds blinks, which
+      // is the only warning a player gets that the ground is about to go dark.
+      const dying = left < 0.25;
+      const pulse = dying ? 0.5 + 0.5 * Math.sin(t * 14) : 1;
+      out.markers.push({
+        kind: 'ring',
+        x: w.pos.x,
+        y: w.pos.y,
+        radius: w.radius,
+        color: WARD_COLOR,
+        alpha: 0.06 + 0.08 * left,
+        width: 2,
+        dash: 96,
+        spin: 0.05,
+        rise: 0.9,
+      });
+      out.markers.push({
+        kind: 'ring',
+        x: w.pos.x,
+        y: w.pos.y,
+        radius: 26,
+        color: WARD_COLOR,
+        alpha: (0.35 + 0.45 * left) * pulse,
+        width: 3,
+        progress: left,
+        rise: 1.05,
+      });
+      out.markers.push({
+        kind: 'disc',
+        x: w.pos.x,
+        y: w.pos.y,
+        radius: 7,
+        color: WARD_COLOR,
+        alpha: 0.75 * pulse,
+        rise: 1.06,
+      });
+    }
+
+    if (this.loadout.ward && this.wardCd <= 0) {
+      // Where the throw would actually land, and only while it is up. A
+      // trinket range indicator that is on the floor permanently is furniture;
+      // one that appears the moment the ward is ready is a prompt.
+      const dx = cursor.x - p.pos.x;
+      const dy = cursor.y - p.pos.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 1) {
+        const dir = { x: dx / d, y: dy / d };
+        const reach = this.s.world.terrainAlong(p.pos, dir, Math.min(d, VAYNE_STATS.wardRange), WARD_RADIUS);
+        out.markers.push({
+          kind: 'cross',
+          x: p.pos.x + dir.x * reach.distance,
+          y: p.pos.y + dir.y * reach.distance,
+          radius: 16,
+          color: WARD_COLOR,
+          alpha: 0.3 + 0.12 * Math.sin(t * 6),
+          width: 2,
+          rise: 1,
         });
       }
     }

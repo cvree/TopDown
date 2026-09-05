@@ -640,6 +640,10 @@ function Row({
  *    scheme restores all of its own, and Esc always pauses a run no matter what
  *    this list says — so no rebind can lock a player out of the menu that would
  *    undo it.
+ *  - **A mouse button is a key.** This screen has always accepted one for any
+ *    row, and the input system now honours one for any row, abilities
+ *    included. Half of that promise used to be a lie: an ability on right
+ *    click cost you the move order that lived there and cast nothing.
  */
 function Bindings({
   settings,

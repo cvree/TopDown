@@ -1,7 +1,7 @@
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { PRACTICE_MODES, RUN_MODE_LIST, type RunMode } from '../drills/modes';
-import { VAYNE_STATS, tumbleCdAt, condemnCdAt } from '../engine/vayne';
+import { VAYNE_STATS, tumbleCdAt, condemnCdAt, condemnPracticeCdAt } from '../engine/vayne';
 import type { Profile } from '../progression/profile';
 import './practice.css';
 
@@ -156,12 +156,17 @@ function KitReference() {
     {
       slot: 'E',
       name: 'CONDEMN',
-      body: `${VAYNE_STATS.condemnRange} range, ${VAYNE_STATS.condemnCast}s of cast time standing still, then a ${VAYNE_STATS.condemnPush} unit knockback. Terrain at the end of it is ${VAYNE_STATS.condemnStun}s of stun and a second helping of damage; open ground is nothing.`,
+      body: `${VAYNE_STATS.condemnRange} range, ${VAYNE_STATS.condemnCast}s of cast time standing still, then a ${VAYNE_STATS.condemnPush} unit knockback. Terrain at the end of it is ${VAYNE_STATS.condemnStun}s of stun and a second helping of damage; open ground is nothing. League's cooldown is ${condemnCdAt(1)}s falling to ${condemnCdAt(5)}s; every mode here charges ${Math.round(VAYNE_STATS.condemnPracticeShare * 100)}% of that — ${condemnPracticeCdAt(1)}s to ${condemnPracticeCdAt(5)}s — because it is meant to be practised.`,
     },
     {
       slot: 'R',
       name: 'FINAL HOUR',
       body: `A window rather than a button: more damage, half the tumble cooldown, ${VAYNE_STATS.finalHourStealth}s of invisibility on each roll, and a reset on every takedown.`,
+    },
+    {
+      slot: 'D',
+      name: 'WARD',
+      body: `The one thing on the bar that is not hers. Thrown up to ${VAYNE_STATS.wardRange} units, it lights ${VAYNE_STATS.wardSight} around itself for ${VAYNE_STATS.wardLife}s, ${VAYNE_STATS.wardMax} at a time, and comes back every ${VAYNE_STATS.wardCd}s. Both of those are far shorter than League's, because holding a piece of the map for two minutes is a macro skill and spending vision on the next ten seconds is a habit — and the habit is the part a sixty second rep can build. Night Hunter is the mode with a fog for it to lift.`,
     },
     {
       slot: 'P',
@@ -188,9 +193,11 @@ function KitReference() {
         average of every Vayne. Which one is a choice each mode makes and states: Tumble hands
         you a single point in Q, {tumbleCdAt(1)} seconds, because the rhythm is only a rhythm
         while the cooldown is long enough that spending it in the wrong place costs something.
-        Condemn hands you a maxed E, {condemnCdAt(5)} seconds, because a mode about a
-        positional ability has to give you enough casts to have positioned for. Night Hunter
-        hands you the mid-game champion with all of it at once.
+        Condemn hands you a maxed E, {condemnCdAt(5)} seconds in League, because a mode about
+        a positional ability has to give you enough casts to have positioned for. Night Hunter
+        hands you the mid-game champion with all of it at once. Condemn is also the one
+        cooldown deliberately shortened everywhere — {Math.round(VAYNE_STATS.condemnPracticeShare * 100)}% of
+        League's, so a minute is eight or ten attempts at the wall rather than three.
       </p>
     </section>
   );

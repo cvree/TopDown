@@ -1,7 +1,7 @@
 import { DEFAULT_HERO, type HeroId } from './heroes';
 import { clamp, dist, distToSegment, norm, v2 } from './math';
 import { Rng } from './rng';
-import type { Actor, AttackProfile, Brush, Hazard, Projectile, Team, Vec2, Wall } from './types';
+import type { Actor, AttackProfile, Brush, Hazard, Projectile, Team, Vec2, Wall, Ward } from './types';
 import { VisionField, sightClear, type SightBlocker, type VisionSource } from './vision';
 
 export interface WorldEvent {
@@ -22,7 +22,9 @@ export interface WorldEvent {
     | 'knockbackStart'
     | 'dashStart'
     | 'dashEnd'
-    | 'wallImpact';
+    | 'wallImpact'
+    | 'wardPlaced'
+    | 'wardExpired';
   actorId?: number;
   targetId?: number;
   amount?: number;
@@ -48,6 +50,41 @@ const PLAYER_ATTACK: AttackProfile = {
 
 /** Radius inside which an enemy projectile counts as a "near miss". */
 export const GRAZE_RADIUS = 46;
+
+/**
+ * How far ahead `navigate` looks, and by how much it will turn to get past
+ * something.
+ *
+ * The probe is about a second of walking: far enough that a body commits to
+ * going around a block before it is touching it, short enough that it is not
+ * steering around terrain on the other side of the arena. The spreads stop at
+ * about seventy degrees each way — a body that would have to turn further than
+ * that is no longer going around something, it is getting out of something,
+ * and that is a different manoeuvre handled by the caller.
+ */
+const NAV_PROBE = 240;
+const NAV_MARGIN = 6;
+const NAV_SPREADS = [0.4, 0.8, 1.2];
+/**
+ * Room ahead that counts as "not stuck".
+ *
+ * A body with this much clear floor in front of it is walking, not leaning,
+ * and rerouting it would be steering it away from the fight to solve a problem
+ * it does not have. Routing is a fix for a face in a wall, not a replacement
+ * for the steering above it.
+ */
+const NAV_SLACK = 72;
+/** How far ahead "am I pushing into this" is asked, in world units. */
+export const NAV_CONTACT = 12;
+
+/** What `navigate` decided. */
+export interface NavRoute {
+  pos: Vec2;
+  /** Which way it went around, or 0 when it did not have to. */
+  side: 0 | 1 | -1;
+  /** True only when the straight line was walkable. */
+  clear: boolean;
+}
 
 /**
  * The longest an attack command will hold your feet waiting for a shot.
@@ -88,6 +125,14 @@ export class World {
    * where standing still is an aggressive move.
    */
   brush: Brush[] = [];
+  /**
+   * Wards on the floor, of either team.
+   *
+   * They live beside the terrain rather than among the actors because that is
+   * what they are: a piece of the map one side put there, which expires. See
+   * `Ward` for why they are not bodies.
+   */
+  wards: Ward[] = [];
   /**
    * Fog of war, or null in the drills that never turn it on.
    *
@@ -163,13 +208,17 @@ export class World {
     return this.blockers;
   }
 
-  /** Every eye a team currently owns. */
+  /** Every eye a team currently owns — bodies first, then what they left. */
   private sourcesFor(team: Team): VisionSource[] {
     const out = this.sourceScratch;
     out.length = 0;
     for (const a of this.actors) {
       if (!a.alive || a.team !== team || a.hidden) continue;
       out.push({ x: a.pos.x, y: a.pos.y, radius: sightOf(a) });
+    }
+    for (const w of this.wards) {
+      if (w.team !== team) continue;
+      out.push({ x: w.pos.x, y: w.pos.y, radius: w.radius });
     }
     return out;
   }
@@ -195,6 +244,13 @@ export class World {
       if (!sightClear(a.pos, target.pos, blockers)) continue;
       return true;
     }
+    for (const w of this.wards) {
+      if (w.team !== team) continue;
+      const d = Math.hypot(w.pos.x - target.pos.x, w.pos.y - target.pos.y);
+      if (d > w.radius + target.radius) continue;
+      if (!sightClear(w.pos, target.pos, blockers)) continue;
+      return true;
+    }
     return false;
   }
 
@@ -207,6 +263,12 @@ export class World {
       const d = Math.hypot(a.pos.x - p.x, a.pos.y - p.y);
       if (d > sightOf(a)) continue;
       if (!sightClear(a.pos, p, blockers)) continue;
+      return true;
+    }
+    for (const w of this.wards) {
+      if (w.team !== team) continue;
+      if (Math.hypot(w.pos.x - p.x, w.pos.y - p.y) > w.radius) continue;
+      if (!sightClear(w.pos, p, blockers)) continue;
       return true;
     }
     return false;
@@ -540,6 +602,150 @@ export class World {
   }
 
   /**
+   * Drop a ward, and enforce how many of them a team may have out.
+   *
+   * The oldest goes when the limit is reached rather than the cast being
+   * refused: a player asking for vision *here* has decided that this is the
+   * more important place to see, and a trinket that answered "no" while a ward
+   * they had forgotten about burned down somewhere behind them would be
+   * teaching them to keep count instead of to look.
+   */
+  placeWard(team: Team, pos: Vec2, radius: number, life: number, max: number): Ward {
+    const mine = this.wards.filter((w) => w.team === team);
+    if (mine.length >= max) {
+      const oldest = mine.reduce((a, b) => (a.life <= b.life ? a : b));
+      this.wards = this.wards.filter((w) => w !== oldest);
+      this.emit({ type: 'wardExpired', actorId: oldest.id, pos: { ...oldest.pos } });
+    }
+    const ward: Ward = { id: this.nextId++, team, pos: { ...pos }, radius, life, maxLife: life };
+    this.wards.push(ward);
+    this.emit({ type: 'wardPlaced', actorId: ward.id, pos: { ...ward.pos } });
+    return ward;
+  }
+
+  /** Wards burning down, stepped before the fog is recomputed from them. */
+  private stepWards(dt: number): void {
+    if (this.wards.length === 0) return;
+    let expired = false;
+    for (const w of this.wards) {
+      w.life -= dt;
+      if (w.life > 0) continue;
+      expired = true;
+      this.emit({ type: 'wardExpired', actorId: w.id, pos: { ...w.pos } });
+    }
+    if (expired) this.wards = this.wards.filter((w) => w.life > 0);
+  }
+
+  /**
+   * Where a body should actually walk to get toward `goal`.
+   *
+   * Steering in this engine produces a *point*, and the walk toward that point
+   * is a straight line that stops dead against terrain. That is fine for the
+   * player, who can see the wall, and it is why every bot in the arena used to
+   * pick a spot on the far side of a block and then spend the rest of the run
+   * grinding into it: the order was reissued eight times a second, each reissue
+   * was the same impossible straight line, and the confinement pass quietly ate
+   * every step.
+   *
+   * This answers both halves of that. `clear` says whether the straight line
+   * was walkable at all — which is the question a body already working its way
+   * out of something asks every frame, to know when it can stop. And when it
+   * was not, `pos` is the same goal deflected by the smallest angle that both
+   * opens a clear run and still closes on where the behaviour wanted to be,
+   * which is what makes a body slide *along* a wall it is walking past rather
+   * than standing in it. `prefer` biases which way it goes round and the chosen
+   * side comes back out, so a caller can hold on to it and keep going the same
+   * way rather than dithering at every step.
+   *
+   * It is one probe deep and it is not a pathfinder: it will not lead anything
+   * out of the inside of a U, and it deliberately does not try — the caller
+   * decides when a body is wedged rather than merely walking past something,
+   * because pre-emptively steering every bot around every rock produces a
+   * different opponent from the one the modes are built on.
+   */
+  navigate(from: Vec2, goal: Vec2, radius: number, prefer: 1 | -1 = 1): NavRoute {
+    if (this.walls.length === 0) return { pos: goal, side: 0, clear: true };
+    const dx = goal.x - from.x;
+    const dy = goal.y - from.y;
+    const want = Math.hypot(dx, dy);
+    if (want < 1) return { pos: goal, side: 0, clear: true };
+    const dir = { x: dx / want, y: dy / want };
+    const probe = Math.min(want, NAV_PROBE);
+    const straight = this.roomAhead(from, dir, probe, radius + NAV_MARGIN);
+    if (straight >= Math.min(probe - 1, NAV_SLACK)) return { pos: goal, side: 0, clear: true };
+
+    const base = Math.atan2(dir.y, dir.x);
+    const other: 1 | -1 = prefer === 1 ? -1 : 1;
+    for (const spread of NAV_SPREADS) {
+      for (const side of [prefer, other]) {
+        const angle = base + spread * side;
+        const probeDir = { x: Math.cos(angle), y: Math.sin(angle) };
+        const free = this.roomAhead(from, probeDir, probe, radius + NAV_MARGIN);
+        if (free < NAV_SLACK) continue;
+        const at = { x: from.x + probeDir.x * free, y: from.y + probeDir.y * free };
+        // A detour has to be a detour *toward* something. Sliding along a wall
+        // is only worth doing while it is closing on the place the behaviour
+        // asked for; a deflection that walks away from it is a bot abandoning
+        // the fight to solve a geometry problem, which is worse than leaning.
+        if (dist(at, goal) >= want - 1) continue;
+        // The spreads are tried nearest first, so the smallest turn that both
+        // clears the wall and makes progress is the one taken.
+        return { pos: at, side, clear: false };
+      }
+    }
+    // Nothing goes anywhere useful: the inside of a corner. The order stands
+    // as the behaviour wrote it — `clear` is false, so a caller working its
+    // way out of something knows this was not an all-clear.
+    return { pos: goal, side: 0, clear: false };
+  }
+
+  /**
+   * How far a body of `radius` can walk along `dir` before terrain stops it.
+   *
+   * Two things separate it from `terrainAlong`, and both are the difference
+   * between a question about a knockback and a question about a walk:
+   *
+   *  - **The arena edge is not terrain here.** Being pinned against the edge of
+   *    the world is a real League interaction and Condemn is right to count it;
+   *    a body that steers away from the boundary as though it were a rock
+   *    spends the whole run sliding along it.
+   *  - **A body already touching a wall is not blocked by it in every
+   *    direction.** The slab test starts inside the wall's grown box the moment
+   *    a unit is against the face — and answers "zero" to every heading,
+   *    including the ones that walk away. That is the exact position a wedged
+   *    bot is in, so answering it wrongly makes the routing useless precisely
+   *    when it is needed. Overlapping the box blocks a heading only when the
+   *    heading is going *deeper*.
+   */
+  roomAhead(from: Vec2, dir: Vec2, maxDist: number, radius: number): number {
+    const m = Math.hypot(dir.x, dir.y) || 1;
+    const dx = dir.x / m;
+    const dy = dir.y / m;
+    let best = maxDist;
+    for (const wall of this.walls) {
+      const t = raySlab(from, dx, dy, wall, radius);
+      if (t < 0) continue;
+      if (t <= 0) {
+        const step = { x: from.x + dx * NAV_CONTACT, y: from.y + dy * NAV_CONTACT };
+        if (gapToWall(step, wall) < gapToWall(from, wall)) return 0;
+        continue;
+      }
+      if (t < best) best = t;
+    }
+    return Math.max(0, best);
+  }
+
+  /**
+   * Move a body and then put it somewhere legal, for the movement the AI owns
+   * itself — a dash, which the world does not step for it.
+   */
+  place(a: Actor, x: number, y: number): void {
+    a.pos.x = x;
+    a.pos.y = y;
+    this.confine(a);
+  }
+
+  /**
    * Puts an actor back where an actor is allowed to be: inside the arena and
    * outside the terrain.
    *
@@ -621,6 +827,7 @@ export class World {
     this.stepProjectiles(dt);
     this.stepHazards(dt);
     this.cull();
+    this.stepWards(dt);
     this.stepVision(dt);
   }
 
@@ -1060,6 +1267,13 @@ export class World {
  * Distance along a ray to an axis-aligned box grown by `radius`, or -1 if the
  * ray misses it. The classic slab test, written out rather than pulled in.
  */
+/** Distance from a point to a wall's rectangle, zero inside it. */
+const gapToWall = (p: Vec2, wall: Wall): number => {
+  const dx = Math.max(Math.abs(p.x - wall.x) - wall.w / 2, 0);
+  const dy = Math.max(Math.abs(p.y - wall.y) - wall.h / 2, 0);
+  return Math.hypot(dx, dy);
+};
+
 const raySlab = (from: Vec2, dx: number, dy: number, wall: Wall, radius: number): number => {
   const minX = wall.x - wall.w / 2 - radius;
   const maxX = wall.x + wall.w / 2 + radius;

@@ -140,6 +140,7 @@ const VAYNE_SLOT_NAMES: Partial<Record<AbilitySlot, string>> = {
   w: 'bolts',
   e: 'condemn',
   r: 'final hour',
+  d: 'ward',
 };
 
 /**

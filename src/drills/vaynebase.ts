@@ -1,5 +1,5 @@
 import type { AbilitySlot } from '../engine/input';
-import { dist } from '../engine/math';
+import { clamp, dist } from '../engine/math';
 import { derive } from '../engine/metrics';
 import { PALETTE } from '../engine/palette';
 import type { DrillPaint } from '../engine/paint';
@@ -130,6 +130,26 @@ export abstract class VayneDrill extends Drill {
       value: `${st} / ${VAYNE_STATS.boltsPerProc}`,
       bar: st / VAYNE_STATS.boltsPerProc,
       tone: st === VAYNE_STATS.boltsPerProc - 1 ? 'good' : 'neutral',
+    };
+  }
+
+  /**
+   * The trinket, on the HUD, in the one form that is any use during a fight.
+   *
+   * Not "12s" — how many eyes are on the map and how long the shortest of them
+   * has left. The number that decides whether you walk into that corner is not
+   * the cooldown, it is whether the thing you placed nine seconds ago is still
+   * looking at it.
+   */
+  protected wardField(): HudField {
+    const mine = this.s.world.wards.filter((w) => w.team === 'player');
+    const soonest = mine.length ? Math.min(...mine.map((w) => w.life)) : 0;
+    const cd = this.kit.wardCd;
+    return {
+      label: 'WARDS',
+      value: mine.length ? `${mine.length} · ${soonest.toFixed(1)}s` : cd > 0 ? `${cd.toFixed(1)}s` : 'READY',
+      bar: mine.length ? soonest / VAYNE_STATS.wardLife : 1 - clamp(cd / VAYNE_STATS.wardCd, 0, 1),
+      tone: mine.length ? (soonest < 2 ? 'warn' : 'good') : cd > 0 ? 'warn' : 'good',
     };
   }
 

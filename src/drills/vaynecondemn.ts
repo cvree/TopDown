@@ -23,6 +23,19 @@ import { VayneDrill } from './vaynebase';
  * and how quickly you took the ones you took. The preview line is a training
  * wheel and it is drawn deliberately — you are supposed to stop needing it.
  */
+/**
+ * The pace the usage term is measured against, in seconds per condemn.
+ *
+ * Deliberately a time rather than the cooldown. Measured against the cooldown,
+ * the shortened practice cooldown was self-defeating: halving it doubled the
+ * number of casts the score expected, so the change that exists to hand you
+ * more attempts would have quietly raised the bar for taking them. What this
+ * term is actually asking is "was Condemn doing anything", and the honest form
+ * of that question is a rate — about one every twelve seconds — that does not
+ * move when the cooldown does.
+ */
+const USAGE_PACE = 12;
+
 export class VayneCondemnDrill extends VayneDrill {
   private spawnCd = 1.2;
   private wanted = 2;
@@ -36,8 +49,10 @@ export class VayneCondemnDrill extends VayneDrill {
   private kills = 0;
 
   constructor(s: import('../engine/session').Session) {
-    // Condemn maxed — twelve seconds rather than twenty. A mode about a
-    // positional ability has to give you enough casts to have positioned for.
+    // Condemn maxed — League's twelve seconds rather than twenty, and then the
+    // practice share on top of that. A mode about a positional ability has to
+    // give you enough casts to have positioned for, and three a minute was not
+    // enough of them.
     super(s, { tumble: true, bolts: false, condemn: true, finalHour: false, ranks: { q: 2, e: 5 } });
   }
 
@@ -230,7 +245,7 @@ export class VayneCondemnDrill extends VayneDrill {
     const st = this.kit.stats;
 
     const rate = wallRate(st);
-    const available = Math.max(1, this.s.elapsed / this.kit.condemnCdTotal);
+    const available = Math.max(1, this.s.elapsed / USAGE_PACE);
     const usage = band(st.condemnHits / available, 0.3, 0.9);
     const taken = this.opportunities > 0 ? clamp(this.opportunitiesTaken / this.opportunities, 0, 1) : 0;
     const median = this.reactions.length
