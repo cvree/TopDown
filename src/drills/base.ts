@@ -49,7 +49,11 @@ export abstract class Drill extends DrillBase {
     opts: { hpScale?: number; level?: number; behavior?: BotBehavior; leash?: number; anchor?: Vec2 } = {},
   ): Actor {
     const def = ARCHETYPES[archetype];
-    const level = opts.level ?? this.s.config.difficulty;
+    // The *live* difficulty, not the one the run opened at. In PLAY they are
+    // the same number; in SURVIVE the second wave is meant to be harder than
+    // the first, and reading the opening figure forever would make the mode
+    // longer without ever making it harder.
+    const level = opts.level ?? this.s.liveDifficulty;
     const tune = tuningFor(level);
     const a = this.s.world.spawnActor({
       pos,

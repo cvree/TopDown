@@ -41,6 +41,38 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.0.0',
+    name: 'ONE CHAMPION, TWO BUTTONS',
+    date: '2026-09-05',
+    headline:
+      'The trainer is a Vayne trainer now, the menu is four cards with a PLAY and a SURVIVE on each, and the tumble is a roll rather than a teleport.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'SURVIVE. No clock. It ramps — more of them, and harder ones, the longer you last — and it ends when you die or when you have made the mode’s own mistake three times. The result is how long you lasted.',
+          'A strike budget on the HUD, and one named mistake per mode: a windup thrown away in TUMBLE, a stack abandoned in SILVER BOLTS, a condemn into open ground in CONDEMN. Night Hunter has no strikes because it has a health bar.',
+          'Night Hunter, the passive: thirty movement speed whenever she is walking toward somebody nearby. It was missing, and it is most of why a real Vayne closes ground she has no business closing.',
+          'Condemn has its cast time. A quarter of a second, standing still, and the knockback resolves against where they actually are when it lands — so the floor indicator now leads the target, and so must you.',
+          'The kit written out in numbers on the menu, including which Vayne each mode hands you: one point in Q where the rhythm is the lesson, a maxed E where the reps are.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'PLAY is one minute. Every mode, every time, including Night Hunter — clearing the floor sends the next wave rather than ending the run, because a minute that finishes in eleven seconds is not a minute.',
+          'The tumble is a three hundred unit roll that takes a quarter of a second, not a teleport. She cannot shoot during it, which is what makes the timing a timing question at all.',
+          '“Free” now means what it means in League: a tumble costs you an attack when the attack timer would come up before the roll ends. The backswing is free because a whole cycle has to run, which the model works out rather than asserting.',
+          'Her attack windup is League’s sixth of the cycle rather than a quarter, and Silver Bolts, Condemn and Final Hour read their numbers off rank tables instead of one invented middle value.',
+          'Tumble placement is graded rather than counted. A three hundred unit roll usually leaves their reach and usually keeps hers, so two yes/no answers rated a tumble straight backwards nearly as well as one taken sideways; the mark is now how close the landing was to just inside her own range and outside theirs.',
+          'The client is four screens: practice, progress, setup and the patch notes. The daily plan, the calibration sequence, the champion course, the WASD academy, the APM lab, the skill tests and the records room are gone, along with the seven-tab bar that held them. Everything that was really a way of choosing a run is two buttons on a card.',
+          'There is no champion select. There is one champion, and every mode is about her.',
+          'Your rank arrives from your first three runs rather than from a calibration sequence you had to sit through before the trainer would talk to you.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.4.0',
     name: 'THE COACH',
     date: '2026-09-04',

@@ -225,7 +225,14 @@ export const HEROES: Record<HeroId, HeroDef> = {
 export const HERO_LIST: HeroDef[] = Object.values(HEROES);
 
 /** Who a profile is until it says otherwise. */
-export const DEFAULT_HERO: HeroId = 'sentinel';
+/**
+ * The champion, singular.
+ *
+ * The roster below is still a roster — the renderer builds a silhouette from
+ * one of these entries and the arena backdrop wears one — but the client
+ * trains one champion now, so there is only one answer to "who am I".
+ */
+export const DEFAULT_HERO: HeroId = 'nightHunter';
 
 export const isHeroId = (v: unknown): v is HeroId => typeof v === 'string' && v in HEROES;
 

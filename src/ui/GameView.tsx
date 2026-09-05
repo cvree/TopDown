@@ -15,22 +15,20 @@ import { ABILITY_BAR, Session, type HudSnapshot } from '../engine/session';
 import { RiftRenderer } from '../gfx/RiftRenderer';
 import { arenaFor, createDrill } from '../drills';
 import { DRILLS, type DrillId } from '../drills/catalog';
+import { RUN_MODES, SURVIVE_STRIKES, durationFor, type RunMode } from '../drills/modes';
 import type { AppSettings, RunResult } from '../progression/profile';
 import { Minimap } from './hud/Minimap';
 import './gameview.css';
 
 interface Props {
   drill: DrillId;
+  /** PLAY is a one-minute rep; SURVIVE runs until it beats you. */
+  mode: RunMode;
   difficulty: number;
   seed: number;
   settings: AppSettings;
   /** Label shown above the drill name, e.g. "CALIBRATION 2 / 5". */
   context?: string;
-  /**
-   * Multiplies the drill's own length. Only the APM section uses it, for a
-   * double-length endurance run; an open-ended drill is unaffected.
-   */
-  durationScale?: number;
   onComplete: (result: RunResult, bounds: { w: number; h: number }) => void;
   onExit: () => void;
   onRetry: () => void;
@@ -170,7 +168,7 @@ export function GameView({
   seed,
   settings,
   context,
-  durationScale = 1,
+  mode,
   onComplete,
   onExit,
   onRetry,
@@ -207,8 +205,11 @@ export function GameView({
   }, [focusToast, focus]);
   const doneRef = useRef(false);
   const meta = DRILLS[drill];
-  // A drill with no clock stays without one: doubling zero is still open-ended.
-  const duration = meta.duration > 0 ? Math.round(meta.duration * durationScale) : meta.duration;
+  // The mode decides the clock, not the mode's contents: every PLAY run is a
+  // minute and every SURVIVE run is open-ended, which is the whole point of
+  // there being two of them.
+  const duration = durationFor(mode);
+  const surviving = mode === 'survive';
 
   // Everything below lives outside React on purpose: the simulation must not
   // be driven by, or wait on, a render pass.
@@ -246,6 +247,7 @@ export function GameView({
     const session = new Session(
       {
         duration,
+        mode,
         arena: bounds,
         seed,
         difficulty,
@@ -304,6 +306,8 @@ export function GameView({
     const hud = hudRef.current!;
     const q = <T extends Element>(sel: string) => hud.querySelector(sel) as T;
     const elTime = q<HTMLDivElement>('[data-time]');
+    const strikePips = Array.from(hud.querySelectorAll('[data-strikes] i')) as HTMLElement[];
+    let lastStrikes = -1;
     const elScore = q<HTMLDivElement>('[data-score]');
     const elChain = q<HTMLDivElement>('[data-chain]');
     const elChainN = q<HTMLDivElement>('[data-chain-n]');
@@ -330,12 +334,16 @@ export function GameView({
     const writeHud = (snap: HudSnapshot, now: number) => {
       if (now - lastHudWrite < 42) return;
       lastHudWrite = now;
+      // In PLAY this counts down to the end of the minute; in SURVIVE it
+      // counts up, because how long you lasted *is* the result.
       const t = snap.timeLeft;
-      elTime.textContent =
-        duration > 0
-          ? `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`
-          : `${t.toFixed(1)}`;
+      elTime.textContent = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
       elTime.classList.toggle('urgent', duration > 0 && t < 5.5);
+
+      if (strikePips.length && session.strikes !== lastStrikes) {
+        lastStrikes = session.strikes;
+        strikePips.forEach((pip, i) => pip.classList.toggle('spent', i < session.strikes));
+      }
 
       elScore.textContent = snap.score.toLocaleString();
 
@@ -504,6 +512,7 @@ export function GameView({
           const m = session.metrics.m;
           const result: RunResult = {
             drill,
+            mode,
             seed,
             difficulty: out.effectiveDifficulty ?? difficulty,
             score: Math.round(out.score),
@@ -511,8 +520,24 @@ export function GameView({
             axisPerformance: out.axisPerformance,
             metrics: m,
             derived: derive(m, session.world.player?.maxHp ?? 720),
-            keyMetrics: out.keyMetrics,
+            // A survive run leads with how long it lasted, because that is
+            // what it measured. Everything the mode itself measured follows,
+            // in the order it would have led with in PLAY.
+            keyMetrics: surviving
+              ? [
+                  {
+                    id: 'survived',
+                    label: 'SURVIVED',
+                    value: session.elapsed,
+                    format: 'sec' as const,
+                    direction: 'higher' as const,
+                  },
+                  ...out.keyMetrics,
+                ]
+              : out.keyMetrics,
             endReason: session.endReason,
+            seconds: session.elapsed,
+            strikes: session.strikes,
             helped: out.helped,
             hurt: out.hurt,
             advice: out.advice,
@@ -550,7 +575,7 @@ export function GameView({
       if (debug) delete (window as unknown as { __apex?: unknown }).__apex;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drill, difficulty, seed, duration]);
+  }, [drill, difficulty, seed, duration, mode]);
 
   const resume = useCallback(() => {
     // The session owns pause state; a synthetic Escape is the cleanest bridge.
@@ -570,10 +595,22 @@ export function GameView({
           <div className="hud-brief">{meta.brief}</div>
         </div>
 
-        <div className="hud-clock">
+        <div className={`hud-clock${surviving ? ' surviving' : ''}`}>
+          <div className="hud-mode">{RUN_MODES[mode].label}</div>
           <div className="hud-time num" data-time>
             0:00
           </div>
+          {/* The strike budget, and only in the mode that spends one. In PLAY
+              a mistake costs you score and nothing else, and a row of pips
+              counting down to nothing would be a threat the mode never
+              carries out. */}
+          {surviving && (
+            <div className="hud-strikes" data-strikes>
+              {Array.from({ length: SURVIVE_STRIKES }).map((_, i) => (
+                <i key={i} />
+              ))}
+            </div>
+          )}
           <div className="hud-score-row">
             <span className="hud-score-label">SCORE</span>
             <span className="hud-score num" data-score>

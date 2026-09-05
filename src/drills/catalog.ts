@@ -66,6 +66,16 @@ export interface DrillMeta {
   transfers: string;
   group: DrillGroup;
   axes: AxisWeights;
+  /**
+   * The drill's own length, in seconds. Zero means open-ended.
+   *
+   * The client no longer reads this: PLAY is a minute and SURVIVE has no
+   * clock, and which of those you are playing is the only thing that decides
+   * how long a run lasts. It remains here because the simulation harness runs
+   * every drill headlessly and has to run it for *some* length — so for the
+   * four modes the client actually offers, this is PLAY's minute, and a
+   * reference run measures exactly the run a player takes.
+   */
   duration: number;
   abilities: AbilitySlot[];
   accent: string;
@@ -781,7 +791,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     transfers: 'Wall-side positioning — the difference between a knockback and a 1.5s stun.',
     group: 'VAYNE',
     axes: { skillshot: 0.5, spacing: 0.3, movement: 0.2 },
-    duration: 70,
+    duration: 60,
     abilities: ['q', 'e'],
     accent: '#ffcf6b',
     keyMetric: 'WALL STUN RATE',
@@ -791,11 +801,11 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     id: 'vayneHunt',
     name: 'NIGHT HUNTER',
     tagline: 'The whole champion',
-    brief: 'Two opponents, terrain, and the full kit including Final Hour. Everything at once, the way it actually happens.',
+    brief: 'Terrain, the full kit including Final Hour, and a floor that refills the moment you clear it. Everything at once, the way it actually happens.',
     transfers: 'Playing Vayne — not playing an ADC who happens to own her abilities.',
     group: 'VAYNE',
     axes: { combat: 0.5, kiting: 0.2, targeting: 0.2, dodging: 0.1 },
-    duration: 0,
+    duration: 60,
     abilities: ['q', 'w', 'e', 'r'],
     accent: '#ff5fa8',
     keyMetric: 'KIT EXECUTION',

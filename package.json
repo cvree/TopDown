@@ -1,15 +1,14 @@
 {
   "name": "apex-mechanics",
   "private": true,
-  "version": "1.4.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "test": "esbuild tools/simtest.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/simtest.mjs --log-level=error && node node_modules/.cache/simtest.mjs && npm run test:skills && npm run test:profile",
-    "test:skills": "esbuild tools/testcheck.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/testcheck.mjs --log-level=error && node node_modules/.cache/testcheck.mjs",
+    "test": "esbuild tools/simtest.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/simtest.mjs --log-level=error && node node_modules/.cache/simtest.mjs && npm run test:profile",
     "test:profile": "esbuild tools/profilecheck.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/profilecheck.cjs --log-level=error --loader:.css=empty --jsx=automatic && node node_modules/.cache/profilecheck.cjs",
     "test:drill": "esbuild tools/debugrun.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/debugrun.mjs --log-level=error && node node_modules/.cache/debugrun.mjs",
     "changelog": "esbuild tools/changelog.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/changelog.mjs --log-level=error && node node_modules/.cache/changelog.mjs",

@@ -56,6 +56,26 @@ export abstract class VayneDrill extends Drill {
     this.nudgeHands(dt);
   }
 
+  /** How many of the mode's defining mistake have already been charged for. */
+  private charged = 0;
+
+  /**
+   * "This mode ends over *that*."
+   *
+   * Each mode names one mistake and passes the kit's running count of it here
+   * every frame; anything new since the last frame is charged as a strike. It
+   * lives in the drill rather than in the kit because the kit does not know
+   * what a run is about — abandoning a stack is the whole of the failure in
+   * Silver Bolts and an ordinary consequence of a target dying in Night
+   * Hunter, and the same event cannot mean both.
+   */
+  protected chargeStrikes(count: number, reason: string): void {
+    if (count <= this.charged) return;
+    const owed = count - this.charged;
+    this.charged = count;
+    for (let i = 0; i < owed; i++) this.s.strike(reason);
+  }
+
   /**
    * The live half of the trigger read.
    *

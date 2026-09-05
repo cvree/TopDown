@@ -80,3 +80,43 @@ export const durationFor = (mode: RunMode): number => (mode === 'play' ? PLAY_SE
 export const PRACTICE_MODES: DrillId[] = ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'];
 
 export const isPracticeMode = (id: DrillId): boolean => PRACTICE_MODES.includes(id);
+
+/**
+ * The practice mode that trains a given drill's mechanic.
+ *
+ * The rating system, the error log and the coach all still speak in terms of
+ * the whole drill catalogue — that is where the axes and the diagnoses come
+ * from, and none of it stopped being true. What did change is that this client
+ * only ever puts you behind one champion, so a recommendation has to arrive as
+ * something the menu can actually start. This is that translation, and it is
+ * deliberately blunt: three of Vayne's four modes are about one ability each,
+ * so anything that is not a kiting, targeting or spacing problem is a problem
+ * you have with the whole champion at once.
+ */
+export const practiceFor = (id: DrillId): DrillId => {
+  if (isPracticeMode(id)) return id;
+  switch (id) {
+    // Kiting, movement and dodging are the tumble: when to spend it and where
+    // it puts you are the two questions all three of those drills ask.
+    case 'kite':
+    case 'movement':
+    case 'dodge':
+    case 'wasdKite':
+    case 'wasdOffKite':
+    case 'wasdDefKite':
+      return 'vayneTumble';
+    // Anything about which unit you are hitting and whether you finished with
+    // it is Silver Bolts.
+    case 'targetswitch':
+    case 'lasthit':
+    case 'aim':
+      return 'vayneBolts';
+    // Spacing and skillshots are Condemn: both are about where you were
+    // standing before the answer was needed.
+    case 'spacing':
+    case 'skillshot':
+      return 'vayneCondemn';
+    default:
+      return 'vayneHunt';
+  }
+};

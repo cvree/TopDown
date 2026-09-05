@@ -26,6 +26,7 @@ import { VayneDrill } from './vaynebase';
 export class VayneCondemnDrill extends VayneDrill {
   private spawnCd = 1.2;
   private wanted = 2;
+  private baseWanted = 2;
   /** When each enemy first came into condemn range. */
   private entered = new Map<number, number>();
   private reactions: number[] = [];
@@ -47,6 +48,7 @@ export class VayneCondemnDrill extends VayneDrill {
     p.maxHp = 1500;
     p.hp = 1500;
     this.wanted = this.s.config.difficulty > 0.55 ? 3 : 2;
+    this.baseWanted = this.wanted;
   }
 
   private spawnDiver(): void {
@@ -55,8 +57,8 @@ export class VayneCondemnDrill extends VayneDrill {
     const pos = { x: clamp(edge.x, 70, w - 70), y: clamp(edge.y, 70, h - 70) };
     const a = this.spawnEnemy('diver', pos, { hpScale: 0.55 });
     a.label = 'CHARGER';
-    a.moveSpeed = 210 + this.s.config.difficulty * 90;
-    a.attack.damage = 26 + this.s.config.difficulty * 26;
+    a.moveSpeed = 210 + this.s.liveDifficulty * 90;
+    a.attack.damage = 26 + this.s.liveDifficulty * 26;
     const brain = this.brains[this.brains.length - 1];
     if (brain) {
       brain.tune = { ...brain.tune, aggression: 0.9 };
@@ -68,6 +70,14 @@ export class VayneCondemnDrill extends VayneDrill {
   update(dt: number): void {
     super.update(dt);
     this.updateBrains(dt);
+
+    // A condemn into open ground is a twenty second cooldown spent on a
+    // knockback, which is the whole of what this mode is about.
+    this.chargeStrikes(this.kit.stats.condemnHits - this.kit.stats.condemnWallStuns, 'NO WALL');
+
+    // The floor fills up as a SURVIVE run goes on, which is what eventually
+    // makes a twelve second cooldown too slow to answer with.
+    if (this.s.surviving) this.wanted = this.baseWanted + Math.floor(this.s.pressure * 2 + 0.001);
 
     const alive = this.s.world.enemies();
     if (alive.length < this.wanted) {

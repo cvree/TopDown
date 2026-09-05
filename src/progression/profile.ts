@@ -3,7 +3,7 @@ import { VERSION } from '../patchnotes/notes';
 import { clamp, mean } from '../engine/math';
 import type { DerivedMetrics, RunMetrics, TimelineMark } from '../engine/metrics';
 import { DRILLS, isDrillId, type DrillId } from '../drills/catalog';
-import { gradeTest, isTestId, TESTS, type TestId } from '../tests/catalog';
+import type { RunMode } from '../drills/modes';
 import { detectErrors, isErrorCode, primaryLimiter, type DetectedError, type ErrorCode } from './errors';
 import {
   applyApmRun,
@@ -58,6 +58,8 @@ export interface KeyMetric {
 
 export interface RunResult {
   drill: DrillId;
+  /** Which of the two run shapes this was. */
+  mode: RunMode;
   seed: number;
   difficulty: number;
   score: number;
@@ -69,6 +71,10 @@ export interface RunResult {
   /** Ordered; the first is the headline. */
   keyMetrics: KeyMetric[];
   endReason: 'time' | 'death' | 'complete' | 'abort';
+  /** How long the run lasted, in seconds. The headline of a SURVIVE run. */
+  seconds: number;
+  /** Defining mistakes made. SURVIVE ends on the third; PLAY only counts. */
+  strikes: number;
   /** What went well and what cost the run, in plain language. */
   helped: string[];
   hurt: string[];
@@ -154,25 +160,6 @@ export interface ErrorLogEntry {
   rate: number;
 }
 
-/**
- * A skill test's record. Tests sit beside the ladder rather than inside it:
- * they do not move your drill rating, because a 20-second reaction instrument
- * should not be able to promote you. They keep their own bests, their own
- * grade, and their own trend.
- */
-export interface TestRecord {
-  /** The primary value of the best attempt, in the test's own unit. */
-  best: number;
-  /** That value graded onto the 0..3600 ladder. */
-  bestRating: number;
-  /** The most recent attempt's value, best or not. */
-  last: number;
-  attempts: number;
-  /** When the best was set. */
-  at: number;
-  /** Every attempt, newest last, capped. Drawn as the test's trend line. */
-  history: { t: number; value: number; rating: number }[];
-}
 
 export interface DailyState {
   /** ISO date (local) of the day currently in progress. */
@@ -246,6 +233,15 @@ export interface Profile {
   /** Adaptive difficulty per axis, 0..1. */
   difficulty: Record<SkillAxis, number>;
   bests: Partial<Record<DrillId, BestRecord>>;
+  /**
+   * The longest SURVIVE run of each mode.
+   *
+   * Kept apart from `bests` on purpose. A one-minute PLAY score and an
+   * open-ended SURVIVE score are not the same number measured twice — the
+   * second one grows simply by lasting — so letting a survive run into the
+   * score record would quietly retire every play record on the profile.
+   */
+  survive: Partial<Record<DrillId, { seconds: number; score: number; at: number }>>;
   history: HistoryEntry[];
   daily: DailyState;
   settings: AppSettings;
@@ -263,7 +259,6 @@ export interface Profile {
   /** Every mistake the trainer has measured, newest last. Capped. */
   errorLog: ErrorLogEntry[];
   /** Skill test records, keyed by test. Independent of the drill ladder. */
-  tests: Partial<Record<TestId, TestRecord>>;
   /**
    * Personal bests as they happened, newest last.
    *
@@ -341,6 +336,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   peakOverall: 0,
   difficulty: zeroAxis(0.32),
   bests: {},
+  survive: {},
   history: [],
   daily: { date: todayKey(), completed: [], streak: 0, lastCompletedDate: null, startOverall: 0 },
   settings: { ...DEFAULT_SETTINGS },
@@ -352,7 +348,6 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   wasd: emptyWasdProgress(),
   dailyMarks: [],
   errorLog: [],
-  tests: {},
   recentBests: [],
 });
 
@@ -395,14 +390,22 @@ const keepKnownBests = (raw: unknown): Partial<Record<DrillId, BestRecord>> => {
   return out;
 };
 
-const keepKnownTests = (raw: unknown): Partial<Record<TestId, TestRecord>> => {
-  const out: Partial<Record<TestId, TestRecord>> = {};
+const keepKnownSurvive = (raw: unknown): Profile['survive'] => {
+  const out: Profile['survive'] = {};
   if (!raw || typeof raw !== 'object') return out;
-  for (const [id, rec] of Object.entries(raw as Record<string, TestRecord>)) {
-    if (isTestId(id) && rec) out[id] = rec;
+  for (const [id, rec] of Object.entries(raw as Record<string, { seconds?: unknown; score?: unknown; at?: unknown }>)) {
+    if (!isDrillId(id) || !rec) continue;
+    const seconds = Number(rec.seconds);
+    if (!Number.isFinite(seconds) || seconds <= 0) continue;
+    out[id] = {
+      seconds,
+      score: Number.isFinite(Number(rec.score)) ? Number(rec.score) : 0,
+      at: Number.isFinite(Number(rec.at)) ? Number(rec.at) : Date.now(),
+    };
   }
   return out;
 };
+
 
 export const loadProfile = (): Profile => {
   try {
@@ -452,6 +455,10 @@ export const loadProfile = (): Profile => {
       // before it existed, or before a mode did, has to come back playable.
       apm: normalizeApmProgress(parsed.apm),
       bests: keepKnownBests(parsed.bests),
+      // Written from the modes release. An older profile has never played a
+      // survive run, so it comes back with none rather than with a record
+      // invented out of its play scores.
+      survive: keepKnownSurvive(parsed.survive),
       history: keepKnownDrills<HistoryEntry>(parsed.history, (h) => h.drill, 400),
       dailyMarks: Array.isArray(parsed.dailyMarks) ? parsed.dailyMarks.slice(-120) : [],
       // Written from v1.4. An older profile starts it empty rather than having
@@ -463,8 +470,6 @@ export const loadProfile = (): Profile => {
       // Same for the academy: a profile written before it existed comes back
       // with an empty course rather than a crash on modules.wasdMove.
       wasd: normalizeWasdProgress(parsed.wasd),
-      // A profile written before the tests existed simply has none yet.
-      tests: keepKnownTests(parsed.tests),
       recentBests: keepKnownDrills<RecentBest>(parsed.recentBests, (b) => b.drill, 60),
     };
   } catch {
@@ -591,7 +596,20 @@ const adaptDifficulty = (p: Profile, drill: DrillId, performance: number): void 
 const fmtCompare = (a: number, b: number, dir: MetricDirection): boolean =>
   dir === 'higher' ? a > b : a < b;
 
+/**
+ * Runs before a profile is ranked.
+ *
+ * There is no calibration sequence any more — a screen that made you play five
+ * drills before it would tell you anything was a toll gate, and the two-mode
+ * menu exists precisely so that the first thing a new player does is press
+ * PLAY. So placement is simply the first few runs: they seed the ladder from
+ * what they measured rather than nudging it, and the rank appears once there
+ * is enough behind it to be worth printing.
+ */
+export const PLACEMENT_RUNS = 3;
+
 export interface RunContext {
+  /** Forces the seeding behaviour. Defaults to "this profile is not placed". */
   placement?: boolean;
   /** The APM ladder rung this run was played at. */
   level?: number;
@@ -600,6 +618,7 @@ export interface RunContext {
 }
 
 export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): ProgressReport => {
+  const calibrating = opts.placement ?? !p.placed;
   const overallBefore = p.overall;
   const rankBefore = rankFromRating(overallBefore);
   const difficultyBefore = drillDifficulty(p, result.drill);
@@ -612,8 +631,8 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     const samples = p.samples[part.axis];
     // Placement writes the expected rating straight in; there is no history to
     // blend with and the whole point is a fast, decisive read.
-    const upd = updateRating(before, opts.placement ? 0 : samples, part.performance, result.difficulty);
-    const after = opts.placement && samples === 0 ? upd.expected : upd.after;
+    const upd = updateRating(before, calibrating ? 0 : samples, part.performance, result.difficulty);
+    const after = calibrating && samples === 0 ? upd.expected : upd.after;
     p.ratings[part.axis] = after;
     p.samples[part.axis] = samples + part.weight;
     axisChanges.push({
@@ -661,7 +680,16 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
   // A double-length run accumulates a longer score by construction, so it is
   // allowed to set rate records and never a score record.
   if (p.recentBests.length > 60) p.recentBests.splice(0, p.recentBests.length - 60);
-  const newBestScore = !opts.endurance && prevBest !== null && result.score > prevBest.score;
+  // A survive run is scored the same way an endurance run always was: it is
+  // long by construction, so it may set rate records and never a score record.
+  const openEnded = opts.endurance || result.mode === 'survive';
+  if (result.mode === 'survive') {
+    const prevSurvive = p.survive[result.drill];
+    if (!prevSurvive || result.seconds > prevSurvive.seconds) {
+      p.survive[result.drill] = { seconds: result.seconds, score: result.score, at: Date.now() };
+    }
+  }
+  const newBestScore = !openEnded && prevBest !== null && result.score > prevBest.score;
   const previousBestScore = prevBest?.score ?? null;
   // `at` is when the record was *set*, not when the drill was last played.
   // Stamping it every run would make "set this week" mean "played this week",
@@ -670,15 +698,15 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
   // The ghost belongs to the run holding the score record, so it is only
   // replaced when the score is. An endurance run never holds it, by the same
   // rule that stops it setting one.
-  const keepGhost = !newBestScore || opts.endurance;
+  const keepGhost = !newBestScore || openEnded;
   p.bests[result.drill] = {
-    score: opts.endurance ? (prevBest?.score ?? 0) : Math.max(result.score, prevBest?.score ?? 0),
+    score: openEnded ? (prevBest?.score ?? 0) : Math.max(result.score, prevBest?.score ?? 0),
     metrics: bestMetrics,
     at: recordMoved ? Date.now() : prevBest.at,
     replay:
       keepGhost && prevBest?.replay
         ? prevBest.replay
-        : opts.endurance
+        : openEnded
           ? prevBest?.replay
           : captureReplay(result),
   };
@@ -787,6 +815,10 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
 
   adaptDifficulty(p, result.drill, result.performance);
   p.totalRuns++;
+  if (!p.placed && p.totalRuns >= PLACEMENT_RUNS) {
+    p.placed = true;
+    p.placementRuns = p.totalRuns;
+  }
   p.totalSeconds += result.metrics.duration;
 
   const today = todayKey();
@@ -921,70 +953,3 @@ export const formatMetric = (v: number, f: KeyMetric['format']): string => {
   }
 };
 
-/* ------------------------------------------------------------ skill tests */
-
-export interface TestReport {
-  id: TestId;
-  value: number;
-  rating: number;
-  /** The best before this attempt, or null if this was the first. */
-  previousBest: number | null;
-  previousRating: number;
-  newBest: boolean;
-  rankBefore: RankInfo;
-  rankAfter: RankInfo;
-  promoted: boolean;
-  benchmarkBefore: number;
-  benchmarkAfter: number;
-  attempts: number;
-}
-
-/**
- * The mean of your best grade on every test you have attempted.
- *
- * Deliberately not an average over all twelve: a test you have never run
- * should read as absent, not as zero. Twelve tests you have all done badly is
- * a real number; two tests you have done well is a different, smaller claim,
- * and the UI says how many are in it.
- */
-export const benchmarkRating = (p: Profile): number => {
-  const rs = Object.values(p.tests ?? {}).map((r) => r.bestRating);
-  return rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 0;
-};
-
-export const testsAttempted = (p: Profile): number => Object.keys(p.tests ?? {}).length;
-
-/** Records an attempt and reports what it changed. Mutates `p`. */
-export const applyTestRun = (p: Profile, id: TestId, value: number): TestReport => {
-  const meta = TESTS[id];
-  const rating = gradeTest(id, value);
-  const prev = p.tests[id] ?? null;
-  const benchmarkBefore = benchmarkRating(p);
-
-  const better = !prev || (meta.primaryDirection === 'lower' ? value < prev.best : value > prev.best);
-  const record: TestRecord = {
-    best: better ? value : (prev as TestRecord).best,
-    bestRating: better ? rating : (prev as TestRecord).bestRating,
-    last: value,
-    attempts: (prev?.attempts ?? 0) + 1,
-    at: better ? Date.now() : (prev as TestRecord).at,
-    history: [...(prev?.history ?? []), { t: Date.now(), value, rating }].slice(-40),
-  };
-  p.tests = { ...p.tests, [id]: record };
-
-  const previousRating = prev?.bestRating ?? 0;
-  return {
-    id,
-    value,
-    rating,
-    previousBest: prev?.best ?? null,
-    previousRating,
-    newBest: better && prev !== null,
-    rankBefore: rankFromRating(previousRating),
-    rankAfter: rankFromRating(record.bestRating),
-    promoted: prev !== null && isPromotion(previousRating, record.bestRating),
-    benchmarkBefore,
-    benchmarkAfter: benchmarkRating(p),
-    attempts: record.attempts,
-  };
-};

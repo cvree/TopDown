@@ -74,6 +74,11 @@ export class VayneBoltsDrill extends VayneDrill {
     super.update(dt);
     this.updateBrains(dt);
 
+    // Walking away from a stack at two is the mistake. It is also the only
+    // thing that can end a survive run here: nothing on this floor hits hard
+    // enough to kill you, and it is not supposed to.
+    this.chargeStrikes(this.kit.stats.boltsDropped, 'STACK ABANDONED');
+
     this.dummies = this.dummies.filter((d) => d.alive);
     if (this.dummies.length < 3) {
       const { w, h } = this.s.world.bounds;

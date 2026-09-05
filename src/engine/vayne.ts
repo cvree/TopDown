@@ -487,10 +487,7 @@ export class VayneKit {
     if (this.stackTargetId !== target.id) {
       // A switch with stacks on the board is the mistake this drill exists to
       // find. It is recorded, not punished silently.
-      if (this.stacks > 0) {
-        this.stats.boltsDropped++;
-        this.s.strike('STACK ABANDONED');
-      }
+      if (this.stacks > 0) this.stats.boltsDropped++;
       this.stackTargetId = target.id;
       this.stacks = 0;
     }
@@ -629,7 +626,6 @@ export class VayneKit {
       this.stats.tumblesWasted++;
       this.lastTumbleQuality = 'wasted';
       this.s.micro('TUMBLED THE WINDUP', from, PALETTE.danger);
-      this.s.strike('WINDUP THROWN');
     } else if (attackUp && inRange) {
       this.stats.tumblesGreedy++;
       this.lastTumbleQuality = 'greedy';
@@ -751,7 +747,6 @@ export class VayneKit {
     if (!p || !p.alive) return;
     if (!target || !target.alive) {
       this.s.micro('CONDEMN WHIFFED', p.pos, PALETTE.textDim);
-      this.s.strike('CONDEMN WHIFFED');
       return;
     }
 
@@ -788,9 +783,6 @@ export class VayneKit {
       audio.play('kill', { pan: this.panOf(path.at) });
     } else {
       this.s.micro('NO WALL', target.pos, PALETTE.textDim);
-      // The mode exists to stop you spending a twenty second cooldown on a
-      // knockback, so spending one is the mistake it counts.
-      this.s.strike('NO WALL');
     }
   }
 

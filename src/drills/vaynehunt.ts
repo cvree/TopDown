@@ -9,8 +9,6 @@ import type { WorldEvent } from '../engine/world';
 import { band, count, pct, secs, type DrillOutcome } from './base';
 import { VayneDrill } from './vaynebase';
 
-const HARD_CAP = 150;
-
 /**
  * NIGHT HUNTER — the whole champion at once.
  *
@@ -25,7 +23,9 @@ const HARD_CAP = 150;
  */
 export class VayneHuntDrill extends VayneDrill {
   private killed = 0;
-  private startedWith = 2;
+  /** Waves sent, and bodies in them. */
+  private waves = 0;
+  private spawned = 0;
 
   constructor(s: import('../engine/session').Session) {
     // The mid-game champion: Q maxed, points in W and E, one in R.
@@ -38,18 +38,32 @@ export class VayneHuntDrill extends VayneDrill {
     const p = this.spawnVayne({ x: w / 2, y: h * 0.78 });
     p.maxHp = 1080;
     p.hp = p.maxHp;
+    this.sendWave();
+  }
 
-    // One that closes and one that pokes: the composition that forces every
-    // part of the kit to be used for the thing it is for.
+  /**
+   * One that closes and one that pokes: the composition that forces every part
+   * of the kit to be used for the thing it is for.
+   *
+   * In SURVIVE the arena is refilled rather than emptied — clearing it is what
+   * earns you the next, larger wave, and the ramp adds a third body and then a
+   * fourth as the run goes on. In PLAY it is called once and clearing the two
+   * of them ends the run, which is the whole shape of that minute.
+   */
+  private sendWave(): void {
+    const { w, h } = this.s.world.bounds;
     const melee: ArchetypeId[] = ['diver', 'duelist', 'juggernaut'];
     const ranged: ArchetypeId[] = ['ranger', 'artillery', 'controller'];
     const picks: ArchetypeId[] = [this.s.rng.pick(melee), this.s.rng.pick(ranged)];
-    this.startedWith = picks.length;
+    const extra = this.s.surviving ? Math.floor(this.s.pressure * 2 + 0.001) : 0;
+    for (let i = 0; i < extra; i++) picks.push(this.s.rng.pick(i % 2 === 0 ? melee : ranged));
     picks.forEach((id, i) => {
       const spread = (i - (picks.length - 1) / 2) * 320;
       const a = this.spawnEnemy(id, { x: w / 2 + spread, y: h * 0.2 }, { hpScale: 0.62 });
       this.s.fx.ring(a.pos.x, a.pos.y, 10, 160, 0.7, PALETTE.danger, 3, 'shock');
+      this.spawned++;
     });
+    this.waves++;
   }
 
   onStart(): void {
@@ -60,12 +74,13 @@ export class VayneHuntDrill extends VayneDrill {
     super.update(dt);
     this.updateBrains(dt);
 
+    // Clearing the floor is never the end of the run — the clock is, in PLAY,
+    // and dying is, in SURVIVE. A minute that finishes in eleven seconds
+    // because you won quickly is not a minute, and "how many did you get
+    // through" is a better question than "did you get through two".
     if (this.s.world.enemies().length === 0) {
-      this.endReason = 'complete';
-      this.s.forceEnd = true;
-    } else if (this.s.elapsed > HARD_CAP) {
-      this.endReason = 'time';
-      this.s.forceEnd = true;
+      this.sendWave();
+      this.s.setBanner(`WAVE ${this.waves}`, 1.4);
     }
   }
 
@@ -125,7 +140,7 @@ export class VayneHuntDrill extends VayneDrill {
     const m = this.s.metrics.m;
     const d = derive(m, this.s.world.player?.maxHp ?? 1080);
     const st = this.kit.stats;
-    const won = this.killed >= this.startedWith;
+    const won = this.killed >= this.spawned;
     return Math.max(0, Math.round(
       m.damageDealt * 8 +
         st.boltProcs * 1200 +
@@ -142,7 +157,7 @@ export class VayneHuntDrill extends VayneDrill {
     const m = this.s.metrics.m;
     const d = derive(m, this.s.world.player?.maxHp ?? 1080);
     const st = this.kit.stats;
-    const won = this.killed >= this.startedWith && m.survived;
+    const won = m.survived && this.killed >= this.spawned - 2;
 
     const rhythm = tumbleRhythm(st);
     const bolts = boltEfficiency(st);
@@ -152,9 +167,9 @@ export class VayneHuntDrill extends VayneDrill {
     // ladder cares about most.
     const kit = clamp(rhythm * 0.36 + bolts * 0.4 + walls * 0.24, 0, 1);
 
-    const outcomeScore = won ? 1 : (this.killed / this.startedWith) * 0.7;
+    const outcomeScore = won ? 1 : clamp(this.killed / Math.max(1, this.spawned), 0, 1) * 0.7;
     const survival = m.survived ? 1 : clamp(m.survivalTime / 45, 0, 0.85);
-    const speed = won ? band(this.s.elapsed, 95, 26) : 0;
+    const speed = band(this.killed / Math.max(1, this.s.elapsed / 60), 1.4, 6);
 
     const performance = clamp(
       outcomeScore * 0.26 +
@@ -169,7 +184,7 @@ export class VayneHuntDrill extends VayneDrill {
 
     const helped: string[] = [];
     const hurt: string[] = [];
-    if (won) helped.push(`Cleared both with ${Math.round(d.hpRetained * 100)}% health left.`);
+    if (won) helped.push(`${this.killed} down across ${this.waves} wave${this.waves === 1 ? '' : 's'}, with ${Math.round(d.hpRetained * 100)}% health left.`);
     if (bolts > 0.75) helped.push('Bolt discipline held up under fire — that is the hard version.');
     if (st.condemnWallStuns > 1) helped.push(`${st.condemnWallStuns} wall stuns in a live fight.`);
     if (st.finalHours > 0 && won) helped.push('Final Hour used and converted.');

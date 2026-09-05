@@ -25,6 +25,7 @@ import { VayneDrill } from './vaynebase';
 export class VayneTumbleDrill extends VayneDrill {
   private respawnCd = 0;
   private wanted = 1;
+  private baseWanted = 1;
   private kills = 0;
   private windowsOffered = 0;
   private windowsTaken = 0;
@@ -46,6 +47,7 @@ export class VayneTumbleDrill extends VayneDrill {
     p.maxHp = 1500;
     p.hp = 1500;
     this.wanted = this.s.config.difficulty > 0.62 ? 2 : 1;
+    this.baseWanted = this.wanted;
     for (let i = 0; i < this.wanted; i++) this.spawnPursuer();
   }
 
@@ -56,8 +58,8 @@ export class VayneTumbleDrill extends VayneDrill {
     // Tuned against an orbwalking Vayne's *effective* speed — she only moves
     // in the free window — plus the ground a tumble buys her every six
     // seconds. Comfortably survivable clean; a genuine race when sloppy.
-    a.moveSpeed = 156 + this.s.config.difficulty * 78;
-    a.attack.damage = 18 + this.s.config.difficulty * 20;
+    a.moveSpeed = 156 + this.s.liveDifficulty * 78;
+    a.attack.damage = 18 + this.s.liveDifficulty * 20;
     a.label = 'PURSUER';
     const brain = this.brains[this.brains.length - 1];
     if (brain) brain.tune = { ...brain.tune, aggression: 0.36 + this.s.config.difficulty * 0.5 };
@@ -67,6 +69,14 @@ export class VayneTumbleDrill extends VayneDrill {
   update(dt: number): void {
     super.update(dt);
     this.updateBrains(dt);
+
+    // The windup is the attack you have already committed to. Throwing one
+    // away is the mistake this mode exists to stop.
+    this.chargeStrikes(this.kit.stats.tumblesWasted, 'WINDUP THROWN');
+
+    // SURVIVE adds pursuers as it goes. One is a rhythm exercise; three is a
+    // question about whether the rhythm survives being chased by a crowd.
+    if (this.s.surviving) this.wanted = this.baseWanted + Math.floor(this.s.pressure * 2 + 0.001);
 
     if (this.s.world.enemies().length < this.wanted) {
       this.respawnCd -= dt;

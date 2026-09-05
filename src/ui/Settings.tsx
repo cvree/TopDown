@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
-import { HERO_LIST, heroFor, type HeroId } from '../engine/heroes';
+import { heroFor } from '../engine/heroes';
 import {
   ACTION_LABELS,
   codeLabel,
@@ -11,10 +11,8 @@ import {
 } from '../engine/input';
 import { DEFAULT_SETTINGS, type AppSettings } from '../progression/profile';
 import { hasBrowserMouseGestures } from './components/GestureNotice';
-import { HeroRoster } from './components/HeroRoster';
 import { HeroSigil } from './components/HeroSigil';
 import './settings.css';
-import './heroselect.css';
 
 interface Props {
   settings: AppSettings;
@@ -90,7 +88,6 @@ type Item =
       wasdOnly: true;
       options: ChoiceOption<'hands' | 'cursor'>[];
     }
-  | { kind: 'champion'; label: string; terms: string }
   | { kind: 'bindings'; label: string; terms: string };
 
 interface Section {
@@ -101,12 +98,6 @@ interface Section {
 }
 
 const SECTIONS: Section[] = [
-  {
-    id: 'champion',
-    name: 'Champion',
-    blurb: 'The body you train in. Look only — no champion here is stronger than another.',
-    items: [{ kind: 'champion', label: 'Your champion', terms: 'hero character skin body silhouette avatar' }],
-  },
   {
     id: 'movement',
     name: 'Movement',
@@ -284,7 +275,6 @@ const haystack = (section: Section, item: Item): string =>
     item.terms ?? '',
     item.kind === 'choice' ? item.options.map((o) => `${o.name} ${o.body}`).join(' ') : '',
     item.kind === 'bindings' ? [...new Set([...CLICK_ACTIONS, ...WASD_ACTIONS])].map((a) => ACTION_LABELS[a]).join(' ') : '',
-    item.kind === 'champion' ? HERO_LIST.map((h) => `${h.name} ${h.role} ${h.title}`).join(' ') : '',
   ]
     .join(' ')
     .toLowerCase();
@@ -296,8 +286,6 @@ const isDefault = (s: AppSettings, item: Item): boolean => {
     case 'slider':
     case 'choice':
       return s[item.key] === DEFAULT_SETTINGS[item.key];
-    case 'champion':
-      return s.hero === DEFAULT_SETTINGS.hero;
     case 'bindings':
       return Object.keys(s.bindings ?? {}).length === 0 && Object.keys(s.wasdBindings ?? {}).length === 0;
   }
@@ -313,8 +301,6 @@ const resetPatch = (item: Item): Partial<AppSettings> => {
       return item.key === 'movementScheme'
         ? { movementScheme: DEFAULT_SETTINGS.movementScheme }
         : { tumbleAim: DEFAULT_SETTINGS.tumbleAim };
-    case 'champion':
-      return { hero: DEFAULT_SETTINGS.hero };
     case 'bindings':
       return { bindings: {}, wasdBindings: {} };
   }
@@ -431,22 +417,16 @@ export function Settings({ settings, onChange, onBack }: Props) {
               );
             })}
 
+            {/* Who you are, stated rather than chosen. There is one champion
+                in this client and every mode is about her, so a picker here
+                would be a form field offering to make the trainer wrong. */}
             <div className="sn-hero">
               <span className="eyebrow">Playing as</span>
-              <button
-                className="sn-hero-card"
-                style={{ ['--c' as string]: hero.accent }}
-                onMouseEnter={() => audio.play('uiHover')}
-                onClick={() => {
-                  audio.play('uiTab');
-                  setQuery('');
-                  setActive('champion');
-                }}
-              >
+              <div className="sn-hero-card" style={{ ['--c' as string]: hero.accent }}>
                 <HeroSigil hero={hero.id} size={26} />
                 <b>{hero.name}</b>
-                <em>CHANGE</em>
-              </button>
+                <em>{hero.title}</em>
+              </div>
             </div>
 
             <button
@@ -636,16 +616,6 @@ function Row({
               );
             })}
           </div>
-        </div>
-      );
-    case 'champion':
-      return (
-        <div className="set-block">
-          <HeroRoster
-            value={settings.hero}
-            onChange={(id: HeroId) => onChange({ hero: id })}
-            lowFx={settings.lowFx}
-          />
         </div>
       );
     case 'bindings':

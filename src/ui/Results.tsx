@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { audio } from '../engine/audio';
 import { clamp } from '../engine/math';
 import { DRILLS, type DrillId } from '../drills/catalog';
+import { SURVIVE_STRIKES } from '../drills/modes';
 import { formatMetric, type ProgressReport, type RunResult } from '../progression/profile';
 import { percentileForRating, rankFromRating } from '../progression/ranks';
 import { expectedRating } from '../progression/rating';
@@ -12,6 +13,9 @@ import { WASD_MODULES } from '../progression/wasd';
 import { ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
 import { Replay } from './Replay';
 import './results.css';
+
+/** mm:ss, for how long a survive run lasted. */
+const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 interface Props {
   result: RunResult;
@@ -65,11 +69,14 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
   const overallDelta = report.overallAfter - report.overallBefore;
 
   const outcomeLabel = useMemo(() => {
+    // A survive run always ends the same way, so "ELIMINATED" is not news; how
+    // long it took to eliminate you is the entire result.
+    if (result.mode === 'survive') return `SURVIVED ${clock(result.seconds)}`;
     if (result.endReason === 'death') return 'ELIMINATED';
     if (result.endReason === 'complete') return 'CLEARED';
     if (result.endReason === 'abort') return 'RESET';
     return 'COMPLETE';
-  }, [result.endReason]);
+  }, [result.endReason, result.mode, result.seconds]);
 
   const pbIds = new Set(report.personalBests.map((p) => p.id));
   // A best that rounds to the same displayed value is still a best, but
@@ -89,6 +96,14 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
             <h1 className="display res-score num">{Math.round(score).toLocaleString()}</h1>
             <div className="res-sub">
               <span className="mono">{result.metrics.duration.toFixed(1)}s</span>
+              {result.mode === 'survive' && (
+                <>
+                  <span className="sep" />
+                  <span className="mono">
+                    {result.strikes} / {SURVIVE_STRIKES} STRIKES
+                  </span>
+                </>
+              )}
               <span className="sep" />
               <span className="mono">DIFFICULTY {Math.round(result.difficulty * 100)}</span>
               <span className="sep" />

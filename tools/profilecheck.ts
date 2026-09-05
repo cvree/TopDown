@@ -2,11 +2,10 @@
  * Headless verification of the one thing that happens before anything else:
  * reading a saved profile back out of storage and drawing the client with it.
  *
- * The simulation has `simtest` and the instruments have `testcheck`. Neither
- * of them ever opens the client, and the client is where a returning player
- * meets their profile — so this drives the load path with profiles written by
- * builds that no longer exist, and by builds that never existed, and then
- * renders every screen that reads one.
+ * The simulation has `simtest`, which never opens the client, and the client
+ * is where a returning player meets their profile — so this drives the load
+ * path with profiles written by builds that no longer exist, and by builds
+ * that never existed, and then renders every screen that reads one.
  *
  * The rule it enforces: a profile that has been saved must never be able to
  * take a screen down. A drill can leave the catalogue, a record can be half
@@ -18,7 +17,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { isDrillId, type DrillId } from '../src/drills/catalog';
 import { isErrorCode } from '../src/progression/errors';
-import { isTestId } from '../src/tests/catalog';
 import { loadProfile, newProfile, saveProfile, type Profile } from '../src/progression/profile';
 import { buildPlan, axisReadings, lastSession, recentImprovements } from '../src/progression/plan';
 import {
@@ -147,7 +145,6 @@ const legacyProfile = (): Record<string, unknown> => {
     apm: { seeded: true, seededTo: 3, bestApm: 128, bestApmMode: 'apmAim', modes: { apmAim: { unlocked: 4, lastLevel: 3, runs: 12, levels: [] } } },
     dailyMarks: [{ date: '2026-01-01', overall: 1300, ratings: { movement: 1400 } }],
     errorLog,
-    tests: { reaction: { best: 210, bestRating: 1500, last: 230, attempts: 4, at: now, history: [] }, aRetiredTest: { best: 1 } },
     recentBests: [
       { drill: 'apmAim', id: 'apm', label: 'APM', value: 128, previous: 120, format: 'int', direction: 'higher', at: now - 3600_000 },
       { drill: 'movement', id: 'pathEff', label: 'PATH', value: 0.91, previous: 0.88, format: 'pct', direction: 'higher', at: now - 1800_000 },
@@ -174,7 +171,6 @@ const hostileProfile = (): Record<string, unknown> => ({
   wasd: null,
   dailyMarks: null,
   errorLog: [{ code: 'NOT_A_CODE', drill: 'movement', t: Date.now(), count: 1, rate: 0.5 }, null],
-  tests: null,
   recentBests: null,
 });
 
@@ -208,7 +204,6 @@ section('A profile from a build whose catalogue has moved on still loads', () =>
   const stale = drillRefs(p).filter((id) => !isDrillId(id));
   expect('nothing stored names a drill that no longer exists', stale.length === 0, stale.join(', '));
   expect('every logged mistake is still a named mistake', p.errorLog.every((e) => isErrorCode(e.code)), 'a stale code survived');
-  expect('every test record is still a test', Object.keys(p.tests).every(isTestId), Object.keys(p.tests).join(', '));
 
   // The ladder is per axis, not per drill, so none of it is lost with them.
   expect('the rank comes back with its owner', p.overall === 1327 && p.peakOverall === 1350, `${p.overall}/${p.peakOverall}`);
@@ -280,26 +275,14 @@ line('\n=== Every screen that reads a profile draws it, on every profile ===');
 // different set of callbacks it never calls here.
 const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
   const noop = () => undefined;
-  const [{ Today }, { Home }, { Progress }, { Records }, { Academy }, { Apm }, { Vayne }, { Tests }] =
+  const [{ Practice }, { Progress }] =
     await Promise.all([
-      import('../src/ui/Today'),
-      import('../src/ui/Home'),
+      import('../src/ui/Practice'),
       import('../src/ui/Progress'),
-      import('../src/ui/Records'),
-      import('../src/ui/Academy'),
-      import('../src/ui/Apm'),
-      import('../src/ui/Vayne'),
-      import('../src/ui/Tests'),
     ]);
   return [
-    ['TODAY', (profile) => createElement(Today as any, { profile, onStartSession: noop, onPlay: noop, onPlacement: noop, onSection: noop })],
-    ['DRILLS', (profile) => createElement(Home as any, { profile, onPlay: noop, onDaily: noop, onProfile: noop, onPlacement: noop, onVayne: noop, onAcademy: noop, onApm: noop })],
+    ['PRACTICE', (profile) => createElement(Practice as any, { profile, onPlay: noop })],
     ['PROGRESS', (profile) => createElement(Progress as any, { profile, onRename: noop, onReset: noop, onPlay: noop })],
-    ['RECORDS', (profile) => createElement(Records as any, { profile, onPlay: noop, onTests: noop, onTrain: noop })],
-    ['ACADEMY', (profile) => createElement(Academy as any, { profile, onPlay: noop, onBack: noop, onAdoptKeys: noop })],
-    ['LAB', (profile) => createElement(Apm as any, { profile, focus: null, onPlay: noop, onBack: noop, onPlacement: noop })],
-    ['CHAMPION', (profile) => createElement(Vayne as any, { profile, onPlay: noop, onBack: noop })],
-    ['TESTS', (profile) => createElement(Tests as any, { profile, onRun: noop, onBack: noop })],
   ];
 };
 
