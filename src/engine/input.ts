@@ -27,12 +27,40 @@ export type ActionId =
   | 'pause';
 
 export interface Binding {
-  /** KeyboardEvent.code, or 'Mouse0' | 'Mouse1' | 'Mouse2'. */
+  /**
+   * KeyboardEvent.code, or 'Mouse0' | 'Mouse1' | 'Mouse2'.
+   *
+   * The empty string means *unbound*: the action exists, the row is still in
+   * the settings list, and nothing on the keyboard fires it. Rebinding needs
+   * this — the moment one key can only belong to one action, taking a key
+   * away from an action has to leave that action somewhere.
+   */
   primary: string;
   secondary?: string;
 }
 
 export type Bindings = Record<ActionId, Binding>;
+
+/** The primary of an action nothing is bound to. */
+export const UNBOUND = '';
+
+/**
+ * The keys that only ever modify another key.
+ *
+ * They are bindable — attack-move sits on Shift under WASD — so the
+ * browser-shortcut guard in `onKeyDown` has to let them through even though
+ * pressing one sets `ctrlKey`/`altKey`/`metaKey` on its own event.
+ */
+export const MODIFIER_CODES: ReadonlySet<string> = new Set([
+  'ShiftLeft',
+  'ShiftRight',
+  'ControlLeft',
+  'ControlRight',
+  'AltLeft',
+  'AltRight',
+  'MetaLeft',
+  'MetaRight',
+]);
 
 /**
  * How the champion is driven.
@@ -116,6 +144,133 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   pause: 'Pause',
 };
 
+/**
+ * The click scheme's bindable actions, in the order a League player expects.
+ *
+ * The lists live here rather than in the settings screen because they are not
+ * a presentation detail: they are the answer to "which actions can collide
+ * with each other", which is what conflict detection is built on and what the
+ * in-run overlay has to agree with exactly.
+ */
+export const CLICK_ACTIONS: ActionId[] = [
+  'move',
+  'attackMove',
+  'stop',
+  'q',
+  'w',
+  'e',
+  'r',
+  'd',
+  'f',
+  'centerCamera',
+  'cameraLock',
+  'reset',
+  'pause',
+];
+
+/** WASD's list leads with the four keys that define it. */
+export const WASD_ACTIONS: ActionId[] = [
+  'moveUp',
+  'moveLeft',
+  'moveDown',
+  'moveRight',
+  'move',
+  'attackMove',
+  'stop',
+  'q',
+  'w',
+  'e',
+  'r',
+  'd',
+  'f',
+  'centerCamera',
+  'cameraLock',
+  'reset',
+  'pause',
+];
+
+export const actionsFor = (scheme: MovementScheme): ActionId[] =>
+  scheme === 'wasd' ? WASD_ACTIONS : CLICK_ACTIONS;
+
+/** Every code a binding occupies, ignoring the unbound slot. */
+const codesOf = (b: Binding | undefined): string[] => {
+  if (!b) return [];
+  const out: string[] = [];
+  if (b.primary !== UNBOUND) out.push(b.primary);
+  if (b.secondary !== undefined && b.secondary !== UNBOUND) out.push(b.secondary);
+  return out;
+};
+
+/** Two bindings occupy the same keys, unbound slots included. */
+export const bindingsEqual = (a: Binding | undefined, b: Binding | undefined): boolean =>
+  (a?.primary ?? UNBOUND) === (b?.primary ?? UNBOUND) &&
+  (a?.secondary ?? UNBOUND) === (b?.secondary ?? UNBOUND);
+
+/**
+ * A stored rebind map, reduced to what it is allowed to say.
+ *
+ * The map comes back out of localStorage, so nothing in it is trusted: a
+ * profile written by an older build can name an action this one no longer has,
+ * and a half-written one can hold anything at all. Entries that merely repeat
+ * the default are dropped too — stored overrides are the only record of "this
+ * player changed something", so a row rebound back to its shipped key has to
+ * stop counting as changed, or every changed-dot and reset button on the
+ * settings screen lies about it.
+ */
+export const sanitizeOverrides = (
+  scheme: MovementScheme,
+  raw: Record<string, Binding> | undefined,
+): Record<string, Binding> => {
+  const defaults = defaultsFor(scheme) as Record<string, Binding>;
+  const out: Record<string, Binding> = {};
+  for (const [k, v] of Object.entries(raw ?? {})) {
+    if (!(k in defaults) || !v || typeof v !== 'object') continue;
+    if (typeof v.primary !== 'string') continue;
+    const b: Binding = {
+      primary: v.primary,
+      ...(typeof v.secondary === 'string' && v.secondary !== UNBOUND ? { secondary: v.secondary } : {}),
+    };
+    if (bindingsEqual(b, defaults[k])) continue;
+    out[k] = b;
+  }
+  return out;
+};
+
+/** A scheme's defaults with the player's rebinds laid over them. */
+export const resolveBindings = (
+  scheme: MovementScheme,
+  overrides: Record<string, Binding> | undefined,
+): Bindings => ({ ...defaultsFor(scheme), ...sanitizeOverrides(scheme, overrides) });
+
+/**
+ * Which actions share a key with which, within one scheme.
+ *
+ * Two actions on one key is not a preference — under the hood exactly one of
+ * them wins, decided by the order of the `if`s in `onKeyDown`, and the other
+ * is simply dead. The settings screen resolves collisions as they are made,
+ * so this exists to catch what an older profile already has stored.
+ */
+export const findConflicts = (bindings: Bindings, actions: ActionId[]): Map<ActionId, ActionId[]> => {
+  const byCode = new Map<string, ActionId[]>();
+  for (const a of actions) {
+    for (const code of codesOf(bindings[a])) {
+      const list = byCode.get(code);
+      if (list) list.push(a);
+      else byCode.set(code, [a]);
+    }
+  }
+  const out = new Map<ActionId, ActionId[]>();
+  for (const list of byCode.values()) {
+    if (list.length < 2) continue;
+    for (const a of list) {
+      const others = list.filter((o) => o !== a);
+      const prev = out.get(a) ?? [];
+      out.set(a, [...new Set([...prev, ...others])]);
+    }
+  }
+  return out;
+};
+
 export type InputEventKind =
   | { kind: 'move'; x: number; y: number; t: number }
   | { kind: 'attackMove'; x: number; y: number; t: number }
@@ -166,6 +321,17 @@ export class InputSystem {
   /** Counts every pointer press so drills can measure redundant clicking. */
   totalClicks = 0;
 
+  /**
+   * True while something on top of the arena owns the keyboard.
+   *
+   * The in-run settings overlay is the whole reason this exists: a player
+   * rebinding Q must be able to press Q without casting it, and must be able
+   * to press Escape without the run resuming underneath the panel they are
+   * still reading. Suspending is not detaching — the listeners stay put, so
+   * the run is exactly where it was when the overlay closes.
+   */
+  private suspended = false;
+
   constructor(opts: InputOptions) {
     this.opts = opts;
   }
@@ -176,6 +342,27 @@ export class InputSystem {
 
   get quickCast(): boolean {
     return this.opts.quickCast;
+  }
+
+  /**
+   * Hand the keyboard and mouse to an overlay, or take them back.
+   *
+   * Held keys are dropped on the way in: whatever was down when the overlay
+   * opened is not down any more by the time the player closes it, and a
+   * champion that resumes walking into a wall because W was held two menus ago
+   * is the exact bug this prevents.
+   */
+  setSuspended(v: boolean): void {
+    if (this.suspended === v) return;
+    this.suspended = v;
+    if (!v) return;
+    this.held.clear();
+    this.pressOrder.length = 0;
+    this.armed = null;
+  }
+
+  get isSuspended(): boolean {
+    return this.suspended;
   }
 
   get armedSlot(): AbilitySlot | null {
@@ -229,29 +416,24 @@ export class InputSystem {
 
   /** How recently a binding's key went down, as an index into the press order. */
   private pressedAt(b: Binding): number {
-    const a = this.pressOrder.lastIndexOf(b.primary);
-    const c = b.secondary !== undefined ? this.pressOrder.lastIndexOf(b.secondary) : -1;
+    const a = b.primary === UNBOUND ? -1 : this.pressOrder.lastIndexOf(b.primary);
+    const c =
+      b.secondary !== undefined && b.secondary !== UNBOUND ? this.pressOrder.lastIndexOf(b.secondary) : -1;
     return Math.max(a, c);
   }
 
   private matchesHeld(b: Binding): boolean {
-    return this.held.has(b.primary) || (b.secondary !== undefined && this.held.has(b.secondary));
+    if (!b) return false;
+    return (
+      (b.primary !== UNBOUND && this.held.has(b.primary)) ||
+      (b.secondary !== undefined && b.secondary !== UNBOUND && this.held.has(b.secondary))
+    );
   }
 
   /** True when this code drives movement under the active scheme. */
   private isMovementKey(code: string): boolean {
-    if (this.opts.scheme !== 'wasd') return false;
-    const b = this.opts.bindings;
-    return (
-      b.moveUp.primary === code ||
-      b.moveDown.primary === code ||
-      b.moveLeft.primary === code ||
-      b.moveRight.primary === code ||
-      b.moveUp.secondary === code ||
-      b.moveDown.secondary === code ||
-      b.moveLeft.secondary === code ||
-      b.moveRight.secondary === code
-    );
+    if (this.opts.scheme !== 'wasd' || code === UNBOUND) return false;
+    return MOVE_ACTIONS.some((a) => this.matches(a, code));
   }
 
   attach(el: HTMLElement): void {
@@ -313,6 +495,7 @@ export class InputSystem {
 
   private matches(action: ActionId, code: string): boolean {
     const b = this.opts.bindings[action];
+    if (!b || code === UNBOUND) return false;
     return b.primary === code || b.secondary === code;
   }
 
@@ -325,6 +508,7 @@ export class InputSystem {
   }
 
   private onPointerMove = (e: PointerEvent): void => {
+    if (this.suspended) return;
     this.updateCursor(e);
   };
 
@@ -334,6 +518,7 @@ export class InputSystem {
 
   private onPointerDown = (e: PointerEvent): void => {
     e.preventDefault();
+    if (this.suspended) return;
     this.updateCursor(e);
     (this.el as HTMLElement | null)?.focus?.();
     const code = this.codeFor(e);
@@ -359,7 +544,7 @@ export class InputSystem {
     }
     // Attack-move: the modifier key is held and the confirm button is pressed.
     const amBind = this.opts.bindings.attackMove;
-    const modHeld = this.held.has(amBind.primary) || this.isHeld(amBind.primary);
+    const modHeld = amBind.primary !== UNBOUND && this.held.has(amBind.primary);
     if (code === (amBind.secondary ?? 'Mouse0') && modHeld) {
       this.queue.push({ kind: 'attackMove', x, y, t });
       return;
@@ -377,13 +562,17 @@ export class InputSystem {
   };
 
   private onKeyDown = (e: KeyboardEvent): void => {
+    if (this.suspended) return;
     const code = e.code;
     if (e.repeat) {
       if (code === 'Space' || code === 'Tab') e.preventDefault();
       return;
     }
-    // Let the browser keep its own shortcuts.
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // Let the browser keep its own shortcuts — but not at the cost of the
+    // modifiers themselves. Ctrl, Alt and Shift are legal bindings (attack-move
+    // ships on Shift under WASD), and pressing one sets its own flag on its own
+    // event, so a blanket bail would make every modifier permanently unbindable.
+    if ((e.ctrlKey || e.metaKey || e.altKey) && !MODIFIER_CODES.has(code)) return;
 
     this.press(code);
     const t = e.timeStamp;
@@ -396,7 +585,12 @@ export class InputSystem {
       return;
     }
 
-    if (this.matches('pause', code)) {
+    // Escape pauses whatever the bindings say, in addition to whatever else
+    // is bound to pause. It is the way out of a run and the way into the
+    // settings, so it is the one key a bad rebind must never be able to take
+    // away — otherwise a player who binds something onto Escape, or unbinds
+    // pause by accident, is stuck inside a run with no menu to fix it from.
+    if (code === 'Escape' || this.matches('pause', code)) {
       this.queue.push({ kind: 'pause', t });
       this.armed = null;
       e.preventDefault();
@@ -421,7 +615,7 @@ export class InputSystem {
       return;
     }
     // R doubles as instant reset in drills that have no ultimate bound.
-    if (code === this.opts.bindings.r.primary && !this.opts.activeSlots.has('r')) {
+    if (this.matches('r', code) && !this.opts.activeSlots.has('r')) {
       this.queue.push({ kind: 'reset', t });
       e.preventDefault();
       return;
@@ -447,6 +641,7 @@ export class InputSystem {
   };
 
   private onKeyUp = (e: KeyboardEvent): void => {
+    if (this.suspended) return;
     this.release(e.code);
   };
 
@@ -465,6 +660,7 @@ export class InputSystem {
   }
 
   private onBlur = (): void => {
+    if (this.suspended) return;
     this.held.clear();
     this.pressOrder.length = 0;
     this.armed = null;
@@ -486,6 +682,7 @@ const ZERO = { x: 0, y: 0 };
 
 /** Human-readable label for a binding code, for the settings screen. */
 export const codeLabel = (code: string): string => {
+  if (code === UNBOUND || !code) return 'Unbound';
   if (code.startsWith('Mouse')) {
     const n = code.slice(5);
     return n === '0' ? 'Left Click' : n === '1' ? 'Middle Click' : n === '2' ? 'Right Click' : `Mouse ${n}`;
@@ -493,16 +690,59 @@ export const codeLabel = (code: string): string => {
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
   if (code.startsWith('Numpad')) return `Num ${code.slice(6)}`;
-  const named: Record<string, string> = {
-    Space: 'Space',
-    Escape: 'Esc',
-    Enter: 'Enter',
-    Backquote: '`',
-    ShiftLeft: 'L Shift',
-    ShiftRight: 'R Shift',
-    Tab: 'Tab',
-    ControlLeft: 'L Ctrl',
-    AltLeft: 'L Alt',
-  };
-  return named[code] ?? code;
+  if (code.startsWith('Arrow')) return `${code.slice(5)} Arrow`;
+  if (/^F\d{1,2}$/.test(code)) return code;
+  return NAMED_CODES[code] ?? code;
+};
+
+/**
+ * The keys whose code says nothing about what is printed on them.
+ *
+ * It is a long list on purpose. A settings screen that answers "Semicolon"
+ * with `Semicolon` is technically correct and useless — the whole promise of a
+ * rebind list is that it names the key you actually pressed.
+ */
+const NAMED_CODES: Record<string, string> = {
+  Space: 'Space',
+  Escape: 'Esc',
+  Enter: 'Enter',
+  NumpadEnter: 'Num Enter',
+  Tab: 'Tab',
+  Backspace: 'Backspace',
+  Delete: 'Delete',
+  Insert: 'Insert',
+  Home: 'Home',
+  End: 'End',
+  PageUp: 'Page Up',
+  PageDown: 'Page Down',
+  CapsLock: 'Caps Lock',
+  ShiftLeft: 'L Shift',
+  ShiftRight: 'R Shift',
+  ControlLeft: 'L Ctrl',
+  ControlRight: 'R Ctrl',
+  AltLeft: 'L Alt',
+  AltRight: 'R Alt',
+  MetaLeft: 'L Meta',
+  MetaRight: 'R Meta',
+  ContextMenu: 'Menu',
+  Backquote: '`',
+  Minus: '-',
+  Equal: '=',
+  BracketLeft: '[',
+  BracketRight: ']',
+  Backslash: '\\',
+  Semicolon: ';',
+  Quote: "'",
+  Comma: ',',
+  Period: '.',
+  Slash: '/',
+  IntlBackslash: '\\',
+  NumpadAdd: 'Num +',
+  NumpadSubtract: 'Num -',
+  NumpadMultiply: 'Num *',
+  NumpadDivide: 'Num /',
+  NumpadDecimal: 'Num .',
+  NumLock: 'Num Lock',
+  ScrollLock: 'Scroll Lock',
+  Pause: 'Pause',
 };

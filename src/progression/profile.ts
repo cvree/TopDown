@@ -1,5 +1,6 @@
 import { DEFAULT_HERO, isHeroId, type HeroId } from '../engine/heroes';
 import { VERSION } from '../patchnotes/notes';
+import { sanitizeOverrides } from '../engine/input';
 import { clamp, mean } from '../engine/math';
 import type { DerivedMetrics, RunMetrics, TimelineMark } from '../engine/metrics';
 import { DRILLS, isDrillId, type DrillId } from '../drills/catalog';
@@ -439,6 +440,14 @@ export const loadProfile = (): Profile => {
         // the default everywhere it is drawn, so it is normalised here too —
         // otherwise settings shows a roster with nothing selected in it.
         hero: isHeroId(parsed.settings?.hero) ? parsed.settings.hero : p.settings.hero,
+        // Rebinds are the one setting stored as a free-form map, so they are
+        // the one setting a half-written profile can hand back as nonsense.
+        // Cleaning them here means a stored binding for an action this build
+        // no longer has — or one that is simply not a binding — never reaches
+        // the input system or the settings screen's changed-from-default
+        // counts.
+        bindings: sanitizeOverrides('click', parsed.settings?.bindings),
+        wasdBindings: sanitizeOverrides('wasd', parsed.settings?.wasdBindings),
       },
       // A profile written before champion select existed is not dragged back
       // through onboarding if it has already been placed — it simply keeps the

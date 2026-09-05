@@ -361,7 +361,7 @@ Two schemes, chosen in Settings. The default is League's.
 | Screen edge | Edge pan, if it is switched on in Settings — in locked mode the offset springs back |
 | Mouse wheel | Zoom. The camera follows your champion once you are zoomed past the arena bounds |
 | `` ` `` / `Enter` | Instant reset |
-| `Esc` | Pause |
+| `Esc` | Pause, and open Settings — from a run or from any menu |
 
 ### WASD
 
@@ -387,6 +387,34 @@ matters, which is while you are kiting something.
 All bindings are remappable in Settings, along with quick cast, and each scheme
 keeps its own rebinds so switching never breaks a layout you tuned. In drills
 with no ultimate bound, `R` also acts as instant reset.
+
+### Rebinding
+
+`Esc` is the way in, from anywhere: it opens Settings from a menu, and inside a
+run it pauses and puts the same screen over the paused arena — because the
+moment you want to change a binding is the moment it just failed you, which is
+always mid-drill. Everything you change there is live the instant you go back
+to the run, bindings included, so a rebind can be tested by closing the panel
+and pressing the key.
+
+Click a slot, press what you want. Any key, any mouse button, `Shift` and
+`Ctrl` included. `Esc` cancels the capture, `Backspace` clears the slot, and ↺
+puts a single row back to its default without touching the rest.
+
+Four rules hold the list together:
+
+- **One key belongs to one action.** Take a key that another action already had
+  and it *loses* it: the row is left unbound and named out loud, rather than two
+  actions quietly fighting over one press and one of them silently losing.
+- **Unbound is a real state**, shown as such, and reachable on purpose.
+- **`Esc` always pauses a run**, whatever `Pause` is bound to. No rebind can
+  lock you inside a drill with no menu to undo it from.
+- **Nothing is a one-way door.** Every row restores itself, every scheme
+  restores all of its own, and the whole screen restores as it shipped.
+
+Actions that ship with an alternate — the attack-move confirm button, reset's
+`Enter` — expose that second slot too, so the confirm click can move as well as
+the modifier.
 
 ## Settings
 
@@ -417,7 +445,7 @@ things fall out of that:
 | --- | --- |
 | **Movement scheme** | Click to move, or WASD |
 | **Dash aim** | WASD only: a dash goes where your keys are held, or to the cursor |
-| **Bindings** | Every action, per scheme — the two never collide |
+| **Bindings** | Every action, per scheme — one key to one action, conflicts resolved as you make them |
 | **Quick cast** | Abilities fire at the cursor on press, rather than press-then-confirm |
 | **Show attack range** | The dashed range ring and the attack timer arc |
 | **Show unit names** | Name plates above champions. Health bars are never hidden |

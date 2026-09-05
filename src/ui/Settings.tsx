@@ -3,8 +3,16 @@ import { audio } from '../engine/audio';
 import { heroFor } from '../engine/heroes';
 import {
   ACTION_LABELS,
+  CLICK_ACTIONS,
+  UNBOUND,
+  WASD_ACTIONS,
+  actionsFor,
+  bindingsEqual,
   codeLabel,
   defaultsFor,
+  findConflicts,
+  resolveBindings,
+  sanitizeOverrides,
   type ActionId,
   type Binding,
   type MovementScheme,
@@ -18,6 +26,15 @@ interface Props {
   settings: AppSettings;
   onChange: (patch: Partial<AppSettings>) => void;
   onBack: () => void;
+  /**
+   * Rendered over a paused run rather than as a page of the client.
+   *
+   * It is the same screen either way — a cut-down in-run copy would be a
+   * second list of bindings to keep in step with this one — so this only
+   * changes what the screen calls itself and which way out it offers.
+   */
+  inRun?: boolean;
+  backLabel?: string;
 }
 
 /**
@@ -236,44 +253,6 @@ const SECTIONS: Section[] = [
   },
 ];
 
-/** The click scheme's binding list, in the order a League player expects it. */
-const CLICK_ACTIONS: ActionId[] = [
-  'move',
-  'attackMove',
-  'stop',
-  'q',
-  'w',
-  'e',
-  'r',
-  'd',
-  'f',
-  'centerCamera',
-  'cameraLock',
-  'reset',
-  'pause',
-];
-
-/** WASD's list leads with the four keys that define it. */
-const WASD_ACTIONS: ActionId[] = [
-  'moveUp',
-  'moveLeft',
-  'moveDown',
-  'moveRight',
-  'move',
-  'attackMove',
-  'stop',
-  'q',
-  'w',
-  'e',
-  'r',
-  'd',
-  'f',
-  'centerCamera',
-  'cameraLock',
-  'reset',
-  'pause',
-];
-
 /** Everything an item can be found by, lowercased once per search. */
 const haystack = (section: Section, item: Item): string =>
   [
@@ -295,7 +274,13 @@ const isDefault = (s: AppSettings, item: Item): boolean => {
     case 'choice':
       return s[item.key] === DEFAULT_SETTINGS[item.key];
     case 'bindings':
-      return Object.keys(s.bindings ?? {}).length === 0 && Object.keys(s.wasdBindings ?? {}).length === 0;
+      // Pruned rather than counted: a profile written by an older build can
+      // hold an override that says exactly what the default already says, and
+      // that is not a changed setting.
+      return (
+        Object.keys(sanitizeOverrides('click', s.bindings)).length === 0 &&
+        Object.keys(sanitizeOverrides('wasd', s.wasdBindings)).length === 0
+      );
   }
 };
 
@@ -316,7 +301,7 @@ const resetPatch = (item: Item): Partial<AppSettings> => {
 
 // --------------------------------------------------------------------- screen
 
-export function Settings({ settings, onChange, onBack }: Props) {
+export function Settings({ settings, onChange, onBack, inRun = false, backLabel = 'Back' }: Props) {
   const [active, setActive] = useState<string>(SECTIONS[0].id);
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -377,8 +362,14 @@ export function Settings({ settings, onChange, onBack }: Props) {
       <div className="wrap settings fade-up">
         <div className="set-top">
           <div>
-            <div className="eyebrow">Configuration</div>
+            <div className="eyebrow">{inRun ? 'Paused · configuration' : 'Configuration'}</div>
             <h1 className="display set-h1">SETTINGS</h1>
+            {inRun && (
+              <p className="set-blurb" style={{ maxWidth: '58ch' }}>
+                The run is paused behind this. Everything you change here — bindings included — is live
+                the moment you go back to it.
+              </p>
+            )}
           </div>
           <label className="set-search">
             <svg viewBox="0 0 24 24" aria-hidden>
@@ -536,7 +527,7 @@ export function Settings({ settings, onChange, onBack }: Props) {
         </div>
 
         <button className="btn ghost lg" style={{ marginTop: 26 }} onClick={onBack}>
-          Back
+          {backLabel}
         </button>
       </div>
     </div>
@@ -633,6 +624,23 @@ function Row({
 
 // -------------------------------------------------------------- bindings
 
+/**
+ * The rebind list.
+ *
+ * Three rules, and everything else here follows from them:
+ *
+ *  - **One key belongs to one action.** Two actions on the same key is not a
+ *    preference — the input system resolves it by the order of its own `if`s,
+ *    so one of the two is simply dead, silently, and the player is left
+ *    pressing a key that does nothing. Taking a key therefore takes it: the
+ *    action that had it is left unbound and named out loud.
+ *  - **Unbound is a real state.** It has to be, once keys can be taken. It is
+ *    also the only honest thing to show for an action you deliberately cleared.
+ *  - **Nothing is a one-way door.** Every row restores its own default, every
+ *    scheme restores all of its own, and Esc always pauses a run no matter what
+ *    this list says — so no rebind can lock a player out of the menu that would
+ *    undo it.
+ */
 function Bindings({
   settings,
   onChange,
@@ -644,90 +652,263 @@ function Bindings({
   wasd: boolean;
   scheme: MovementScheme;
 }) {
-  const [capturing, setCapturing] = useState<ActionId | null>(null);
+  /** Which slot is listening for a key, if any. */
+  const [capturing, setCapturing] = useState<{ action: ActionId; slot: Slot } | null>(null);
+  /** The last thing a rebind took a key away from, so the screen can say so. */
+  const [displaced, setDisplaced] = useState<ActionId[] | null>(null);
+
   // Each scheme keeps its own rebinds. Sharing one map would mean switching to
   // WASD silently broke a layout you had tuned for clicking, and switching
   // back would not repair it.
   const overrides = wasd ? settings.wasdBindings ?? {} : settings.bindings ?? {};
-  const actions = wasd ? WASD_ACTIONS : CLICK_ACTIONS;
-  const bindingFor = (a: ActionId): Binding => overrides[a] ?? defaultsFor(scheme)[a];
+  const actions = actionsFor(scheme);
+  const defaults = defaultsFor(scheme);
+  const bindings = resolveBindings(scheme, overrides);
+  const conflicts = findConflicts(bindings, actions);
+
+  // The capture listeners are rebuilt only when the target changes. They read
+  // everything else through a ref, so a re-render mid-capture — a hover sound,
+  // a sibling setting — cannot drop the listener and eat the player's keypress.
+  const live = useRef({ bindings, overrides, actions, wasd, scheme, onChange });
+  live.current = { bindings, overrides, actions, wasd, scheme, onChange };
 
   useEffect(() => {
     if (!capturing) return;
-    const finish = (code: string) => {
-      const next = { ...overrides, [capturing]: { primary: code } };
-      onChange(wasd ? { wasdBindings: next } : { bindings: next });
+    const { action, slot } = capturing;
+
+    /** Write one slot of one action, evicting whoever else held that key. */
+    const assign = (code: string) => {
+      const l = live.current;
+      const next: Record<string, Binding> = { ...l.overrides };
+      const taken: ActionId[] = [];
+
+      // Evict first, so an action that is about to lose its key is compared
+      // against what it has now rather than against what we are writing.
+      if (code !== UNBOUND) {
+        for (const other of l.actions) {
+          if (other === action) continue;
+          const b = l.bindings[other];
+          const hitsPrimary = b.primary === code;
+          const hitsSecondary = b.secondary === code;
+          if (!hitsPrimary && !hitsSecondary) continue;
+          next[other] = {
+            primary: hitsPrimary ? UNBOUND : b.primary,
+            ...(b.secondary !== undefined && !hitsSecondary ? { secondary: b.secondary } : {}),
+          };
+          taken.push(other);
+        }
+      }
+
+      const current = l.bindings[action];
+      const written: Binding =
+        slot === 'primary'
+          ? { primary: code, ...(current.secondary && current.secondary !== code ? { secondary: current.secondary } : {}) }
+          : { primary: current.primary, ...(code === UNBOUND ? {} : { secondary: code }) };
+      next[action] = written;
+
+      const clean = sanitizeOverrides(l.scheme, next);
+      l.onChange(l.wasd ? { wasdBindings: clean } : { bindings: clean });
+      setDisplaced(taken.length ? taken : null);
       setCapturing(null);
-      audio.play('uiClick');
+      audio.play(taken.length ? 'uiBack' : 'uiClick');
     };
+
     const onKey = (e: KeyboardEvent) => {
+      // Nothing reaches the page while a slot is listening: not the browser's
+      // find bar, not the game's own hotkeys, not Tab moving focus off the
+      // button that is waiting for the press.
       e.preventDefault();
+      e.stopPropagation();
+      if (e.repeat) return;
       if (e.code === 'Escape') {
         setCapturing(null);
+        audio.play('uiBack');
         return;
       }
-      finish(e.code);
+      // Esc is spoken for as "cancel", so clearing a slot has its own key.
+      if (e.code === 'Backspace' || e.code === 'Delete') {
+        assign(UNBOUND);
+        return;
+      }
+      assign(e.code);
     };
     const onMouse = (e: MouseEvent) => {
       e.preventDefault();
-      finish(`Mouse${e.button}`);
+      e.stopPropagation();
+      assign(`Mouse${e.button}`);
     };
+
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('mousedown', onMouse, true);
     window.addEventListener('contextmenu', preventDefault, true);
+    // A wheel or a drag during capture is not an input we can bind; swallow
+    // them rather than letting the page scroll out from under the prompt.
+    window.addEventListener('wheel', preventDefault, { capture: true, passive: false });
     return () => {
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('mousedown', onMouse, true);
       window.removeEventListener('contextmenu', preventDefault, true);
+      window.removeEventListener('wheel', preventDefault, true);
     };
-  }, [capturing, onChange, overrides, wasd]);
+    // Only the target belongs in the key: everything else is read through
+    // `live`, precisely so a re-render cannot tear the listener down between
+    // the player deciding on a key and pressing it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [capturing]);
+
+  const write = (next: Record<string, Binding>) => {
+    const clean = sanitizeOverrides(scheme, next);
+    onChange(wasd ? { wasdBindings: clean } : { bindings: clean });
+  };
+
+  const restore = (a: ActionId) => {
+    audio.play('uiClick');
+    setDisplaced(null);
+    const next = { ...overrides };
+    delete next[a];
+    write(next);
+  };
+
+  const reboundCount = Object.keys(sanitizeOverrides(scheme, overrides)).length;
 
   return (
     <div className="set-block">
       <div className="set-block-head">
         <div className="opt-label">
           Bindings · <span className="mono">{wasd ? 'WASD' : 'CLICK TO MOVE'}</span>
+          {reboundCount > 0 && <i className="chg-dot" title={`${reboundCount} rebound`} />}
         </div>
         <button
           className="btn ghost sm"
-          disabled={Object.keys(overrides).length === 0}
-          onClick={() => onChange(wasd ? { wasdBindings: {} } : { bindings: {} })}
+          disabled={reboundCount === 0}
+          onClick={() => {
+            audio.play('uiBack');
+            setDisplaced(null);
+            onChange(wasd ? { wasdBindings: {} } : { bindings: {} });
+          }}
         >
           Reset this scheme
         </button>
       </div>
       <p className="opt-hint" style={{ maxWidth: 'none', marginBottom: 10 }}>
-        These bindings apply to the <b>{wasd ? 'WASD' : 'click-to-move'}</b> scheme only — the other keeps
-        its own, so switching schemes never damages a layout you have tuned.
+        Click a key and press the one you want — any key, any mouse button, Shift and Ctrl included.{' '}
+        <kbd className="kbd">Esc</kbd> cancels, <kbd className="kbd">Backspace</kbd> clears the slot, and ↺
+        puts a single row back. These bindings apply to the <b>{wasd ? 'WASD' : 'click-to-move'}</b> scheme
+        only — the other keeps its own, so switching schemes never damages a layout you have tuned.
       </p>
+
+      {capturing && (
+        <p className="bind-listening" role="status">
+          Listening for <b>{ACTION_LABELS[capturing.action]}</b>
+          {capturing.slot === 'secondary' && ' (alternate)'} — press a key or a mouse button.
+        </p>
+      )}
+      {!capturing && displaced && (
+        <p className="bind-displaced" role="status">
+          That key was already taken, so it moved:{' '}
+          <b>{displaced.map((a) => ACTION_LABELS[a]).join(', ')}</b>{' '}
+          {displaced.length === 1 ? 'is' : 'are'} now unbound.
+        </p>
+      )}
+      {conflicts.size > 0 && (
+        <p className="bind-displaced" role="status">
+          <b className="warn">Two actions share a key.</b> Only one of them can fire. Rebind one, or use
+          <b> Reset this scheme</b>.
+        </p>
+      )}
+
       <div className="bind-list">
         {actions.map((a) => {
-          const b = bindingFor(a);
-          const rebound = overrides[a] !== undefined;
+          const b = bindings[a];
+          const rebound = !bindingsEqual(b, defaults[a]);
+          const clash = conflicts.get(a);
+          // Only actions that ship with an alternate get a second slot: a
+          // column of empty buttons on every row would be noise, and the
+          // alternates that exist — the attack-move confirm, reset's Enter —
+          // are the ones worth being able to move.
+          const hasAlt = defaults[a].secondary !== undefined;
           return (
-            <div className={`bind-row${rebound ? ' rebound' : ''}`} key={a}>
-              <span>{ACTION_LABELS[a]}</span>
-              <button
-                className={`bind-key ${capturing === a ? 'capturing' : ''}`}
-                onClick={() => setCapturing(a)}
-              >
-                {capturing === a ? 'PRESS A KEY…' : codeLabel(b.primary)}
-                {b.secondary && capturing !== a && <i> / {codeLabel(b.secondary)}</i>}
-              </button>
+            <div className={`bind-row${rebound ? ' rebound' : ''}${clash ? ' clash' : ''}`} key={a}>
+              <span>
+                {ACTION_LABELS[a]}
+                {clash && (
+                  <em className="bind-clash" title={`Shares a key with ${clash.map((o) => ACTION_LABELS[o]).join(', ')}`}>
+                    clashes with {clash.map((o) => ACTION_LABELS[o]).join(', ')}
+                  </em>
+                )}
+              </span>
+              <span className="bind-keys">
+                <BindKey
+                  code={b.primary}
+                  capturing={capturing?.action === a && capturing.slot === 'primary'}
+                  onClick={() => {
+                    setDisplaced(null);
+                    setCapturing({ action: a, slot: 'primary' });
+                  }}
+                />
+                {hasAlt && (
+                  <BindKey
+                    code={b.secondary ?? UNBOUND}
+                    alt
+                    capturing={capturing?.action === a && capturing.slot === 'secondary'}
+                    onClick={() => {
+                      setDisplaced(null);
+                      setCapturing({ action: a, slot: 'secondary' });
+                    }}
+                  />
+                )}
+                <button
+                  className="bind-restore"
+                  disabled={!rebound}
+                  title={rebound ? `Restore ${codeLabel(defaults[a].primary)}` : 'Already the default'}
+                  aria-label={`Restore default for ${ACTION_LABELS[a]}`}
+                  onClick={() => restore(a)}
+                >
+                  ↺
+                </button>
+              </span>
             </div>
           );
         })}
       </div>
       <p className="set-note">
-        Attack-move fires on the confirm button while the modifier is held. A bare left click also issues
-        an attack-move, so you can train the habit without being punished for forgetting the modifier.{' '}
+        <kbd className="kbd">Esc</kbd> always pauses a run and opens this screen, whatever <b>Pause</b> is
+        bound to — a rebind can never lock you inside a drill. Attack-move fires on the confirm button
+        while the modifier is held, and a bare left click also issues one, so you can train the habit
+        without being punished for forgetting the modifier.{' '}
         {wasd
-          ? 'Under WASD an attack order never walks you anywhere — it only chooses what you shoot.'
+          ? 'Under WASD an attack order never walks you anywhere — it only chooses what you shoot, and the four movement keys always win a key they share.'
           : 'R doubles as instant reset in drills with no ultimate bound.'}
       </p>
     </div>
   );
 }
+
+type Slot = 'primary' | 'secondary';
+
+function BindKey({
+  code,
+  capturing,
+  alt,
+  onClick,
+}: {
+  code: string;
+  capturing: boolean;
+  alt?: boolean;
+  onClick: () => void;
+}) {
+  const unbound = code === UNBOUND;
+  return (
+    <button
+      className={`bind-key${capturing ? ' capturing' : ''}${unbound ? ' unbound' : ''}${alt ? ' alt' : ''}`}
+      onClick={onClick}
+      title={alt ? 'Alternate binding' : 'Primary binding'}
+    >
+      {capturing ? 'PRESS A KEY…' : codeLabel(code)}
+    </button>
+  );
+}
+
 
 // ---------------------------------------------------------------- controls
 

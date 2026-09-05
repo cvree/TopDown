@@ -286,6 +286,79 @@
   font-style: normal;
   color: var(--text-4);
 }
+/* An empty slot has to read as a decision rather than as a rendering bug. */
+.bind-key.unbound {
+  color: var(--text-4);
+  border-style: dashed;
+}
+.bind-key.alt {
+  min-width: 104px;
+  opacity: 0.86;
+}
+
+.bind-row span {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.bind-keys {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.bind-restore {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-4);
+  font-size: 13px;
+  line-height: 1;
+  transition: color 0.2s, border-color 0.2s, opacity 0.2s;
+}
+.bind-restore:hover:not(:disabled) {
+  color: var(--gold-lit);
+  border-color: var(--gold-deep);
+}
+.bind-restore:disabled {
+  opacity: 0.22;
+  cursor: default;
+}
+
+/* A clash is the one state where the list is lying about what your keys do,
+   so it is marked on the row and named in words, not just tinted. */
+.bind-row.clash .bind-key {
+  border-color: var(--danger);
+}
+.bind-clash {
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
+.bind-listening,
+.bind-displaced {
+  margin: 0 0 10px;
+  padding: 8px 11px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--stroke-2);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+.bind-listening {
+  border-color: var(--accent);
+  background: rgba(88, 224, 255, 0.09);
+  color: var(--accent);
+}
+.bind-displaced b {
+  color: var(--text);
+}
 
 .set-note {
   margin-top: 16px;

@@ -205,6 +205,8 @@ export class Session {
   private feedbackAccum = 0;
   /** True once the camera has been unlocked, so the hint is only shown once. */
   cameraLocked = true;
+  /** What a pause interrupted, so resuming returns to it rather than to play. */
+  private pausedFrom: SessionPhase = 'running';
 
   drill: DrillBase | null = null;
 
@@ -416,9 +418,22 @@ export class Session {
     this.end();
   }
 
+  /**
+   * Pause, or come back from a pause to wherever the run actually was.
+   *
+   * The countdown counts as somewhere: Escape is how a player reaches the
+   * settings, and the three seconds before a drill starts is exactly when
+   * someone realises they meant to change a binding first. Resuming from there
+   * puts the countdown back rather than dropping the player straight into a
+   * live run they were not watching.
+   */
   togglePause(): void {
-    if (this.phase === 'running') this.phase = 'paused';
-    else if (this.phase === 'paused') this.phase = 'running';
+    if (this.phase === 'running' || this.phase === 'countdown') {
+      this.pausedFrom = this.phase;
+      this.phase = 'paused';
+    } else if (this.phase === 'paused') {
+      this.phase = this.pausedFrom;
+    }
   }
 
   // ------------------------------------------------------------------ input
@@ -429,13 +444,16 @@ export class Session {
     const player = this.world.player;
     for (const e of events) {
       if (e.kind === 'pause') {
-        if (this.phase === 'running' || this.phase === 'paused') this.togglePause();
+        if (this.phase !== 'ended') this.togglePause();
         continue;
       }
       if (e.kind === 'blur') {
         // Losing focus only ever pauses. Toggling here would resume a run for
         // someone who paused deliberately and then switched away from the tab.
-        if (this.phase === 'running') this.phase = 'paused';
+        if (this.phase === 'running' || this.phase === 'countdown') {
+          this.pausedFrom = this.phase;
+          this.phase = 'paused';
+        }
         continue;
       }
       if (e.kind === 'reset') {

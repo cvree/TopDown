@@ -112,6 +112,36 @@ export function App() {
     setProfile((p) => ({ ...p, settings: { ...p.settings, ...patch } }));
   }, []);
 
+  // ------------------------------------------------------------ Esc = setup
+  //
+  // Escape is the settings key everywhere in the client, not only inside a
+  // run: it opens this screen from any menu and closes it again. A player who
+  // wants to change a binding should never have to go looking for the gear —
+  // and the same key doing the same thing in the menus and in a drill is what
+  // makes it findable in the first place.
+  //
+  // Inside a run GameView owns Escape (it has a session to pause first), so
+  // this only listens while there is no run on screen.
+  useEffect(() => {
+    if (!booted || flow) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Escape' || e.defaultPrevented) return;
+      const el = document.activeElement;
+      // The settings search box clears itself on Escape before the screen
+      // closes, so a search in progress is not a trapdoor out of the section
+      // you were reading.
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+        if (el.value !== '') return;
+        el.blur();
+      }
+      e.preventDefault();
+      audio.play(route === 'settings' ? 'uiBack' : 'uiTab');
+      setRoute((r) => (r === 'settings' ? 'practice' : 'settings'));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [booted, flow, route]);
+
   // -------------------------------------------------------------- back guard
   //
   // Opera ships mouse gestures on by default, and two of them are built from
@@ -284,6 +314,7 @@ export function App() {
           difficulty={difficulty}
           seed={flow.seed}
           settings={profile.settings}
+          onSettingsChange={patchSettings}
           context={`${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`}
           onComplete={handleComplete}
           onExit={exitToMenu}
@@ -356,7 +387,7 @@ export function App() {
                   do once and then forget about. */}
               <button
                 className={`gear-chip${route === 'settings' ? ' on' : ''}`}
-                title="Controls, audio and video"
+                title="Controls, audio and video — Esc"
                 aria-label="Settings"
                 onMouseEnter={() => audio.play('uiHover')}
                 onClick={() => {

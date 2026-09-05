@@ -41,6 +41,39 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.2.0',
+    name: 'REBINDS',
+    date: '2026-09-05',
+    headline:
+      'Escape is the settings key everywhere — including inside a run — and the binding list underneath it now guarantees that the key you pressed is the key that fires.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'Escape opens Settings. From any menu it opens and closes the screen; inside a run it pauses and puts the same screen over the paused arena, so the moment a binding fails you is the moment you can fix it. Everything you change there is live the instant you go back to the run — bindings included — so a rebind is tested by closing the panel and pressing the key.',
+          'A SETTINGS button on the pause screen, next to Resume, and the pause screen now prints the key that actually restarts the drill rather than assuming it.',
+          'Conflict resolution in the binding list. Take a key another action already had and that action loses it: the row is left unbound and named out loud, instead of two actions fighting over one press and one of them silently doing nothing.',
+          'Unbound as a real state. Backspace clears a slot, cleared slots read UNBOUND, and nothing fires them.',
+          'A ↺ on every binding row, which restores that one row to its default without touching the rest of a layout you have tuned.',
+          'The alternate slot is editable on the actions that have one — the attack-move confirm button and reset’s Enter — so the confirm click can move as well as the modifier.',
+        ],
+      },
+      {
+        tag: 'fixed',
+        items: [
+          'Modifiers can be bound at all. Shift, Ctrl and Alt used to be swallowed by the guard that keeps the browser’s own shortcuts working, which made every one of them permanently dead as a binding — attack-move’s own default under WASD among them.',
+          'Escape always pauses a run, whatever Pause is bound to. A rebind can no longer lock you inside a drill with no menu to undo it from.',
+          'Resume on the pause screen no longer depends on Escape still being bound to pause. It used to synthesise an Escape keypress, so rebinding pause quietly broke the button.',
+          'Instant reset follows its binding rather than the letter R, and an ability that is unbound no longer answers to the key it used to be on.',
+          'A binding rebound back to the key it shipped with stops counting as changed, so the changed-from-default dots and the reset buttons tell the truth.',
+          'Escape reaches the settings during the three-second countdown too, and resuming from there puts the countdown back rather than dropping you into a live run you were not watching.',
+          'A key held down when a menu opens over a run is no longer still held when you come back to it, so the champion does not resume walking into a wall.',
+          'Stored bindings are repaired on load: a rebind naming an action this build no longer has, or one that is not a binding at all, is dropped rather than carried into the arena.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.1.0',
     name: 'FOG OF WAR',
     date: '2026-09-05',

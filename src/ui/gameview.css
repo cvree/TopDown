@@ -787,6 +787,35 @@
   clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
   pointer-events: auto;
 }
+.pause-keys {
+  margin: 18px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--text-4);
+}
+
+/* The settings screen, over the paused arena.
+   It scrolls on its own and sits above the pause card's z-index, because it
+   replaces it rather than stacking on top of it. */
+.setup-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  background: rgba(1, 10, 19, 0.9);
+  backdrop-filter: blur(10px);
+  cursor: default;
+}
+.setup-overlay > .scroll {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.setup-overlay .settings {
+  padding-top: 30px;
+  padding-bottom: 40px;
+}
+
 .pause-card h2 {
   font-size: 30px;
   margin: 8px 0 10px;

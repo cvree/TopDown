@@ -12,7 +12,19 @@ import { APM_DRILL_IDS, type LabSolution } from '../src/drills/apm';
 import { WASD_DRILL_IDS } from '../src/drills/wasd';
 import { DRILLS, WASD_SEQUENCE, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
-import { InputSystem, WASD_BINDINGS, type AbilitySlot, type InputEventKind, type MovementScheme } from '../src/engine/input';
+import {
+  InputSystem,
+  UNBOUND,
+  WASD_BINDINGS,
+  actionsFor,
+  codeLabel,
+  findConflicts,
+  resolveBindings,
+  type AbilitySlot,
+  type Bindings,
+  type InputEventKind,
+  type MovementScheme,
+} from '../src/engine/input';
 import { angleDelta, dist, norm } from '../src/engine/math';
 import { ARCHETYPES } from '../src/engine/archetypes';
 import { EnemyBrain, tuningFor, type BotBehavior } from '../src/engine/ai';
@@ -2639,6 +2651,206 @@ line('\n=== Losing focus pauses a run, and never un-pauses one ===');
   input.push({ kind: 'blur', t: 0 });
   session.step(SIM_DT);
   expect('blur cannot resume a deliberate pause', session.phase === 'paused', session.phase);
+}
+
+
+// ---------------------------------------------------------------- bindings
+//
+// The rebind path, driven through the real InputSystem rather than around it.
+// Every check here is a way rebinding has actually been broken: a key that
+// still fires its old action, a modifier that can never be bound at all, a
+// pause key that a rebind took away, an overlay that casts abilities while the
+// player is trying to type into it.
+
+line('\n=== BINDINGS: a rebound key is the binding ===');
+{
+  /** A window and a document just real enough for `InputSystem.attach`. */
+  const makeTarget = () => {
+    const handlers = new Map<string, ((e: unknown) => void)[]>();
+    return {
+      handlers,
+      addEventListener(type: string, fn: (e: unknown) => void) {
+        handlers.set(type, [...(handlers.get(type) ?? []), fn]);
+      },
+      removeEventListener(type: string, fn: (e: unknown) => void) {
+        handlers.set(type, (handlers.get(type) ?? []).filter((h) => h !== fn));
+      },
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }),
+      focus() {},
+      fire(type: string, e: Record<string, unknown>) {
+        for (const h of [...(handlers.get(type) ?? [])]) h({ preventDefault() {}, ...e });
+      },
+    };
+  };
+
+  const g = globalThis as unknown as { window: unknown; document: unknown };
+  const savedWindow = g.window;
+  const savedDocument = g.document;
+  const win = makeTarget();
+  const doc = makeTarget();
+  g.window = { ...(savedWindow as object), ...win, addEventListener: win.addEventListener.bind(win), removeEventListener: win.removeEventListener.bind(win) };
+  g.document = { ...(savedDocument as object), ...doc, addEventListener: doc.addEventListener.bind(doc), removeEventListener: doc.removeEventListener.bind(doc), visibilityState: 'visible' };
+
+  const el = makeTarget();
+
+  /** A fresh, attached input system on one set of bindings. */
+  const rig = (bindings: Bindings, scheme: MovementScheme = 'click', slots: AbilitySlot[] = ['q', 'w', 'e', 'r']) => {
+    const input = new InputSystem({
+      bindings,
+      quickCast: true,
+      activeSlots: new Set<AbilitySlot>(slots),
+      scheme,
+    });
+    input.attach(el as unknown as HTMLElement);
+    return input;
+  };
+
+  const key = (down: boolean, code: string, mods: Record<string, boolean> = {}) =>
+    win.fire(down ? 'keydown' : 'keyup', { code, repeat: false, timeStamp: 0, ...mods });
+
+  /** Everything the queue holds after a burst of keys, as compact strings. */
+  const kinds = (input: InputSystem) =>
+    input.drain().map((e) => (e.kind === 'ability' ? `ability:${e.slot}` : e.kind));
+
+  // --- the plain case ---------------------------------------------------
+  {
+    const input = rig(resolveBindings('click', {}));
+    key(true, 'KeyQ');
+    expect('a default key fires its action', kinds(input).join() === 'ability:q', 'KeyQ did not cast Q');
+    input.detach();
+  }
+
+  // --- the rebound case -------------------------------------------------
+  {
+    const input = rig(resolveBindings('click', { q: { primary: 'KeyJ' } }));
+    key(true, 'KeyJ');
+    expect('a rebound key fires its action', kinds(input).join() === 'ability:q', 'KeyJ did not cast Q');
+    key(true, 'KeyQ');
+    expect('the key it replaced goes quiet', kinds(input).length === 0, 'KeyQ still cast something');
+    input.detach();
+  }
+
+  // --- unbound really is unbound ---------------------------------------
+  {
+    const input = rig(resolveBindings('click', { e: { primary: UNBOUND } }));
+    key(true, 'KeyE');
+    expect('an unbound action cannot be fired', kinds(input).length === 0, 'the cleared key still fired');
+    input.detach();
+  }
+
+  // --- modifiers are bindable ------------------------------------------
+  //
+  // Pressing Ctrl sets `ctrlKey` on its own keydown, so the guard that keeps
+  // the browser's shortcuts working used to make every modifier permanently
+  // dead as a binding — Shift for attack-move included.
+  {
+    const input = rig(resolveBindings('click', { q: { primary: 'ControlLeft' } }));
+    key(true, 'ControlLeft', { ctrlKey: true });
+    expect('Ctrl can be bound to an action', kinds(input).join() === 'ability:q', 'ControlLeft did not cast Q');
+    key(true, 'KeyW', { ctrlKey: true });
+    expect('Ctrl + another key stays the browser’s', kinds(input).length === 0, 'Ctrl+W was swallowed');
+    input.detach();
+  }
+
+  // --- Escape is not rebindable away -----------------------------------
+  {
+    const input = rig(resolveBindings('click', { pause: { primary: 'KeyP' } }));
+    key(true, 'KeyP');
+    expect('pause answers to its new key', kinds(input).join() === 'pause', 'the rebound pause key did nothing');
+    key(true, 'Escape');
+    expect('Esc still pauses after pause is rebound', kinds(input).join() === 'pause', 'Esc stopped pausing');
+    input.detach();
+  }
+  {
+    // The nastier version: Escape given away to an ability. It has to do both.
+    const input = rig(resolveBindings('click', { q: { primary: 'Escape' } }));
+    key(true, 'Escape');
+    expect('Esc pauses even when something else claims it', kinds(input).join() === 'pause', 'Esc was captured by Q');
+    input.detach();
+  }
+
+  // --- WASD movement follows its bindings ------------------------------
+  {
+    const input = rig(
+      resolveBindings('wasd', {
+        moveUp: { primary: 'KeyI' },
+        moveLeft: { primary: 'KeyJ' },
+        moveDown: { primary: 'KeyK' },
+        moveRight: { primary: 'KeyL' },
+      }),
+      'wasd',
+    );
+    key(true, 'KeyL');
+    expect('a rebound movement key steers', input.moveVector().x === 1, JSON.stringify(input.moveVector()));
+    key(true, 'KeyJ');
+    expect('the newer press owns the axis', input.moveVector().x === -1, JSON.stringify(input.moveVector()));
+    key(false, 'KeyJ');
+    expect('releasing hands the axis back', input.moveVector().x === 1, JSON.stringify(input.moveVector()));
+    key(true, 'KeyW');
+    expect('the old WASD keys no longer steer', input.moveVector().y === 0, JSON.stringify(input.moveVector()));
+    key(false, 'KeyL');
+    key(false, 'KeyW');
+    expect('nothing held is nothing moving', input.moveVector().x === 0 && input.moveVector().y === 0, 'drifted');
+    input.detach();
+  }
+
+  // --- an overlay owns the keyboard while it is open --------------------
+  {
+    const input = rig(resolveBindings('click', {}));
+    input.setSuspended(true);
+    key(true, 'KeyQ');
+    key(true, 'Escape');
+    expect('a suspended run ignores every key', kinds(input).length === 0, 'the overlay leaked keys into the run');
+    input.setSuspended(false);
+    key(true, 'KeyQ');
+    expect('and takes them back afterwards', kinds(input).join() === 'ability:q', 'input never resumed');
+    input.detach();
+  }
+
+  // --- held keys do not survive an overlay ------------------------------
+  {
+    const input = rig(resolveBindings('wasd', {}), 'wasd');
+    key(true, 'KeyD');
+    expect('holding a direction moves', input.moveVector().x === 1, JSON.stringify(input.moveVector()));
+    input.setSuspended(true);
+    input.setSuspended(false);
+    expect(
+      'a key held into an overlay is not still held after it',
+      input.moveVector().x === 0,
+      'the champion kept walking',
+    );
+    input.detach();
+  }
+
+  g.window = savedWindow;
+  g.document = savedDocument;
+}
+
+line('\n=== BINDINGS: the layouts themselves ===');
+{
+  for (const scheme of ['click', 'wasd'] as MovementScheme[]) {
+    const conflicts = findConflicts(resolveBindings(scheme, {}), actionsFor(scheme));
+    expect(
+      `the ${scheme} defaults put one action on one key`,
+      conflicts.size === 0,
+      [...conflicts.keys()].join(', '),
+    );
+  }
+
+  // The conflict finder has to actually find one, or the settings screen is
+  // reassuring the player about a layout it never checked.
+  const clashing = resolveBindings('click', { stop: { primary: 'KeyQ' } });
+  const found = findConflicts(clashing, actionsFor('click'));
+  expect('two actions on one key are reported', found.get('stop')?.includes('q') === true, [...found.keys()].join(', '));
+
+  // Overrides naming an action this build no longer has are dropped rather
+  // than trusted: the map comes out of localStorage.
+  const resolved = resolveBindings('click', { q: { primary: 'KeyJ' }, telepathy: { primary: 'KeyT' } } as never);
+  expect('a stale override is ignored', resolved.q.primary === 'KeyJ' && !('telepathy' in resolved), 'stale key survived');
+
+  expect('an unbound slot reads as unbound', codeLabel(UNBOUND) === 'Unbound', codeLabel(UNBOUND));
+  expect('a mouse button reads as a mouse button', codeLabel('Mouse2') === 'Right Click', codeLabel('Mouse2'));
+  expect('a punctuation key reads as what is printed on it', codeLabel('Semicolon') === ';', codeLabel('Semicolon'));
 }
 
 line(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}\n`);

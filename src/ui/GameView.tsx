@@ -3,7 +3,7 @@ import { audio } from '../engine/audio';
 import {
   InputSystem,
   codeLabel,
-  defaultsFor,
+  resolveBindings,
   type AbilitySlot,
   type Bindings,
   type MovementScheme,
@@ -18,6 +18,7 @@ import { DRILLS, type DrillId } from '../drills/catalog';
 import { RUN_MODES, SURVIVE_STRIKES, durationFor, type RunMode } from '../drills/modes';
 import type { AppSettings, RunResult } from '../progression/profile';
 import { Minimap } from './hud/Minimap';
+import { Settings } from './Settings';
 import './gameview.css';
 
 interface Props {
@@ -27,6 +28,14 @@ interface Props {
   difficulty: number;
   seed: number;
   settings: AppSettings;
+  /**
+   * Settings changed from inside the run.
+   *
+   * The pause screen opens the real settings panel, not a cut-down copy of it,
+   * because the moment a player wants to change a binding is the moment the
+   * binding just failed them — and that moment is always mid-drill.
+   */
+  onSettingsChange: (patch: Partial<AppSettings>) => void;
   /** Label shown above the drill name, e.g. "CALIBRATION 2 / 5". */
   context?: string;
   onComplete: (result: RunResult, bounds: { w: number; h: number }) => void;
@@ -90,12 +99,7 @@ const schemeFor = (settings: AppSettings, drill: DrillId): MovementScheme =>
 
 const bindingsFor = (settings: AppSettings, drill: DrillId): Bindings => {
   const scheme = schemeFor(settings, drill);
-  const out = { ...defaultsFor(scheme) };
-  const overrides = scheme === 'wasd' ? settings.wasdBindings : settings.bindings;
-  for (const [k, v] of Object.entries(overrides ?? {})) {
-    if (k in out) (out as Record<string, unknown>)[k] = v;
-  }
-  return out;
+  return resolveBindings(scheme, scheme === 'wasd' ? settings.wasdBindings : settings.bindings);
 };
 
 /** The hint row, which is different in the two schemes and short in both. */
@@ -107,7 +111,7 @@ const HINTS: Record<MovementScheme, { key: string; label: string }[]> = {
     { key: 'SPACE', label: 'centre camera' },
     { key: 'Y', label: 'camera lock' },
     { key: 'WHEEL', label: 'zoom' },
-    { key: 'ESC', label: 'pause' },
+    { key: 'ESC', label: 'pause · settings' },
   ],
   wasd: [
     { key: 'WASD', label: 'move' },
@@ -118,7 +122,7 @@ const HINTS: Record<MovementScheme, { key: string; label: string }[]> = {
     { key: 'RELEASE', label: 'or LMB to shoot' },
     { key: 'SPACE', label: 'centre camera' },
     { key: 'WHEEL', label: 'zoom' },
-    { key: 'ESC', label: 'pause' },
+    { key: 'ESC', label: 'pause · settings' },
   ],
 };
 
@@ -159,7 +163,7 @@ const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: 
   // The row is only useful while it is short, so the champion's own keys push
   // out the generic ones rather than queueing behind them.
   const keep = scheme === 'wasd' ? ['move', 'attack', 'to shoot'] : ['move · attack', 'attack-move'];
-  return [...base.filter((h) => keep.includes(h.label)), ...kit, { key: 'ESC', label: 'pause' }];
+  return [...base.filter((h) => keep.includes(h.label)), ...kit, { key: 'ESC', label: 'pause · settings' }];
 };
 
 export function GameView({
@@ -167,6 +171,7 @@ export function GameView({
   difficulty,
   seed,
   settings,
+  onSettingsChange,
   context,
   mode,
   onComplete,
@@ -184,10 +189,26 @@ export function GameView({
   // deliberately local: switching it mid-run is a decision about this run.
   const [focus, setFocus] = useState(settings.focusMode);
   const [focusToast, setFocusToast] = useState(false);
+  /** The settings panel, opened from the pause screen. */
+  const [setup, setSetup] = useState(false);
+
+  // The simulation is built once and then left alone, so anything React owns
+  // that the loop has to read lives behind a ref rather than in the closure the
+  // loop was created with. Without these, a setting changed mid-run would not
+  // reach the arena until the next run — which is exactly the complaint that
+  // put a settings panel on the pause screen in the first place.
+  const sessionRef = useRef<Session | null>(null);
+  const inputRef = useRef<InputSystem | null>(null);
+  const rendererRef = useRef<RiftRenderer | null>(null);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   useEffect(() => setFocus(settings.focusMode), [settings.focusMode]);
 
   useEffect(() => {
+    // Not while the settings panel owns the screen: F2 belongs to the run, and
+    // the panel is a place where a stray function key should do nothing.
+    if (setup) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'F2') return;
       e.preventDefault();
@@ -196,7 +217,7 @@ export function GameView({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [setup]);
 
   useEffect(() => {
     if (!focusToast) return;
@@ -210,6 +231,10 @@ export function GameView({
   // there being two of them.
   const duration = durationFor(mode);
   const surviving = mode === 'survive';
+  // Printed rather than assumed: instant reset is rebindable, so the pause
+  // screen has to read the binding instead of promising a key that may have
+  // moved.
+  const resetKey = codeLabel(bindingsFor(settings, drill).reset.primary);
 
   // Everything below lives outside React on purpose: the simulation must not
   // be driven by, or wait on, a render pass.
@@ -260,6 +285,9 @@ export function GameView({
       input,
       renderer,
     );
+    sessionRef.current = session;
+    inputRef.current = input;
+    rendererRef.current = renderer;
     const drillInstance = createDrill(drill, session);
     session.attachDrill(drillInstance);
     session.onResetRequest = () => {
@@ -455,20 +483,22 @@ export function GameView({
         clearPaint(paint);
         drillInstance.paint(paint, session.world.time);
 
+        const live = settingsRef.current;
         renderer.render(session.world, session.fx, alpha, dtWall, {
           cursor: input.cursor,
-          showRange: settings.showRange,
+          showRange: live.showRange,
           hoverTargetId: session.hoverTargetId,
           pathTrail: session.pathTrail,
           chain: session.chain,
           dimmed: session.phase === 'paused' ? 0.55 : session.dimmed,
           hitFeedback: session.hitFeedback,
-          lowFx: settings.lowFx,
-          reduceShake: settings.reduceShake,
-          showNames: settings.showNames,
+          lowFx: live.lowFx,
+          reduceShake: live.reduceShake,
+          showNames: live.showNames,
           // Only while the run is live: a camera that slides during the
           // countdown or after the buzzer is a camera nobody asked to move.
-          allowEdgePan: settings.edgePan && session.phase === 'running',
+          // A paused run with the settings panel open is not live.
+          allowEdgePan: live.edgePan && session.phase === 'running',
           paint,
           idle: session.phase === 'countdown',
         });
@@ -479,7 +509,7 @@ export function GameView({
 
         // Quality falls back on its own rather than asking the player to find
         // a setting. Scores must never depend on the machine.
-        if (!settings.lowFx) {
+        if (!live.lowFx) {
           if (loop.stats.fps < 42) slowFrames++;
           else slowFrames = Math.max(0, slowFrames - 2);
           if (slowFrames > 120 && quality === 'high') {
@@ -573,15 +603,105 @@ export function GameView({
       session.fx.clear();
       audio.stopArenaBed();
       renderer.dispose();
+      sessionRef.current = null;
+      inputRef.current = null;
+      rendererRef.current = null;
       if (debug) delete (window as unknown as { __apex?: unknown }).__apex;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drill, difficulty, seed, duration, mode]);
 
+  /**
+   * Push a changed setting into the run that is already going.
+   *
+   * Bindings are the point of this: a rebind made on the pause screen has to
+   * be live the moment the run resumes, or the player is testing the old
+   * layout and concluding, correctly, that rebinding does not work. Everything
+   * the simulation reads out of its config is updated in place for the same
+   * reason — only `arena`, `seed` and `difficulty` are fixed for the life of a
+   * run, because those are what make one run comparable to another.
+   */
+  useEffect(() => {
+    const session = sessionRef.current;
+    const input = inputRef.current;
+    if (!session || !input) return;
+    const scheme = schemeFor(settings, drill);
+    input.setOptions({
+      bindings: bindingsFor(settings, drill),
+      quickCast: settings.quickCast,
+      scheme,
+    });
+    session.config.scheme = scheme;
+    session.config.tumbleAim = settings.tumbleAim ?? 'hands';
+    // Under WASD the champion is steered rather than sent, and that is a flag
+    // on the actor: switching schemes mid-run has to move it, or the champion
+    // keeps obeying the scheme the run started under.
+    const player = session.world.player;
+    if (player) player.directControl = scheme === 'wasd';
+    rendererRef.current?.setQuality(settings.lowFx ? 'low' : 'high');
+  }, [settings, drill]);
+
   const resume = useCallback(() => {
-    // The session owns pause state; a synthetic Escape is the cleanest bridge.
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
+    // Straight at the session. This used to synthesise an Escape keypress,
+    // which quietly made the Resume button depend on Escape still being bound
+    // to pause — press it after rebinding pause and nothing happened.
+    const session = sessionRef.current;
+    if (!session) return;
+    setSetup(false);
+    session.togglePause();
+    setPhase(session.phase);
   }, []);
+
+  /**
+   * Settings, from inside the run.
+   *
+   * Opening it suspends input rather than detaching it: the arena stays
+   * exactly where it was, and every key the player presses belongs to the
+   * panel — so rebinding Q does not also cast Q, and Escape closes the panel
+   * instead of resuming the run underneath it.
+   */
+  const openSetup = useCallback(() => {
+    const session = sessionRef.current;
+    if (session && session.phase !== 'paused' && session.phase !== 'ended') session.togglePause();
+    inputRef.current?.setSuspended(true);
+    audio.play('uiTab');
+    setSetup(true);
+    if (session) setPhase(session.phase);
+  }, []);
+
+  const closeSetup = useCallback(() => {
+    inputRef.current?.setSuspended(false);
+    audio.play('uiBack');
+    setSetup(false);
+  }, []);
+
+  useEffect(() => {
+    if (!setup) return;
+    const onKey = (e: KeyboardEvent) => {
+      // The rebind capture in the panel swallows Escape first (it means
+      // "cancel this capture" there), so this only ever sees a stray one.
+      if (e.code !== 'Escape' || e.defaultPrevented) return;
+      const el = document.activeElement;
+      if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && el.value !== '') return;
+      e.preventDefault();
+      closeSetup();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setup, closeSetup]);
+
+  // A run that ends while the panel is open — the buzzer does not wait for a
+  // menu — takes the panel with it, and hands the keyboard back.
+  useEffect(() => {
+    if (setup && (phase === 'ended' || gpuLost)) {
+      inputRef.current?.setSuspended(false);
+      setSetup(false);
+    }
+  }, [setup, phase, gpuLost]);
+
+  // Leaving the run at all releases the suspension, whatever route out was
+  // taken: restart, exit, or the component simply going away.
+  useEffect(() => () => inputRef.current?.setSuspended(false), []);
 
   return (
     <div className="game-host" ref={hostRef}>
@@ -760,7 +880,7 @@ export function GameView({
         </div>
       )}
 
-      {phase === 'paused' && !gpuLost && (
+      {phase === 'paused' && !gpuLost && !setup && (
         <div className="pause-overlay fade-in">
           <div className="pause-card scale-in">
             <div className="eyebrow">PAUSED</div>
@@ -772,6 +892,9 @@ export function GameView({
               <button className="btn primary" onClick={resume}>
                 Resume
               </button>
+              <button className="btn" onClick={openSetup}>
+                Settings
+              </button>
               <button className="btn" onClick={onRetry}>
                 Restart
               </button>
@@ -779,7 +902,25 @@ export function GameView({
                 Exit drill
               </button>
             </div>
+            <p className="pause-keys">
+              <kbd className="kbd">Esc</kbd> resume · <kbd className="kbd">{resetKey}</kbd> restart
+            </p>
           </div>
+        </div>
+      )}
+
+      {/* The real settings screen, over the paused arena. Every change lands
+          in the run immediately, so a rebind can be tested by closing this and
+          pressing the key — which is the only test that actually counts. */}
+      {setup && !gpuLost && (
+        <div className="setup-overlay fade-in">
+          <Settings
+            settings={settings}
+            onChange={onSettingsChange}
+            onBack={closeSetup}
+            inRun
+            backLabel="Back to the drill"
+          />
         </div>
       )}
     </div>
