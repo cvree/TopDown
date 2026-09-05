@@ -31,8 +31,8 @@ export const GradeShader = {
     uFlashColor: { value: new THREE.Color('#ffffff') },
     uEnergy: { value: 0 },
     uDim: { value: 0 },
-    uSaturation: { value: 1.1 },
-    uContrast: { value: 1.06 },
+    uSaturation: { value: 1.32 },
+    uContrast: { value: 1.16 },
     uAberration: { value: 0.9 },
     uSharpen: { value: 0.24 },
     uTexel: { value: new THREE.Vector2(1 / 1600, 1 / 900) },
@@ -140,10 +140,6 @@ export const GradeShader = {
 
       // Kill / event punch.
       col += uFlashColor * uFlash * ( 0.35 + 0.4 * ( 1.0 - r2 ) );
-
-      // A whisper of grain keeps flat sky from banding.
-      float grain = fract( sin( dot( uv * ( 1.0 + uTime * 0.0001 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
-      col += ( grain - 0.5 ) * 0.016;
 
       col *= ( 1.0 - uDim );
 

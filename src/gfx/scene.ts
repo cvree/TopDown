@@ -214,7 +214,7 @@ export class RiftScene {
     composer.setSize(this.cssW, this.cssH);
     composer.addPass(new RenderPass(this.scene, this.rig.camera));
 
-    const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.62, 0.62, 0.78);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.82, 0.62, 0.7);
     composer.addPass(bloom);
 
     const grade = new ShaderPass(GradeShader);
@@ -268,7 +268,7 @@ export class RiftScene {
     if (this.bloom) {
       // The arena breathes with the combo chain — subtle, and it is the only
       // thing in the frame that reacts to a streak.
-      this.bloom.strength = (this.quality === 'high' ? 0.58 : 0.4) + grade.energy * 0.3;
+      this.bloom.strength = (this.quality === 'high' ? 0.82 : 0.58) + grade.energy * 0.35;
     }
 
     if (this.composer) this.composer.render(dtWall);

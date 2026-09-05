@@ -311,7 +311,7 @@ const yesterdayKey = (): string => {
 export const DEFAULT_SETTINGS: AppSettings = {
   hero: DEFAULT_HERO,
   quickCast: true,
-  movementScheme: 'click',
+  movementScheme: 'wasd',
   tumbleAim: 'hands',
   showRange: true,
   lowFx: false,

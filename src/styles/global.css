@@ -206,20 +206,16 @@ h3 {
   background: var(--bg);
 }
 
-/* Film. Grain plus a hard vignette over the entire client, arena and
-   chrome alike — it is what stops the page reading as a web page. */
+/* A hard vignette over the entire client, arena and chrome alike — it is
+   what stops the page reading as a web page. No grain: a clean, saturated
+   frame reads as sharper and more premium than a textured one. */
 .app::after {
   content: '';
   position: fixed;
   inset: 0;
   z-index: 40;
   pointer-events: none;
-  background:
-    radial-gradient(130% 110% at 50% 45%, transparent 38%, rgba(0, 0, 0, 0.55) 100%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
-  background-blend-mode: normal, overlay;
-  opacity: 0.5;
-  mix-blend-mode: normal;
+  background: radial-gradient(130% 110% at 50% 45%, transparent 45%, rgba(0, 0, 0, 0.5) 100%);
 }
 
 /* The live arena behind the client. */
