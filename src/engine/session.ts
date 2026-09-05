@@ -66,7 +66,11 @@ export type Micro =
   | 'SWITCHED'
   | 'TOO CLOSE'
   | 'TOO EARLY'
-  | 'PERFECT SPACING';
+  | 'PERFECT SPACING'
+  /** Something hit you from a place you had no vision of. */
+  | 'FROM THE DARK'
+  /** You are standing in a bush and nothing on the map can see you. */
+  | 'HIDDEN';
 
 /**
  * The only thing the session needs from a renderer: where in the arena the
@@ -126,6 +130,16 @@ export interface SessionConfig {
    * with a score set behind another.
    */
   hero?: HeroId;
+  /**
+   * Whether the modes that are built around vision get their fog.
+   *
+   * A setting rather than a constant for one reason only: a player learning
+   * the kit for the first time is learning two things at once with it on, and
+   * being able to turn the map's lights up for a few runs is the difference
+   * between a hard mode and an opaque one. It changes nothing in any mode that
+   * never asked for fog.
+   */
+  fogOfWar?: boolean;
 }
 
 /**
@@ -165,6 +179,18 @@ export class Session {
   strikes = 0;
   /** Set the moment the strike budget runs out, so `step` can close the run. */
   private struckOut = false;
+
+  /**
+   * The vision ledger. Meaningless — and untouched — in any mode that never
+   * turned the fog on.
+   */
+  unseenHits = 0;
+  unseenDamage = 0;
+  private lastAmbushAt = -99;
+  private visionTime = 0;
+  private visionHeldTime = 0;
+  private visionShare = 1;
+  private concealed = false;
 
   private movedSinceRelease = false;
   private lastReleaseAt = -1;
@@ -304,6 +330,11 @@ export class Session {
         this.drill?.onStart();
       }
       this.fx.update(dt);
+      // The map has to be lit before the clock starts: the countdown is when
+      // a player reads the terrain and decides which way to open — and the
+      // vision read-out has to be telling the truth while they do it.
+      this.world.refreshVision(dt);
+      this.pollVision(dt, false);
       return;
     }
     if (this.phase !== 'running') {
@@ -347,6 +378,7 @@ export class Session {
       // number on the HUD has time to be read.
       audio.setIntensity(this.fx.energy);
       this.pollAbilityState();
+      this.pollVision(0.05, true);
     }
     this.hitFeedback = Math.max(0, this.hitFeedback - dt * 3.6);
     if (this.bannerTime > 0) {
@@ -570,6 +602,84 @@ export class Session {
     }
   }
 
+  /**
+   * Damage that arrived from somewhere you had no vision of.
+   *
+   * The single most useful number a vision mode can give back, because it is
+   * the one a player will argue with: "it came out of nowhere" is nearly
+   * always "it came out of the same bush as last time, and you walked past the
+   * bush". Counting it turns that into something you can watch go down.
+   */
+  private noteAmbush(e: WorldEvent): void {
+    if (!this.world.vision) return;
+    const from = this.world.byId(e.actorId);
+    const player = this.world.player;
+    if (!from || !player || this.world.visible(from)) return;
+    this.unseenHits++;
+    this.unseenDamage += e.amount ?? 0;
+    // Once per second at most: being focused by something in the dark should
+    // read as one mistake, not as eight.
+    if (this.world.time - this.lastAmbushAt > 1) {
+      this.lastAmbushAt = this.world.time;
+      this.micro('FROM THE DARK', player.pos, PALETTE.danger);
+      this.fx.ring(from.pos.x, from.pos.y, 20, 190, 0.55, PALETTE.danger, 3, 'pulse');
+    }
+  }
+
+  /**
+   * Vision bookkeeping, polled rather than pushed.
+   *
+   * Two questions, both asked twenty times a second because both are about a
+   * *state* rather than an event: how much of the enemy team you currently
+   * have eyes on, and whether the bush you are standing in is actually hiding
+   * you. The second one has to be told to the player the moment it becomes
+   * true — a stealth you cannot tell you have is not a stealth you will ever
+   * use on purpose.
+   */
+  private pollVision(dt: number, live: boolean): void {
+    const world = this.world;
+    const player = world.player;
+    if (!world.vision || !player) return;
+
+    let total = 0;
+    let seen = 0;
+    for (const a of world.actors) {
+      if (!a.alive || a.team !== 'enemy' || a.isMinion || a.hidden) continue;
+      total++;
+      if (world.visible(a)) seen++;
+    }
+    this.visionShare = total > 0 ? seen / total : 1;
+    // The clock only runs while the run does. Three seconds of countdown spent
+    // looking at a map you have not been allowed to walk into yet is not time
+    // you lost vision for.
+    if (live && total > 0) {
+      this.visionTime += dt;
+      this.visionHeldTime += dt * (seen / total);
+    }
+
+    const hidden = total > 0 && world.inBrush(player.pos) && !world.canSee('enemy', player);
+    if (hidden && !this.concealed) {
+      this.micro('HIDDEN', player.pos, PALETTE.good);
+      audio.play('castArm');
+    }
+    this.concealed = hidden;
+  }
+
+  /** Share of the enemy team you have eyes on right now, 0..1. */
+  get visionNow(): number {
+    return this.visionShare;
+  }
+
+  /** Share of the run spent with vision on the enemy team, 0..1. */
+  get visionUptime(): number {
+    return this.visionTime > 0.5 ? this.visionHeldTime / this.visionTime : 1;
+  }
+
+  /** True while the bush you are in is actually hiding you from someone. */
+  get inCover(): boolean {
+    return this.concealed;
+  }
+
   /** Where a world point sits in the stereo field. */
   panOf(p: Vec2): number {
     return this.renderer.panAt?.(p) ?? 0;
@@ -608,6 +718,10 @@ export class Session {
     let bd = Infinity;
     for (const a of this.world.actors) {
       if (!a.alive || a.team === from.team) continue;
+      // A click into the fog is a move command, not an attack order: you
+      // cannot target what you cannot see, and the champion walking there
+      // instead is exactly what League does with the same click.
+      if (!this.world.visible(a)) continue;
       const d = dist(w, a.pos);
       if (d < a.radius + 26 && d < bd) {
         bd = d;
@@ -622,6 +736,7 @@ export class Session {
     let bd = Infinity;
     for (const a of this.world.actors) {
       if (!a.alive || a.team === from.team) continue;
+      if (!this.world.visible(a)) continue;
       const d = dist(this.cursorWorld, a.pos);
       if (d < a.radius + 26 && d < bd) {
         bd = d;
@@ -641,7 +756,10 @@ export class Session {
         // The windup is the one thing in this game you must feel starting.
         const a = this.world.byId(e.actorId);
         if (e.actorId === pid) audio.play('attackWindup');
-        else if (a) audio.play('attackWindup', { intensity: 0.5, pan: this.panOf(a.pos) });
+        // What you cannot see, you cannot hear. A windup audible from inside
+        // the fog would be a position given away by the sound engine, and the
+        // ear is better at locating one than the eye is.
+        else if (a && this.world.visible(a)) audio.play('attackWindup', { intensity: 0.5, pan: this.panOf(a.pos) });
         break;
       }
       case 'attackRelease':
@@ -708,22 +826,25 @@ export class Session {
           this.hitFeedback = 1;
           this.chain = 0;
           audio.setComboPitch(0);
+          this.noteAmbush(e);
         }
         break;
       case 'hazardWarn':
         // Every telegraph in the arena is audible and placed. Half of dodging
         // in League is hearing a cast start while you are looking elsewhere,
         // and a trainer that only ever draws the telegraph trains half of it.
-        if (e.pos && this.world.time - this.lastTelegraphAt > 0.12) {
+        if (e.pos && this.world.time - this.lastTelegraphAt > 0.12 && this.world.canSeePoint('player', e.pos)) {
           this.lastTelegraphAt = this.world.time;
           audio.play('telegraph', { intensity: 0.9, pan: this.panOf(e.pos) });
         }
         break;
       case 'hazardFire':
-        if (e.pos) audio.play('hazardFire', { intensity: 0.85, pan: this.panOf(e.pos) });
+        if (e.pos && this.world.canSeePoint('player', e.pos)) audio.play('hazardFire', { intensity: 0.85, pan: this.panOf(e.pos) });
         break;
       case 'projectileSpawn':
-        if (e.pos && !e.byPlayer) audio.play('enemyCast', { intensity: 0.8, pan: this.panOf(e.pos) });
+        if (e.pos && !e.byPlayer && this.world.canSeePoint('player', e.pos)) {
+          audio.play('enemyCast', { intensity: 0.8, pan: this.panOf(e.pos) });
+        }
         break;
       default:
         break;

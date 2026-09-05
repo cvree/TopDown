@@ -255,6 +255,7 @@ export function GameView({
         scheme,
         tumbleAim: settings.tumbleAim ?? 'hands',
         hero: settings.hero,
+        fogOfWar: settings.fogOfWar !== false,
       },
       input,
       renderer,

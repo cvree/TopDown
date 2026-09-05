@@ -96,6 +96,10 @@ export class ProjectileLayer {
       const fade = 1 - Math.max(0, Math.min(1, (p.life / p.maxLife) ** 4));
       v.corona.material.opacity = 0.7 * fade;
       this.writeTrail(v, p, x, y, fade);
+      // A missile is only drawn where you can see it. One crossing the edge of
+      // your vision appears mid-flight, which is exactly how it looks in
+      // League and exactly why holding vision on a poke champion matters.
+      v.root.visible = p.team === 'player' || world.canSeePoint('player', p.pos);
     }
 
     for (const [id, v] of this.visuals) {

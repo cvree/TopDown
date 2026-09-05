@@ -801,14 +801,20 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     id: 'vayneHunt',
     name: 'NIGHT HUNTER',
     tagline: 'The whole champion',
-    brief: 'Terrain, the full kit including Final Hour, and a floor that refills the moment you clear it. Everything at once, the way it actually happens.',
-    transfers: 'Playing Vayne — not playing an ADC who happens to own her abilities.',
+    brief:
+      'Fog of war, terrain, bushes, the full kit including Final Hour, and a floor that refills the moment you clear it. You have to find the fight before you can win it.',
+    transfers: 'Playing Vayne — not playing an ADC who happens to own her abilities. Camera and map awareness while your hands are busy.',
     group: 'VAYNE',
     axes: { combat: 0.5, kiting: 0.2, targeting: 0.2, dodging: 0.1 },
     duration: 60,
     abilities: ['q', 'w', 'e', 'r'],
     accent: '#ff5fa8',
     keyMetric: 'KIT EXECUTION',
+    // The one mode with fog in it is also the one mode that does not fit on a
+    // screen. That is the point: a camera pinned to the middle of the arena
+    // makes vision a decoration, and a camera you have to drive makes the
+    // minimap the instrument it is in a real game.
+    zoom: 0.74,
     order: 23,
   },
 };

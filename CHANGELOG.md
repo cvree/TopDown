@@ -6,10 +6,31 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.0.0**.
+Currently shipping **v2.1.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.1.0 — FOG OF WAR
+
+*2026-09-05*
+
+Night Hunter is played in the dark: the map is only lit where something of yours can see, terrain throws shadows you cannot look into, and the fight has to be found before it can be won.
+
+### Added
+
+- Fog of war in NIGHT HUNTER. The arena is dark everywhere your champion cannot see, terrain casts real sight shadows, and an enemy that walks into one is gone — not dimmed, not ghosted, gone. Its health bar, its threat ring, its missiles and even the dust it kicks up go with it.
+- Bushes. Walkable terrain that blocks sight from outside and hides whoever is standing in it, exactly as League’s do. Standing in one tells you so, and Final Hour opened out of a bush is now a thing you can practise.
+- The bots have eyes of their own. Break their line — behind a wall, into a bush, under Final Hour — and they lose you, walk to the last place they had a read on, and start searching. The guesses tighten the longer you hide, so breaking vision buys time rather than safety.
+- The minimap became an instrument: terrain and bushes are always drawn, the fog is drawn over them, bodies appear only where you have vision, an enemy you can see but are not looking at pulses, and the position of one you have just lost fades out inside a ring that grows at walking speed.
+- A VISION read-out on the HUD — the share of them you have eyes on right now, BLIND when that is none of them, and IN BRUSH while a bush is hiding you — plus VISION HELD on the results screen and a coach that names damage taken from places you never looked.
+- A fog of war switch in Gameplay settings, for a player still learning the kit who would rather not learn two things at once.
+
+### Changed
+
+- NIGHT HUNTER opens zoomed in, so the arena no longer fits on one screen. A camera pinned to the middle of the map makes vision a decoration; a camera you have to drive makes the minimap the instrument it is in a real game.
+- Its score has a vision term in it: how much of the run you held eyes on the fight, and how much of the damage you took arrived from somewhere you had not looked.
+- Waves spawn clear of the wall across the top of the map rather than inside its footprint, where the collision pass used to shove them — the one place on the floor that can never be looked into from your own side.
 
 ## v2.0.0 — ONE CHAMPION, TWO BUTTONS
 

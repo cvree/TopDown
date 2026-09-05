@@ -59,7 +59,27 @@ SURVIVE on it.
 | **Tumble** | Q | Tumble rhythm, windups thrown away, where the roll put you | Q in the backswing — Vayne's whole movement game |
 | **Silver Bolts** | Q W | Bolt efficiency, stacks dropped | Finishing the third hit instead of switching at two |
 | **Condemn** | Q E | Wall stun rate, angles you made rather than found | Standing on the right side of the wall *before* the fight |
-| **Night Hunter** | Q W E R | Kit execution against a floor that refills | Playing Vayne rather than an ADC who owns her abilities |
+| **Night Hunter** | Q W E R | Kit execution and vision held, against a floor that refills | Playing Vayne rather than an ADC who owns her abilities — in the dark |
+
+### Fog of war
+
+Night Hunter is played under League's own rule about what you are allowed to
+know: the map is lit only where something of yours can see, terrain throws sight
+shadows you cannot look into, and bushes hide whoever got there first. An enemy
+that walks out of your vision is *gone* — no body, no health bar, no threat
+ring, no missiles, not even the dust it kicks up — and the bots lose you the
+same way, walk to the last place they had a read on you, and start searching.
+
+That changes what the mode trains. The camera opens zoomed in, so the arena no
+longer fits on one screen and driving it is the only way to see what is
+happening; the minimap draws terrain always, the fog over it, and the position
+of an enemy you have just lost inside a ring that grows at walking speed. The
+results screen answers the two questions that follow: how much of the run you
+held eyes on the fight, and how much of the damage you took came out of ground
+you never looked at.
+
+It can be turned off in **Gameplay** settings, for a player still learning the
+kit who would rather not learn two things at once.
 
 ### The two run modes
 

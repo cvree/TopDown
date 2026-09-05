@@ -10,6 +10,7 @@ import { ParticleLayer } from './particles';
 import { ProjectileLayer } from './projectiles';
 import { RiftScene, type Quality } from './scene';
 import type { ArenaStyle } from './terrain';
+import { BrushLayer } from './brush';
 import { StructureLayer } from './structures';
 import { UnitLayer } from './units';
 import { WallLayer } from './walls';
@@ -61,6 +62,7 @@ export class RiftRenderer {
   private projectiles: ProjectileLayer;
   private particles: ParticleLayer;
   private walls: WallLayer;
+  private brush: BrushLayer;
   private structures: StructureLayer;
   private overlay: OverlayHud;
   private emptyPaint = newPaint();
@@ -88,7 +90,11 @@ export class RiftRenderer {
     this.decals = new DecalLayer(this.scene.world);
     this.projectiles = new ProjectileLayer(this.scene.world);
     this.particles = new ParticleLayer(this.scene.world);
-    this.walls = new WallLayer(this.scene.world);
+    // Terrain darkens with the ground it stands on, so a shadowed corner of
+    // the map is one shape rather than a dark floor with a lit rock in it.
+    const fog = (m: THREE.Material) => this.scene.fow.patch(m);
+    this.walls = new WallLayer(this.scene.world, fog);
+    this.brush = new BrushLayer(this.scene.world, fog);
     this.structures = new StructureLayer(this.scene.world);
     this.overlay = new OverlayHud(overlayCanvas);
 
@@ -225,6 +231,10 @@ export class RiftRenderer {
 
     // Terrain the drill placed. A no-op on every frame after the first.
     this.walls.sync(world.walls);
+    this.brush.sync(world.brush);
+    // Whether there is fog at all is the drill's decision, and it is made once
+    // during setup — this simply follows the world.
+    this.scene.fow.setField(world.vision);
 
     // ------------------------------------------------------------- decals
     this.decals.begin(dt);
@@ -232,6 +242,7 @@ export class RiftRenderer {
     // Threat rings first, so your own range indicator draws on top of them.
     for (const a of world.actors) {
       if (!a.alive || a.team === 'player') continue;
+      if (!world.visible(a)) continue;
       if (opts.hoverTargetId === a.id) {
         this.decals.ring(a.pos.x, a.pos.y, a.attack.range + (player?.radius ?? 0), {
           color: ENEMY_RANGE,
@@ -302,7 +313,13 @@ export class RiftRenderer {
       this.decals.ring(player.pos.x, player.pos.y, player.radius + 16, { color: CAST, alpha: 0.45, width: 2, rise: 2.6 });
     }
 
-    for (const h of world.hazards) this.drawHazard(h);
+    // A telegraph you have no vision of is not a telegraph. Drawing one would
+    // hand back exactly the information the fog just took away — and being
+    // caught by a shockwave thrown from the dark is the lesson, not a bug.
+    for (const h of world.hazards) {
+      if (h.team !== 'player' && !world.canSeePoint('player', h.pos)) continue;
+      this.drawHazard(h);
+    }
     for (const m of paint.markers) this.drawMarker(m);
 
     // Effect rings: impacts, kills, near-misses. Ground shockwaves.
@@ -423,6 +440,10 @@ export class RiftRenderer {
   private footsteps(world: World, fx: FxSystem, alpha: number): void {
     for (const a of world.actors) {
       if (!a.alive) continue;
+      // Dust kicked up by a champion you cannot see is a free read on where it
+      // is. The fog has to hold for everything a body emits, not just for the
+      // body.
+      if (!world.visible(a)) continue;
       const x = a.prev.x + (a.pos.x - a.prev.x) * alpha;
       const y = a.prev.y + (a.pos.y - a.prev.y) * alpha;
       const last = this.lastPos.get(a.id);
@@ -486,6 +507,7 @@ export class RiftRenderer {
     this.disposed = true;
     this.units.dispose();
     this.walls.dispose();
+    this.brush.dispose();
     this.structures.dispose();
     this.decals.dispose();
     this.projectiles.dispose();

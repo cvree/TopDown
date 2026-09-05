@@ -241,7 +241,13 @@ export class UnitLayer {
         hovered: hoverId === a.id,
         rooted: a.rootedFor > 0,
       });
-      e.rig.visible = e.death < 0.999;
+      // Fog of war, applied at the last possible moment: the rig is still
+      // driven — position, facing, animation phase — so a champion that walks
+      // back into your vision is instantly *where it actually is* rather than
+      // where it was when you lost it. It simply is not drawn. Not dimmed, not
+      // ghosted: a silhouette you can half-see in the fog is a tell, and the
+      // whole point of the fog is that there is nothing to read.
+      e.rig.visible = e.death < 0.999 && world.visible(a);
     }
 
     for (const [id, e] of this.entries) {

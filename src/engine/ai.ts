@@ -151,6 +151,20 @@ export class EnemyBrain {
   /** Diver / bait state: how long the current stance has left. */
   private stanceFor = 0;
   private committed = false;
+  /**
+   * Where it last actually saw you, and for how long it has not.
+   *
+   * A bot that keeps tracking a champion it has no vision of is the reason
+   * fog of war in most games is decoration. This one loses you the moment you
+   * break its line — behind a wall, into a bush, under Final Hour — walks to
+   * the last place it had a read on, and then stands there wondering. That is
+   * the behaviour that makes breaking vision worth doing, and the behaviour
+   * that punishes walking back out along the line you left by.
+   */
+  private lastSeen: Vec2 | null = null;
+  private lostFor = 0;
+  /** Seconds until it commits to its next guess about where you went. */
+  private searchCd = 0;
 
   constructor(actor: Actor, archetype: ArchetypeId, tune: AiTuning, rng: Rng) {
     this.actor = actor;
@@ -186,8 +200,19 @@ export class EnemyBrain {
       return;
     }
 
-    this.history.push({ t: world.time, pos: { ...player.pos }, vel: { ...player.vel } });
-    if (this.history.length > 240) this.history.shift();
+    // Perception is gated on vision before anything else reads it: everything
+    // downstream — the reaction delay, the lead, the spacing — is built on
+    // this history, so a bot that cannot see you simply stops learning where
+    // you are rather than pretending to react late.
+    const canSee = world.canSee(me.team, player);
+    if (canSee) {
+      this.lostFor = 0;
+      this.lastSeen = { x: player.pos.x, y: player.pos.y };
+      this.history.push({ t: world.time, pos: { ...player.pos }, vel: { ...player.vel } });
+      if (this.history.length > 240) this.history.shift();
+    } else {
+      this.lostFor += dt;
+    }
 
     // A unit being shoved through the air, or stunned against a wall, is not
     // making decisions. Condemn is supposed to buy Vayne real time.
@@ -209,6 +234,39 @@ export class EnemyBrain {
       me.pos.x = clamp(me.pos.x + this.dashVel.x * dt, me.radius, world.bounds.w - me.radius);
       me.pos.y = clamp(me.pos.y + this.dashVel.y * dt, me.radius, world.bounds.h - me.radius);
       me.order = null;
+      return;
+    }
+
+    // Vision lost, and lost for long enough that its own reaction delay has
+    // run out: it has nothing left to aim at, so it hunts.
+    //
+    // Two phases, and the order of them is the whole behaviour. First it walks
+    // to the exact spot it last had a read on — which is what makes retreating
+    // along the line you arrived by such a bad idea. Then, having found
+    // nothing there, it starts guessing, and the guesses tighten around where
+    // you actually are the longer it has been looking. Breaking vision has to
+    // buy you *time*, not safety: a bush you can stand in forever is not a
+    // mechanic, it is an exploit, and a fight the player can simply opt out of
+    // is not a fight this mode can score.
+    if (!canSee && this.lostFor > this.tune.reactionDelay + 0.2) {
+      me.targetId = null;
+      const last = this.lastSeen;
+      if (last && dist(me.pos, last) > 110) {
+        me.order = { kind: 'attackMove', pos: { ...last } };
+        return;
+      }
+      this.searchCd -= dt;
+      if (this.searchCd <= 0) {
+        this.searchCd = 1.2;
+        const warmth = clamp((this.lostFor - 1.5) / 7, 0, 1);
+        const spread = 780 * (1 - warmth);
+        this.lastSeen = {
+          x: clamp(player.pos.x + this.rng.gauss() * spread, 80, world.bounds.w - 80),
+          y: clamp(player.pos.y + this.rng.gauss() * spread, 80, world.bounds.h - 80),
+        };
+      } else if (!last) {
+        me.order = null;
+      }
       return;
     }
 

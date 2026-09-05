@@ -74,6 +74,9 @@ export class OverlayHud {
 
     for (const a of world.actors) {
       if (!a.alive) continue;
+      // A health bar floating over an empty patch of fog would give away every
+      // position the fog is meant to keep. Bars follow the body.
+      if (!world.visible(a)) continue;
       this.drawNameplate(g, a, cam, opts);
     }
 

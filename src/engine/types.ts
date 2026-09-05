@@ -118,6 +118,14 @@ export interface Actor {
   visual?: HeroId;
   /** Seconds this actor is untargetable — Vayne's Final Hour tumble. */
   invisibleFor?: number;
+  /**
+   * How far this body sees, in units. Absent means the default for its kind.
+   *
+   * Only ever read when a drill has turned the fog on. It is a property of the
+   * body rather than of the team because a minion seeing less far than a
+   * champion is the whole reason a lane is dark two screens ahead of it.
+   */
+  sight?: number;
   /** Active knockback: direction, remaining distance, speed. */
   knockback?: { dir: Vec2; remaining: number; speed: number } | null;
   /**
@@ -231,6 +239,23 @@ export interface AiTuning {
 
 /** An axis-aligned block of terrain. Actors cannot walk through it. */
 export interface Wall {
+  /** Centre. */
+  x: number;
+  y: number;
+  /** Full extents. */
+  w: number;
+  h: number;
+}
+
+/**
+ * A bush.
+ *
+ * Walkable, unlike a wall, and the most interesting piece of terrain on the
+ * map: it blocks sight for anyone outside it, hides whoever is standing in it,
+ * and does neither of those things to the person already inside. Every ambush
+ * in League begins with somebody misreading one.
+ */
+export interface Brush {
   /** Centre. */
   x: number;
   y: number;

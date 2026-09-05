@@ -53,6 +53,7 @@ type BoolKey =
   | 'lowFx'
   | 'edgePan'
   | 'showNames'
+  | 'fogOfWar'
   | 'muted'
   | 'focusMode';
 type NumKey = 'masterVolume' | 'sfxVolume' | 'musicVolume';
@@ -177,6 +178,13 @@ const SECTIONS: Section[] = [
         label: 'Focus mode',
         hint: 'Strips the HUD to the timer, the task, your health and the score. Everything analytical waits for the results screen. F2 toggles it inside a run.',
         terms: 'minimal hud clean distraction zen focus',
+      },
+      {
+        kind: 'toggle',
+        key: 'fogOfWar',
+        label: 'Fog of war',
+        hint: 'The map is dark where nothing of yours can see. Terrain casts shadows, bushes hide whoever got there first, and an enemy you have lost is genuinely gone. Only the modes built around it are affected — an isolated mechanics drill never hides its dummy.',
+        terms: 'fog vision brush bush stealth dark sight ward map awareness',
       },
       {
         kind: 'toggle',

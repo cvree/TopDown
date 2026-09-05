@@ -199,6 +199,16 @@ export interface AppSettings {
   edgePan: boolean;
   /** Champion name plates above units. Health bars are never hidden. */
   showNames: boolean;
+  /**
+   * Fog of war in the modes built around it.
+   *
+   * On by default, because the mode it belongs to — a whole fight, with
+   * terrain — is not the same exercise with the lights up: finding the second
+   * opponent is half of what makes it hard, and it is the half that transfers
+   * furthest. Off is for a player still learning the kit, who would otherwise
+   * be learning two things at once.
+   */
+  fogOfWar: boolean;
   /** The browser-gesture warning has been read and dismissed. */
   gestureNoticeDismissed: boolean;
   /**
@@ -316,6 +326,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // has never met it should not discover it mid-run.
   edgePan: false,
   showNames: true,
+  fogOfWar: true,
   gestureNoticeDismissed: false,
   focusMode: false,
 };

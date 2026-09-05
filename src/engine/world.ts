@@ -1,7 +1,8 @@
 import { DEFAULT_HERO, type HeroId } from './heroes';
 import { clamp, dist, distToSegment, norm, v2 } from './math';
 import { Rng } from './rng';
-import type { Actor, AttackProfile, Hazard, Projectile, Team, Vec2, Wall } from './types';
+import type { Actor, AttackProfile, Brush, Hazard, Projectile, Team, Vec2, Wall } from './types';
+import { VisionField, sightClear, type SightBlocker, type VisionSource } from './vision';
 
 export interface WorldEvent {
   type:
@@ -59,6 +60,20 @@ export const GRAZE_RADIUS = 46;
  */
 export const FIRE_REQUEST_MAX = 0.3;
 
+/** How often the fog is recomputed, in seconds. */
+const VISION_TICK = 1 / 20;
+
+/**
+ * How far a body sees.
+ *
+ * League's numbers, near enough: a champion sees a good deal further than it
+ * can shoot — which is what makes walking forward to look a decision rather
+ * than a formality — and a minion sees less than the champion walking behind
+ * it. A turret is a fixed eye, and the reason a lane is never dark at home.
+ */
+export const sightOf = (a: Actor): number =>
+  a.sight ?? (a.unitKind === 'turret' ? 1350 : a.isMinion ? 1000 : 1300);
+
 export class World {
   readonly bounds: WorldBounds;
   readonly rng: Rng;
@@ -68,6 +83,27 @@ export class World {
   hazards: Hazard[] = [];
   /** Terrain blocks. Empty in every drill that does not place them. */
   walls: Wall[] = [];
+  /**
+   * Bushes. Walkable terrain that blocks sight, and the only place on the map
+   * where standing still is an aggressive move.
+   */
+  brush: Brush[] = [];
+  /**
+   * Fog of war, or null in the drills that never turn it on.
+   *
+   * Null is the important half of that: an isolated mechanics drill hands you
+   * the dummy on purpose, and a fog that hid it would be measuring a different
+   * skill from the one the drill is named after. Vision is a thing a mode opts
+   * into, and once it has, every visibility question in the game — targeting,
+   * the AI's own eyes, what the renderer draws, what the minimap shows — is
+   * answered from here rather than guessed at separately.
+   */
+  vision: VisionField | null = null;
+  private visionAccum = 0;
+  private visionPrimed = false;
+  private blockers: SightBlocker[] = [];
+  private blockersFrom: { walls: Wall[]; brush: Brush[] } | null = null;
+  private sourceScratch: VisionSource[] = [];
   events: WorldEvent[] = [];
   playerId = -1;
   /**
@@ -83,6 +119,110 @@ export class World {
   constructor(bounds: WorldBounds, rng: Rng) {
     this.bounds = bounds;
     this.rng = rng;
+  }
+
+  /**
+   * Turn the fog on.
+   *
+   * Called by a drill during setup, in any order relative to placing terrain
+   * and spawning bodies: the first fill is deferred to the first refresh, and
+   * that one is primed rather than eased, so a run opens already able to see
+   * rather than fading up out of black.
+   */
+  enableVision(): void {
+    this.vision = new VisionField(this.bounds.w, this.bounds.h);
+    this.visionPrimed = false;
+  }
+
+  /**
+   * Keep the fog current without advancing the simulation.
+   *
+   * The countdown is three seconds of standing still and looking at the map,
+   * which is exactly when a player decides where to open — so the fog has to
+   * be live before the clock starts, not after it.
+   */
+  refreshVision(dt: number): void {
+    this.stepVision(dt);
+  }
+
+  /**
+   * Everything that stops sight, as one list.
+   *
+   * Rebuilt only when a drill swaps a terrain array, which happens once per
+   * run during setup — the fog updates twenty times a second and must not
+   * allocate to do it.
+   */
+  get sightBlockers(): readonly SightBlocker[] {
+    if (!this.blockersFrom || this.blockersFrom.walls !== this.walls || this.blockersFrom.brush !== this.brush) {
+      this.blockers = [
+        ...this.walls.map((w) => ({ x: w.x, y: w.y, w: w.w, h: w.h })),
+        ...this.brush.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h, brush: true })),
+      ];
+      this.blockersFrom = { walls: this.walls, brush: this.brush };
+    }
+    return this.blockers;
+  }
+
+  /** Every eye a team currently owns. */
+  private sourcesFor(team: Team): VisionSource[] {
+    const out = this.sourceScratch;
+    out.length = 0;
+    for (const a of this.actors) {
+      if (!a.alive || a.team !== team || a.hidden) continue;
+      out.push({ x: a.pos.x, y: a.pos.y, radius: sightOf(a) });
+    }
+    return out;
+  }
+
+  /**
+   * Can `team` see this body right now?
+   *
+   * True for everything when the fog is off, so every drill that predates
+   * vision behaves exactly as it did. With the fog on it is the single
+   * authority: one body is visible to another when some eye on that team is
+   * close enough and has an unbroken line to it. A bush breaks that line for
+   * anyone standing outside the bush, which is the whole of its danger.
+   */
+  canSee(team: Team, target: Actor): boolean {
+    if (!this.vision) return true;
+    if (target.team === team || target.hidden) return true;
+    if ((target.invisibleFor ?? 0) > 0) return false;
+    const blockers = this.sightBlockers;
+    for (const a of this.actors) {
+      if (!a.alive || a.team !== team || a.hidden) continue;
+      const d = Math.hypot(a.pos.x - target.pos.x, a.pos.y - target.pos.y);
+      if (d > sightOf(a) + target.radius) continue;
+      if (!sightClear(a.pos, target.pos, blockers)) continue;
+      return true;
+    }
+    return false;
+  }
+
+  /** The same question about a point rather than a body: missiles, hazards. */
+  canSeePoint(team: Team, p: Vec2): boolean {
+    if (!this.vision) return true;
+    const blockers = this.sightBlockers;
+    for (const a of this.actors) {
+      if (!a.alive || a.team !== team || a.hidden) continue;
+      const d = Math.hypot(a.pos.x - p.x, a.pos.y - p.y);
+      if (d > sightOf(a)) continue;
+      if (!sightClear(a.pos, p, blockers)) continue;
+      return true;
+    }
+    return false;
+  }
+
+  /** Shorthand for the question every renderer asks. */
+  visible(a: Actor): boolean {
+    return this.canSee('player', a);
+  }
+
+  /** Is this point inside a bush? */
+  inBrush(p: Vec2): boolean {
+    for (const b of this.brush) {
+      if (p.x >= b.x - b.w / 2 && p.x <= b.x + b.w / 2 && p.y >= b.y - b.h / 2 && p.y <= b.y + b.h / 2) return true;
+    }
+    return false;
   }
 
   get player(): Actor | undefined {
@@ -452,6 +592,8 @@ export class World {
     for (const b of this.actors) {
       if (!b.alive || b.team === from.team) continue;
       if ((b.invisibleFor ?? 0) > 0) continue;
+      // You cannot right-click what you cannot see, and neither can a bot.
+      if (!this.canSee(from.team, b)) continue;
       const d = dist(pos, b.pos) - b.radius;
       if (d <= range && d < bestD) {
         bestD = d;
@@ -479,6 +621,7 @@ export class World {
     this.stepProjectiles(dt);
     this.stepHazards(dt);
     this.cull();
+    this.stepVision(dt);
   }
 
   private stepActor(a: Actor, dt: number): void {
@@ -883,6 +1026,28 @@ export class World {
       const h = this.hazards[i];
       if (h.warn <= 0 && h.active <= 0) this.hazards.splice(i, 1);
     }
+  }
+
+  /**
+   * Refresh the fog, twenty times a second rather than every tick.
+   *
+   * The simulation runs at 240Hz and carving a vision fan is the most
+   * expensive thing in this file; twenty updates a second is four times faster
+   * than a champion can cross a cell and already finer than the eye resolves,
+   * because the grid it writes into is eased on its way to the screen anyway.
+   */
+  private stepVision(dt: number): void {
+    if (!this.vision) return;
+    if (!this.visionPrimed) {
+      this.visionPrimed = true;
+      this.visionAccum = 0;
+      this.vision.prime(this.sourcesFor('player'), this.sightBlockers);
+      return;
+    }
+    this.visionAccum += dt;
+    if (this.visionAccum < VISION_TICK) return;
+    this.vision.update(this.sourcesFor('player'), this.sightBlockers, this.visionAccum);
+    this.visionAccum = 0;
   }
 
   /** Free-window bookkeeping helper: is this actor able to move without cost? */

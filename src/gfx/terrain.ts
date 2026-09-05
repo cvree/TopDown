@@ -29,6 +29,13 @@ export interface Arena {
   /** Everything, positioned so child coordinates are raw world units. */
   group: THREE.Group;
   floor: THREE.Mesh;
+  /**
+   * The surfaces the fog of war is allowed to darken: the playfield, and the
+   * marks on it. Deliberately not the terraces, the land or the sky — the
+   * stadium is scenery, and fogging scenery would say the map extends further
+   * than it does.
+   */
+  fogMaterials: THREE.Material[];
   update(t: number): void;
   dispose(): void;
 }
@@ -635,6 +642,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff', s
   return {
     group,
     floor,
+    fogMaterials: [floorMat, runeMat],
     update(t: number) {
       (moteMat.uniforms.uTime as { value: number }).value = t;
       for (const b of braziers) {

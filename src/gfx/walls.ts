@@ -21,7 +21,11 @@ export class WallLayer {
   private materials: THREE.Material[] = [];
   private geometries: THREE.BufferGeometry[] = [];
 
-  constructor(private readonly parent: THREE.Object3D) {
+  constructor(
+    private readonly parent: THREE.Object3D,
+    /** Lets the scene fog the stone, so a wall darkens with the floor it sits on. */
+    private readonly onMaterial?: (m: THREE.Material) => void,
+  ) {
     this.parent.add(this.group);
   }
 
@@ -44,6 +48,7 @@ export class WallLayer {
         // reads as a prop, and one much darker reads as a hole.
         color: 0x7d8794,
       });
+      this.onMaterial?.(mat);
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(wall.x, height / 2, wall.y);
       mesh.castShadow = true;
@@ -61,6 +66,7 @@ export class WallLayer {
         roughness: 1,
         metalness: 0.04,
       });
+      this.onMaterial?.(capMat);
       const cap = new THREE.Mesh(capGeo, capMat);
       cap.position.set(wall.x, height, wall.y);
       cap.castShadow = true;

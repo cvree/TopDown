@@ -5,6 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { RiftCamera } from './camera';
+import { FogOfWar } from './fogofwar';
 import { GradeShader } from './postfx';
 import { buildArena, type Arena, type ArenaStyle } from './terrain';
 
@@ -31,6 +32,12 @@ export class RiftScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
   readonly rig = new RiftCamera();
+  /**
+   * The fog of war, owned here because it is a property of the arena rather
+   * than of any one layer: the floor, the terrain and the bushes all sample
+   * the same field, and a drill without vision leaves it switched off.
+   */
+  readonly fow = new FogOfWar();
   /** Add gameplay objects here; child coordinates are world units. */
   readonly world = new THREE.Group();
 
@@ -147,6 +154,7 @@ export class RiftScene {
 
     // ---------------------------------------------------------------- arena
     this.arena = buildArena(bounds.w, bounds.h, seed, accent, style);
+    for (const m of this.arena.fogMaterials) this.fow.patch(m);
     this.world.add(this.arena.group);
     this.scene.add(this.world);
 
@@ -245,6 +253,7 @@ export class RiftScene {
     if (this.disposed) return;
     this.time += dtWall;
     this.arena.update(this.time);
+    this.fow.update();
 
     if (this.grade) {
       const u = this.grade.uniforms;
@@ -275,6 +284,7 @@ export class RiftScene {
     if (this.disposed) return;
     this.disposed = true;
     this.disposeComposer();
+    this.fow.dispose();
     this.arena.dispose();
     this.sky.geometry.dispose();
     (this.sky.material as THREE.Material).dispose();
