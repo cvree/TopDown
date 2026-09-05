@@ -44,8 +44,19 @@
   flex-direction: column;
   gap: 12px;
   background:
-    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--c) 12%, transparent), transparent 60%),
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--c) 18%, transparent), transparent 62%),
     linear-gradient(180deg, rgba(10, 16, 28, 0.72), rgba(4, 9, 18, 0.66));
+  /* The card is lit from its own accent, so four cards on one page read as
+     four different things before a single word has been read. */
+  box-shadow: 0 0 0 0 transparent, 0 -1px 22px -6px color-mix(in srgb, var(--c) 55%, transparent);
+  transition: transform 0.18s var(--ease), box-shadow 0.22s var(--ease), border-color 0.18s ease;
+}
+.pr-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 26px -10px color-mix(in srgb, var(--c) 90%, transparent),
+    0 -1px 30px -4px color-mix(in srgb, var(--c) 70%, transparent),
+    0 26px 60px -30px rgba(0, 0, 0, 0.95);
 }
 .pr-card-head {
   display: flex;
@@ -58,6 +69,7 @@
   letter-spacing: 0.05em;
   color: var(--c);
   line-height: 1.1;
+  text-shadow: 0 0 26px color-mix(in srgb, var(--c) 55%, transparent);
 }
 .pr-tag {
   font-size: 11px;
@@ -123,9 +135,9 @@
   gap: 2px;
   padding: 13px 16px 11px;
   border: 1px solid var(--stroke);
-  background: rgba(255, 255, 255, 0.02);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012));
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease, box-shadow 0.18s ease;
 }
 .pr-go:hover {
   transform: translateY(-1px);
@@ -148,15 +160,18 @@
 }
 .pr-go-play:hover {
   border-color: var(--gold);
-  background: rgba(224, 176, 92, 0.09);
+  background: linear-gradient(180deg, rgba(224, 176, 92, 0.2), rgba(224, 176, 92, 0.06));
+  box-shadow: 0 0 24px -8px rgba(224, 176, 92, 0.85), inset 0 1px 0 rgba(255, 235, 190, 0.25);
 }
 .pr-go-play:hover .pr-go-label {
   color: var(--gold-hot);
+  text-shadow: 0 0 18px rgba(240, 220, 170, 0.6);
 }
 /* Survive is the dangerous one and is coloured like it. */
 .pr-go-survive:hover {
   border-color: var(--danger);
-  background: rgba(255, 95, 168, 0.09);
+  background: linear-gradient(180deg, rgba(255, 95, 168, 0.2), rgba(255, 95, 168, 0.05));
+  box-shadow: 0 0 24px -8px rgba(255, 95, 126, 0.85), inset 0 1px 0 rgba(255, 190, 210, 0.22);
 }
 .pr-go-survive:hover .pr-go-label {
   color: var(--danger);

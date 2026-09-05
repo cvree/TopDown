@@ -28,6 +28,9 @@ export interface GradeState {
 
 const SUN_DIR = new THREE.Vector3(-0.46, 0.82, -0.34).normalize();
 
+/** Bloom strength before the combo chain adds to it. */
+const BLOOM_BASE = 0.9;
+
 export class RiftScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -84,15 +87,21 @@ export class RiftScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    // The bench sits in the dark. The stadium sits in dusk.
-    this.scene.fog = lab ? new THREE.Fog(0x070a11, 2200, 6200) : new THREE.Fog(0x1b2c4a, 3100, 8200);
+    // The bench sits in the dark. The stadium sits in dusk. Both start their
+    // haze further out than they used to: distance fog that reaches the near
+    // terraces greys the one part of the frame that is supposed to be crisp.
+    this.scene.fog = lab ? new THREE.Fog(0x070a11, 2600, 6800) : new THREE.Fog(0x1d3255, 3800, 9200);
 
     // ------------------------------------------------------------- lighting
     // Warm key from the upper left, cool bounce from behind. Two lights and a
     // hemisphere is all a stylised look needs; more just muddies the read.
     // Instrument light rather than sunset: cool, overhead, and much flatter,
     // so a pad's own colour is the only thing on the floor that means anything.
-    this.sun = new THREE.DirectionalLight(lab ? 0xdfeaff : 0xffd6a0, lab ? 2.1 : 3.4);
+    //
+    // The ratio between them is the look. A hemisphere bright enough to fill
+    // every shadow leaves a scene with no shape in it at all, so the fill sits
+    // low, the key sits high, and the cool rim behind does the silhouettes.
+    this.sun = new THREE.DirectionalLight(lab ? 0xdfeaff : 0xffd9a4, lab ? 2.2 : 3.9);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0016;
@@ -109,11 +118,15 @@ export class RiftScene {
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
 
-    this.rim = new THREE.DirectionalLight(lab ? 0x6f90c8 : 0x7fb4ff, lab ? 0.8 : 1.45);
+    this.rim = new THREE.DirectionalLight(lab ? 0x7d9fd8 : 0x6ea8ff, lab ? 0.95 : 2.0);
     this.rim.position.set(bounds.w * 0.5 + 1400, 900, bounds.h * 0.5 - 1600);
     this.scene.add(this.rim);
 
-    this.hemi = new THREE.HemisphereLight(lab ? 0x9fc0e8 : 0x8fb6e8, lab ? 0x141a24 : 0x4a4030, lab ? 0.7 : 0.95);
+    // The fill exists for one surface in particular: the side of a wall that
+    // faces the camera. Neither the key nor the rim reaches it, so whatever
+    // the hemisphere gives it is the only thing standing between "stone" and
+    // "black rectangle" — and a black rectangle is not terrain you can read.
+    this.hemi = new THREE.HemisphereLight(lab ? 0x9fc0e8 : 0x8fb6e8, lab ? 0x141a24 : 0x4a4433, lab ? 0.62 : 0.92);
     this.scene.add(this.hemi);
 
     // ------------------------------------------------------------------ sky
@@ -124,9 +137,9 @@ export class RiftScene {
         depthWrite: false,
         fog: false,
         uniforms: {
-          uTop: { value: new THREE.Color(lab ? '#04060b' : '#0e1c33') },
-          uMid: { value: new THREE.Color(lab ? '#080d16' : '#2b4a72') },
-          uBottom: { value: new THREE.Color(lab ? '#0c1220' : '#6a7a76') },
+          uTop: { value: new THREE.Color(lab ? '#04060b' : '#0d1c3c') },
+          uMid: { value: new THREE.Color(lab ? '#080d16' : '#2f5a94') },
+          uBottom: { value: new THREE.Color(lab ? '#0c1220' : '#8a9a82') },
           uGlow: { value: new THREE.Color(accent) },
         },
         vertexShader: `
@@ -144,7 +157,7 @@ export class RiftScene {
             col = mix( col, uTop, smoothstep( 0.55, 0.94, t ) );
             // A cold band of light sitting on the horizon behind the cliffs.
             float horizon = exp( -pow( ( t - 0.485 ) * 16.0, 2.0 ) );
-            col += uGlow * horizon * 0.16;
+            col += uGlow * horizon * 0.28;
             gl_FragColor = vec4( col, 1.0 );
           }`,
       }),
@@ -179,7 +192,6 @@ export class RiftScene {
       this.disposeComposer();
     } else {
       this.buildComposer();
-      if (this.bloom) this.bloom.strength = q === 'high' ? 0.62 : 0.4;
     }
     this.renderer.setPixelRatio(this.pixelRatio());
   }
@@ -214,7 +226,12 @@ export class RiftScene {
     composer.setSize(this.cssW, this.cssH);
     composer.addPass(new RenderPass(this.scene, this.rig.camera));
 
-    const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.82, 0.62, 0.7);
+    // Threshold high, on purpose. At 0.7 the lit paving itself cleared the bar
+    // and the whole playfield bloomed into a milky wash — every edge in the
+    // frame softened to pay for a glow around nothing. Above 0.86 only what is
+    // actually a light source blooms: braziers, ability flashes, the accent
+    // inlays and a champion's own emissive trim.
+    const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), BLOOM_BASE, 0.55, 0.88);
     composer.addPass(bloom);
 
     const grade = new ShaderPass(GradeShader);
@@ -253,7 +270,7 @@ export class RiftScene {
     if (this.disposed) return;
     this.time += dtWall;
     this.arena.update(this.time);
-    this.fow.update();
+    this.fow.update(this.time);
 
     if (this.grade) {
       const u = this.grade.uniforms;
@@ -266,9 +283,10 @@ export class RiftScene {
       u.uTime.value = this.time;
     }
     if (this.bloom) {
-      // The arena breathes with the combo chain — subtle, and it is the only
-      // thing in the frame that reacts to a streak.
-      this.bloom.strength = (this.quality === 'high' ? 0.82 : 0.58) + grade.energy * 0.35;
+      // The arena breathes with the combo chain: the lights in it get brighter
+      // the longer you hold a clean streak, and go back to normal the moment
+      // you drop it.
+      this.bloom.strength = (this.quality === 'high' ? BLOOM_BASE : BLOOM_BASE * 0.72) + grade.energy * 0.55;
     }
 
     if (this.composer) this.composer.render(dtWall);

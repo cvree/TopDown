@@ -225,18 +225,34 @@ export class FxSystem {
 
   // -------- semantic effect recipes: each one means a specific thing --------
 
-  /** An attack connecting. Directional, sharp, reads as "that landed". */
+  /**
+   * An attack connecting. Directional, sharp, reads as "that landed".
+   *
+   * Two bursts rather than one: a tight white core that is gone in a tenth of
+   * a second and a wider coloured spray behind it. The core is what your eye
+   * actually registers as the moment of contact — a single coloured puff reads
+   * as an effect playing, a hot centre reads as a hit.
+   */
   impact(pos: Vec2, angle: number, color: string, power = 1): void {
-    this.burst(pos.x, pos.y, Math.round(7 + power * 7), {
+    this.burst(pos.x, pos.y, Math.round(8 + power * 9), {
       color,
       angle,
       spread: 1.1,
-      speed: 320 * power,
-      life: 0.3,
-      size: 2.4,
+      speed: 360 * power,
+      life: 0.32,
+      size: 2.6,
       kind: 'spark',
     });
-    this.ring(pos.x, pos.y, 6, 34 + power * 16, 0.26, color, 2.4, 'impact');
+    this.burst(pos.x, pos.y, Math.round(3 + power * 3), {
+      color: '#ffffff',
+      angle,
+      spread: 0.62,
+      speed: 520 * power,
+      life: 0.13,
+      size: 1.9,
+      kind: 'spark',
+    });
+    this.ring(pos.x, pos.y, 6, 38 + power * 20, 0.28, color, 2.8, 'impact');
     this.addShake(1.6 * power, 12);
   }
 
@@ -254,15 +270,22 @@ export class FxSystem {
     this.addShake(1.2, 16);
   }
 
-  /** A kill. The biggest positive punctuation in the game. */
+  /**
+   * A kill. The biggest positive punctuation in the game, and the one place
+   * where the frame is allowed to be loud: a hot white core, an ember cloud
+   * that outlives it, and two rings at different speeds so the shape reads as
+   * an explosion rather than as a circle growing.
+   */
   kill(pos: Vec2, color: string): void {
-    this.burst(pos.x, pos.y, 34, { color, speed: 520, life: 0.75, size: 3.2, kind: 'ember' });
-    this.burst(pos.x, pos.y, 16, { color: '#ffffff', speed: 700, life: 0.35, size: 2 });
-    this.ring(pos.x, pos.y, 12, 190, 0.6, color, 3, 'shock');
-    this.ring(pos.x, pos.y, 4, 90, 0.35, '#ffffff', 1.6, 'impact');
-    this.distort(pos.x, pos.y, 200, 1.2, 0.55);
-    this.addShake(6, 8);
-    this.addFlash(0.14, color);
+    this.burst(pos.x, pos.y, 42, { color, speed: 560, life: 0.85, size: 3.4, kind: 'ember' });
+    this.burst(pos.x, pos.y, 22, { color: '#ffffff', speed: 760, life: 0.32, size: 2.2 });
+    this.burst(pos.x, pos.y, 10, { color: '#fff0c4', speed: 210, life: 1.15, size: 2.6, kind: 'ember', drag: 1.6 });
+    this.ring(pos.x, pos.y, 12, 210, 0.62, color, 3.4, 'shock');
+    this.ring(pos.x, pos.y, 4, 96, 0.34, '#ffffff', 1.8, 'impact');
+    this.ring(pos.x, pos.y, 30, 132, 0.46, '#ffffff', 1.2, 'impact');
+    this.distort(pos.x, pos.y, 210, 1.35, 0.55);
+    this.addShake(6.4, 8);
+    this.addFlash(0.17, color);
   }
 
   /** Taking damage. Reads as bad without screaming. */

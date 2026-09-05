@@ -260,7 +260,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff', s
     new THREE.MeshBasicMaterial({
       map: runeRing(),
       transparent: true,
-      opacity: 0.2,
+      opacity: 0.32,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       color: accentColor.clone().lerp(new THREE.Color('#ffffff'), 0.4),
@@ -325,7 +325,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff', s
 
   // A thin emissive inlay on the inner lip. The boundary is information.
   const lipMat = track(
-    new THREE.MeshBasicMaterial({ color: accentColor, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: accentColor, transparent: true, opacity: 0.62, blending: THREE.AdditiveBlending, depthWrite: false }),
   );
   const lipGeo = track(new THREE.PlaneGeometry(1, 1));
   const lips: Array<[number, number, number, number]> = [
@@ -599,7 +599,7 @@ export const buildArena = (w: number, h: number, seed = 7, accent = '#58e0ff', s
           float d = length( gl_PointCoord - 0.5 );
           if ( d > 0.5 ) discard;
           float a = smoothstep( 0.5, 0.0, d );
-          gl_FragColor = vec4( uColor, a * a * vFade * 0.5 );
+          gl_FragColor = vec4( uColor, a * a * vFade * 0.62 );
         }`,
     }),
   );

@@ -247,8 +247,8 @@ h3 {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(2, 5, 10, 0.94) 0%, rgba(2, 5, 10, 0.2) 26%, rgba(2, 5, 10, 0.08) 50%, rgba(2, 5, 10, 0.2) 74%, rgba(2, 5, 10, 0.94) 100%),
-    linear-gradient(180deg, rgba(2, 5, 10, 0.9) 0%, rgba(2, 5, 10, 0.12) 30%, rgba(2, 5, 10, 0.42) 72%, rgba(2, 5, 10, 0.96) 100%);
+    linear-gradient(90deg, rgba(2, 5, 10, 0.9) 0%, rgba(2, 5, 10, 0.14) 26%, rgba(2, 5, 10, 0.02) 50%, rgba(2, 5, 10, 0.14) 74%, rgba(2, 5, 10, 0.9) 100%),
+    linear-gradient(180deg, rgba(2, 5, 10, 0.86) 0%, rgba(2, 5, 10, 0.04) 30%, rgba(2, 5, 10, 0.3) 72%, rgba(2, 5, 10, 0.9) 100%);
 }
 
 .shell {
@@ -272,11 +272,21 @@ h3 {
      tables and body copy, where a lit brazier drifting under a paragraph is
      just a legibility bug with atmosphere. So anything that scrolls sits on
      a darkened, blurred plate: the arena still shows through as depth, never
-     as competition for the same pixels as the text. */
+     as competition for the same pixels as the text.
+
+     "Shows through" is the operative half. At 0.9 alpha over a desaturating
+     filter the plate was not a veil, it was a wall — every menu in the client
+     was a black page with a rumour of an arena behind it. Blur harder, dim
+     less, and saturate up rather than down: the braziers and the sky come
+     back as colour without ever competing with a line of body copy. */
   background:
-    radial-gradient(120% 90% at 50% 0%, rgba(9, 20, 36, 0.72), rgba(2, 5, 10, 0.9) 62%),
-    linear-gradient(180deg, rgba(2, 5, 10, 0.86), rgba(2, 5, 10, 0.93));
-  backdrop-filter: blur(7px) saturate(0.82);
+    radial-gradient(130% 95% at 50% -6%, rgba(12, 30, 54, 0.32), rgba(2, 5, 10, 0.76) 64%),
+    linear-gradient(180deg, rgba(2, 5, 10, 0.44), rgba(2, 5, 10, 0.84));
+  /* The blur radius stays small on purpose. A wide backdrop-filter is the one
+     thing on this page a software rasteriser will drop the layer's children
+     over, and a menu that paints nothing is a worse trade than a slightly
+     sharper arena behind it. The veil's strength lives in the gradients. */
+  backdrop-filter: blur(8px) saturate(1.28) brightness(1.2);
 }
 
 .wrap {

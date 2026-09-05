@@ -234,12 +234,12 @@ export class ChampionRig {
     // ------------------------------------------------------- ground fittings
     // The team ring. This one element does more for MOBA legibility than any
     // amount of model detail: it is how you read who is where, instantly.
-    const ringGeo = new THREE.RingGeometry(spec.radius * 0.8, spec.radius * 1.12, 44);
+    const ringGeo = new THREE.RingGeometry(spec.radius * 0.78, spec.radius * 1.2, 44);
     this.geometries.push(ringGeo);
     const ringMat = new THREE.MeshBasicMaterial({
       color: new THREE.Color(spec.ringColor),
       transparent: true,
-      opacity: 0.9,
+      opacity: 1,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
@@ -558,7 +558,7 @@ export class ChampionRig {
     // Selection ring: brighter under the cursor, and it pulses as HP drops.
     const rm = this.ring.material as THREE.MeshBasicMaterial;
     const lowHp = s.hp01 < 0.3 ? 0.5 + 0.5 * Math.sin(s.time * 9) : 0;
-    rm.opacity = (s.hovered ? 1 : 0.78) * (1 - s.death) + lowHp * 0.25;
+    rm.opacity = (s.hovered ? 1.25 : 0.98) * (1 - s.death) + lowHp * 0.3;
     this.ring.scale.setScalar(s.hovered ? 1.08 : 1);
   }
 

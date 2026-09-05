@@ -1,3 +1,4 @@
+import { FOG_MINIMAP } from '../../gfx/fogofwar';
 import type { World } from '../../engine/world';
 
 /**
@@ -189,10 +190,10 @@ export class Minimap {
     for (let i = 0; i < field.light.length; i++) {
       const dark = 1 - Math.min(1, field.light[i]);
       const j = i * 4;
-      data[j] = 8;
-      data[j + 1] = 14;
-      data[j + 2] = 26;
-      data[j + 3] = dark * 208;
+      data[j] = FOG_MINIMAP.r;
+      data[j + 1] = FOG_MINIMAP.g;
+      data[j + 2] = FOG_MINIMAP.b;
+      data[j + 3] = dark * 255 * FOG_MINIMAP.alpha;
     }
     ctx.putImageData(img, 0, 0);
     const g = this.ctx;

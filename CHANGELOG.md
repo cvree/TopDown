@@ -6,10 +6,36 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.2.0**.
+Currently shipping **v2.3.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.3.0 — CONTRAST
+
+*2026-09-05*
+
+The fog is fog again rather than a black sheet over half the map, the bloom stopped washing the stone out, and the whole arena is now graded for contrast instead of against it.
+
+### Changed
+
+- Fog of war is lit, not blacked out. Ground you have no vision of keeps a little over half its brightness and is tinted cold rather than crushed toward black, so the paving, a wall and a bush all stay separable in the dark. You still cannot see what is standing in it — that has not moved and never will — but you can navigate it, which is the difference between a map you are learning and a map that has been switched off.
+- The dark drifts. Two layers of slow world-space noise ride the shroud, so the part of the arena you are not holding reads as weather rather than as a dimmer switch.
+- A cool rim sits exactly where your sight stops. The edge of vision is the thing the whole mode is about, and it is now a line you can see rather than a gradient you infer.
+- Bloom only blooms lights. The threshold used to sit low enough that the lit floor cleared it, so every frame carried a milky glow over the entire playfield and every edge in it was soft. Now the braziers, the ability flashes and the accent inlays glow and the stone stays sharp.
+- The grade was rewritten to work in linear light. Its contrast pivot, split tone and shoulder were all placed as if they were display values, which quietly tinted the whole frame as shadow; corrected, warm light reads warm, the fog reads cold, and the two stop fighting.
+- Vibrance in place of flat saturation: colour is pushed hardest where there is least of it, so abilities and team rings sing without the stonework turning to poster paint.
+- The lighting rig trades fill for shape — a stronger key, a stronger cool rim behind, and a hemisphere that exists mainly to keep the camera-facing side of a wall readable.
+- The edges of the screen warm as a clean chain builds, and go out the moment you drop it. It is the one thing in the frame that answers a streak.
+- Impacts carry a hot white core inside the coloured spray, and a kill throws a second ring and an ember cloud that outlives the flash.
+- Menus sit on a veil rather than a wall. The live arena behind every screen was buried under a near-opaque plate; it is dimmer than the arena and always will be, but it is a place again.
+- Practice cards are lit by their own accent colour and lift under the pointer, so four modes of one champion read as four things before a word has been read.
+
+### Fixed
+
+- The countdown and the round banner no longer lay a black slab across the arena. Their drop shadows were tight and nearly opaque, and under letter-spaced display type they merged between the glyphs into one solid bar.
+- A wall facing the camera is stone rather than a black rectangle. Neither the key light nor the rim reached that face, and the fill was too low to save it.
+- The minimap paints the fog in the same colour the arena does, from one shared value, so the two pictures of the same grid can no longer drift apart.
 
 ## v2.2.0 — REBINDS
 

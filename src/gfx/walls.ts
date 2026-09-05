@@ -46,7 +46,7 @@ export class WallLayer {
         metalness: 0.03,
         // Close to the terrace stone: a wall much brighter than the floor
         // reads as a prop, and one much darker reads as a hole.
-        color: 0x7d8794,
+        color: 0x8d97a6,
       });
       this.onMaterial?.(mat);
       const mesh = new THREE.Mesh(geo, mat);
@@ -62,7 +62,7 @@ export class WallLayer {
       const capGeo = new THREE.BoxGeometry(wall.w * 1.04, 12, wall.h * 1.04);
       const capMat = new THREE.MeshStandardMaterial({
         map: tiled(surf.albedo, tile, 1),
-        color: 0x98a2b0,
+        color: 0xaab5c4,
         roughness: 1,
         metalness: 0.04,
       });

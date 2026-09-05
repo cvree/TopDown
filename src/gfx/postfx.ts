@@ -12,12 +12,23 @@ import * as THREE from 'three';
  *    unsharp mask over the whole frame puts the stonework and the champion
  *    silhouettes back. It is the single largest difference between "a three.js
  *    scene" and "a shipped frame", and it costs four extra taps.
+ *  - **Vibrance, not saturation.** A flat saturate pushes the stone as hard as
+ *    it pushes an ability, which is how a scene ends up loud and unreadable at
+ *    the same time. Weighting the boost by how colourless a pixel already is
+ *    leaves the floor alone and lets the accents sing.
+ *  - **Contrast around a pivot, with a coloured floor.** The curve pivots in
+ *    the mids so the highlights are not dragged into the shoulder, and the
+ *    blacks are lifted a hair toward deep blue: a frame whose darkest pixel is
+ *    pure #000 reads as a hole rather than as a shadow.
  *  - **Split tone.** Shadows pushed cold and blue, highlights pushed warm.
  *    Every game you have ever thought looked expensive does this.
  *  - **Filmic shoulder.** A soft roll-off at the top end so the braziers and
  *    the ability flashes bloom into white rather than clipping into it.
  *  - **Radial blur on damage**, driven from the edges inward, so being hit
  *    reads in your peripheral vision without ever obscuring the playfield.
+ *  - **A warm rim on the chain.** The one thing in the frame that answers a
+ *    streak: the edges of the screen catch fire as the combo builds, and go
+ *    out the instant you drop it.
  *  - Vignette, the red rim when you are being hit, the white punch on a kill,
  *    a touch of chromatic aberration at the edges, and grain.
  */
@@ -25,14 +36,16 @@ export const GradeShader = {
   name: 'RiftGrade',
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
-    uVignette: { value: 0.9 },
+    uVignette: { value: 0.82 },
     uHurt: { value: 0 },
     uFlash: { value: 0 },
     uFlashColor: { value: new THREE.Color('#ffffff') },
     uEnergy: { value: 0 },
     uDim: { value: 0 },
-    uSaturation: { value: 1.32 },
-    uContrast: { value: 1.16 },
+    uSaturation: { value: 1.1 },
+    /** Extra saturation, weighted toward pixels that have none. */
+    uVibrance: { value: 0.55 },
+    uContrast: { value: 1.22 },
     uAberration: { value: 0.9 },
     uSharpen: { value: 0.24 },
     uTexel: { value: new THREE.Vector2(1 / 1600, 1 / 900) },
@@ -54,6 +67,7 @@ export const GradeShader = {
     uniform float uEnergy;
     uniform float uDim;
     uniform float uSaturation;
+    uniform float uVibrance;
     uniform float uContrast;
     uniform float uAberration;
     uniform float uSharpen;
@@ -66,8 +80,8 @@ export const GradeShader = {
     // is compressed, so braziers and ability flashes roll into white instead
     // of clipping to it.
     vec3 shoulder( vec3 x ) {
-      vec3 over = max( vec3( 0.0 ), x - 0.72 );
-      return min( x, 0.72 + over / ( 1.0 + over * 1.7 ) );
+      vec3 over = max( vec3( 0.0 ), x - 0.74 );
+      return min( x, 0.74 + over / ( 1.0 + over * 1.55 ) );
     }
 
     void main() {
@@ -114,32 +128,55 @@ export const GradeShader = {
 
       // --- grade ------------------------------------------------------------
       float lum = dot( col, vec3( 0.2126, 0.7152, 0.0722 ) );
-      col = mix( vec3( lum ), col, uSaturation );
-      col = ( col - 0.5 ) * uContrast + 0.5;
+
+      // Vibrance first: how far this pixel already is from grey decides how
+      // much more colour it is allowed. Stone stays stone, an ability does not.
+      float mx = max( col.r, max( col.g, col.b ) );
+      float mn = min( col.r, min( col.g, col.b ) );
+      float chroma = ( mx - mn ) / max( mx, 0.0001 );
+      float boost = uSaturation + uVibrance * ( 1.0 - chroma ) * ( 1.0 - chroma );
+      col = mix( vec3( lum ), col, boost );
+
+      // Everything from here to the shoulder works on linear light, not on
+      // display values — the composer's buffer is linear and the sRGB encode
+      // happens in the output pass — so every threshold below is placed
+      // against linear mid-grey (~0.2), never against 0.5. Reading these as
+      // display numbers is what used to tint the entire frame as shadow.
+      col = ( col - 0.20 ) * uContrast + 0.20;
+
+      // A coloured floor under the blacks. Small, but it is the difference
+      // between a shadow and a hole cut in the frame.
+      col += vec3( 0.006, 0.010, 0.024 ) * ( 1.0 - smoothstep( 0.0, 0.10, lum ) );
 
       // Split tone: shadows cold, highlights warm. This is the whole reason
       // stone in this arena reads as stone lit by a sun rather than as grey.
-      vec3 shadowTint    = vec3( 0.86, 0.94, 1.14 );
-      vec3 highlightTint = vec3( 1.07, 1.01, 0.90 );
-      float t = smoothstep( 0.08, 0.75, lum );
+      vec3 shadowTint    = vec3( 0.82, 0.92, 1.20 );
+      vec3 highlightTint = vec3( 1.10, 1.02, 0.88 );
+      float t = smoothstep( 0.02, 0.34, lum );
       col *= mix( shadowTint, highlightTint, t );
 
-      col = shoulder( col );
+      col = shoulder( max( col, vec3( 0.0 ) ) );
 
       // Vignette, tightened as the combo chain builds. Elliptical, because a
-      // circular vignette on a 21:9 monitor eats the sides of the arena.
+      // circular vignette on a 21:9 monitor eats the sides of the arena. It
+      // darkens the corners; it is not allowed to crush them.
       vec2 vc = c * vec2( 1.0, 1.32 );
       float vr = dot( vc, vc );
-      float vig = smoothstep( 0.95, 0.16, vr * ( 1.0 + uVignette * 0.9 + uEnergy * 0.35 ) );
-      col *= mix( 0.55, 1.0, vig );
+      float vig = smoothstep( 0.95, 0.16, vr * ( 1.0 + uVignette * 0.9 + uEnergy * 0.3 ) );
+      col *= mix( 0.74, 1.0, vig );
+
+      // The chain, burning at the edges of the screen. Nothing else in the
+      // frame reacts to a streak, so this is allowed to be obvious.
+      float heat = pow( clamp( vr * 2.6, 0.0, 1.0 ), 1.4 ) * uEnergy;
+      col += vec3( 1.0, 0.52, 0.20 ) * heat * 0.16;
 
       // Being hit: a hard red rim, never a wash over the playfield. You must
       // always be able to read what is about to hit you next.
       float rim = smoothstep( 0.06, 0.30, r2 );
-      col = mix( col, mix( col, vec3( 0.85, 0.10, 0.22 ), 0.72 ), rim * uHurt );
+      col = mix( col, mix( col, vec3( 0.92, 0.09, 0.20 ), 0.74 ), rim * uHurt );
 
       // Kill / event punch.
-      col += uFlashColor * uFlash * ( 0.35 + 0.4 * ( 1.0 - r2 ) );
+      col += uFlashColor * uFlash * ( 0.40 + 0.45 * ( 1.0 - r2 ) );
 
       col *= ( 1.0 - uDim );
 
