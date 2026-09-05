@@ -35,7 +35,9 @@ export class VayneCondemnDrill extends VayneDrill {
   private kills = 0;
 
   constructor(s: import('../engine/session').Session) {
-    super(s, { tumble: true, bolts: false, condemn: true, finalHour: false });
+    // Condemn maxed — twelve seconds rather than twenty. A mode about a
+    // positional ability has to give you enough casts to have positioned for.
+    super(s, { tumble: true, bolts: false, condemn: true, finalHour: false, ranks: { q: 2, e: 5 } });
   }
 
   setup(): void {
@@ -98,14 +100,19 @@ export class VayneCondemnDrill extends VayneDrill {
       super.onAbility(slot, at);
       return;
     }
-    const ready = this.kit.condemnCd <= 0;
-    const before = this.kit.stats.condemnHits;
+    const ready = this.kit.condemnCd <= 0 && this.kit.condemnCastLeft <= 0;
+    // Condemn has a cast time now, so the press and the knockback are two
+    // different moments: `condemnCasts` is the press and is what tells us
+    // whether this input found anybody. `condemnHits` does not move for
+    // another quarter of a second, and reading it here counted every good
+    // cast as a press aimed at nothing.
+    const before = this.kit.stats.condemnCasts;
     const target = ready ? this.kit.pickCondemnTarget(at) : null;
     const enteredAt = target ? this.entered.get(target.id) : undefined;
     super.onAbility(slot, at);
 
     if (!ready) return;
-    if (this.kit.stats.condemnHits === before) {
+    if (this.kit.stats.condemnCasts === before) {
       // The button was up and the cast found nobody: a real input, aimed at
       // nothing. It costs no cooldown in League, so it costs none here — it
       // is simply recorded.
@@ -171,7 +178,7 @@ export class VayneCondemnDrill extends VayneDrill {
       {
         label: 'CONDEMN',
         value: this.kit.condemnCd > 0 ? `${this.kit.condemnCd.toFixed(1)}s` : 'READY',
-        bar: 1 - clamp(this.kit.condemnCd / VAYNE_STATS.condemnCd, 0, 1),
+        bar: 1 - clamp(this.kit.condemnCd / this.kit.condemnCdTotal, 0, 1),
         tone: this.kit.condemnCd > 0 ? 'warn' : 'good',
       },
       {
@@ -213,7 +220,7 @@ export class VayneCondemnDrill extends VayneDrill {
     const st = this.kit.stats;
 
     const rate = wallRate(st);
-    const available = Math.max(1, this.s.elapsed / VAYNE_STATS.condemnCd);
+    const available = Math.max(1, this.s.elapsed / this.kit.condemnCdTotal);
     const usage = band(st.condemnHits / available, 0.3, 0.9);
     const taken = this.opportunities > 0 ? clamp(this.opportunitiesTaken / this.opportunities, 0, 1) : 0;
     const median = this.reactions.length

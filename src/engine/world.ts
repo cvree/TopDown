@@ -19,6 +19,8 @@ export interface WorldEvent {
     | 'projectileExpire'
     | 'dodgedProjectile'
     | 'knockbackStart'
+    | 'dashStart'
+    | 'dashEnd'
     | 'wallImpact';
   actorId?: number;
   targetId?: number;
@@ -321,6 +323,30 @@ export class World {
     if (a.order && a.order.kind === 'move') a.order = null;
   }
 
+  /**
+   * Sends an actor along `dir` for `distance` units at `speed` u/s under its
+   * own power — a dash, not a shove.
+   *
+   * The difference from `knockBack` is everything that is *not* the movement:
+   * a dash leaves the actor's clocks running. Its attack timer keeps counting
+   * down, its cooldowns keep ticking, and it is still the same body that was
+   * mid-fight a moment ago. That is what makes League's tumble free when it is
+   * taken in the backswing — the attack you have already paid for is still on
+   * its way to being ready while you are in the air — and a dash that paused
+   * the attack timer would teach exactly the wrong reflex.
+   *
+   * The caller is responsible for clipping `distance` to the terrain; the
+   * confinement pass here is a backstop, not the collision model.
+   */
+  dash(a: Actor, dir: Vec2, distance: number, speed: number): void {
+    const m = Math.hypot(dir.x, dir.y) || 1;
+    a.dash = { dir: { x: dir.x / m, y: dir.y / m }, remaining: Math.max(0, distance), speed };
+    a.moveDir = null;
+    if (a.order && a.order.kind === 'move') a.order = null;
+    a.fireRequest = 0;
+    this.emit({ type: 'dashStart', actorId: a.id, pos: { ...a.pos }, amount: distance });
+  }
+
   /** Shoves an actor along `dir` for `distance` units at `speed` u/s. */
   knockBack(a: Actor, dir: Vec2, distance: number, speed = 1400): void {
     const m = Math.hypot(dir.x, dir.y) || 1;
@@ -499,6 +525,29 @@ export class World {
         a.phase = 'idle';
         a.phaseTime = 0;
       }
+    }
+
+    // A dash owns where the body is and nothing else. It is stepped *after*
+    // the attack timer and the animation phases so both keep running through
+    // it, and it returns before targeting and movement so nothing else may
+    // touch the position while it lasts.
+    if (a.dash) {
+      const d = a.dash;
+      const step = Math.min(d.speed * dt, d.remaining);
+      a.pos.x += d.dir.x * step;
+      a.pos.y += d.dir.y * step;
+      a.vel.x = d.dir.x * d.speed;
+      a.vel.y = d.dir.y * d.speed;
+      a.facing = Math.atan2(d.dir.y, d.dir.x);
+      d.remaining -= step;
+      this.confine(a);
+      if (d.remaining <= 0.001) {
+        a.dash = null;
+        a.vel.x = 0;
+        a.vel.y = 0;
+        this.emit({ type: 'dashEnd', actorId: a.id, pos: { ...a.pos } });
+      }
+      return;
     }
 
     // Acquire a target when attack-moving.

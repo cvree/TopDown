@@ -3,7 +3,7 @@ import { derive } from '../engine/metrics';
 import { PALETTE } from '../engine/palette';
 import type { DrillPaint } from '../engine/paint';
 import type { HudField } from '../engine/session';
-import { VAYNE_COLOR, VAYNE_STATS, tumbleDirection, tumblePlacement } from '../engine/vayne';
+import { VAYNE_COLOR, tumbleDirection, tumblePlacement } from '../engine/vayne';
 import { band, count, pct, type DrillOutcome } from './base';
 import { VayneDrill } from './vaynebase';
 
@@ -33,7 +33,9 @@ export class VayneTumbleDrill extends VayneDrill {
   private windowAge = 0;
 
   constructor(s: import('../engine/session').Session) {
-    super(s, { tumble: true, bolts: false, condemn: false, finalHour: false });
+    // One point in Q — six seconds. The rhythm is only a rhythm while the
+    // cooldown is long enough that spending it in the wrong place costs you.
+    super(s, { tumble: true, bolts: false, condemn: false, finalHour: false, ranks: { q: 1 } });
   }
 
   setup(): void {
@@ -196,7 +198,7 @@ export class VayneTumbleDrill extends VayneDrill {
     const rhythm = st.tumbles > 0 ? st.tumblesClean / st.tumbles : 0;
     // How much of the tumble's uptime was actually spent. Sitting on a
     // six-second cooldown for a minute is its own mistake.
-    const available = Math.max(1, this.s.elapsed / VAYNE_STATS.tumbleCd);
+    const available = Math.max(1, this.s.elapsed / this.kit.tumbleCdTotal);
     const usage = band(st.tumbles / available, 0.25, 0.85);
     const windowUse = this.windowsOffered > 0 ? clamp(this.windowsTaken / this.windowsOffered, 0, 1) : 0;
     const placement = tumblePlacement(st);
@@ -208,14 +210,31 @@ export class VayneTumbleDrill extends VayneDrill {
     const damageRate = band(m.damageDealt / Math.max(1, this.s.elapsed), 10, 40);
     const chainScore = band(m.maxChain, 2, 12);
 
+    /**
+     * Were you fighting at all?
+     *
+     * The same gate the condemn mode carries, and here for the same reason.
+     * Vayne's attack windup is a sixth of her cycle, not a quarter, so a
+     * player mashing the mouse throws away far fewer attacks than the number
+     * of clicks suggests — and once the windup is that short, "did not cancel
+     * many attacks" stops being evidence of a rhythm. This is the term that
+     * notices the attacks were never being *taken*: a run with no target and
+     * no shots out has no tumble rhythm to grade, whatever the timing of the
+     * presses looked like.
+     */
+    const engagement = band(d.attackEfficiency, 0.12, 0.6);
+
     const performance = clamp(
-      d.orbwalkEfficiency * 0.26 +
+      (d.orbwalkEfficiency * 0.24 +
         tumbleScore * 0.28 +
         placement * 0.1 +
-        windowUse * 0.06 +
-        d.hpRetained * 0.14 +
-        damageRate * 0.1 +
-        chainScore * 0.06,
+        // The backswing prompt is the drill's whole thesis, so taking it is
+        // worth more than the incidental damage that follows from taking it.
+        windowUse * 0.12 +
+        d.hpRetained * 0.12 +
+        damageRate * 0.08 +
+        chainScore * 0.06) *
+        (0.4 + 0.6 * engagement),
       0,
       1,
     );

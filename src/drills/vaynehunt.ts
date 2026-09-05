@@ -4,7 +4,7 @@ import { PALETTE } from '../engine/palette';
 import type { DrillPaint } from '../engine/paint';
 import type { HudField } from '../engine/session';
 import type { ArchetypeId } from '../engine/types';
-import { VAYNE_COLOR, boltEfficiency, tumbleRhythm, wallRate } from '../engine/vayne';
+import { FIGHT_RANKS, VAYNE_COLOR, boltEfficiency, tumbleRhythm, wallRate } from '../engine/vayne';
 import type { WorldEvent } from '../engine/world';
 import { band, count, pct, secs, type DrillOutcome } from './base';
 import { VayneDrill } from './vaynebase';
@@ -28,7 +28,8 @@ export class VayneHuntDrill extends VayneDrill {
   private startedWith = 2;
 
   constructor(s: import('../engine/session').Session) {
-    super(s, { tumble: true, bolts: true, condemn: true, finalHour: true });
+    // The mid-game champion: Q maxed, points in W and E, one in R.
+    super(s, { tumble: true, bolts: true, condemn: true, finalHour: true, ranks: FIGHT_RANKS });
   }
 
   setup(): void {

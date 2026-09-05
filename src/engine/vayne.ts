@@ -35,54 +35,162 @@ import type { WorldEvent } from './world';
 export const VAYNE_COLOR = '#c86bff';
 export const VAYNE_SILVER = '#e6f0ff';
 
-/** Which parts of the kit a drill hands the player. */
+/** Which parts of the kit a drill hands the player, and at what rank. */
 export interface VayneLoadout {
   tumble?: boolean;
   bolts?: boolean;
   condemn?: boolean;
   finalHour?: boolean;
+  /** Defaults to the laning Vayne — one point in everything. */
+  ranks?: Partial<VayneRanks>;
 }
 
+/**
+ * Ability ranks.
+ *
+ * League's numbers are not one number, they are five, and which of the five
+ * you are playing with is most of what a rank of Vayne feels like. A level-3
+ * Vayne with one point in Q lives on a six second cooldown and has to earn
+ * every tumble; a level-13 Vayne with Q maxed has one every two seconds and
+ * plays a different champion. Both are real, so both are here, and each mode
+ * says which Vayne it is putting you behind rather than inventing a number
+ * that is nobody's.
+ */
+export interface VayneRanks {
+  /** 1..5 */
+  q: number;
+  /** 1..5 */
+  w: number;
+  /** 1..5 */
+  e: number;
+  /** 1..3 */
+  r: number;
+}
+
+/** A level 5 Vayne with a point in each of Q, W and E: the laning champion. */
+export const LANE_RANKS: VayneRanks = { q: 1, w: 1, e: 1, r: 1 };
+/** A level 11 Vayne with Q maxed: the champion the mid-game is played on. */
+export const FIGHT_RANKS: VayneRanks = { q: 4, w: 3, e: 1, r: 1 };
+
+const rank = <T>(table: readonly T[], r: number): T => table[Math.min(table.length, Math.max(1, Math.round(r))) - 1];
+
+/**
+ * The Night Hunter, in numbers.
+ *
+ * Where a value is League's, it is League's — the attack range, the tumble
+ * distance, the condemn's cast range and stun, the bolt count, the passive's
+ * bonus. Where League's value depends on things this trainer does not model —
+ * items, runes, levels, mana — the number here is a stated choice standing in
+ * for a specific Vayne, and says which one in its comment. Nothing here is a
+ * number that felt about right.
+ */
 export const VAYNE_STATS = {
-  hp: 720,
-  moveSpeed: 340,
+  /**
+   * A level 9 Vayne's health pool. League's base is 550 at level 1 and grows
+   * ~103 a level; the drills need a body that can take a couple of mistakes
+   * without the run being over, and this is the honest level for that.
+   */
+  hp: 1420,
+  /** League: Vayne's base movement speed is 330. */
+  moveSpeed: 330,
   radius: 28,
   attack: {
-    attackSpeed: 0.78,
-    windupRatio: 0.27,
-    backswingRatio: 0.32,
+    /**
+     * League: 0.658 base attack speed, which nobody actually plays at. This is
+     * a level 9 Vayne with a first item and level-up growth — roughly 0.95 —
+     * because the whole orbwalk rhythm is a function of the attack timer and
+     * practising it at a speed you never fight at trains the wrong rhythm.
+     */
+    attackSpeed: 0.95,
+    /**
+     * League: Vayne's attack windup is 16.67% of her attack cycle. This is the
+     * committed part — once it is running, cancelling costs you the shot.
+     */
+    windupRatio: 0.1667,
+    /**
+     * The rest of the animation, which is yours to cancel. League's backswing
+     * is a fixed animation length rather than a share of the cycle; at the
+     * attack speed above the two work out to about a fifth of it.
+     */
+    backswingRatio: 0.21,
+    /** League: 550. */
     range: 550,
-    damage: 58,
-    projectileSpeed: 1850,
+    /** A level 9 Vayne's attack damage, before Silver Bolts. */
+    damage: 62,
+    /** League: Vayne's bolt travel speed is 2500. */
+    projectileSpeed: 2500,
   },
 
-  tumbleRange: 320,
-  tumbleCd: 6,
-  tumbleCdFinalHour: 3.6,
+  // ------------------------------------------------------------- passive
+  /** League: Night Hunter grants 30 movement speed toward a nearby enemy. */
+  huntBonusMs: 30,
+  /** How near "nearby" is, in units. */
+  huntRange: 1200,
+
+  // ------------------------------------------------------------------- Q
+  /** League: Tumble is a 300 unit dash. */
+  tumbleRange: 300,
+  /** League: 6 / 5 / 4 / 3 / 2 seconds. */
+  tumbleCdByRank: [6, 5, 4, 3, 2],
+  /**
+   * How long the roll itself takes, in seconds.
+   *
+   * This is the single most important number in the champion and the one the
+   * trainer used to get wrong: the old tumble was a teleport, and a teleport
+   * cannot be mistimed. In League the dash takes about a quarter of a second,
+   * during which Vayne cannot attack — which is exactly why tumbling with an
+   * attack already up is a real cost and why the backswing is the only free
+   * place to spend it.
+   */
+  tumbleTime: 0.25,
   /** Extra damage on the attack that follows a tumble. */
-  tumbleEmpower: 34,
+  tumbleEmpower: 40,
 
-  /** Hits on one target before the bolts fire. */
+  // ------------------------------------------------------------------- W
+  /** League: every third hit on the same target. */
   boltsPerProc: 3,
-  /** Share of the target's maximum health the third hit takes, as true damage. */
-  boltsMaxHpShare: 0.075,
-  boltsFlat: 30,
-  /** Stacks expire this long after the last hit on that target. */
-  boltsDecay: 6,
+  /** League: 4 / 5.5 / 7 / 8.5 / 10% of the target's maximum health, as true damage. */
+  boltsMaxHpByRank: [0.04, 0.055, 0.07, 0.085, 0.1],
+  /** League: 40 / 45 / 50 / 55 / 60 flat, alongside the health share. */
+  boltsFlatByRank: [40, 45, 50, 55, 60],
+  /** League: stacks fall off five seconds after the last hit on that target. */
+  boltsDecay: 5,
 
-  condemnRange: 590,
-  condemnCd: 13,
-  condemnPush: 430,
-  condemnDamage: 65,
-  condemnWallDamage: 95,
+  // ------------------------------------------------------------------- E
+  /** League: 550 cast range, the same as her attack. */
+  condemnRange: 550,
+  /** League: 20 / 18 / 16 / 14 / 12 seconds. */
+  condemnCdByRank: [20, 18, 16, 14, 12],
+  /**
+   * League: Condemn has a 0.25s cast time, and Vayne is rooted for it. It is
+   * why a condemn thrown at a diver already on top of you is not free.
+   */
+  condemnCast: 0.25,
+  /** League: the target is knocked back 470 units. */
+  condemnPush: 470,
+  condemnDamage: 90,
+  /** The bonus for slamming them into terrain, on top of the base damage. */
+  condemnWallDamage: 90,
+  /** League: 1.5 seconds. */
   condemnStun: 1.5,
 
-  finalHourCd: 55,
-  finalHourDuration: 9,
+  // ------------------------------------------------------------------- R
+  /** League: 70 / 60 / 50 seconds. */
+  finalHourCdByRank: [70, 60, 50],
+  /** League: 8 / 10 / 12 seconds. */
+  finalHourDurationByRank: [8, 10, 12],
+  /** Bonus attack damage during the window, as a multiplier on her attack. */
   finalHourDamage: 1.28,
-  /** Seconds of invisibility granted by a tumble during Final Hour. */
+  /** League: Tumble's cooldown is halved for the duration. */
+  finalHourTumbleCdShare: 0.5,
+  /** League: a tumble during Final Hour grants 1 second of invisibility. */
   finalHourStealth: 1,
 } as const;
+
+/** Tumble's cooldown at a given rank, in seconds. */
+export const tumbleCdAt = (r: number): number => rank(VAYNE_STATS.tumbleCdByRank, r);
+/** Condemn's cooldown at a given rank, in seconds. */
+export const condemnCdAt = (r: number): number => rank(VAYNE_STATS.condemnCdByRank, r);
 
 export type VayneCastResult = 'cast' | 'refused' | 'locked' | 'noTarget';
 
@@ -113,6 +221,19 @@ export interface VayneStats {
   tumblesKeptRange: number;
   /** Tumbles that landed closer to a *second* threat than they started. */
   tumblesIntoCrowd: number;
+  /**
+   * Summed quality of where each judged tumble put her, 0..1 each.
+   *
+   * The counts above are yes/no answers, and a 300 unit tumble is short
+   * enough that "did it leave their reach" and "did it keep mine" are both
+   * usually yes — which made a tumble straight backwards look nearly as good
+   * as one taken sideways. This is the graded version: the best landing spot
+   * is just inside her own attack range and outside theirs, and every unit
+   * past that is distance bought by giving up the trade.
+   */
+  tumblePlaceSum: number;
+  /** How many tumbles `tumblePlaceSum` has an opinion about. */
+  tumblePlaceJudged: number;
   empoweredHits: number;
 
   attacksLanded: number;
@@ -155,6 +276,8 @@ const emptyStats = (): VayneStats => ({
   tumblesToSafety: 0,
   tumblesKeptRange: 0,
   tumblesIntoCrowd: 0,
+  tumblePlaceSum: 0,
+  tumblePlaceJudged: 0,
   empoweredHits: 0,
   attacksLanded: 0,
   boltProcs: 0,
@@ -178,6 +301,9 @@ interface PendingHit {
 export class VayneKit {
   readonly stats: VayneStats = emptyStats();
   readonly loadout: Required<VayneLoadout>;
+  /** Seconds left of Condemn's cast time, during which she is planted. */
+  condemnCastLeft = 0;
+  private condemnTargetId: number | null = null;
 
   /** Seconds remaining on each ability. */
   tumbleCd = 0;
@@ -206,6 +332,8 @@ export class VayneKit {
   lastCondemnAt = -99;
   lastWallStunAt = -99;
 
+  readonly ranks: VayneRanks;
+
   constructor(
     private readonly s: Session,
     loadout: VayneLoadout = { tumble: true, bolts: true, condemn: true, finalHour: false },
@@ -215,7 +343,9 @@ export class VayneKit {
       bolts: loadout.bolts ?? false,
       condemn: loadout.condemn ?? false,
       finalHour: loadout.finalHour ?? false,
+      ranks: loadout.ranks ?? {},
     };
+    this.ranks = { ...LANE_RANKS, ...(loadout.ranks ?? {}) };
   }
 
   /** Spawns the player as Vayne and returns her. */
@@ -248,6 +378,7 @@ export class VayneKit {
   update(dt: number): void {
     const me = this.s.world.player;
     if (me) {
+      this.nightHunter(me);
       this.trailAccum += dt;
       if (this.trailAccum >= 0.1) {
         this.trailAccum = 0;
@@ -255,6 +386,16 @@ export class VayneKit {
         while (this.trail.length && this.s.world.time - this.trail[0].t > 2.2) this.trail.shift();
       }
     }
+    // Condemn's quarter second. She is rooted for it, and if she is knocked
+    // about or killed inside it the cast is simply gone — which is the whole
+    // reason a condemn thrown late at a diver already on top of you is not a
+    // free answer.
+    if (this.condemnCastLeft > 0) {
+      this.condemnCastLeft = Math.max(0, this.condemnCastLeft - dt);
+      if (this.condemnCastLeft === 0) this.releaseCondemn();
+      else if (me && me.alive) me.rootedFor = Math.max(me.rootedFor, this.condemnCastLeft);
+    }
+
     if (this.tumbleCd > 0) this.tumbleCd = Math.max(0, this.tumbleCd - dt);
     if (this.condemnCd > 0) this.condemnCd = Math.max(0, this.condemnCd - dt);
     if (this.hourCd > 0) this.hourCd = Math.max(0, this.hourCd - dt);
@@ -280,6 +421,33 @@ export class VayneKit {
       }
       this.pending.length = 0;
     }
+  }
+
+  /**
+   * Passive — Night Hunter.
+   *
+   * League: thirty movement speed while she is moving *toward* a nearby enemy
+   * champion. Thirty is not a lot on paper and is enormous in practice: it is
+   * why a Vayne who steps in between attacks closes ground she should not be
+   * able to close, and why she can chase a retreating target through a whole
+   * attack cycle. Leaving it out made every one of her drills a fraction
+   * slower than the champion actually is, in the one direction that matters.
+   */
+  private nightHunter(me: Actor): void {
+    let bonus = 0;
+    const heading = me.moveDir ?? (Math.hypot(me.vel.x, me.vel.y) > 1 ? norm(me.vel.x, me.vel.y) : null);
+    if (heading) {
+      for (const e of this.s.world.actors) {
+        if (!e.alive || e.team === me.team || e.unitKind === 'turret') continue;
+        const dx = e.pos.x - me.pos.x;
+        const dy = e.pos.y - me.pos.y;
+        if (Math.hypot(dx, dy) > VAYNE_STATS.huntRange) continue;
+        if (heading.x * dx + heading.y * dy <= 0) continue;
+        bonus = VAYNE_STATS.huntBonusMs;
+        break;
+      }
+    }
+    me.moveSpeed = VAYNE_STATS.moveSpeed + bonus;
   }
 
   /** Fed the world's events by the drill. */
@@ -319,7 +487,10 @@ export class VayneKit {
     if (this.stackTargetId !== target.id) {
       // A switch with stacks on the board is the mistake this drill exists to
       // find. It is recorded, not punished silently.
-      if (this.stacks > 0) this.stats.boltsDropped++;
+      if (this.stacks > 0) {
+        this.stats.boltsDropped++;
+        this.s.strike('STACK ABANDONED');
+      }
       this.stackTargetId = target.id;
       this.stacks = 0;
     }
@@ -327,7 +498,7 @@ export class VayneKit {
     this.stackAge = 0;
 
     if (this.stacks >= VAYNE_STATS.boltsPerProc) {
-      const amount = target.maxHp * VAYNE_STATS.boltsMaxHpShare + VAYNE_STATS.boltsFlat;
+      const amount = target.maxHp * this.boltsShare + this.boltsFlat;
       this.pending.push({ targetId: target.id, amount, kind: 'bolts' });
       this.stats.boltProcs++;
       this.stats.boltDamage += amount;
@@ -410,44 +581,69 @@ export class VayneKit {
     const p = this.s.world.player;
     if (!p || !p.alive) return 'refused';
     if (this.tumbleCd > 0) return 'refused';
+    // A dash is a dash: crowd control stops it, and so does being already in
+    // one. Both are League, and both are the difference between a tumble you
+    // have to time and a button that always works.
+    if (p.rootedFor > 0 || p.dash) return 'refused';
 
     const dir = this.tumbleDir(p.pos, at);
     if (!dir) return 'refused';
     const reach = this.s.world.terrainAlong(p.pos, dir, VAYNE_STATS.tumbleRange, p.radius);
     const from = { ...p.pos };
+    // Where the roll will *end*. Every read below is about the position she is
+    // buying, not the one she is leaving, and the body does not get there for
+    // another quarter of a second.
+    const to = { x: from.x + dir.x * reach.distance, y: from.y + dir.y * reach.distance };
 
     const wasWindup = p.phase === 'windup';
     const target = this.s.world.byId(p.targetId);
     const inRange = !!target && target.alive && dist(p.pos, target.pos) - target.radius <= p.attack.range;
-    const attackUp = p.attackCd <= 0.02 && p.phase === 'idle';
+    /**
+     * Whether this tumble costs an attack.
+     *
+     * Not "is the attack off cooldown" — "will the attack be ready before the
+     * roll is over". The dash takes a quarter of a second during which she
+     * cannot shoot, so any tumble taken with less than that left on the attack
+     * timer is delaying a shot she could have been taking. Anything longer and
+     * the attack is coming back regardless of where she is standing, which is
+     * exactly why the backswing is free: the timer has a whole cycle to run.
+     */
+    const attackUp = p.attackCd <= VAYNE_STATS.tumbleTime;
     // Read before the dash moves her: "which way did that go" is a question
     // about where she was standing when the key went down.
     const threat = this.nearestThreat();
 
-    p.pos.x = from.x + dir.x * reach.distance;
-    p.pos.y = from.y + dir.y * reach.distance;
-    // The dash is instantaneous, so the render interpolation must not smear
-    // the champion across the gap — she was never in between.
-    p.prev.x = p.pos.x;
-    p.prev.y = p.pos.y;
-    p.moveDir = null;
-    if (p.order && p.order.kind === 'move') p.order = null;
+    // The roll. Real distance over real time, at League's speed — which is
+    // what makes the timing question a timing question: for a quarter of a
+    // second she is committed and cannot shoot, so a tumble taken with an
+    // attack up costs that attack's worth of damage whether or not it was
+    // "wasted" by the animation.
+    this.s.world.dash(p, dir, reach.distance, VAYNE_STATS.tumbleRange / VAYNE_STATS.tumbleTime);
 
     if (wasWindup) {
+      // League: casting Tumble during the windup throws the attack away. It is
+      // the single most expensive mistake in the champion.
       p.phase = 'idle';
       p.phaseTime = 0;
       this.s.world.emit({ type: 'attackCancel', actorId: p.id, amount: 0 });
       this.stats.tumblesWasted++;
       this.lastTumbleQuality = 'wasted';
-      this.s.micro('TUMBLED THE WINDUP', p.pos, PALETTE.danger);
+      this.s.micro('TUMBLED THE WINDUP', from, PALETTE.danger);
+      this.s.strike('WINDUP THROWN');
     } else if (attackUp && inRange) {
       this.stats.tumblesGreedy++;
       this.lastTumbleQuality = 'greedy';
-      this.s.micro('ATTACK WAS UP', p.pos, PALETTE.textDim);
+      this.s.micro('ATTACK WAS UP', from, PALETTE.textDim);
     } else {
       this.stats.tumblesClean++;
       this.lastTumbleQuality = 'clean';
-      if (p.phase === 'backswing') this.s.micro('TUMBLE CANCEL', p.pos, VAYNE_COLOR);
+      // League: the backswing is animation, not commitment. Cancelling it with
+      // the dash is free distance on an attack you have already been paid for.
+      if (p.phase === 'backswing') {
+        p.phase = 'idle';
+        p.phaseTime = 0;
+        this.s.micro('TUMBLE CANCEL', from, VAYNE_COLOR);
+      }
     }
 
     // Which way it went is its own read, separate from when it was pressed. A
@@ -459,22 +655,35 @@ export class VayneKit {
     }
     if (reach.hit) this.stats.tumblesBlocked++;
 
-    // Where it *put* her. Direction is only half the read: a tumble taken
+    // Where it *puts* her. Direction is only half the read: a tumble taken
     // perfectly on the beat, in a sensible direction, that ends outside her
     // own attack range has still bought distance by giving up the trade, and
     // that is the trade-off the ability actually asks about.
     if (threat) {
-      const gap = dist(p.pos, threat.pos);
-      const safe = gap > threat.attack.range + p.radius;
+      const gap = dist(to, threat.pos);
+      /** The far edge of her own reach, and of theirs. */
+      const own = p.attack.range + threat.radius;
+      const theirs = threat.attack.range + p.radius;
+      const safe = gap > theirs;
       if (safe) this.stats.tumblesToSafety++;
-      if (safe && gap <= p.attack.range + threat.radius) this.stats.tumblesKeptRange++;
-      // And whether she landed nearer to somebody else's fist than she left.
+      if (safe && gap <= own) this.stats.tumblesKeptRange++;
+      // The graded read. Landing just inside her own range and outside theirs
+      // is the whole ability; landing on top of them bought nothing, and
+      // landing past her own range bought distance with the trade.
+      this.stats.tumblePlaceJudged++;
+      this.stats.tumblePlaceSum +=
+        gap <= theirs
+          ? 0.1
+          : gap <= own
+            ? 0.6 + 0.4 * clamp((gap - theirs) / Math.max(1, own - theirs), 0, 1)
+            : clamp(0.6 - (gap - own) / Math.max(1, own), 0, 0.6);
+      // And whether she lands nearer to somebody else's fist than she left.
       for (const other of this.s.world.actors) {
         if (!other.alive || other.team === p.team || other.id === threat.id) continue;
-        if (dist(p.pos, other.pos) >= dist(from, other.pos)) continue;
-        if (dist(p.pos, other.pos) <= other.attack.range + p.radius) {
+        if (dist(to, other.pos) >= dist(from, other.pos)) continue;
+        if (dist(to, other.pos) <= other.attack.range + p.radius) {
           this.stats.tumblesIntoCrowd++;
-          this.s.micro('INTO THE SECOND ONE', p.pos, PALETTE.danger);
+          this.s.micro('INTO THE SECOND ONE', to, PALETTE.danger);
           break;
         }
       }
@@ -483,13 +692,13 @@ export class VayneKit {
     this.stats.tumbles++;
     this.lastTumbleAt = this.s.world.time;
     this.empowered = true;
-    this.tumbleCd = this.inFinalHour ? VAYNE_STATS.tumbleCdFinalHour : VAYNE_STATS.tumbleCd;
+    this.tumbleCd = this.tumbleCdTotal;
     if (this.inFinalHour) p.invisibleFor = VAYNE_STATS.finalHourStealth;
 
-    this.s.fx.trace([from, { ...p.pos }], VAYNE_COLOR, 0.45, 5);
+    this.s.fx.trace([from, to], VAYNE_COLOR, 0.45, 5);
     this.s.fx.ring(from.x, from.y, 6, 92, 0.34, VAYNE_COLOR, 3, 'shock');
-    this.s.fx.burst(p.pos.x, p.pos.y, 12, { color: VAYNE_COLOR, speed: 250, life: 0.35, size: 2.2 });
-    audio.play('dodge', { pan: this.panOf(p.pos) });
+    this.s.fx.burst(to.x, to.y, 12, { color: VAYNE_COLOR, speed: 250, life: 0.35, size: 2.2 });
+    audio.play('dodge', { pan: this.panOf(to) });
     return 'cast';
   }
 
@@ -504,16 +713,50 @@ export class VayneKit {
     if (!this.loadout.condemn) return 'locked';
     const p = this.s.world.player;
     if (!p || !p.alive) return 'refused';
-    if (this.condemnCd > 0) return 'refused';
+    if (this.condemnCd > 0 || this.condemnCastLeft > 0) return 'refused';
+    if (p.dash) return 'refused';
 
     const target = this.pickCondemnTarget(at);
     if (!target) return 'noTarget';
 
-    this.condemnCd = VAYNE_STATS.condemnCd;
+    // League: a quarter of a second of cast time, standing still, before
+    // anything happens. It is short enough to be invisible when you cast it
+    // early and long enough to kill you when you cast it late.
+    this.condemnCd = this.condemnCdTotal;
+    this.condemnCastLeft = VAYNE_STATS.condemnCast;
+    this.condemnTargetId = target.id;
     this.stats.condemnCasts++;
+    p.rootedFor = Math.max(p.rootedFor, VAYNE_STATS.condemnCast);
+    if (p.phase === 'windup') {
+      p.phase = 'idle';
+      p.phaseTime = 0;
+      this.s.world.emit({ type: 'attackCancel', actorId: p.id, amount: 0 });
+    }
+    audio.play('castE', { pan: this.panOf(target.pos) });
+    return 'cast';
+  }
+
+  /**
+   * The other end of Condemn's cast time.
+   *
+   * Everything that makes the ability interesting is resolved here rather than
+   * on the keypress, because a quarter of a second is long enough for the
+   * answer to change: the target moves, and the wall that was behind them when
+   * you pressed E may not be behind them when the bolt lands.
+   */
+  private releaseCondemn(): void {
+    const p = this.s.world.player;
+    const target = this.s.world.byId(this.condemnTargetId);
+    this.condemnTargetId = null;
+    if (!p || !p.alive) return;
+    if (!target || !target.alive) {
+      this.s.micro('CONDEMN WHIFFED', p.pos, PALETTE.textDim);
+      this.s.strike('CONDEMN WHIFFED');
+      return;
+    }
+
     this.stats.condemnHits++;
     this.lastCondemnAt = this.s.world.time;
-    audio.play('castE', { pan: this.panOf(target.pos) });
 
     const dir = norm(target.pos.x - p.pos.x, target.pos.y - p.pos.y);
     const path = this.s.world.terrainAlong(target.pos, dir, VAYNE_STATS.condemnPush, target.radius);
@@ -545,8 +788,10 @@ export class VayneKit {
       audio.play('kill', { pan: this.panOf(path.at) });
     } else {
       this.s.micro('NO WALL', target.pos, PALETTE.textDim);
+      // The mode exists to stop you spending a twenty second cooldown on a
+      // knockback, so spending one is the mistake it counts.
+      this.s.strike('NO WALL');
     }
-    return 'cast';
   }
 
   /**
@@ -596,10 +841,12 @@ export class VayneKit {
     if (this.hourCd > 0) return 'refused';
     const p = this.s.world.player;
     if (!p || !p.alive) return 'refused';
-    this.hourCd = VAYNE_STATS.finalHourCd;
-    this.hourLeft = VAYNE_STATS.finalHourDuration;
+    this.hourCd = rank(VAYNE_STATS.finalHourCdByRank, this.ranks.r);
+    this.hourLeft = rank(VAYNE_STATS.finalHourDurationByRank, this.ranks.r);
     this.stats.finalHours++;
-    this.tumbleCd = Math.min(this.tumbleCd, VAYNE_STATS.tumbleCdFinalHour);
+    // The shorter cooldown applies at once rather than at the next cast, so
+    // the ultimate does not feel like it starts one tumble late.
+    this.tumbleCd = Math.min(this.tumbleCd, this.tumbleCdTotal);
     this.s.setBanner('FINAL HOUR', 1.4);
     this.s.fx.ring(p.pos.x, p.pos.y, p.radius, p.radius + 260, 0.6, VAYNE_COLOR, 5, 'shock');
     this.s.fx.addFlash(0.1, VAYNE_COLOR);
@@ -635,7 +882,7 @@ export class VayneKit {
             : a;
         case 'e':
           return this.loadout.condemn
-            ? { ...a, name: 'CONDEMN', locked: false, cd: clamp(this.condemnCd / VAYNE_STATS.condemnCd, 0, 1) }
+            ? { ...a, name: 'CONDEMN', locked: false, cd: clamp(this.condemnCd / this.condemnCdTotal, 0, 1) }
             : a;
         case 'r':
           return this.loadout.finalHour
@@ -643,7 +890,7 @@ export class VayneKit {
                 ...a,
                 name: this.inFinalHour ? `HOUR ${this.hourLeft.toFixed(0)}s` : 'FINAL HOUR',
                 locked: false,
-                cd: clamp(this.hourCd / VAYNE_STATS.finalHourCd, 0, 1),
+                cd: clamp(this.hourCd / rank(VAYNE_STATS.finalHourCdByRank, this.ranks.r), 0, 1),
                 highlight: this.inFinalHour,
               }
             : a;
@@ -653,8 +900,23 @@ export class VayneKit {
     });
   }
 
+  /** Tumble's full cooldown right now: rank, halved inside Final Hour. */
   get tumbleCdTotal(): number {
-    return this.inFinalHour ? VAYNE_STATS.tumbleCdFinalHour : VAYNE_STATS.tumbleCd;
+    const base = tumbleCdAt(this.ranks.q);
+    return this.inFinalHour ? base * VAYNE_STATS.finalHourTumbleCdShare : base;
+  }
+
+  get condemnCdTotal(): number {
+    return condemnCdAt(this.ranks.e);
+  }
+
+  /** The share of the target's maximum health the third bolt takes. */
+  get boltsShare(): number {
+    return rank(VAYNE_STATS.boltsMaxHpByRank, this.ranks.w);
+  }
+
+  get boltsFlat(): number {
+    return rank(VAYNE_STATS.boltsFlatByRank, this.ranks.w);
   }
 
   /**
@@ -674,14 +936,22 @@ export class VayneKit {
     // their own — only the line showing what would happen to a body arriving
     // at one.
     if (this.loadout.condemn) {
-      const target = this.condemnCd <= 0 ? this.pickCondemnTarget(cursor) : null;
+      const target = this.condemnCd <= 0 && this.condemnCastLeft <= 0 ? this.pickCondemnTarget(cursor) : null;
       if (target) {
-        const dir = norm(target.pos.x - p.pos.x, target.pos.y - p.pos.y);
-        const path = this.s.world.terrainAlong(target.pos, dir, VAYNE_STATS.condemnPush, target.radius);
+        // Drawn from where they will be when the cast lands, not from where
+        // they are now. The quarter second is the ability, and an indicator
+        // that ignored it would be teaching the player to press E a quarter of
+        // a second too late for the rest of their life.
+        const lead = {
+          x: target.pos.x + target.vel.x * VAYNE_STATS.condemnCast,
+          y: target.pos.y + target.vel.y * VAYNE_STATS.condemnCast,
+        };
+        const dir = norm(lead.x - p.pos.x, lead.y - p.pos.y);
+        const path = this.s.world.terrainAlong(lead, dir, VAYNE_STATS.condemnPush, target.radius);
         out.markers.push({
           kind: 'line',
-          x: target.pos.x,
-          y: target.pos.y,
+          x: lead.x,
+          y: lead.y,
           x2: path.at.x,
           y2: path.at.y,
           halfWidth: target.radius,
@@ -805,10 +1075,12 @@ export const tumbleDirection = (st: VayneStats): number =>
  * an empty arena as good positioning.
  */
 export const tumblePlacement = (st: VayneStats): number => {
-  const judged = st.tumblesToSafety + st.tumblesIntoCrowd;
-  if (judged < 1) return 0;
-  const good = st.tumblesKeptRange * 1 + (st.tumblesToSafety - st.tumblesKeptRange) * 0.55;
-  return clamp((good - st.tumblesIntoCrowd * 0.8) / Math.max(1, st.tumblesToSafety + st.tumblesIntoCrowd), 0, 1);
+  if (st.tumblePlaceJudged < 1) return 0;
+  const placed = st.tumblePlaceSum / st.tumblePlaceJudged;
+  // Landing next to a second opponent is worse than not having pressed it, so
+  // it is charged against the average rather than merely left uncredited.
+  const crowd = st.tumblesIntoCrowd / st.tumblePlaceJudged;
+  return clamp(placed - crowd * 0.8, 0, 1);
 };
 
 /**

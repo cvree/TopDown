@@ -1055,11 +1055,25 @@ const runDrill = (
             // and otherwise keeps attacking.
             reactTimer = 0.06;
             const kit = kitOf(drill);
-            if (kit && kit.condemnCd <= 0) {
+            if (kit && kit.condemnCd <= 0 && kit.condemnCastLeft <= 0) {
               for (const e of session.world.enemies()) {
                 if (dist(p.pos, e.pos) - e.radius > VAYNE_STATS.condemnRange) continue;
-                const dir = norm(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
-                const path = session.world.terrainAlong(e.pos, dir, VAYNE_STATS.condemnPush, e.radius);
+                // Condemn has a cast time, so the wall has to be behind them
+                // where they will be when it lands, not where they are now. A
+                // charger closing on you moves away from the wall behind it
+                // for the whole quarter second, and a reference run that did
+                // not lead the cast would be modelling a player who has not
+                // noticed that the ability has one.
+                const lead = {
+                  x: e.pos.x + e.vel.x * VAYNE_STATS.condemnCast,
+                  y: e.pos.y + e.vel.y * VAYNE_STATS.condemnCast,
+                };
+                const dir = norm(lead.x - p.pos.x, lead.y - p.pos.y);
+                // With three quarters of the knockback rather than all of it,
+                // so a prediction that is slightly off still lands. Casting at
+                // the exact edge of the push is a coin flip, and a reference
+                // run is meant to model somebody who knows that.
+                const path = session.world.terrainAlong(lead, dir, VAYNE_STATS.condemnPush * 0.75, e.radius);
                 if (!path.hit) continue;
                 session.cursorWorld = { x: e.pos.x, y: e.pos.y };
                 input.push({ kind: 'ability', slot: 'e', x: e.pos.x, y: e.pos.y, t: t * 1000 });

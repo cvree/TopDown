@@ -35,7 +35,9 @@ export class VayneBoltsDrill extends VayneDrill {
   private finishedAfterSwitch = 0;
 
   constructor(s: import('../engine/session').Session) {
-    super(s, { tumble: true, bolts: true, condemn: false, finalHour: false });
+    // A Vayne who has put points in W: the bolts mode is about finishing a
+    // stack, and the third hit should be worth finishing.
+    super(s, { tumble: true, bolts: true, condemn: false, finalHour: false, ranks: { q: 2, w: 3 } });
   }
 
   setup(): void {

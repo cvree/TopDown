@@ -120,6 +120,14 @@ export interface Actor {
   invisibleFor?: number;
   /** Active knockback: direction, remaining distance, speed. */
   knockback?: { dir: Vec2; remaining: number; speed: number } | null;
+  /**
+   * Active dash: direction, remaining distance, speed.
+   *
+   * Distinct from a knockback because a dash is something the body is *doing*
+   * rather than something being done to it — the clocks keep running, which is
+   * the whole of why a tumble taken in the backswing costs nothing.
+   */
+  dash?: { dir: Vec2; remaining: number; speed: number } | null;
 }
 
 export type ProjectileShape = 'bolt' | 'orb' | 'shard' | 'wave';

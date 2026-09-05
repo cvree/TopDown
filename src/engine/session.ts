@@ -1,4 +1,5 @@
 import { audio } from './audio';
+import { SURVIVE_RAMP, SURVIVE_RAMP_RANGE, SURVIVE_STRIKES, type RunMode } from '../drills/modes';
 import { FxSystem } from './fx';
 import { DEFAULT_HERO, type HeroId } from './heroes';
 import type { AbilitySlot, InputSystem, MovementScheme } from './input';
@@ -105,6 +106,12 @@ export type TumbleAim = 'cursor' | 'hands';
 
 export interface SessionConfig {
   duration: number;
+  /**
+   * Which of the two run shapes this is. `play` is the one-minute rep and
+   * behaves exactly as every run always has; `survive` has no clock, hands out
+   * a strike budget, and turns the difficulty up the longer you last.
+   */
+  mode?: RunMode;
   arena: { w: number; h: number };
   seed: number;
   difficulty: number;
@@ -151,6 +158,14 @@ export class Session {
   forceEnd = false;
   endReason: 'time' | 'death' | 'complete' | 'abort' = 'time';
 
+  /**
+   * Defining mistakes made so far. Only SURVIVE spends them; PLAY counts them
+   * for the results screen and never ends a run over one.
+   */
+  strikes = 0;
+  /** Set the moment the strike budget runs out, so `step` can close the run. */
+  private struckOut = false;
+
   private movedSinceRelease = false;
   private lastReleaseAt = -1;
   private lastMoveOrderAt = -1;
@@ -187,6 +202,66 @@ export class Session {
 
   get scheme(): MovementScheme {
     return this.config.scheme ?? 'click';
+  }
+
+  get mode(): RunMode {
+    return this.config.mode ?? 'play';
+  }
+
+  get surviving(): boolean {
+    return this.mode === 'survive';
+  }
+
+  /** Strikes left before SURVIVE ends the run. Infinite in PLAY. */
+  get strikesLeft(): number {
+    return this.surviving ? Math.max(0, SURVIVE_STRIKES - this.strikes) : Infinity;
+  }
+
+  /**
+   * How far into the ramp a SURVIVE run is, 0..1.
+   *
+   * PLAY is always 0: a one-minute rep is meant to be the same rep every time,
+   * and a run whose difficulty depends on how long you have been in it is not
+   * comparable with the one before it.
+   */
+  get pressure(): number {
+    return this.surviving ? clamp(this.elapsed / SURVIVE_RAMP, 0, 1) : 0;
+  }
+
+  /**
+   * The difficulty anything spawned *right now* should be built at.
+   *
+   * Drills read this instead of `config.difficulty` so a SURVIVE run gets
+   * genuinely harder rather than merely longer — the wave that arrives at two
+   * minutes is a different wave from the one that opened the run.
+   */
+  get liveDifficulty(): number {
+    return clamp(this.config.difficulty + this.pressure * SURVIVE_RAMP_RANGE, 0, 1);
+  }
+
+  /**
+   * "You did the thing this mode exists to stop you doing."
+   *
+   * One call, from wherever the mistake is actually detected — the kit, for
+   * the Vayne modes, because that is the one place that knows a windup was
+   * thrown away or a stack abandoned. PLAY records it and moves on; SURVIVE
+   * spends a strike and ends the run on the third.
+   */
+  strike(reason: string): void {
+    if (this.phase !== 'running') return;
+    this.strikes++;
+    const player = this.world.player;
+    if (!this.surviving) return;
+    const left = this.strikesLeft;
+    audio.play('fail', left > 0 ? 0.8 : 1.2);
+    this.fx.addFlash(left > 0 ? 0.09 : 0.16, PALETTE.danger);
+    if (player) this.micro(reason, player.pos, PALETTE.danger);
+    if (left > 0) {
+      this.setBanner(`${reason} — ${left} LEFT`, 1.3);
+    } else {
+      this.setBanner('OUT OF STRIKES', 1.6);
+      this.struckOut = true;
+    }
   }
 
   /** Where a dash points. Only WASD gets a choice; clicking has no hands. */
@@ -281,6 +356,11 @@ export class Session {
 
     if (this.config.duration > 0 && this.elapsed >= this.config.duration) {
       this.endReason = 'time';
+      this.end();
+    } else if (this.struckOut) {
+      // Spending the last strike is a death as far as everything downstream is
+      // concerned: the run was ended by the player failing, not by a clock.
+      this.endReason = 'death';
       this.end();
     } else if (player && !player.alive) {
       this.endReason = 'death';
