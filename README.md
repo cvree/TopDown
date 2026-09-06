@@ -5,8 +5,8 @@ rewarding should be the thing that actually makes you better.
 
 It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
-drawn on the ground where the thing it is about actually is. One champion, four
-parts of her, and two ways to play each of them:
+drawn on the ground where the thing it is about actually is. One distance, one
+champion and four parts of her, and two ways to play each of them:
 
 - **PLAY** — one minute. The same minute every time, so a score means something
   next to the one before it.
@@ -51,11 +51,12 @@ npm run build      # production bundle
 
 ## What it trains
 
-Four modes, each one part of the same champion, and each one with a PLAY and a
-SURVIVE on it.
+Five modes, each one with a PLAY and a SURVIVE on it. Four of them are parts of
+the same champion. The first is the distance all four of them assume.
 
 | Mode | Keys | Measures | The habit it builds |
 | --- | --- | --- | --- |
+| **Range** | — | Units between where you fired and where your edge actually was | Knowing where your reach ends when nothing is drawing it |
 | **Tumble** | Q D | Tumble rhythm, windups thrown away, where the roll put you | Q in the backswing — Vayne's whole movement game |
 | **Silver Bolts** | Q W D | Bolt efficiency, stacks dropped | Finishing the third hit instead of switching at two |
 | **Condemn** | Q E D | Wall stun rate, angles you made rather than found | Standing on the right side of the wall *before* the fight |
@@ -75,6 +76,49 @@ charges 45% of League's figure, so a maxed E is 5.4 seconds rather than twelve
 and Night Hunter's single point is nine rather than twenty. Rank still shapes
 it, and the practice screen prints both numbers — three casts a run is not a
 number of attempts anybody learns a positional ability from.
+
+### The range check
+
+Nothing draws your attack range. Centring the camera — `Space`, or whatever you
+have moved it to — paints it on the floor for eight tenths of a second and then
+takes it away again, and that press is called a *check*.
+
+The reason is the whole product in one decision. A permanent ring is a readout,
+and a player who has one reads their spacing off the floor rather than knowing
+it; then they queue into a game where reading it off the floor is precisely
+what is going wrong. So the ring becomes something you spend rather than
+something you have, the modes count what you spend, and the distance ends up
+where it has to be, which is in your head.
+
+The setting has three answers rather than two — on a check, always, or never.
+*Always* is the old behaviour and it is worth a few runs on a champion you have
+never played; it is worth turning off again afterwards.
+
+**RANGE** is the mode built out of what that changes, and it trains one act:
+put yourself on the outside edge of your own reach and fire from there. A mark
+appears — never at the distance you should be shooting from — and the instant
+your windup starts the run measures the gap in units, says which way you were
+wrong, and draws the circle you should have been standing on. Five phases, in
+the order they have to be learnt:
+
+| Phase | What it adds |
+| --- | --- |
+| **Mark** | A still target and free checks. Calibration: look at the ring, then at the ground |
+| **Step** | Marks placed too close as often as too far, because walking *backwards* to your edge is half the skill |
+| **Drift** | The mark moves — across you, away from you, at you |
+| **Trade** | It shoots back from a shorter range, so every unit of depth is paid for in health |
+| **Shift** | Your own reach changes every rep and you are told the new number and nothing else |
+
+Ordering an attack you cannot take voids the rep under the click scheme: the
+champion walks you into range to make the order legal, so the shot that follows
+is the pathfinder's judgement rather than yours — and that walk is how people
+die in a real game. Under WASD nothing can walk you, so the shot is always
+yours and the number is simply where you stopped.
+
+The run is scored on the share of shots that were both on the edge *and* taken
+without a check, on how far your error swings from rep to rep, and on how much
+depth you gave away. An average that looks good with a spread that wide is a
+coin landing well, and the results screen says so.
 
 ### Fog of war
 
@@ -107,8 +151,9 @@ did not.
 
 - **Dying.** Real for every mode with something that can kill you.
 - **Three strikes.** Each mode names one mistake, and it is the mistake the
-  mode exists to stop: a windup thrown away in Tumble, a stack abandoned in
-  Silver Bolts, a condemn into open ground in Condemn. Night Hunter has no
+  mode exists to stop: a shot taken from far inside your own edge in Range — or
+  an order you could not take at all — a windup thrown away in Tumble, a stack
+  abandoned in Silver Bolts, a condemn into open ground in Condemn. Night Hunter has no
   strikes, because it has a health bar. The budget is three pips under the
   clock and they only ever go out.
 
@@ -170,7 +215,7 @@ Fourteen named mistakes, detected from the same metrics the rating consumes:
 | `EARLY_MOVE` | Moved before the attack released; the windup was thrown away | Kite |
 | `HELD_FIRE` | Off cooldown, in range, and a movement key still down | Kite |
 | `OVERSTEP` | Entered enemy threat range and stayed there | Spacing |
-| `RANGE_LOSS` | Drifted outside your own range and stopped being a threat | Spacing |
+| `RANGE_LOSS` | Drifted outside your own range and stopped being a threat | Range |
 | `ROOTED` | Stood still through windows where moving was free | Kite |
 | `LATE_DODGE` | Reacted to a telegraph after it was too late to move | Dodge |
 | `HAZARD_STAND` | Stayed in a ground hazard that was visible the whole time | Dodge |
@@ -183,10 +228,11 @@ Fourteen named mistakes, detected from the same metrics the rating consumes:
 | `CHIP_DAMAGE` | Finished low without one big mistake — it came off in pieces | 1 v 1 |
 
 The "fixed by" column names the drill in the wider catalogue that isolates the
-mechanic. The menu offers four Vayne modes, so a fix button starts the one that
-trains the same thing — kiting, movement and dodging problems land on Tumble;
-targeting and last-hitting on Silver Bolts; spacing and skillshots on Condemn;
-anything else on Night Hunter. The mapping is one function, `practiceFor` in
+mechanic. The menu offers Range and four Vayne modes, so a fix button starts the one
+that trains the same thing — anything about the edge of your own reach lands on
+Range; kiting, movement and dodging problems on Tumble; targeting and
+last-hitting on Silver Bolts; skillshots on Condemn; anything else on Night
+Hunter. The mapping is one function, `practiceFor` in
 `src/drills/modes.ts`, so it is a single place to argue with.
 
 Thresholds sit deliberately above noise. One cancelled attack in a sixty-second
@@ -371,7 +417,7 @@ Two schemes, chosen in Settings. The default is League's.
 | `Q` `W` `E` `R` | Abilities (drills that use them) |
 | `D` `F` | Summoners — blink in the arenas |
 | `S` | Stop |
-| `Space` | Centre the camera on your champion |
+| `Space` | Centre the camera on your champion — and check your attack range |
 | `Y` | Toggle camera lock. Unlocked, the camera stays where you leave it |
 | Screen edge | Edge pan, if it is switched on in Settings — in locked mode the offset springs back |
 | Mouse wheel | Zoom. The camera follows your champion once you are zoomed past the arena bounds |
@@ -462,7 +508,7 @@ things fall out of that:
 | **Dash aim** | WASD only: a dash goes where your keys are held, or to the cursor |
 | **Bindings** | Every action, per scheme — one key to one action, conflicts resolved as you make them |
 | **Quick cast** | Abilities fire at the cursor on press, rather than press-then-confirm |
-| **Show attack range** | The dashed range ring and the attack timer arc |
+| **Attack range** | When your reach is drawn: on a check (default), always, or never |
 | **Show unit names** | Name plates above champions. Health bars are never hidden |
 | **Edge pan** | Pushing the cursor to the screen edge slides the camera. Off by default |
 | **Reduced camera motion** | Stops shake, punch-in and impact kick. Anything you drive stays |

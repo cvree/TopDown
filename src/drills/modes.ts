@@ -76,8 +76,14 @@ export const durationFor = (mode: RunMode): number => (mode === 'play' ? PLAY_SE
  * One champion. Every mode on this list spawns Vayne with the parts of her kit
  * that mode is about, so there is never a run where the hands you are training
  * are not the hands you play with.
+ *
+ * RANGE comes first and hands you no kit at all, because it is the one thing
+ * every other mode already assumes you know. Tumbling to a good position, and
+ * condemning from one, and holding a stack through a trade are all the same
+ * sentence with the same missing word in it: *how far away is far enough*. A
+ * player who cannot answer that is practising four abilities on top of a hole.
  */
-export const PRACTICE_MODES: DrillId[] = ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'];
+export const PRACTICE_MODES: DrillId[] = ['rangecheck', 'vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'];
 
 export const isPracticeMode = (id: DrillId): boolean => PRACTICE_MODES.includes(id);
 
@@ -111,9 +117,11 @@ export const practiceFor = (id: DrillId): DrillId => {
     case 'lasthit':
     case 'aim':
       return 'vayneBolts';
-    // Spacing and skillshots are Condemn: both are about where you were
-    // standing before the answer was needed.
+    // Anything about the edge of your own reach is the mode built on it.
     case 'spacing':
+      return 'rangecheck';
+    // Skillshots are Condemn: both are about where you were standing before
+    // the answer was needed.
     case 'skillshot':
       return 'vayneCondemn';
     default:

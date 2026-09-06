@@ -27,7 +27,15 @@ import { WallLayer } from './walls';
 export interface RenderOpts {
   /** Cursor in CSS pixels relative to the canvas. */
   cursor: Vec2;
-  showRange: boolean;
+  /**
+   * How strongly to draw the player's own attack range, 0..1.
+   *
+   * Almost always zero. The ring is not a permanent part of the picture any
+   * more — it is what a range check buys you for the second or so after you
+   * centre the camera — so this is a value that spikes and decays rather than
+   * a switch that is left on.
+   */
+  rangeReveal: number;
   hoverTargetId: number | null;
   pathTrail: Vec2[];
   chain: number;
@@ -254,23 +262,37 @@ export class RiftRenderer {
       }
     }
 
-    if (player && opts.showRange && !opts.idle && !player.hidden) {
-      // Your attack range. Dashed and slowly rotating so it never reads as
-      // part of the floor, brighter as the clean-chain builds.
+    const reveal = opts.rangeReveal;
+    if (player && reveal > 0.01 && !opts.idle && !player.hidden) {
+      // Your attack range, for as long as the check you spent lasts. Dashed
+      // and slowly rotating so it never reads as part of the floor, brighter
+      // as the clean-chain builds, and fading out on the check's own clock.
       const chain = Math.min(1, opts.chain / 8);
-      this.decals.ring(player.pos.x, player.pos.y, player.attack.range + player.radius, {
+      const r = player.attack.range + player.radius;
+      this.decals.ring(player.pos.x, player.pos.y, r, {
         color: ALLY_RANGE,
-        alpha: 0.34 + chain * 0.3,
+        alpha: (0.34 + chain * 0.3) * reveal,
         width: 4,
         dash: 64,
         spin: 0.12,
       });
-      this.decals.ring(player.pos.x, player.pos.y, player.attack.range + player.radius, {
+      this.decals.ring(player.pos.x, player.pos.y, r, {
         color: ALLY_RANGE,
-        alpha: 0.1 + chain * 0.12,
+        alpha: (0.1 + chain * 0.12) * reveal,
         width: 2,
         rise: 1.6,
       });
+      // The first moment of a check gets a bright solid edge over the dashes.
+      // A ring that arrives has to look like it arrived, or a player cannot
+      // tell a check they just took from one that is about to expire.
+      if (reveal > 0.55) {
+        this.decals.ring(player.pos.x, player.pos.y, r, {
+          color: ALLY_RANGE,
+          alpha: (reveal - 0.55) * 1.1,
+          width: 2.5,
+          rise: 2,
+        });
+      }
     }
 
     // Where you told your champion to go. Four inward ticks around a ring is

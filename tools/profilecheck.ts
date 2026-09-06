@@ -231,6 +231,27 @@ section('A profile that is wrong in every way still loads', () => {
   expect('settings come back complete', typeof p.settings.movementScheme === 'string', String(p.settings.movementScheme));
 });
 
+section('The range indicator setting means what the profile meant by it', () => {
+  // The setting stopped being a boolean when the ring stopped being permanent.
+  // `false` was a real choice — never draw it — and is kept; `true` was the
+  // default nobody picked, and honouring it would opt every existing profile
+  // out of the feature that replaced it.
+  const withShowRange = (v: unknown) => {
+    const raw = legacyProfile();
+    (raw.settings as Record<string, unknown>).showRange = v;
+    return load(raw).settings.rangeDisplay;
+  };
+  expect('a profile that hid the ring still hides it', withShowRange(false) === 'off', String(withShowRange(false)));
+  expect('a profile that never chose gets the check', withShowRange(true) === 'check', String(withShowRange(true)));
+  expect('a profile from before the setting existed gets the check', load(legacyProfile()).settings.rangeDisplay === 'check', String(load(legacyProfile()).settings.rangeDisplay));
+  const explicit = legacyProfile();
+  (explicit.settings as Record<string, unknown>).rangeDisplay = 'always';
+  expect('an explicit choice is left alone', load(explicit).settings.rangeDisplay === 'always', String(load(explicit).settings.rangeDisplay));
+  const nonsense = legacyProfile();
+  (nonsense.settings as Record<string, unknown>).rangeDisplay = 'sometimes';
+  expect('and nonsense is not a choice', load(nonsense).settings.rangeDisplay === 'check', String(load(nonsense).settings.rangeDisplay));
+});
+
 section('A saved profile survives the round trip unchanged', () => {
   const before = load(legacyProfile());
   saveProfile(before);

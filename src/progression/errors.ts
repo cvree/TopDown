@@ -99,7 +99,7 @@ export const ERRORS: Record<ErrorCode, ErrorMeta> = {
     meaning: 'You drifted outside your own attack range and stopped being a threat at all.',
     when: 'While repositioning under pressure — the retreat overshoots and the attack never restarts.',
     cost: 'Uptime. You are safe and doing nothing, which loses the trade slowly instead of quickly.',
-    fix: 'spacing',
+    fix: 'rangecheck',
     axis: 'spacing',
     impact: 0.7,
     unit: 'units off your range edge',

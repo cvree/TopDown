@@ -6,10 +6,30 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.4.0**.
+Currently shipping **v2.5.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.5.0 — THE EDGE
+
+*2026-09-06*
+
+Your attack range is not drawn any more. Centring the camera checks it for under a second, and there is a new mode built entirely out of what that changes.
+
+### Added
+
+- RANGE, a mode about one thing: where the edge of your reach is when nothing is drawing it. A mark appears, never at the distance you should shoot from, and the rep is to put yourself on your own edge and fire. The instant your windup starts it measures the gap in units, tells you which way you were wrong, and draws the circle you should have been standing on.
+- It is five phases, in the order they have to be learnt. MARK is calibration and its checks are free. STEP spawns marks too close as often as too far, because walking backwards to your edge is half the skill and no drill ever asks for it. DRIFT moves the mark. TRADE gives it a shorter reach and a weapon, so every unit of depth is paid for in health. SHIFT changes your own reach every rep and tells you the new number and nothing else — which is the phase that proves you learnt a distance rather than a screen position.
+- Ordering an attack you cannot take voids the rep under the click scheme. The champion walks you into range to make the order legal, so the shot that follows is the pathfinder’s judgement rather than yours — and that walk is how people actually die in a game. Under WASD nothing can walk you, so the shot is always yours and the number is simply where you stopped.
+- The results screen leads with the share of your shots that were both on the edge and taken without a check, and it names which way you are wrong: the average depth you fire from inside your own range, how far your error swings from rep to rep, and how many checks a rep you spent. An average that good with a spread that wide is a coin landing well, and it now says so.
+- RANGE is the first card on the practice screen, and it hands you no abilities at all. Tumbling to a good position, condemning from one and holding a stack through a trade are the same sentence with the same missing word in it.
+
+### Changed
+
+- The ring around your feet is gone. Centring the camera — Space, or whatever you have moved it to — now paints your attack range for eight tenths of a second and then takes it away again. A permanent ring is a readout, and a readout is the reason nobody ever learns the distance: you read it off the floor for a hundred hours and then queue into a game where reading it off the floor is exactly what you are doing wrong. Every mode in the client is played this way now.
+- The setting that used to be "Show attack range" is now three answers rather than two: on a check, always, or never. Always is the old behaviour, kept for calibrating a champion you have never played, and it is worth turning off again afterwards. A profile that had the ring switched off keeps it off; every other profile gets the check.
+- The hint row and a new chip beside the camera lock both print the key the check is actually bound to, and the chip burns down while a check is live — so how long one lasts is something you watch rather than something you are told.
 
 ## v2.4.0 — EYES
 

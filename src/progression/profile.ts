@@ -171,6 +171,36 @@ export interface DailyState {
   startOverall: number;
 }
 
+/**
+ * The three answers to "when is my attack range drawn".
+ *
+ * A type rather than a boolean because the middle answer is the interesting
+ * one, and a boolean has no room for it.
+ */
+export type RangeDisplay = 'check' | 'always' | 'off';
+
+export const RANGE_DISPLAYS: RangeDisplay[] = ['check', 'always', 'off'];
+
+const isRangeDisplay = (v: unknown): v is RangeDisplay =>
+  typeof v === 'string' && (RANGE_DISPLAYS as string[]).includes(v);
+
+/**
+ * What a stored profile's range setting means to this build.
+ *
+ * Profiles written before the ring became a check hold a boolean. `false`
+ * meant "never draw it", which is still a thing this build can do and still
+ * what that player asked for, so it is honoured. `true` meant "always draw
+ * it", and it is *not* honoured: it was the default nobody chose, and leaving
+ * every existing profile with a permanent ring would quietly opt the entire
+ * playerbase out of the feature. They get the check, which is the same
+ * information for the price of one key.
+ */
+const readRangeDisplay = (raw: Partial<AppSettings> & { showRange?: unknown } | undefined): RangeDisplay => {
+  if (isRangeDisplay(raw?.rangeDisplay)) return raw.rangeDisplay;
+  if (raw?.showRange === false) return 'off';
+  return DEFAULT_SETTINGS.rangeDisplay;
+};
+
 export interface AppSettings {
   /**
    * The champion you wear in every drill that does not name its own. Look
@@ -186,7 +216,19 @@ export interface AppSettings {
    * Ignored entirely under the click scheme, where there are no keys to hold.
    */
   tumbleAim: 'hands' | 'cursor';
-  showRange: boolean;
+  /**
+   * When your own attack range is drawn.
+   *
+   * `check` is the shipped answer and the one every mode is balanced around:
+   * nothing is drawn until you centre the camera, and centring it paints your
+   * reach for just under a second. A ring that is always there is a number
+   * you read instead of a distance you know — it makes the trainer easier and
+   * the game it trains for harder, which is exactly backwards. The other two
+   * exist because a player who has never seen the ring cannot calibrate
+   * against it (`always`), and a player who has stopped needing it should be
+   * able to say so (`off`).
+   */
+  rangeDisplay: RangeDisplay;
   lowFx: boolean;
   masterVolume: number;
   sfxVolume: number;
@@ -314,7 +356,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   quickCast: true,
   movementScheme: 'wasd',
   tumbleAim: 'hands',
-  showRange: true,
+  rangeDisplay: 'check',
   lowFx: false,
   masterVolume: 0.75,
   sfxVolume: 0.9,
@@ -440,6 +482,8 @@ export const loadProfile = (): Profile => {
         // the default everywhere it is drawn, so it is normalised here too —
         // otherwise settings shows a roster with nothing selected in it.
         hero: isHeroId(parsed.settings?.hero) ? parsed.settings.hero : p.settings.hero,
+        // The one setting whose *meaning* changed rather than its value.
+        rangeDisplay: readRangeDisplay(parsed.settings),
         // Rebinds are the one setting stored as a free-form map, so they are
         // the one setting a half-written profile can hand back as nonsense.
         // Cleaning them here means a stored binding for an action this build

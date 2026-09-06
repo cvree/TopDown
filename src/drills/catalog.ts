@@ -2,6 +2,7 @@ import type { AbilitySlot } from '../engine/input';
 import type { AxisWeights } from '../progression/skills';
 
 export type DrillId =
+  | 'rangecheck'
   | 'movement'
   | 'dodge'
   | 'aim'
@@ -100,6 +101,22 @@ export interface DrillMeta {
 }
 
 export const DRILLS: Record<DrillId, DrillMeta> = {
+  rangecheck: {
+    id: 'rangecheck',
+    name: 'RANGE',
+    tagline: 'Your reach, without the ring',
+    brief:
+      'One mark, one shot, from the exact edge of your attack range. Nothing draws that edge — centring the camera checks it for under a second, and every check is counted against you.',
+    transfers:
+      'Knowing where your range ends without being shown, which is the difference between poking somebody and walking into them.',
+    group: 'FOUNDATION',
+    axes: { spacing: 0.75, movement: 0.25 },
+    duration: 60,
+    abilities: [],
+    accent: '#7fd2ff',
+    keyMetric: 'EDGE SHOTS TAKEN BLIND',
+    order: 0,
+  },
   movement: {
     id: 'movement',
     name: 'MOVEMENT',
@@ -879,6 +896,9 @@ export const isVayneDrill = (id: DrillId): boolean => DRILLS[id].group === 'VAYN
 export type PressureTier = 'isolated' | 'applied' | 'live';
 
 export const PRESSURE_TIER: Record<DrillId, PressureTier> = {
+  // Range starts on a bench and ends in a trade, which is the whole arc of
+  // the mode. `applied` is the honest label for the run as a whole.
+  rangecheck: 'applied',
   movement: 'isolated',
   aim: 'isolated',
   skillshot: 'isolated',

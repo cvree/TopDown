@@ -903,3 +903,42 @@
   border: 1px solid rgba(200, 170, 110, 0.35);
   padding: 1px 5px;
 }
+
+/* ------------------------------------------------------- the range check */
+/* The one press that draws your attack range, and the second it lasts.
+   It sits under the camera chip because it is the same key's other half:
+   centring the view and asking how far you reach are one thought. */
+.hud-check {
+  position: absolute;
+  right: 24px;
+  bottom: 224px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--text-3);
+  transition: color 0.18s;
+}
+.hud-check .kbd {
+  font-size: 9px;
+  padding: 2px 5px;
+}
+.hud-check .hc-bar {
+  display: block;
+  width: 34px;
+  height: 2px;
+  background: rgba(120, 170, 220, 0.18);
+  overflow: hidden;
+}
+.hud-check .hc-bar b {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: currentColor;
+}
+/* Live: the ring is on the floor right now and this is what is left of it. */
+.hud-check.on {
+  color: var(--accent);
+}

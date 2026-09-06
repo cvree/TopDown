@@ -11,7 +11,7 @@ import {
 import { GameLoop } from '../engine/loop';
 import { derive } from '../engine/metrics';
 import { clearPaint, newPaint } from '../engine/paint';
-import { ABILITY_BAR, Session, type HudSnapshot } from '../engine/session';
+import { ABILITY_BAR, RANGE_CHECK_SECONDS, Session, type HudSnapshot } from '../engine/session';
 import { RiftRenderer } from '../gfx/RiftRenderer';
 import { arenaFor, createDrill } from '../drills';
 import { DRILLS, type DrillId } from '../drills/catalog';
@@ -108,7 +108,7 @@ const HINTS: Record<MovementScheme, { key: string; label: string }[]> = {
     { key: 'RMB', label: 'move · attack' },
     { key: 'A', label: 'attack-move' },
     { key: 'S', label: 'stop' },
-    { key: 'SPACE', label: 'centre camera' },
+    { key: 'SPACE', label: 'centre · check range' },
     { key: 'Y', label: 'camera lock' },
     { key: 'WHEEL', label: 'zoom' },
     { key: 'ESC', label: 'pause · settings' },
@@ -120,7 +120,7 @@ const HINTS: Record<MovementScheme, { key: string; label: string }[]> = {
     // Both ways of buying a shot, because there are two and a player who only
     // knows the first one is orbwalking with one hand tied.
     { key: 'RELEASE', label: 'or LMB to shoot' },
-    { key: 'SPACE', label: 'centre camera' },
+    { key: 'SPACE', label: 'centre · check range' },
     { key: 'WHEEL', label: 'zoom' },
     { key: 'ESC', label: 'pause · settings' },
   ],
@@ -154,7 +154,14 @@ const VAYNE_SLOT_NAMES: Partial<Record<AbilitySlot, string>> = {
  */
 const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: string }[] => {
   const scheme = schemeFor(settings, drill);
-  const base = HINTS[scheme];
+  // The check is the only hint whose key is worth reading off the live
+  // bindings even here: it is the one press that answers a question the screen
+  // is otherwise refusing to answer, so a player who has rebound it must not
+  // be told to press the key it used to be on.
+  const camKey = codeLabel(bindingsFor(settings, drill).centerCamera.primary).toUpperCase();
+  const base = HINTS[scheme].map((h) =>
+    h.label === 'centre · check range' ? { key: camKey, label: h.label } : h,
+  );
   const meta = DRILLS[drill];
   if (meta.group !== 'VAYNE') return base;
   // Silver Bolts is a passive counter rather than a key, so it never appears.
@@ -348,6 +355,8 @@ export function GameView({
     const elCycleLabel = q<HTMLDivElement>('[data-cycle-label]');
     const elFps = q<HTMLDivElement>('[data-fps]');
     const elCam = q<HTMLDivElement>('[data-cam]');
+    const elCheck = hud.querySelector<HTMLDivElement>('[data-check]');
+    const elCheckFill = hud.querySelector<HTMLDivElement>('[data-check-fill]');
     const elBanner = q<HTMLDivElement>('[data-banner]');
     const elCount = q<HTMLDivElement>('[data-count]');
     const fieldEls = Array.from(hud.querySelectorAll('[data-field]')) as HTMLDivElement[];
@@ -458,6 +467,11 @@ export function GameView({
       }
 
       elFps.textContent = `${Math.round(snap.fps)}`;
+      if (elCheck && elCheckFill) {
+        const burn = Math.max(0, Math.min(1, session.rangeCheckT / RANGE_CHECK_SECONDS));
+        elCheck.classList.toggle('on', burn > 0);
+        elCheckFill.style.width = `${Math.round(burn * 100)}%`;
+      }
       elCam.classList.toggle('unlocked', !renderer.cameraLocked);
       elBanner.textContent = snap.banner ?? '';
       elBanner.style.opacity = snap.banner ? '1' : '0';
@@ -487,7 +501,11 @@ export function GameView({
         const live = settingsRef.current;
         renderer.render(session.world, session.fx, alpha, dtWall, {
           cursor: input.cursor,
-          showRange: live.showRange,
+          // Your reach is not part of the picture: it is what a range check
+          // buys, and a check is the camera-centre key. The two settings that
+          // are not the default resolve to a constant.
+          rangeReveal:
+            live.rangeDisplay === 'always' ? 1 : live.rangeDisplay === 'off' ? 0 : session.rangeCheckAlpha,
           hoverTargetId: session.hoverTargetId,
           pathTrail: session.pathTrail,
           chain: session.chain,
@@ -835,6 +853,21 @@ export function GameView({
             <b className="kbd">F2</b> focus mode
           </span>
         </div>
+
+        {/* The range check, as a thing you can see yourself spending.
+            Nothing draws your reach any more until this press does, so the
+            key has to be visible for the whole run rather than in a hint row
+            that fades — and the bar is the check burning down, so a player
+            learns how long one lasts by watching one. */}
+        {settings.rangeDisplay === 'check' && (
+          <div className="hud-check" data-check>
+            <b className="kbd">{codeLabel(bindingsFor(settings, drill).centerCamera.primary).toUpperCase()}</b>
+            <span>RANGE</span>
+            <i className="hc-bar">
+              <b data-check-fill />
+            </i>
+          </div>
+        )}
 
         {/* Which camera mode you are in, sat above the minimap where League
             puts its own lock. A sibling rather than a child: the minimap is

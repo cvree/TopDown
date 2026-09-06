@@ -12,6 +12,24 @@ import { World, type WorldEvent } from './world';
 
 export type SessionPhase = 'countdown' | 'running' | 'paused' | 'ended';
 
+/**
+ * How long one range check leaves your own reach drawn on the floor.
+ *
+ * A check is the camera-centre key: the same press that pulls the view back
+ * onto your champion also paints your attack range for this long and then
+ * takes it away again. That is the whole of the indicator — there is no
+ * permanent ring, because a permanent ring is a readout and a readout is the
+ * thing that stops the distance ever being learnt.
+ *
+ * Just under a second is deliberate. It is long enough to answer *can I hit
+ * that from here* and far too short to stand inside and play off, so a check
+ * is a glance rather than a crutch.
+ */
+export const RANGE_CHECK_SECONDS = 0.85;
+
+/** The last stretch of a check, over which the ring fades rather than blinks out. */
+const RANGE_CHECK_FADE = 0.3;
+
 export interface HudField {
   label: string;
   value: string;
@@ -205,6 +223,16 @@ export class Session {
   private feedbackAccum = 0;
   /** True once the camera has been unlocked, so the hint is only shown once. */
   cameraLocked = true;
+
+  /**
+   * Seconds left on the range check the player is currently spending.
+   *
+   * Zero — which is what it is for almost all of every run — means nothing is
+   * drawing your reach and the only thing that knows where it ends is you.
+   */
+  rangeCheckT = 0;
+  /** How many checks this run has cost. Modes about range charge for them. */
+  rangeChecks = 0;
   /** What a pause interrupted, so resuming returns to it rather than to play. */
   private pausedFrom: SessionPhase = 'running';
 
@@ -292,6 +320,55 @@ export class Session {
     }
   }
 
+  /**
+   * Spend a range check.
+   *
+   * The camera-centre key does two jobs now, and they are the same job: it
+   * puts the view back on your champion *and* it asks the one question the
+   * view was hiding — how far can I reach from here. The ring sweeps out to
+   * your actual reach so the answer arrives as a distance on the floor rather
+   * than as a circle that was already there.
+   *
+   * Everything about it is counted, because in a mode built on range the
+   * interesting number is not how good your spacing is, it is how much of
+   * your spacing was read off an indicator.
+   */
+  checkRange(): void {
+    const player = this.world.player;
+    this.rangeChecks++;
+    this.rangeCheckT = RANGE_CHECK_SECONDS;
+    if (player) {
+      this.fx.ring(
+        player.pos.x,
+        player.pos.y,
+        player.radius,
+        player.attack.range + player.radius,
+        0.42,
+        PALETTE.accentDim,
+        2.5,
+        'range',
+      );
+    }
+    this.drill?.onRangeCheck();
+  }
+
+  /** True while a check is still drawing your reach. */
+  get rangeVisible(): boolean {
+    return this.rangeCheckT > 0;
+  }
+
+  /**
+   * How strongly the check is drawing right now, 0..1.
+   *
+   * Flat while the check is live and a short fade at the end: a ring that
+   * dimmed the whole way through would be asking the player to read a
+   * brightness as well as a distance.
+   */
+  get rangeCheckAlpha(): number {
+    if (this.rangeCheckT <= 0) return 0;
+    return clamp(this.rangeCheckT / RANGE_CHECK_FADE, 0, 1);
+  }
+
   /** Where a dash points. Only WASD gets a choice; clicking has no hands. */
   get tumbleAim(): TumbleAim {
     return this.scheme === 'wasd' ? this.config.tumbleAim ?? 'hands' : 'cursor';
@@ -345,6 +422,7 @@ export class Session {
     }
 
     this.elapsed += dt;
+    if (this.rangeCheckT > 0) this.rangeCheckT = Math.max(0, this.rangeCheckT - dt);
     const player = this.world.player;
 
     this.drill?.update(dt);
@@ -508,8 +586,12 @@ export class Session {
           break;
         }
         case 'centerCamera':
+          // One key, two answers: where am I, and how far do I reach. They
+          // are the same question often enough that binding them apart would
+          // only be teaching a player to press two keys for one thought.
           this.renderer.recenterCamera?.();
-          this.fx.ring(player.pos.x, player.pos.y, 10, 120, 0.4, PALETTE.accentDim, 2, 'pulse');
+          audio.play('uiTab', 0.55);
+          this.checkRange();
           break;
         case 'cameraLock': {
           const locked = this.renderer.toggleCameraLock?.() ?? true;
@@ -924,6 +1006,8 @@ export abstract class DrillBase {
   update(_dt: number): void {}
   onEvents(_events: readonly WorldEvent[]): void {}
   onTargetOrder(_a: Actor): void {}
+  /** The player spent a range check. Modes built on range charge for it. */
+  onRangeCheck(): void {}
   /** Return true to consume the click so no move order is issued. */
   onClick(_pos: Vec2, _kind: 'move' | 'attackMove'): boolean {
     return false;

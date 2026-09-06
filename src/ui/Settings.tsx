@@ -17,7 +17,7 @@ import {
   type Binding,
   type MovementScheme,
 } from '../engine/input';
-import { DEFAULT_SETTINGS, type AppSettings } from '../progression/profile';
+import { DEFAULT_SETTINGS, type AppSettings, type RangeDisplay } from '../progression/profile';
 import { hasBrowserMouseGestures } from './components/GestureNotice';
 import { HeroSigil } from './components/HeroSigil';
 import './settings.css';
@@ -65,7 +65,6 @@ interface Props {
 
 type BoolKey =
   | 'quickCast'
-  | 'showRange'
   | 'reduceShake'
   | 'lowFx'
   | 'edgePan'
@@ -95,6 +94,14 @@ type Item =
       hint?: string;
       terms?: string;
       options: ChoiceOption<MovementScheme>[];
+    }
+  | {
+      kind: 'choice';
+      key: 'rangeDisplay';
+      label: string;
+      hint?: string;
+      terms?: string;
+      options: ChoiceOption<RangeDisplay>[];
     }
   | {
       kind: 'choice';
@@ -183,11 +190,29 @@ const SECTIONS: Section[] = [
         terms: 'smart cast abilities',
       },
       {
-        kind: 'toggle',
-        key: 'showRange',
-        label: 'Show attack range',
-        hint: 'The dashed ring around you, plus the attack timer arc — the two indicators the orbwalk drills are read off.',
-        terms: 'indicator ring circle radius',
+        kind: 'choice',
+        key: 'rangeDisplay',
+        label: 'Attack range',
+        terms: 'indicator ring circle radius range check space centre center camera',
+        options: [
+          {
+            value: 'check',
+            name: 'ON A CHECK',
+            sub: 'default',
+            body: 'Nothing is drawn until you centre the camera, and that press paints your reach for under a second. It is how the game you are training for works: the distance is in your head or it is nowhere, and a check is what you spend when it is not.',
+            keys: ['Space'],
+          },
+          {
+            value: 'always',
+            name: 'ALWAYS',
+            body: 'The old behaviour — a permanent ring. Worth a few runs when you are calibrating a new champion, and worth turning off again after: a ring you can always see is a number you read instead of a distance you know.',
+          },
+          {
+            value: 'off',
+            name: 'NEVER',
+            body: 'No ring, and no way to ask for one. Nothing here changes what the simulation does, so a score set with the checks unspent is the same score — this only removes the option of spending them.',
+          },
+        ],
       },
       {
         kind: 'toggle',
@@ -291,9 +316,7 @@ const resetPatch = (item: Item): Partial<AppSettings> => {
     case 'slider':
       return { [item.key]: DEFAULT_SETTINGS[item.key] } as Partial<AppSettings>;
     case 'choice':
-      return item.key === 'movementScheme'
-        ? { movementScheme: DEFAULT_SETTINGS.movementScheme }
-        : { tumbleAim: DEFAULT_SETTINGS.tumbleAim };
+      return { [item.key]: DEFAULT_SETTINGS[item.key] } as Partial<AppSettings>;
     case 'bindings':
       return { bindings: {}, wasdBindings: {} };
   }
@@ -581,7 +604,12 @@ function Row({
           </div>
           <div className="scheme-pick">
             {item.options.map((o) => {
-              const on = (item.key === 'movementScheme' ? scheme : settings.tumbleAim ?? 'hands') === o.value;
+              // The scheme is read from the resolved value rather than from
+              // the stored one: it is the single setting the rest of this
+              // screen reshapes itself around, so it must never render as
+              // unset on a profile that predates it.
+              const current = item.key === 'movementScheme' ? scheme : settings[item.key] ?? DEFAULT_SETTINGS[item.key];
+              const on = current === o.value;
               return (
                 <button
                   key={o.value}
@@ -590,11 +618,7 @@ function Row({
                   onClick={() => {
                     if (on) return;
                     audio.play('uiClick');
-                    onChange(
-                      item.key === 'movementScheme'
-                        ? { movementScheme: o.value as MovementScheme }
-                        : { tumbleAim: o.value as 'hands' | 'cursor' },
-                    );
+                    onChange({ [item.key]: o.value } as Partial<AppSettings>);
                   }}
                 >
                   <div className="sc-head">

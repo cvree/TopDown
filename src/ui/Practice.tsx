@@ -29,8 +29,10 @@ const KIT_ORDER: { slot: string; name: string }[] = [
  * roughly a dozen questions before anything happened on a screen. This asks
  * two: which part of the champion, and for how long.
  *
- * Everything on it is Vayne. That is not a filter over a larger catalogue —
- * it is what the trainer is for. A mode that put you behind a body with no
+ * Everything under the first card is Vayne. That is not a filter over a larger
+ * catalogue — it is what the trainer is for. The exception is deliberate:
+ * RANGE is about the one distance every champion has and no champion draws for
+ * you, so it hands you a body and nothing else. A mode that put you behind a body with no
  * tumble could tell you about your hands in the abstract; it could not tell
  * you anything about the quarter of a second at the end of a roll, which is
  * where this champion is actually won and lost.
@@ -45,11 +47,17 @@ export function Practice({ profile, onPlay }: Props) {
             <div className="eyebrow">Night Hunter · practice</div>
             <h1 className="display pr-h1">VAYNE</h1>
             <p className="dim pr-lead">
-              Four parts of one champion, and two ways to play each of them.{' '}
+              One number and four parts of one champion, and two ways to play each of them.{' '}
               <b>PLAY</b> is a minute — the same minute every time, so the score means
               something next to the last one. <b>SURVIVE</b> has no clock: it gets harder
               the longer you last and ends when you die or make the mode’s own mistake three
               times.
+            </p>
+            <p className="dim pr-lead">
+              <b>RANGE</b> comes first and hands you no abilities at all, because every mode
+              under it already assumes the answer: how far you reach. Nothing in this client
+              draws that ring for you any more — centring the camera paints it for under a
+              second, and the mode counts every time you ask.
             </p>
           </div>
 
@@ -88,13 +96,17 @@ function ModeCard({
           <h2 className="display pr-name">{meta.name}</h2>
           <div className="pr-tag">{meta.tagline}</div>
         </div>
-        <div className="pr-keys">
-          {KIT_ORDER.map((k) => (
-            <i key={k.slot} className={uses.has(k.slot) ? 'on' : ''} title={k.name}>
-              {k.slot}
-            </i>
-          ))}
-        </div>
+        {/* A mode that hands you no kit prints no kit. Four dim letters would
+            be answering "which abilities" with "none of them", at length. */}
+        {meta.abilities.length > 0 && (
+          <div className="pr-keys">
+            {KIT_ORDER.map((k) => (
+              <i key={k.slot} className={uses.has(k.slot) ? 'on' : ''} title={k.name}>
+                {k.slot}
+              </i>
+            ))}
+          </div>
+        )}
       </div>
 
       <p className="pr-brief">{meta.brief}</p>

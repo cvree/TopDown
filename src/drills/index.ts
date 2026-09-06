@@ -11,6 +11,7 @@ import { EzrealDrill, isEzrealDrill } from './ezreal';
 import { KiteDrill } from './kite';
 import { LastHitDrill } from './lasthit';
 import { MovementDrill } from './movement';
+import { RangeDrill } from './rangecheck';
 import { SkillshotDrill } from './skillshot';
 import { SpacingDrill } from './spacing';
 import { TargetSwitchDrill } from './targetswitch';
@@ -31,6 +32,8 @@ export const createDrill = (id: DrillId, session: Session): Drill => {
   switch (id) {
     case 'movement':
       return new MovementDrill(session);
+    case 'rangecheck':
+      return new RangeDrill(session);
     case 'aim':
       return new AimDrill(session);
     case 'skillshot':
@@ -72,6 +75,12 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
     case 'aim':
     case 'targetswitch':
       return { w: 1500, h: 900 };
+    // Range spawns marks up to five hundred units beyond a reach that itself
+    // grows to nearly seven hundred in the SHIFT phase, and it needs the same
+    // distance again *behind* the player, because half of its reps are solved
+    // by walking backwards. A smaller floor would turn it into a wall drill.
+    case 'rangecheck':
+      return { w: 2300, h: 1360 };
     // Spacing needs somewhere to be spaced. The pocket is over five hundred
     // units wide on its own, and a floor that lets a partner pin you against a
     // wall is a floor that measures the wall rather than your distance.

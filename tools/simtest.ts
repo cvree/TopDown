@@ -69,6 +69,10 @@ type Policy =
   | 'flee'
   | 'aim'
   | 'hold'
+  | 'edge'
+  | 'edgeChecked'
+  | 'edgeWalk'
+  | 'edgeKeys'
   | 'kiteAway'
   | 'nodes'
   | 'priority'
@@ -169,6 +173,8 @@ const runDrill = (
   let strafeFlipAt = 0;
   /** When the lab policy last issued an input, for its human rate limit. */
   let lastLabInput = -1;
+  /** The mark the range policies have already reacted to, by actor id. */
+  let lastMarkId = -1;
   const maxT = (meta.duration > 0 ? meta.duration : 60) + 2;
 
   while (session.phase !== 'ended' && t < maxT) {
@@ -492,6 +498,71 @@ const runDrill = (
               y: Math.max(50, Math.min(bounds.h - 50, gy)),
               t: t * 1000,
             });
+            break;
+          }
+          case 'edge':
+          case 'edgeChecked':
+          case 'edgeWalk': {
+            // Range, played the way it is meant to be played: walk yourself to
+            // the outer edge of your own reach with a *ground* order, and only
+            // then click the mark. The distinction is the whole mode — an
+            // attack order from out of range hands your position to the
+            // pathfinder, and `edgeWalk` is the player who does exactly that.
+            reactTimer = 0.05;
+            if (!target) break;
+            if (p.phase === 'windup') break;
+            const wantD = p.attack.range + target.radius - 26;
+            const dE = dist(p.pos, target.pos);
+
+            // One check per mark, spent the instant it appears. This is the
+            // player who cannot commit without looking at the ring first.
+            if (policy === 'edgeChecked' && target.id !== lastMarkId) {
+              lastMarkId = target.id;
+              input.push({ kind: 'centerCamera', t: t * 1000 });
+            }
+
+            if (policy === 'edgeWalk') {
+              // Click the mark from wherever you happen to be standing and let
+              // the champion walk until the attack becomes legal. It produces
+              // beautiful-looking shots off a decision nobody made.
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              break;
+            }
+
+            if (p.attackCd <= 0.001 && Math.abs(dE - wantD) <= 26) {
+              input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+              break;
+            }
+            const outward = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            input.push({
+              kind: 'move',
+              x: Math.max(60, Math.min(bounds.w - 60, target.pos.x + outward.x * wantD)),
+              y: Math.max(60, Math.min(bounds.h - 60, target.pos.y + outward.y * wantD)),
+              t: t * 1000,
+            });
+            break;
+          }
+          case 'edgeKeys': {
+            // The same mode on the keys. Nothing can walk you here — an order
+            // only says what to shoot — so finding the edge is entirely the
+            // left hand's problem, and the shot goes off the moment it stops.
+            reactTimer = 0.02;
+            if (!target || p.phase === 'windup') {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const wantK = p.attack.range + target.radius - 26;
+            const dK = dist(p.pos, target.pos);
+            if (p.targetId !== target.id) {
+              input.push({ kind: 'attackMove', x: target.pos.x, y: target.pos.y, t: t * 1000 });
+            }
+            if (Math.abs(dK - wantK) <= 22) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            const outK = norm(p.pos.x - target.pos.x, p.pos.y - target.pos.y);
+            const signK = dK > wantK ? -1 : 1;
+            input.dir = { x: outK.x * signK, y: outK.y * signK };
             break;
           }
           case 'kiteAway': {
@@ -1531,6 +1602,78 @@ expect('a competent player holds the pocket most of the run', spaceGood.out.keyM
 expect('and still holds it once the ranges are hidden', spaceBlind(spaceGood) > 0.55, pct(spaceBlind(spaceGood)));
 expect('and trades from it rather than waiting in it', spaceGood.d.pocketUse > 0.5, pct(spaceGood.d.pocketUse));
 
+line('\n=== RANGE: knowing the edge vs. being walked to it ===');
+{
+  const k = (r: ReturnType<typeof runDrill>, key: string) => r.out.keyMetrics.find((x) => x.id === key)?.value ?? 0;
+  const good = runDrill('rangecheck', 'edge', 0.4);
+  const checked = runDrill('rangecheck', 'edgeChecked', 0.4);
+  const walked = runDrill('rangecheck', 'edgeWalk', 0.4);
+  const idle = runDrill('rangecheck', 'idle', 0.4);
+  const shots = (r: ReturnType<typeof runDrill>) => (r.drill as unknown as { reps: unknown[] }).reps.length;
+  line(
+    `  knowing : blind ${pct(k(good, 'blindEdge'))}  err ${Math.round(k(good, 'edgeErr'))}u  onEdge ${pct(k(good, 'calibration'))}  checks ${k(good, 'checks')}  walked ${k(good, 'walkedIn')}  reps ${shots(good)}  perf ${pct(good.out.performance)}  score ${good.out.score}`,
+  );
+  line(
+    `  checking: blind ${pct(k(checked, 'blindEdge'))}  err ${Math.round(k(checked, 'edgeErr'))}u  checks ${k(checked, 'checks')}  perf ${pct(checked.out.performance)}  score ${checked.out.score}`,
+  );
+  line(
+    `  walked  : err ${Math.round(k(walked, 'edgeErr'))}u  onEdge ${pct(k(walked, 'calibration'))}  walked ${k(walked, 'walkedIn')}  perf ${pct(walked.out.performance)}  score ${walked.out.score}`,
+  );
+  line(`  idle    : reps ${shots(idle)}  perf ${pct(idle.out.performance)}`);
+
+  expect('knowing your edge scores well', good.out.performance > 0.6, pct(good.out.performance));
+  expect('a competent player takes reps rather than dithering', shots(good) > 8, `${shots(good)} reps`);
+  expect('and takes them without checking', k(good, 'checks') <= 1, `${k(good, 'checks')} checks`);
+  expect('and never orders a shot it cannot take', k(good, 'walkedIn') === 0, `${k(good, 'walkedIn')} walked in`);
+  expect(
+    'letting the pathfinder find your range is worse than knowing it',
+    walked.out.performance < good.out.performance * 0.5,
+    `${pct(walked.out.performance)} vs ${pct(good.out.performance)}`,
+  );
+  expect(
+    'the walked-in run is caught as walked in rather than as good shooting',
+    k(walked, 'walkedIn') > 5,
+    `${k(walked, 'walkedIn')} of ${shots(walked)}`,
+  );
+  // The mode's whole premise: the same accuracy is worth less when it was
+  // read off the ring instead of known. Both runs shoot identically well —
+  // only one of them has learnt anything.
+  expect(
+    'checking the ring before every shot scores below knowing the distance',
+    checked.out.performance < good.out.performance - 0.1,
+    `${pct(checked.out.performance)} vs ${pct(good.out.performance)}`,
+  );
+  expect(
+    'and a checked shot proves nothing about your blind accuracy',
+    k(checked, 'blindEdge') < k(good, 'blindEdge'),
+    `${pct(k(checked, 'blindEdge'))} vs ${pct(k(good, 'blindEdge'))}`,
+  );
+  expect('range cannot be passed by doing nothing', idle.out.performance < 0.25, pct(idle.out.performance));
+  // An attack-move order fires the instant a target enters range, which means
+  // twenty random orders a second produce shots that land near the edge
+  // without anybody having judged anything. The mode has to see through that
+  // — a spread that wide is a coin, not a distance.
+  {
+    const chaos = runDrill('rangecheck', 'apmChaos', 0.4, 31337);
+    line(`  chaos   : blind ${pct(k(chaos, 'blindEdge'))}  err ${Math.round(k(chaos, 'edgeErr'))}u  perf ${pct(chaos.out.performance)}`);
+    expect('random orders cannot buy an edge', chaos.out.performance < 0.3, pct(chaos.out.performance));
+  }
+
+  // The mode is played on the keys by default, so it has to be the same mode
+  // there: nothing can walk you in, and the whole question is where you stop.
+  {
+    const keys = runDrill('rangecheck', 'edgeKeys', 0.4, 12345, 'wasd');
+    const keysIdle = runDrill('rangecheck', 'idle', 0.4, 12345, 'wasd');
+    const repsK = (keys.drill as unknown as { reps: unknown[] }).reps.length;
+    line(
+      `  on keys : blind ${pct(k(keys, 'blindEdge'))}  err ${Math.round(k(keys, 'edgeErr'))}u  reps ${repsK}  perf ${pct(keys.out.performance)}  score ${keys.out.score}`,
+    );
+    expect('the edge is findable on the keys too', keys.out.performance > 0.6, pct(keys.out.performance));
+    expect('and nothing walks you in under WASD', k(keys, 'walkedIn') === 0, `${k(keys, 'walkedIn')}`);
+    expect('WASD idling scores nothing either', keysIdle.out.performance < 0.25, pct(keysIdle.out.performance));
+  }
+}
+
 line('\n=== SKILLSHOT: leading a juking target vs. idle ===');
 const shotGood = runDrill('skillshot', 'lead', 0.35);
 const shotIdle = runDrill('skillshot', 'idle', 0.35);
@@ -1586,7 +1729,7 @@ line('\n=== LAST HIT: every point of damage has an owner ===');
 }
 
 line('\n=== Honesty: doing nothing scores near zero everywhere ===');
-for (const id of ['movement', 'aim', 'skillshot', 'kite', 'spacing', 'lasthit', 'targetswitch', 'combos'] as DrillId[]) {
+for (const id of ['movement', 'aim', 'skillshot', 'kite', 'spacing', 'rangecheck', 'lasthit', 'targetswitch', 'combos'] as DrillId[]) {
   const r = runDrill(id, 'idle', 0.4);
   line(`  ${id.padEnd(13)} idle perf ${pct(r.out.performance)}  score ${r.out.score}`);
   expect(`${id} cannot be passed by doing nothing`, r.out.performance < 0.3, pct(r.out.performance));
@@ -1717,6 +1860,7 @@ line('\n=== CHEESE SWEEP: every drill against every bad idea ===');
     'skillshot',
     'dodge',
     'spacing',
+    'rangecheck',
     'kite',
     'lasthit',
     'targetswitch',
