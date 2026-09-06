@@ -175,6 +175,27 @@ export abstract class ApmDrill extends Drill {
     return [];
   }
 
+  /**
+   * What the layers *under* the mode measured.
+   *
+   * The console's board in the corner runs in every mode and belongs to none
+   * of them, so its ledger arrives here rather than in thirteen copies of
+   * `modeMetrics`. Same for the two coaching hooks below it: a run lost on the
+   * map is a thing the results screen has to be able to say out loud even
+   * though no mode knows the map exists.
+   */
+  protected extraMetrics(): KeyMetric[] {
+    return [];
+  }
+
+  protected extraNotes(): { helped: string[]; hurt: string[] } {
+    return { helped: [], hurt: [] };
+  }
+
+  protected extraAdvice(): string | null {
+    return null;
+  }
+
   /** How the run's performance is split across the axes the mode trains. */
   protected axisSplit(performance: number, accuracy: number, speed: number): Partial<Record<SkillAxis, number>> {
     return { tempo: clamp(performance * 0.7 + speed * 0.3, 0, 1), aim: accuracy };
@@ -622,9 +643,12 @@ export abstract class ApmDrill extends Drill {
     if (avgApm > this.targetApm * 1.2 && accuracy < 0.7) hurt.push('Plenty of speed, most of it spent on nothing.');
 
     const own = this.modeMetrics();
+    const layerMetrics = this.extraMetrics();
     const coaching = this.notes();
+    const layers = this.extraNotes();
     const advice =
       coaching.advice ??
+      this.extraAdvice() ??
       (accuracy < 0.78
         ? 'Slow down about ten percent. At this accuracy the extra speed is costing more than it earns.'
         : correct < this.targetRate * 0.7
@@ -639,20 +663,24 @@ export abstract class ApmDrill extends Drill {
       axisPerformance: this.axisSplit(performance, accuracy, speed),
       // Order matters: the results screen leads with the first and shows the
       // next four in a row. So it goes headline rate, the rate that was
-      // scored, what the mode itself measures, and then the two numbers that
-      // explain the gap between the first two.
+      // scored, what the mode itself measures, what the layers under it
+      // measured — the corner of the screen is where a good run is most often
+      // actually lost — and then how much of it all was clean. Everything
+      // after that is kept for the records rather than the four cells.
       keyMetrics: [
         count('apm', 'SUSTAINED APM', Math.round(avgApm)),
         count('correctApm', 'CORRECT ACTIONS / MIN', Math.round(correct)),
         ...own.slice(0, 1),
+        ...layerMetrics.slice(0, 1),
         pct('clean', 'CLEAN INPUTS', accuracy),
         count('chain', 'BEST CHAIN', this.bestChain),
         count('peakApm', 'PEAK APM', Math.round(peak)),
         ...(this.holds > 0 ? [count('held', 'CORRECTLY HELD', this.holds)] : []),
         ...own.slice(1),
+        ...layerMetrics.slice(1),
       ],
-      helped: [...helped, ...coaching.helped],
-      hurt: [...hurt, ...coaching.hurt],
+      helped: [...helped, ...coaching.helped, ...layers.helped],
+      hurt: [...hurt, ...coaching.hurt, ...layers.hurt],
       advice,
     };
   }

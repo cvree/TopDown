@@ -471,6 +471,16 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
   // correct commands per minute, and every mode refuses to count an input that
   // did not mean anything. The flow ladder is shared: chain your actions and
   // the multiplier climbs through five tiers, break and it is gone.
+  //
+  // Two things are shared by all thirteen and belong to none of them. The
+  // pads travel — a bench is a formation of moving circles, swinging wider and
+  // running faster with the rung and with your own flow, so your eyes are
+  // working for the whole run rather than for the first ten seconds. And the
+  // minimap in the corner runs a two-lane dodge for the whole of every mode:
+  // a bad orb falls slowly down one of two lanes and the summoner keys are
+  // which lane you stand in. Let it land on you and it costs the flow tier
+  // your hands just spent a minute building, which is precisely what a gank
+  // you did not look up for costs.
   apmPulse: {
     id: 'apmPulse',
     name: 'PULSE',
@@ -480,7 +490,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'APM',
     axes: { tempo: 1 },
     duration: 40,
-    abilities: ['q', 'e'],
+    abilities: ['q', 'e', 'd', 'f'],
     accent: '#7ceaff',
     keyMetric: 'SUSTAINED APM',
     order: 30,
@@ -489,7 +499,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     id: 'apmSequence',
     name: 'SEQUENCE',
     tagline: 'The queue, read two ahead',
-    brief: 'Six keys roll across the bench and only the front one is legal. The window shrinks as you speed up.',
+    brief: 'The ability row rolls across a drifting bench and only the front key is legal. The window shrinks as you speed up.',
     transfers: 'A long combo arriving in the right order when you are not thinking about it.',
     group: 'APM',
     axes: { tempo: 0.7, targeting: 0.3 },
@@ -503,7 +513,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     id: 'apmChord',
     name: 'CHORD',
     tagline: 'Two keys, one instant',
-    brief: 'A pair lights and both keys have to land together. The tolerance closes to under fifty milliseconds.',
+    brief: 'A pair of travelling pads lights and both keys have to land together. The tolerance closes to under fifty milliseconds.',
     transfers: 'Flash plus an ability — the pairs that only work on the same frame.',
     group: 'APM',
     axes: { tempo: 0.7, combat: 0.3 },
@@ -522,7 +532,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'APM',
     axes: { tempo: 0.6, targeting: 0.4 },
     duration: 55,
-    abilities: ['q', 'w', 'e', 'r'],
+    abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
     accent: '#ff9f5c',
     keyMetric: 'SUSTAINED APM',
     order: 33,
@@ -536,7 +546,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'APM',
     axes: { tempo: 0.65, lastHitting: 0.35 },
     duration: 55,
-    abilities: ['q'],
+    abilities: ['q', 'd', 'f'],
     accent: '#5ce1a8',
     keyMetric: 'SUSTAINED APM',
     order: 34,
@@ -550,7 +560,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'APM',
     axes: { tempo: 0.6, kiting: 0.4 },
     duration: 55,
-    abilities: ['q', 'e'],
+    abilities: ['q', 'e', 'd', 'f'],
     accent: '#4fd6c4',
     keyMetric: 'SUSTAINED APM',
     order: 35,
@@ -564,7 +574,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'APM',
     axes: { tempo: 0.6, movement: 0.4 },
     duration: 50,
-    abilities: [],
+    abilities: ['d', 'f'],
     accent: '#ffcf6b',
     keyMetric: 'SUSTAINED APM',
     order: 36,
@@ -573,12 +583,12 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     id: 'apmField',
     name: 'FIELD',
     tagline: 'The mouse half, with nothing attached',
-    brief: 'Pads light across the floor and go out. Graded in units from the centre, and they shrink as you chain.',
+    brief: 'Pads cross the floor and go out. Graded in units from the centre, and they shrink and speed up as you chain.',
     transfers: 'The ceiling on every command that starts with the cursor being somewhere.',
     group: 'APM',
     axes: { tempo: 0.6, aim: 0.4 },
     duration: 45,
-    abilities: [],
+    abilities: ['d', 'f'],
     accent: '#b8e4ff',
     keyMetric: 'SUSTAINED APM',
     order: 37,
@@ -592,7 +602,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'APM',
     axes: { tempo: 0.5, aim: 0.3, targeting: 0.2 },
     duration: 55,
-    abilities: ['q', 'w', 'e'],
+    abilities: ['q', 'w', 'e', 'd', 'f'],
     accent: '#9fc4ff',
     keyMetric: 'SUSTAINED APM',
     order: 38,
@@ -600,9 +610,9 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
   apmSplit: {
     id: 'apmSplit',
     name: 'SPLIT',
-    tagline: 'Two things at once, neither waiting',
-    brief: 'A key queue in the middle that never stops, and alerts at the rim that want a different key inside a second.',
-    transfers: 'Answering the minimap without your combo falling apart.',
+    tagline: 'The queue, and the corner of the screen',
+    brief: 'A key queue in the middle that never stops, and the map in the corner running at double rate behind it.',
+    transfers: 'Answering the minimap without your combo falling apart — on an actual minimap.',
     group: 'APM',
     axes: { tempo: 0.5, targeting: 0.35, aim: 0.15 },
     duration: 60,
@@ -620,7 +630,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'APM',
     axes: { tempo: 0.5, combat: 0.3, targeting: 0.2 },
     duration: 60,
-    abilities: ['q', 'w', 'e', 'r'],
+    abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
     accent: '#ffd166',
     keyMetric: 'SUSTAINED APM',
     order: 40,
@@ -629,7 +639,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     id: 'apmSwitch',
     name: 'SWITCH',
     tagline: 'What it costs to move your hand',
-    brief: 'Near bank, far bank, mouse. The prompt keeps changing which, and the mode prints the cost in milliseconds.',
+    brief: 'Near bank, far bank, and a mouse pad that will not hold still. The prompt keeps changing which, and the mode prints the cost in milliseconds.',
     transfers: 'The summoner key mid-combo. Not a harder key — a different hand shape, and the shape is what you pay for.',
     group: 'APM',
     axes: { tempo: 0.6, targeting: 0.4 },
@@ -648,7 +658,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'APM',
     axes: { tempo: 0.8, combat: 0.2 },
     duration: 150,
-    abilities: ['q', 'w', 'e', 'r'],
+    abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
     accent: '#b98cff',
     keyMetric: 'SUSTAINED APM',
     order: 42,

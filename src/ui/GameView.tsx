@@ -15,6 +15,7 @@ import { ABILITY_BAR, RANGE_CHECK_SECONDS, Session, type HudSnapshot } from '../
 import { RiftRenderer } from '../gfx/RiftRenderer';
 import { arenaFor, createDrill } from '../drills';
 import { DRILLS, type DrillId } from '../drills/catalog';
+import { MAP_KEYS } from '../drills/apm';
 import { RUN_MODES, SURVIVE_STRIKES, durationFor, type RunMode } from '../drills/modes';
 import type { AppSettings, RunResult } from '../progression/profile';
 import { Minimap } from './hud/Minimap';
@@ -186,6 +187,18 @@ const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: 
       ...base.filter((h) => keep.includes(h.label)),
       ...kit,
       { key: abilityKeyLabel(settings, drill, 'f'), label: 'recall' },
+      { key: 'ESC', label: 'pause · settings' },
+    ];
+  }
+  // The lab's two lane keys. The board in the corner prints them under its own
+  // lanes, but the first orb of a player's first run is not the moment to be
+  // reading a hundred-and-fifty-pixel panel for the first time.
+  if (meta.group === 'APM') {
+    const lanes = MAP_KEYS.map((slot) => abilityKeyLabel(settings, drill, slot)).join(' ');
+    const keep = scheme === 'wasd' ? ['move', 'attack'] : ['move · attack'];
+    return [
+      ...base.filter((h) => keep.includes(h.label)),
+      { key: lanes, label: 'lanes · dodge the map' },
       { key: 'ESC', label: 'pause · settings' },
     ];
   }
@@ -551,7 +564,15 @@ export function GameView({
 
         const now = performance.now();
         writeHud(session.hud(loop.stats.fps), now);
-        minimap.draw(session.world, renderer.scene.rig.coverage, renderer.scene.rig.focus, meta.accent);
+        minimap.draw(
+          session.world,
+          renderer.scene.rig.coverage,
+          renderer.scene.rig.focus,
+          meta.accent,
+          // The lab replaces the map of the arena with a board of its own. It
+          // is the same corner of the screen asking the same question.
+          drillInstance.mapBoard(),
+        );
 
         // Quality falls back on its own rather than asking the player to find
         // a setting. Scores must never depend on the machine.

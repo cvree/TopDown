@@ -129,7 +129,7 @@ export class ApmUpkeepDrill extends LabDrill {
     if (!w.touchedWhileLocked) this.hold(w.pad.pos, 'HELD');
   }
 
-  onAbility(slot: AbilitySlot): void {
+  protected onKey(slot: AbilitySlot): void {
     const w = this.wheels.find((x) => x.slot === slot);
     if (!w) {
       this.stray(this.centre);
@@ -160,7 +160,7 @@ export class ApmUpkeepDrill extends LabDrill {
     this.reset(w);
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     const ready = this.wheels.filter((w) => !w.locked && w.readyAt >= 0);
     if (!ready.length) return { wait: true };
     // Oldest first: the one closest to being wasted is the one that matters.

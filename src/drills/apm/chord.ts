@@ -10,7 +10,7 @@ import { count, ms } from '../base';
 import { APM_TARGET_APM } from './engine';
 import { LabDrill, median, type LabSolution, type Pad } from './lab';
 
-const SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r', 'd', 'f'];
+const SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r'];
 
 /**
  * CHORD — two keys, one instant.
@@ -44,7 +44,7 @@ export class ApmChordDrill extends LabDrill {
   private missed = 0;
 
   protected build(): void {
-    this.pads = this.ring(SLOTS, 300, 58);
+    this.pads = this.ring(SLOTS, 300, 62);
     this.deal();
   }
 
@@ -91,7 +91,7 @@ export class ApmChordDrill extends LabDrill {
     }
   }
 
-  onAbility(slot: AbilitySlot): void {
+  protected onKey(slot: AbilitySlot): void {
     this.press(slot);
     if (slot !== this.pair[0] && slot !== this.pair[1]) {
       this.wrong++;
@@ -130,7 +130,7 @@ export class ApmChordDrill extends LabDrill {
     this.deal();
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     // Both keys, this instant. The harness sends them in one step, which is
     // exactly the thing the mode is asking a pair of fingers to do.
     return { keys: this.first ? [this.first.slot === this.pair[0] ? this.pair[1] : this.pair[0]] : [...this.pair] };

@@ -2,6 +2,15 @@ import { useState } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { PRACTICE_MODES, RUN_MODE_LIST, type RunMode } from '../drills/modes';
+import {
+  APM_LEVELS,
+  APM_MODES,
+  levelDifficulty,
+  levelStars,
+  recommendedLevel,
+  type ApmMode,
+} from '../progression/apm';
+import type { ApmDrillId } from '../drills/apm';
 import { LANE_LENGTHS, LANE_TIERS, type LaneTier } from '../progression/lane';
 import { CAITLYN_STATS, caitlynCd } from '../engine/caitlyn';
 import { VAYNE_STATS, tumbleCdAt, condemnCdAt, condemnPracticeCdAt } from '../engine/vayne';
@@ -10,7 +19,11 @@ import './practice.css';
 
 interface Props {
   profile: Profile;
-  onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number }) => void;
+  onPlay: (
+    id: DrillId,
+    mode: RunMode,
+    opts?: { difficulty?: number; duration?: number; level?: number },
+  ) => void;
 }
 
 /** mm:ss, for a survival record. */
@@ -80,6 +93,13 @@ export function Practice({ profile, onPlay }: Props) {
               question no amount of solo practice reaches: what did you do about the thing
               somebody else just aimed at you.
             </p>
+            <p className="dim pr-lead">
+              <b>THE LAB</b> is at the bottom, and it is not the game at all. Thirteen benches
+              of drifting pads with no champion on them, ten levels each, and a minimap in the
+              corner dropping something you have to get out of the way of while your hands are
+              busy. It measures one thing — correct commands a minute — and it is the only
+              part of this client you play with a number in mind rather than a habit.
+            </p>
           </div>
 
         </header>
@@ -94,6 +114,7 @@ export function Practice({ profile, onPlay }: Props) {
 
         <KitReference />
         <SheriffReference />
+        <LabSection profile={profile} onPlay={onPlay} />
       </div>
     </div>
   );
@@ -421,6 +442,138 @@ function SheriffReference() {
         every range on this list are untouched, and her basic attack is the one number bent
         downwards — a Sheriff who kills you with autos is a Sheriff who is testing your
         spacing rather than your dodging, and there is already a mode for that.
+      </p>
+    </section>
+  );
+}
+
+/**
+ * THE LAB.
+ *
+ * Everything above this on the screen is the champion. This is the bench: no
+ * champion, nothing to kill, and a floor of drifting pads that only ever asks
+ * how many correct commands a minute your hands issue. It is last because it
+ * is the least like the game and the most like a gym, and it is here at all
+ * because a rate you have never measured is a rate you cannot train.
+ *
+ * It asks one question the champion modes never do, and it is the reason the
+ * ladder exists: which rung. Ten levels a mode, each one a record of its own,
+ * and the section opens every mode on the lowest rung you have not cleared —
+ * a suggestion, not a gate, because the whole activity is choosing a level and
+ * holding it until it is easy.
+ */
+function LabSection({
+  profile,
+  onPlay,
+}: {
+  profile: Profile;
+  onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; level?: number }) => void;
+}) {
+  // Which rung each mode is showing. Empty means "whatever the ladder
+  // suggests", so a mode the player has not touched this session always opens
+  // on the rung they have not beaten rather than on the one they last looked at.
+  const [picked, setPicked] = useState<Partial<Record<ApmDrillId, number>>>({});
+
+  const levelOf = (m: ApmMode): number => {
+    const rec = profile.apm.modes[m.id];
+    const want = picked[m.id] ?? recommendedLevel(profile.apm, m.id);
+    return Math.max(1, Math.min(want, rec.unlocked));
+  };
+
+  return (
+    <section className="panel pad pr-lab" style={{ ['--c' as string]: '#7ceaff' }}>
+      <div className="panel-title">The lab</div>
+      <p className="dim pr-lead">
+        Thirteen benches over one engine. Every one counts the same thing — commands that
+        were <i>correct</i>, per minute — and every one refuses to count an input that meant
+        nothing, so mashing produces the highest raw rate in the client and the lowest score.
+        Chain your actions and the multiplier climbs through five tiers; break it and it is
+        gone.
+      </p>
+      <p className="dim pr-lead">
+        Two things are true of all thirteen. <b>The pads move</b>, further and faster the
+        higher the level and the hotter your own run, so your eyes are working for the whole
+        minute rather than the first ten seconds of it. And <b>the minimap is a second
+        task</b>: a bad orb falls slowly down one of two lanes, your summoner keys are which
+        lane you stand in, and an orb that lands on you costs the whole flow tier your hands
+        just spent a minute building — which is exactly what a gank you did not look up for
+        costs.
+      </p>
+      <div className="pr-lab-grid">
+        {APM_MODES.map((m) => {
+          const meta = DRILLS[m.id];
+          const rec = profile.apm.modes[m.id];
+          const level = levelOf(m);
+          const lv = rec.levels[level - 1];
+          const stars = levelStars(lv);
+          const step = (by: number) => {
+            audio.play('uiTab');
+            setPicked((prev) => ({
+              ...prev,
+              [m.id]: Math.max(1, Math.min(level + by, rec.unlocked)),
+            }));
+          };
+          return (
+            <article className="pr-lab-mode" key={m.id} style={{ ['--c' as string]: meta.accent }}>
+              <header className="pr-lab-head">
+                <b className="pr-lab-name">{meta.name}</b>
+                <span className="pr-lab-kind mono">{m.kind === 'isolated' ? 'ONE THING' : 'TWO AT ONCE'}</span>
+              </header>
+              <div className="pr-lab-tag">{meta.tagline}</div>
+              <p className="pr-lab-brief">{meta.brief}</p>
+              <div className="pr-lab-level">
+                <button
+                  className="pr-lab-step"
+                  disabled={level <= 1}
+                  onMouseEnter={() => audio.play('uiHover')}
+                  onClick={() => step(-1)}
+                  aria-label={`${meta.name}: a level down`}
+                >
+                  ◀
+                </button>
+                <span className="mono">
+                  LEVEL {level} / {APM_LEVELS}
+                </span>
+                <button
+                  className="pr-lab-step"
+                  disabled={level >= rec.unlocked}
+                  onMouseEnter={() => audio.play('uiHover')}
+                  onClick={() => step(1)}
+                  aria-label={`${meta.name}: a level up`}
+                >
+                  ▶
+                </button>
+                <i className="pr-lab-stars">
+                  {[1, 2, 3].map((n) => (
+                    <b key={n} className={n <= stars ? 'on' : ''}>
+                      ★
+                    </b>
+                  ))}
+                </i>
+              </div>
+              <button
+                className="pr-go pr-go-play"
+                onMouseEnter={() => audio.play('uiHover')}
+                onClick={() => {
+                  audio.play('uiClick');
+                  onPlay(m.id, 'play', { difficulty: levelDifficulty(level), level });
+                }}
+              >
+                <span className="pr-go-label">PLAY</span>
+                <span className="pr-go-sub">par {m.par} APM</span>
+                <span className="pr-go-best mono">
+                  {lv.best > 0 ? `best ${Math.round(lv.best * 100)}%` : 'no run on this rung'}
+                </span>
+              </button>
+            </article>
+          );
+        })}
+      </div>
+      <p className="set-note">
+        A level is a place you go back to, beat, and leave behind. Clearing one opens the
+        next; clearing it outright opens two, so a rung you are plainly past does not have to
+        be ground. Nothing here is adaptive — the number on the rung is the difficulty the
+        bench will be played at, and it scales the pads, the windows and the orbs together.
       </p>
     </section>
   );

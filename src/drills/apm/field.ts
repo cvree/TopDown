@@ -1,4 +1,3 @@
-import { audio } from '../../engine/audio';
 import type { AbilitySlot } from '../../engine/input';
 import { clamp, dist } from '../../engine/math';
 import { PALETTE } from '../../engine/palette';
@@ -7,7 +6,7 @@ import type { HudField } from '../../engine/session';
 import type { Vec2 } from '../../engine/types';
 import type { KeyMetric } from '../../progression/profile';
 import type { SkillAxis } from '../../progression/skills';
-import { count, ms, pct, units } from '../base';
+import { count, ms, units } from '../base';
 import { APM_TARGET_APM } from './engine';
 import { LabDrill, median, type LabSolution, type Pad } from './lab';
 
@@ -25,13 +24,17 @@ interface LivePad {
  * is no champion under the pad, no health bar on it, nothing to decide about
  * it and no consequence for it beyond whether your hand arrived.
  *
+ * The pads travel. They cross the floor and bounce off it, faster on a higher
+ * rung and faster again while you are hot, so a click is a lead rather than a
+ * destination — which is what a click on a champion has always actually been.
  * It is graded in units from the centre rather than as a yes or no, and the
  * pads shrink as the chain grows, so the mode always asks for the smallest
- * target you have just proved you can hit. Clicking the floor is a stray: an
- * input you paid for and did not get.
+ * moving target you have just proved you can hit. Clicking the floor is a
+ * stray: an input you paid for and did not get.
  *
  * Transfer: the ceiling on every command that starts with the cursor being
- * somewhere. You cannot click a champion faster than you can click a circle.
+ * somewhere. You cannot click a champion faster than you can click a circle,
+ * and a champion has never once stood still while you did it.
  */
 export class ApmFieldDrill extends LabDrill {
   protected readonly targetApm = APM_TARGET_APM.apmField;
@@ -59,8 +62,11 @@ export class ApmFieldDrill extends LabDrill {
   private spawn(): void {
     const radius = this.radius();
     const pos = this.randomPoint(this.live[this.live.length - 1]?.pad.pos ?? null, 190, 130);
+    // Free drift, not a wander: a pad here is something to chase across the
+    // floor, and a target that crosses the arena is what turns a click test
+    // into a tracking one.
     this.live.push({
-      pad: { slot: null, pos, radius },
+      pad: this.drift({ slot: null, pos, radius }, 'free'),
       born: this.s.elapsed,
       ttl: clamp((2.1 - this.d * 0.75) / this.tempo, 0.55, 2.2),
     });
@@ -77,6 +83,7 @@ export class ApmFieldDrill extends LabDrill {
       const m = this.live[i];
       if (this.s.elapsed - m.born <= m.ttl) continue;
       this.live.splice(i, 1);
+      this.undrift(m.pad);
       this.missed++;
       this.fumble(m.pad.pos, 'GONE', { input: false, cost: 40 });
     }
@@ -98,6 +105,7 @@ export class ApmFieldDrill extends LabDrill {
     }
     const m = this.live[idx];
     this.live.splice(idx, 1);
+    this.undrift(m.pad);
     this.errors.push(bd);
     if (this.lastHitAt > 0) this.gaps.push((this.s.elapsed - this.lastHitAt) * 1000);
     this.lastHitAt = this.s.elapsed;
@@ -110,12 +118,12 @@ export class ApmFieldDrill extends LabDrill {
     });
   }
 
-  onAbility(): void {
+  protected onKey(): void {
     // Nothing on this bench answers to a key.
     this.stray(this.centre);
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     if (!this.live.length) return { wait: true };
     const oldest = this.live.reduce((a, b) => (a.born <= b.born ? a : b));
     return { click: oldest.pad.pos };
@@ -216,7 +224,8 @@ export class ApmHandoffDrill extends LabDrill {
     this.shownAt = this.s.elapsed;
     if (this.turn === 'click') {
       const pos = this.randomPoint(this.clickPad?.pos ?? null, 220, 150);
-      this.clickPad = { slot: null, pos, radius: clamp(96 - this.d * 26, 46, 96) };
+      if (this.clickPad) this.undrift(this.clickPad);
+      this.clickPad = this.drift({ slot: null, pos, radius: clamp(96 - this.d * 26, 46, 96) }, 'free');
     } else {
       this.keySlot = this.s.rng.pick(HANDOFF_KEYS);
     }
@@ -238,7 +247,7 @@ export class ApmHandoffDrill extends LabDrill {
     this.deal();
   }
 
-  onAbility(slot: AbilitySlot): void {
+  protected onKey(slot: AbilitySlot): void {
     this.press(slot);
     if (this.turn !== 'key') {
       this.wrongHand++;
@@ -274,7 +283,7 @@ export class ApmHandoffDrill extends LabDrill {
     this.pass(pad.pos, 'CLICK', clamp(1 - d / pad.radius, 0, 1) * 0.5 + clamp(1 - age / this.window, 0, 1) * 0.5);
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     return this.turn === 'click' ? { click: this.clickPad?.pos ?? null } : { keys: [this.keySlot] };
   }
 
@@ -347,27 +356,28 @@ export class ApmHandoffDrill extends LabDrill {
 }
 
 const CENTRE_KEYS: AbilitySlot[] = ['q', 'w', 'e'];
-const ALERT_KEYS: AbilitySlot[] = ['d', 'f'];
-
-interface Alert {
-  slot: AbilitySlot;
-  pos: Vec2;
-  born: number;
-  ttl: number;
-}
 
 /**
  * SPLIT — two things at once, neither allowed to wait.
  *
- * The centre runs a key queue that never stops. The rim throws alerts that
- * want a different key inside a second, and they do not care what the centre
- * was in the middle of. Drop either and you pay for it.
+ * The centre runs a key queue that never stops. The corner runs the map, at
+ * roughly twice the rate every other mode runs it: orbs arrive every couple of
+ * seconds, two of them are in the air at once, and they fall on the lane you
+ * are standing in far more often than on the empty one. Drop either half and
+ * you pay for it — a queue that stalls costs the prompt, an orb that lands
+ * costs the whole flow tier the queue was building.
  *
  * Divided attention is the mechanic, and it is a real and separable one: most
  * players can run the centre alone at nearly full rate and lose thirty percent
- * of it the moment anything else in the world is also true.
+ * of it the moment anything else in the world is also true. This mode is the
+ * one that makes the second thing true on purpose.
  *
- * Transfer: answering the minimap without your combo falling apart.
+ * It used to throw its own alerts at the rim of the arena, which was the same
+ * idea drawn in the wrong place — the rim of the floor is somewhere your eyes
+ * already are. The corner of the screen is not, which is exactly why the game
+ * puts the minimap there and exactly why answering it is hard.
+ *
+ * Transfer: answering the map without your combo falling apart.
  */
 export class ApmSplitDrill extends LabDrill {
   protected readonly targetApm = APM_TARGET_APM.apmSplit;
@@ -376,14 +386,15 @@ export class ApmSplitDrill extends LabDrill {
   private queue: AbilitySlot[] = [];
   private shownAt = 0;
   private window = 1.1;
-  private alerts: Alert[] = [];
-  private alertCd = 2.4;
-  private alertsSeen = 0;
-  private alertsTaken = 0;
-  private alertReactions: number[] = [];
   private wrongCentre = 0;
-  private wrongAlert = 0;
   private centreMissed = 0;
+  private gaps: number[] = [];
+  private lastHitAt = 0;
+
+  /** The mode is the board plus a queue, so the board runs at double rate. */
+  protected mapPressure(): number {
+    return 2.1;
+  }
 
   protected build(): void {
     this.pads = this.row(CENTRE_KEYS, { gap: 170, radius: 60 });
@@ -409,73 +420,15 @@ export class ApmSplitDrill extends LabDrill {
     this.arm();
   }
 
-  private spawnAlert(): void {
-    const { w, h } = this.s.world.bounds;
-    const side = this.s.rng.int(0, 4);
-    const t = this.s.rng.range(0.18, 0.82);
-    const m = 110;
-    const pos =
-      side === 0
-        ? { x: t * w, y: m }
-        : side === 1
-          ? { x: w - m, y: t * h }
-          : side === 2
-            ? { x: t * w, y: h - m }
-            : { x: m, y: t * h };
-    this.alerts.push({
-      slot: this.s.rng.pick(ALERT_KEYS),
-      pos,
-      born: this.s.elapsed,
-      ttl: clamp(1.5 - this.d * 0.5, 0.75, 1.5),
-    });
-    this.alertsSeen++;
-    audio.play('telegraph', { intensity: 0.7, pan: this.s.panOf(pos) });
+  protected tick(_dt: number): void {
+    if (this.s.elapsed - this.shownAt <= this.window) return;
+    this.centreMissed++;
+    this.fumble(this.centre, 'CENTRE DROPPED', { input: false, cost: 50 });
+    this.advance();
   }
 
-  protected tick(dt: number): void {
-    this.alertCd -= dt;
-    if (this.alertCd <= 0 && this.alerts.length < 2) {
-      this.alertCd = clamp((3.1 - this.d * 1.2) / Math.max(0.9, this.tempo * 0.85), 1.1, 3.2);
-      this.spawnAlert();
-    }
-    for (let i = this.alerts.length - 1; i >= 0; i--) {
-      const a = this.alerts[i];
-      if (this.s.elapsed - a.born <= a.ttl) continue;
-      this.alerts.splice(i, 1);
-      this.fumble(a.pos, 'ALERT LOST', { input: false, cost: 80 });
-    }
-    if (this.s.elapsed - this.shownAt > this.window) {
-      this.centreMissed++;
-      this.fumble(this.centre, 'CENTRE DROPPED', { input: false, cost: 50 });
-      this.advance();
-    }
-  }
-
-  onAbility(slot: AbilitySlot): void {
+  protected onKey(slot: AbilitySlot): void {
     this.press(slot);
-    if (ALERT_KEYS.includes(slot)) {
-      const idx = this.alerts.findIndex((a) => a.slot === slot);
-      if (idx < 0) {
-        // Either nothing is flashing, or the one that is wants the other key.
-        if (this.alerts.length) {
-          this.wrongAlert++;
-          this.fumble(this.alerts[0].pos, `WRONG · ${this.glyph(this.alerts[0].slot)}`);
-        } else this.stray(this.centre);
-        return;
-      }
-      const a = this.alerts[idx];
-      this.alerts.splice(idx, 1);
-      const age = this.s.elapsed - a.born;
-      this.alertsTaken++;
-      this.alertReactions.push(age * 1000);
-      this.hit(a.pos, {
-        quality: clamp(1 - age / a.ttl, 0, 1),
-        value: 150,
-        reaction: age * 1000,
-        label: this.glyph(slot),
-      });
-      return;
-    }
     const expected = this.queue[0];
     if (slot !== expected) {
       this.wrongCentre++;
@@ -484,23 +437,24 @@ export class ApmSplitDrill extends LabDrill {
       return;
     }
     const age = this.s.elapsed - this.shownAt;
+    if (this.lastHitAt > 0) this.gaps.push((this.s.elapsed - this.lastHitAt) * 1000);
+    this.lastHitAt = this.s.elapsed;
     this.hit(this.pads[CENTRE_KEYS.indexOf(slot)].pos, {
       quality: clamp(1 - age / this.window, 0, 1),
-      value: 80,
+      value: 90,
       reaction: age * 1000,
       label: this.glyph(slot),
     });
     this.advance();
   }
 
-  solution(): LabSolution {
-    // The rim first, always: the centre prompt renews and an alert does not.
-    if (this.alerts.length) return { keys: [this.alerts[0].slot] };
+  protected modeSolution(): LabSolution {
+    // The centre only. The board outranks it and is folded in above this.
     return { keys: [this.queue[0]] };
   }
 
   protected slotName(slot: AbilitySlot): string {
-    return ALERT_KEYS.includes(slot) ? 'ALERT' : 'CENTRE';
+    return CENTRE_KEYS.includes(slot) ? 'CENTRE' : 'MAP';
   }
 
   protected paintMode(out: DrillPaint, _t: number): void {
@@ -524,26 +478,22 @@ export class ApmSplitDrill extends LabDrill {
         progress: on ? left : undefined,
       });
     });
-    for (const a of this.alerts) {
-      const l = clamp(1 - (this.s.elapsed - a.born) / a.ttl, 0, 1);
-      this.paintPad(
-        out,
-        { slot: a.slot, pos: a.pos, radius: 66 },
-        {
-          color: l < 0.35 ? PALETTE.danger : PALETTE.warn,
-          glow: 0.5 + l * 0.5,
-          progress: l,
-          sub: 'ALERT',
-        },
-      );
-    }
+    const map = this.map.ledger;
+    this.paintCaption(
+      out,
+      'CENTRE AND MAP',
+      map.taken > 0 ? `${map.taken} orbs landed on you` : 'neither one waits for the other',
+      map.taken > 0 ? PALETTE.warn : PALETTE.textDim,
+    );
   }
 
   protected modeField(): HudField {
-    const rate = this.alertsTaken / Math.max(1, this.alertsSeen);
+    const map = this.map.ledger;
+    const asked = map.dodged + map.taken;
+    const rate = this.map.dodgeRate;
     return {
-      label: 'ALERTS',
-      value: `${this.alertsTaken}/${this.alertsSeen}`,
+      label: 'MAP',
+      value: asked ? `${map.dodged}/${asked}` : '—',
       bar: rate,
       tone: rate > 0.85 ? 'good' : rate > 0.6 ? 'warn' : 'bad',
     };
@@ -552,32 +502,37 @@ export class ApmSplitDrill extends LabDrill {
   protected axisSplit(performance: number, accuracy: number, speed: number): Partial<Record<SkillAxis, number>> {
     return {
       tempo: clamp(speed * 0.5 + performance * 0.5, 0, 1),
-      targeting: clamp(accuracy * 0.4 + this.alertsTaken / Math.max(1, this.alertsSeen) * 0.6, 0, 1),
+      targeting: clamp(accuracy * 0.4 + this.map.dodgeRate * 0.6, 0, 1),
       aim: accuracy,
     };
   }
 
   protected modeMetrics(): KeyMetric[] {
     return [
-      pct('alerts', 'ALERTS ANSWERED', this.alertsTaken / Math.max(1, this.alertsSeen)),
-      ms('alertMs', 'ALERT REACTION', median(this.alertReactions)),
+      ms('gap', 'TIME PER CENTRE KEY', median(this.gaps)),
       count('centreMissed', 'CENTRE DROPPED', this.centreMissed, 'lower'),
       count('wrongCentre', 'WRONG CENTRE KEY', this.wrongCentre, 'lower'),
-      count('wrongAlert', 'WRONG ALERT KEY', this.wrongAlert, 'lower'),
     ];
   }
 
   protected notes() {
-    const rate = this.alertsTaken / Math.max(1, this.alertsSeen);
+    const rate = this.map.dodgeRate;
+    const taken = this.map.ledger.taken;
     return {
-      helped: rate > 0.9 && this.centreMissed < 4 ? ['Neither half of the mode waited for the other.'] : [],
-      hurt: rate < 0.6 ? ['The rim is what you are dropping. The centre is comfortable and it is eating everything.'] : [],
+      helped:
+        rate > 0.9 && this.centreMissed < 4 ? ['Neither half of the mode waited for the other.'] : [],
+      hurt:
+        rate < 0.6
+          ? ['The corner is what you are dropping. The centre is comfortable and it is eating everything.']
+          : [],
       advice:
         rate < 0.6
-          ? 'Answer the rim first every time. The centre prompt renews itself; an alert does not.'
+          ? 'Answer the corner first every time. The centre prompt renews itself; an orb does not, and it costs the whole multiplier.'
           : this.centreMissed > this.hits * 0.2
-            ? 'You are stopping the centre to serve the rim. The alert key is a different finger — it does not need the queue to pause.'
-            : null,
+            ? 'You are stopping the queue to serve the corner. The lane keys are a different finger — the queue does not need to pause for them.'
+            : taken > 2
+              ? 'Look at the map between prompts rather than when something lands. Every orb that hit you was falling for two seconds.'
+              : null,
     };
   }
 }

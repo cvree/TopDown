@@ -57,7 +57,7 @@ export class ApmBufferDrill extends LabDrill {
 
   protected build(): void {
     const c = this.centre;
-    this.pad = { slot: GATE_SLOT, pos: { x: c.x, y: c.y }, radius: 96 };
+    this.pad = this.drift({ slot: GATE_SLOT, pos: { x: c.x, y: c.y }, radius: 96 });
     this.schedule();
   }
 
@@ -86,7 +86,7 @@ export class ApmBufferDrill extends LabDrill {
     }
   }
 
-  onAbility(slot: AbilitySlot): void {
+  protected onKey(slot: AbilitySlot): void {
     this.press(slot);
     if (slot !== GATE_SLOT) {
       this.stray(this.pad.pos);
@@ -131,7 +131,7 @@ export class ApmBufferDrill extends LabDrill {
     });
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     if (this.done) return { wait: true };
     const lead = this.openAt - this.s.elapsed;
     // Correct play is silence until the shutter is inside the buffer.
@@ -279,8 +279,8 @@ export class ApmCancelDrill extends LabDrill {
 
   protected build(): void {
     const c = this.centre;
-    this.startPad = { slot: START_SLOT, pos: { x: c.x - 190, y: c.y }, radius: 78 };
-    this.cutPad = { slot: CUT_SLOT, pos: { x: c.x + 190, y: c.y }, radius: 78 };
+    this.startPad = this.drift({ slot: START_SLOT, pos: { x: c.x - 190, y: c.y }, radius: 78 });
+    this.cutPad = this.drift({ slot: CUT_SLOT, pos: { x: c.x + 190, y: c.y }, radius: 78 });
     this.toCall();
   }
 
@@ -324,7 +324,7 @@ export class ApmCancelDrill extends LabDrill {
     }
   }
 
-  onAbility(slot: AbilitySlot): void {
+  protected onKey(slot: AbilitySlot): void {
     this.press(slot);
     if (slot !== START_SLOT && slot !== CUT_SLOT) {
       this.stray(this.centre);
@@ -375,7 +375,7 @@ export class ApmCancelDrill extends LabDrill {
     this.phaseAt = this.s.elapsed;
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     switch (this.phase) {
       case 'call':
         return { keys: [START_SLOT] };

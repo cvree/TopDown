@@ -1,4 +1,5 @@
 import { audio } from './audio';
+import type { MapBoard } from './mapboard';
 import { SURVIVE_RAMP, SURVIVE_RAMP_RANGE, SURVIVE_STRIKES, type RunMode } from '../drills/modes';
 import { FxSystem } from './fx';
 import { DEFAULT_HERO, type HeroId } from './heroes';
@@ -1029,6 +1030,18 @@ export abstract class DrillBase {
   onAbility(_slot: AbilitySlot, _at: Vec2): void {}
   hudFields(): HudField[] {
     return [];
+  }
+  /**
+   * The board the minimap shows instead of the arena, if the drill has one.
+   *
+   * Only the lab does. Every other mode's minimap is the map of the place you
+   * are standing in, which is the whole reason it is there; the lab has no
+   * such place, so it uses the same corner of the screen to ask the same
+   * question the minimap actually asks in a game — is something coming, and
+   * are you going to notice in time.
+   */
+  mapBoard(): MapBoard | null {
+    return null;
   }
   /**
    * The ability bar. Every drill shows all six slots — the ones it does not use

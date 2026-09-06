@@ -10,16 +10,16 @@ import { count, ms, pct } from '../base';
 import { APM_TARGET_APM } from './engine';
 import { BANK_LABEL, BANK_OF, LabDrill, median, type Bank, type LabSolution, type Pad } from './lab';
 
-const ALL_SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r', 'd', 'f'];
+const ALL_SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r'];
 
 /**
  * SEQUENCE — the queue, and the eye that runs ahead of the hand.
  *
- * Six keys roll across the bench and only the front one is legal. Answer it
- * and the queue advances; answer anything else and the chain is gone. The
- * window shrinks as the chain grows, so the mode converges on the fastest
- * cadence you can actually hold rather than the fastest one you can reach for
- * a second and a half.
+ * The ability row rolls across a drifting bench and only the front key is
+ * legal. Answer it and the queue advances; answer anything else and the chain
+ * is gone. The window shrinks as the chain grows, so the mode converges on the
+ * fastest cadence you can actually hold rather than the fastest one you can
+ * reach for a second and a half.
  *
  * The queue — rather than a single prompt — is the whole design. It puts your
  * eyes two keys ahead of your fingers and keeps them there, which is the habit
@@ -40,7 +40,7 @@ export class ApmSequenceDrill extends LabDrill {
   private lastHitAt = 0;
 
   protected build(): void {
-    this.pads = this.row(ALL_SLOTS, { gap: 150, radius: 52, y: this.centre.y + 130 });
+    this.pads = this.row(ALL_SLOTS, { gap: 190, radius: 56, y: this.centre.y + 130 });
     for (let i = 0; i < 6; i++) this.push();
     this.arm();
   }
@@ -72,7 +72,7 @@ export class ApmSequenceDrill extends LabDrill {
     this.advance();
   }
 
-  onAbility(slot: AbilitySlot): void {
+  protected onKey(slot: AbilitySlot): void {
     this.press(slot);
     const expected = this.queue[0];
     const age = this.s.elapsed - this.shownAt;
@@ -100,7 +100,7 @@ export class ApmSequenceDrill extends LabDrill {
     this.stray(pos);
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     return { keys: [this.queue[0]] };
   }
 
@@ -181,9 +181,11 @@ interface SwitchPrompt {
  * SWITCH — what it costs to move your hand.
  *
  * Three places an input can come from: the near bank your fingers rest on, the
- * far bank they have to stretch for, and the mouse. A prompt names one, you
- * answer it, and the next prompt is usually somewhere else. The higher the
- * rung, the more often it is somewhere else.
+ * far bank they have to stretch for, and the mouse — which is a moving pad in
+ * the middle of the floor, so arriving there is a real journey rather than a
+ * change of mind. A prompt names one, you answer it, and the next prompt is
+ * usually somewhere else. The higher the rung, the more often it is somewhere
+ * else.
  *
  * The mode exists for one number, and the number is not the rate: it is the
  * difference between how long you take when the next input is under the finger
@@ -213,13 +215,16 @@ export class ApmSwitchDrill extends LabDrill {
 
   protected build(): void {
     const c = this.centre;
-    this.nearPads = this.row(['q', 'w', 'e'], { gap: 150, radius: 54, y: c.y + 170 });
-    this.farPads = this.row(['r', 'd', 'f'], { gap: 150, radius: 54, y: c.y - 170 });
-    this.mousePad = { slot: null, pos: { x: c.x, y: c.y }, radius: 92 };
+    this.nearPads = this.row(['q', 'w'], { gap: 190, radius: 58, y: c.y + 190 });
+    this.farPads = this.row(['e', 'r'], { gap: 190, radius: 58, y: c.y - 190 });
+    this.mousePad = this.drift({ slot: null, pos: { x: c.x, y: c.y }, radius: 92 });
     this.next(true);
   }
 
   private next(first = false): void {
+    // Three destinations, and the board in the corner is deliberately not one
+    // of them: it interrupts on its own schedule, which is a different demand
+    // from a prompt that waits politely for you to arrive.
     const banks: Bank[] = ['near', 'far', 'mouse'];
     const switching = first ? true : this.s.rng.chance(0.45 + this.d * 0.4);
     const from = this.prompt.bank;
@@ -227,9 +232,9 @@ export class ApmSwitchDrill extends LabDrill {
     const bank = this.s.rng.pick(pool);
     const slot =
       bank === 'near'
-        ? this.s.rng.pick(['q', 'w', 'e'] as AbilitySlot[])
+        ? this.s.rng.pick(['q', 'w'] as AbilitySlot[])
         : bank === 'far'
-          ? this.s.rng.pick(['r', 'd', 'f'] as AbilitySlot[])
+          ? this.s.rng.pick(['e', 'r'] as AbilitySlot[])
           : null;
     this.lastWasSwitch = !first && bank !== from;
     this.prompt = { bank, slot };
@@ -269,7 +274,7 @@ export class ApmSwitchDrill extends LabDrill {
     this.next();
   }
 
-  onAbility(slot: AbilitySlot): void {
+  protected onKey(slot: AbilitySlot): void {
     this.press(slot);
     if (this.prompt.slot !== slot) {
       this.wrong++;
@@ -294,7 +299,7 @@ export class ApmSwitchDrill extends LabDrill {
     this.answer(this.mousePad.pos, 'CLICK');
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     return this.prompt.slot ? { keys: [this.prompt.slot] } : { click: this.mousePad.pos };
   }
 

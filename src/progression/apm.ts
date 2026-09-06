@@ -66,6 +66,11 @@ export interface ApmMode {
  * Isolated modes ask one thing of one pair of hands. Combined modes run two
  * demands at once and are worth playing only once the isolated version of
  * each has stopped being interesting — which is the order the list is in.
+ *
+ * Two things are true of every rung of every one of them and are therefore
+ * written down in none of them: the pads travel, further and faster the higher
+ * the level, and the minimap runs its two-lane dodge on the summoner keys for
+ * the whole run. What the level ladder scales is the mode *and* both of those.
  */
 const MODE_TABLE: Omit<ApmMode, 'par' | 'order'>[] = [
   {
@@ -125,8 +130,8 @@ const MODE_TABLE: Omit<ApmMode, 'par' | 'order'>[] = [
   {
     id: 'apmSplit',
     kind: 'combined',
-    counts: 'The centre queue, and the rim alerts on their own keys.',
-    pressure: 'Two demands, one pair of hands, and neither allowed to wait for the other.',
+    counts: 'The centre queue, and the lane keys the corner of the screen is asking for.',
+    pressure: 'The board runs at double rate behind a queue that never stops, and neither is allowed to wait for the other.',
   },
   {
     id: 'apmUpkeep',

@@ -79,7 +79,7 @@ export class ApmGateDrill extends LabDrill {
     this.deal();
   }
 
-  onAbility(slot: AbilitySlot): void {
+  protected onKey(slot: AbilitySlot): void {
     const idx = SLOTS.indexOf(slot);
     if (idx < 0) {
       this.stray(this.centre);
@@ -112,7 +112,7 @@ export class ApmGateDrill extends LabDrill {
     this.deal();
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     return this.barred ? { wait: true } : { keys: [SLOTS[this.lit]] };
   }
 

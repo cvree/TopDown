@@ -8,7 +8,7 @@
 import { GameLoop, SIM_DT } from '../src/engine/loop';
 import { Session, type TumbleAim, type ViewProjection } from '../src/engine/session';
 import { createDrill, arenaFor } from '../src/drills';
-import { APM_DRILL_IDS, type LabSolution } from '../src/drills/apm';
+import { APM_DRILL_IDS, MAP_KEYS, type LabSolution } from '../src/drills/apm';
 import { WASD_DRILL_IDS } from '../src/drills/wasd';
 import { DRILLS, WASD_SEQUENCE, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
@@ -107,6 +107,7 @@ type Policy =
   | 'apmOrbwalk'
   | 'lab'
   | 'labWasd'
+  | 'labBlind'
   /* --- the WASD academy. Every one of these drives the keys, not the mouse --- */
   | 'acadMove'
   | 'acadIndep'
@@ -184,6 +185,16 @@ const runDrill = (
    */
   const paint = newPaint();
   let paintAt = 0;
+  /**
+   * How far the drill's own drawing actually travelled between passes.
+   *
+   * The lab's pads move now, and "the pads move" is a claim about what is on
+   * screen rather than about a number in a results object — so it is checked
+   * where it happens, in the paint contract, by watching the discs a mode
+   * draws and adding up how far they went.
+   */
+  const travel = { samples: 0, moved: 0 };
+  let lastDiscs: { x: number; y: number }[] | null = null;
   // Academy bookkeeping: which way the strafe policy is running, and whether
   // it has already reacted to the telegraph currently on screen.
   let strafeSide = 1;
@@ -1471,7 +1482,8 @@ const runDrill = (
           }
           // ---------------------------------------------------------- the lab
           case 'lab':
-          case 'labWasd': {
+          case 'labWasd':
+          case 'labBlind': {
             // Thirteen modes, one policy. Every lab drill can say what a
             // perfect player would do at this instant, including the modes
             // where that is "nothing", so the harness does not need thirteen
@@ -1487,15 +1499,28 @@ const runDrill = (
             if (!sol) break;
             if (policy === 'labWasd') {
               input.dir = sol.wait || !sol.dir ? { x: 0, y: 0 } : { x: sol.dir.x, y: sol.dir.y };
-              if (sol.dir) break;
+              // A heading and a key can both be correct at once: the board in
+              // the corner interrupts a movement mode without cancelling the
+              // command it interrupted. Only a solution with nothing else in
+              // it stops here.
+              if (sol.dir && !(sol.keys && sol.keys.length)) break;
             }
             if (sol.wait) break;
             if (t - lastLabInput < LAB_MIN_GAP) break;
             if (sol.keys && sol.keys.length) {
+              // `labBlind` is the player who plays the bench perfectly and
+              // never once looks at the corner of the screen. It is the only
+              // way to measure what the board is actually worth, so it drops
+              // exactly the two keys the board owns and nothing else.
+              const keys =
+                policy === 'labBlind'
+                  ? sol.keys.filter((k) => !(MAP_KEYS as readonly string[]).includes(k))
+                  : sol.keys;
+              if (!keys.length) break;
               lastLabInput = t;
               // A chord goes in one step, which is exactly what it is asking a
               // pair of fingers for.
-              for (const k of sol.keys) input.push({ kind: 'ability', slot: k, x: p.pos.x, y: p.pos.y, t: t * 1000 });
+              for (const k of keys) input.push({ kind: 'ability', slot: k, x: p.pos.x, y: p.pos.y, t: t * 1000 });
               break;
             }
             if (sol.click) {
@@ -1610,6 +1635,7 @@ const runDrill = (
         policy === 'caitlyn' ||
         policy === 'lab' ||
         policy === 'labWasd' ||
+        policy === 'labBlind' ||
         // The academy's aiming policies drive the cursor independently of the
         // champion — which is the entire thing those modules measure, so
         // pinning it back onto the player would zero the metric under test.
@@ -1627,13 +1653,26 @@ const runDrill = (
       paintAt = t;
       clearPaint(paint);
       drill.paint(paint, t);
+      const discs = paint.markers.filter((mk) => mk.kind === 'disc').map((mk) => ({ x: mk.x, y: mk.y }));
+      if (lastDiscs && lastDiscs.length > 0 && discs.length > 0) {
+        // Nearest neighbour rather than index, because a mode that deals and
+        // discards pads has a different list every pass and would otherwise
+        // report nothing at all about the one thing being measured.
+        travel.samples++;
+        for (const disc of discs) {
+          let near = Infinity;
+          for (const was of lastDiscs) near = Math.min(near, Math.hypot(disc.x - was.x, disc.y - was.y));
+          travel.moved += near;
+        }
+      }
+      lastDiscs = discs;
     }
   }
 
   const out = drill.outcome();
   const m = session.metrics.m;
   const d = derive(m, session.world.player?.maxHp ?? 720);
-  return { out, m, d, session, drill, paint };
+  return { out, m, d, session, drill, paint, travel };
 };
 
 /**
@@ -2885,6 +2924,83 @@ line('\n=== THE LAB: every mode pays for correct play and nothing else ===');
     expect(`${id} cannot be passed by doing nothing`, idle.out.performance < 0.3, pct(idle.out.performance));
     expect(`${id} counts actions per minute`, apm > 30, `${Math.round(apm)} APM`);
   }
+}
+
+line('\n=== THE LAB: nothing on the bench stands still ===');
+{
+  // The pads move, in every mode that draws any. It is checked through the
+  // paint contract rather than through a field on the drill, because "the
+  // targets move" is a claim about what is on the screen.
+  for (const id of APM_DRILL_IDS) {
+    // Measured with nobody playing, on purpose: the bench travels because the
+    // mode is running, not because somebody is doing well at it, and a policy
+    // that clears every pad the instant it appears leaves nothing to watch.
+    const calm = runDrill(id as DrillId, 'idle', 0.1);
+    const hard = runDrill(id as DrillId, 'idle', 0.9);
+    if (calm.travel.samples === 0) {
+      // A mode that draws no pads at all — VECTOR is one, and its whole
+      // subject is a heading rather than a target.
+      line(`  ${id.padEnd(13)} draws no pads`);
+      continue;
+    }
+    const perSample = calm.travel.moved / Math.max(1, calm.travel.samples);
+    const hardPer = hard.travel.moved / Math.max(1, hard.travel.samples);
+    line(`  ${id.padEnd(13)} pads travel ${perSample.toFixed(0)}u a quarter-second at level 1, ${hardPer.toFixed(0)}u at level 10`);
+    expect(`${id} has a bench that moves`, perSample > 1, `${perSample.toFixed(1)}u`);
+    expect(`${id} moves it further on a higher rung`, hardPer > perSample, `${hardPer.toFixed(1)} vs ${perSample.toFixed(1)}`);
+  }
+}
+
+line('\n=== THE LAB: the board in the corner is a second task, in every mode ===');
+{
+  // Every mode runs the two-lane dodge on the minimap, every mode counts it,
+  // and a player who never looks at it loses the run they were winning.
+  for (const id of APM_DRILL_IDS) {
+    const played = runDrill(id as DrillId, 'lab', 0.4);
+    const asked = played.out.keyMetrics.find((k) => k.id === 'mapClean');
+    expect(`${id} runs the board`, asked !== undefined, asked ? 'yes' : 'no board');
+  }
+
+  const taken = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'mapTaken')?.value ?? 0;
+  const dodged = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'mapClean')?.value ?? 0;
+  // Three seeds a side: an orb picks its lane at random, and one run of nine
+  // of them is a coin-flipping exercise rather than evidence.
+  const seeds = [12345, 999, 4242];
+  const seenRuns = seeds.map((sd) => runDrill('apmPulse', 'lab', 0.4, sd));
+  const blindRuns = seeds.map((sd) => runDrill('apmPulse', 'labBlind', 0.4, sd));
+  const sum = (rs: ReturnType<typeof runDrill>[], f: (r: ReturnType<typeof runDrill>) => number) =>
+    rs.reduce((a, r) => a + f(r), 0);
+  const seen = seenRuns[0];
+  const blind = blindRuns[0];
+  line(`  watching : ${pct(seen.out.performance)}  ${Math.round(dodged(seen) * 100)}% dodged  ${sum(seenRuns, taken)} taken over three runs  score ${seen.out.score}`);
+  line(`  blind    : ${pct(blind.out.performance)}  ${Math.round(dodged(blind) * 100)}% dodged  ${sum(blindRuns, taken)} taken over three runs  score ${blind.out.score}`);
+  expect('the board actually throws orbs at you', sum(blindRuns, taken) > 9, `${sum(blindRuns, taken)} taken`);
+  expect('a player watching it dodges them', sum(seenRuns, taken) === 0, `${sum(seenRuns, taken)} taken`);
+  expect(
+    'ignoring the corner costs the run',
+    sum(blindRuns, (r) => r.out.score) < sum(seenRuns, (r) => r.out.score) * 0.75,
+    `${sum(blindRuns, (r) => r.out.score)} vs ${sum(seenRuns, (r) => r.out.score)}`,
+  );
+  expect(
+    'and it costs the flow the hands were building',
+    (blind.out.keyMetrics.find((k) => k.id === 'chain')?.value ?? 0) <
+      (seen.out.keyMetrics.find((k) => k.id === 'chain')?.value ?? 0) * 0.6,
+    `${blind.out.keyMetrics.find((k) => k.id === 'chain')?.value} vs ${seen.out.keyMetrics.find((k) => k.id === 'chain')?.value}`,
+  );
+
+  // SPLIT is the mode that is *about* the corner, so it has to run it hotter
+  // than a mode that merely also has one.
+  const split = runDrill('apmSplit', 'lab', 0.4);
+  const pulse = runDrill('apmPulse', 'lab', 0.4);
+  const orbs = (r: ReturnType<typeof runDrill>) =>
+    (r.out.keyMetrics.find((k) => k.id === 'mapStreak')?.value ?? 0) + (r.out.keyMetrics.find((k) => k.id === 'mapTaken')?.value ?? 0);
+  line(`  split runs the board at ${orbs(split)} orbs against pulse's ${orbs(pulse)} over comparable runs`);
+  expect('SPLIT runs the board hotter than the modes that merely have one', orbs(split) > orbs(pulse), `${orbs(split)} vs ${orbs(pulse)}`);
+
+  // And the lane keys are not a free score: swapping lanes with nothing in the
+  // air is an input that bought nothing, which is what stray() is for.
+  const spam = runDrill('apmPulse', 'spam', 0.4);
+  expect('mashing the lane keys is not a way to score', spam.out.performance < 0.3, pct(spam.out.performance));
 }
 
 line('\n=== THE LAB: speed alone is not a score ===');

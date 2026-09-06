@@ -68,6 +68,15 @@ interface Flow {
    */
   difficulty?: number;
   duration?: number;
+  /**
+   * The lab's rung, when the lab is what is being played.
+   *
+   * It travels beside the difficulty rather than being inferred from it: the
+   * record this run writes belongs to a *level*, and reading a level back out
+   * of a difficulty is a second opinion about the same fact and a second
+   * chance for the two to disagree.
+   */
+  level?: number;
 }
 
 interface ResultState {
@@ -197,10 +206,21 @@ export function App() {
   // ------------------------------------------------------------- flow start
 
   const startRun = useCallback(
-    (drill: DrillId, mode: RunMode, opts: { difficulty?: number; duration?: number } = {}) => {
+    (
+      drill: DrillId,
+      mode: RunMode,
+      opts: { difficulty?: number; duration?: number; level?: number } = {},
+    ) => {
       audio.unlock();
       setResults(null);
-      setFlow({ drill, mode, seed: newSeed(), difficulty: opts.difficulty, duration: opts.duration });
+      setFlow({
+        drill,
+        mode,
+        seed: newSeed(),
+        difficulty: opts.difficulty,
+        duration: opts.duration,
+        level: opts.level,
+      });
     },
     [],
   );
@@ -245,7 +265,7 @@ export function App() {
           },
           recentBests: [...prev.recentBests],
         };
-        report = applyRun(next, result, {});
+        report = applyRun(next, result, flow.level ? { level: flow.level } : {});
         return next;
       });
 

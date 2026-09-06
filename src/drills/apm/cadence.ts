@@ -72,7 +72,7 @@ export class ApmPulseDrill extends LabDrill {
     this.advance();
   }
 
-  onAbility(slot: AbilitySlot): void {
+  protected onKey(slot: AbilitySlot): void {
     const idx = PULSE_SLOTS.indexOf(slot);
     if (idx < 0) {
       this.stray(this.centre);
@@ -100,7 +100,7 @@ export class ApmPulseDrill extends LabDrill {
     this.advance();
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     return { keys: [PULSE_SLOTS[this.lit]] };
   }
 
@@ -249,7 +249,7 @@ export class ApmSustainDrill extends LabDrill {
     if (this.s.elapsed - this.beatAt >= this.beat) this.nextBeat();
   }
 
-  onAbility(slot: AbilitySlot): void {
+  protected onKey(slot: AbilitySlot): void {
     const idx = SUSTAIN_SLOTS.indexOf(slot);
     if (idx < 0) {
       this.stray(this.centre);
@@ -279,7 +279,7 @@ export class ApmSustainDrill extends LabDrill {
     });
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     return this.answeredBeat ? { wait: true } : { keys: [SUSTAIN_SLOTS[this.lit]] };
   }
 

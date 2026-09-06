@@ -1,4 +1,5 @@
 import { FOG_MINIMAP } from '../../gfx/fogofwar';
+import type { MapBoard } from '../../engine/mapboard';
 import type { World } from '../../engine/world';
 
 /**
@@ -57,11 +58,21 @@ export class Minimap {
     this.canvas.style.height = `${size}px`;
   }
 
-  draw(world: World, coverage: { w: number; h: number }, camera: { x: number; y: number }, accent: string): void {
+  draw(
+    world: World,
+    coverage: { w: number; h: number },
+    camera: { x: number; y: number },
+    accent: string,
+    board: MapBoard | null = null,
+  ): void {
     const g = this.ctx;
     const S = this.size;
     g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     g.clearRect(0, 0, S, S);
+    if (board) {
+      this.drawBoard(board, accent);
+      return;
+    }
 
     const { w, h } = world.bounds;
     // The arena is letterboxed inside the square so proportions stay honest.
@@ -182,6 +193,133 @@ export class Minimap {
     }
 
     this.drawGhosts(world, g, px, py, scale, now);
+  }
+
+
+  /**
+   * The lab's board, drawn in the minimap's place.
+   *
+   * Two lanes, your blip in one of them, and a bad orb falling down one of
+   * them. Everything about how it is drawn is in service of being readable
+   * out of the corner of an eye that is busy elsewhere: the threatened lane is
+   * washed in colour rather than outlined, the orb grows as it falls so the
+   * urgency is a size and not a position you have to measure, the blip is the
+   * brightest thing on the panel, and the lane keys are printed under it in
+   * the player's own bindings so the answer never has to be remembered.
+   */
+  private drawBoard(board: MapBoard, accent: string): void {
+    const g = this.ctx;
+    const S = this.size;
+    const pad = 7;
+    const x0 = pad;
+    const y0 = pad;
+    const w = S - pad * 2;
+    const h = S - pad * 2;
+    const lanes = Math.max(1, board.lanes.length);
+    const laneW = w / lanes;
+    // The strip along the bottom that the blip stands on and the keys sit in.
+    const floorH = 34;
+    const fall = h - floorH;
+
+    g.fillStyle = 'rgba(10,16,28,0.94)';
+    g.fillRect(x0, y0, w, h);
+
+    board.lanes.forEach((lane, i) => {
+      const lx = x0 + i * laneW;
+      if (lane.threatened) {
+        const grad = g.createLinearGradient(0, y0, 0, y0 + fall);
+        grad.addColorStop(0, 'rgba(255,90,82,0.03)');
+        grad.addColorStop(1, 'rgba(255,90,82,0.22)');
+        g.fillStyle = grad;
+        g.fillRect(lx, y0, laneW, fall);
+      }
+      if (i > 0) {
+        g.strokeStyle = 'rgba(160,190,225,0.18)';
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(lx + 0.5, y0);
+        g.lineTo(lx + 0.5, y0 + h);
+        g.stroke();
+      }
+    });
+
+    // The floor: where the orb lands and where you are standing when it does.
+    g.fillStyle = 'rgba(150,180,215,0.09)';
+    g.fillRect(x0, y0 + fall, w, floorH);
+    g.strokeStyle = 'rgba(200,170,110,0.5)';
+    g.lineWidth = 1;
+    g.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
+
+    for (const orb of board.orbs) {
+      const ox = x0 + orb.x * w;
+      const oy = y0 + orb.y * fall;
+      const r = orb.r * laneW;
+      const glow = g.createRadialGradient(ox, oy, 0, ox, oy, r * 2.1);
+      glow.addColorStop(0, 'rgba(255,95,110,0.5)');
+      glow.addColorStop(1, 'rgba(255,95,110,0)');
+      g.fillStyle = glow;
+      g.beginPath();
+      g.arc(ox, oy, r * 2.1, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = orb.committed ? '#ff5f6e' : '#ff9f5c';
+      g.beginPath();
+      g.arc(ox, oy, r, 0, Math.PI * 2);
+      g.fill();
+      // Where it is going to land. A falling circle with no shadow under it is
+      // a puzzle; with one it is a countdown you can read without arithmetic.
+      const sx = x0 + (orb.lane + 0.5) * laneW;
+      g.fillStyle = `rgba(255,95,110,${0.15 + orb.y * 0.45})`;
+      g.beginPath();
+      g.ellipse(sx, y0 + fall + 5, r * (0.7 + orb.y * 0.5), 3, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // The blip.
+    const bx = x0 + (board.player + 0.5) * laneW;
+    const by = y0 + fall + 15;
+    g.fillStyle = board.hurt > 0.02 ? '#ff5f6e' : accent;
+    g.beginPath();
+    g.arc(bx, by, 5, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = `rgba(255,255,255,${0.6 + board.clean * 0.4})`;
+    g.lineWidth = 1.3;
+    g.stroke();
+    if (board.clean > 0.02) {
+      g.strokeStyle = `rgba(124,232,164,${board.clean * 0.8})`;
+      g.lineWidth = 1.6;
+      g.beginPath();
+      g.arc(bx, by, 5 + (1 - board.clean) * 9, 0, Math.PI * 2);
+      g.stroke();
+    }
+
+    // The keys, one under each lane, in the player's own bindings.
+    g.font = '600 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    board.lanes.forEach((lane, i) => {
+      const cx = x0 + (i + 0.5) * laneW;
+      const here = Math.abs(board.player - i) < 0.5;
+      g.fillStyle = here ? 'rgba(235,240,250,0.95)' : 'rgba(150,175,205,0.55)';
+      g.fillText(lane.key, cx, y0 + h - 7);
+    });
+
+    // The caption, top-left, and the streak opposite it.
+    g.font = '700 9px ui-monospace, SFMono-Regular, Menlo, monospace';
+    g.textAlign = 'left';
+    g.fillStyle = board.note === 'MOVE' ? '#ff8a8a' : 'rgba(150,175,205,0.7)';
+    g.fillText(board.note, x0 + 5, y0 + 8);
+    if (board.streak > 1) {
+      g.textAlign = 'right';
+      g.fillStyle = board.color;
+      g.fillText(`${board.streak}`, x0 + w - 5, y0 + 8);
+    }
+    g.textAlign = 'left';
+    g.textBaseline = 'alphabetic';
+
+    if (board.hurt > 0.02) {
+      g.fillStyle = `rgba(255,80,90,${board.hurt * 0.34})`;
+      g.fillRect(x0, y0, w, h);
+    }
   }
 
   /**

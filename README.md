@@ -524,6 +524,19 @@ depends on:
   the barred pads scores 100% at 127 APM; a bot that presses everything reaches
   nearly 500 APM and scores under 5%, and the held prompts are reported
   separately from the pressed ones.
+- **The bench moves, and it moves further on a higher rung.** Checked through
+  the drawing contract rather than through a field on the drill — the suite
+  watches the discs each mode actually paints and adds up how far they went
+  between passes, in every mode that paints any, at level 1 and again at level
+  10. "The targets move" is a claim about what is on the screen, so it is
+  asserted where it happens.
+- **The board in the corner is a second task in every mode.** Every bench runs
+  the two-lane dodge and reports it. A bot that plays the bench perfectly and
+  never touches the two lane keys takes seventeen orbs across three runs where
+  the same bot watching the corner takes none, scores under three quarters of
+  it, and holds under two fifths of the chain — and mashing the lane keys is
+  worth nothing, because a lane swap with nothing in the air is an input that
+  bought nothing.
 - **The APM ladder is monotonic and honest.** Rungs get harder in order, a
   fresh ladder opens on level 1 only, a run short of the gate opens nothing, a
   clear opens one rung and an outright clear opens two, a worse run cannot

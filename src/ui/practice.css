@@ -329,3 +329,112 @@
     grid-column: 1 / -1;
   }
 }
+
+/* ------------------------------------------------------------------- lab */
+
+/* Thirteen benches is too many for the champion cards' shape — a screen of
+   full-height cards would bury the champion the section is named after. So the
+   lab is one panel with a dense grid inside it: the same information, at a
+   third of the height, and legible as a ladder rather than as a menu. */
+.pr-lab {
+  margin-top: 26px;
+}
+.pr-lab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 12px;
+  margin: 18px 0 16px;
+}
+.pr-lab-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 14px 15px 13px;
+  border: 1px solid var(--stroke);
+  border-top: 2px solid var(--c);
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--c) 14%, transparent), transparent 64%),
+    linear-gradient(180deg, rgba(10, 16, 28, 0.66), rgba(4, 9, 18, 0.6));
+  transition: transform 0.16s var(--ease), box-shadow 0.2s var(--ease);
+}
+.pr-lab-mode:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px -12px color-mix(in srgb, var(--c) 90%, transparent);
+}
+.pr-lab-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pr-lab-name {
+  font-family: var(--display);
+  font-size: 19px;
+  letter-spacing: 0.05em;
+  color: var(--text-1);
+}
+.pr-lab-kind {
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  color: color-mix(in srgb, var(--c) 70%, var(--text-3));
+}
+.pr-lab-tag {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+.pr-lab-brief {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  margin: 0;
+  min-height: 54px;
+}
+.pr-lab-level {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: var(--text-2);
+}
+.pr-lab-step {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-2);
+  font-size: 9px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.pr-lab-step:hover:not(:disabled) {
+  border-color: var(--c);
+  color: var(--text-1);
+}
+/* A rung you have not opened yet is dimmed rather than hidden: the ladder is
+   ten rungs long whether or not you have walked up it. */
+.pr-lab-step:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+.pr-lab-stars {
+  margin-left: auto;
+  display: flex;
+  gap: 1px;
+  font-style: normal;
+}
+.pr-lab-stars b {
+  font-size: 11px;
+  color: var(--text-4, rgba(150, 170, 200, 0.28));
+  opacity: 0.35;
+}
+.pr-lab-stars b.on {
+  color: var(--gold);
+  opacity: 1;
+}
+.pr-lab-mode .pr-go {
+  margin-top: 2px;
+}

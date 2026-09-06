@@ -6,10 +6,33 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.7.0**.
+Currently shipping **v2.8.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.8.0 — THE BENCH MOVES
+
+*2026-09-06*
+
+The APM lab was thirteen benches of circles bolted to the floor and one pair of hands. Every pad on every bench now travels, and the minimap in the corner spends the whole run dropping something you have to get out of the way of.
+
+### Added
+
+- Every pad in every lab mode moves. A bench is a formation of drifting circles rather than a diagram: the row is still a row and the ring is still a ring, but nothing inside them holds still, and the field swings wider and runs faster with the level you picked and with your own flow. The press was never the hard part of a prompt — finding which of six circles is lit, while your hands are already busy, is, and a bench that stood still let your eyes stop working about ten seconds into every run.
+- FIELD’s pads cross the floor and bounce off it rather than blinking on and waiting to be clicked, which turns the mouse mode from a click test into a tracking one. They still shrink as you chain, so the mode goes on asking for the smallest moving target you have just proved you can hit.
+- The minimap is a second task, in all thirteen modes. Two lanes in the bottom-right corner, your blip in one of them, and a bad orb falling slowly down one of them — usually yours. The two summoner keys are which lane you stand in, printed on the board in your own bindings. It is deliberately slow: an orb takes between a second and a half and nearly four to fall, so one that lands on you is never “too fast”, it is “never looked”.
+- An orb that lands costs the flow tier your hands spent the last minute building, which is exactly what a gank you did not look up for costs. Getting out of the way early pays more than getting out of the way late; swapping lanes with nothing in the air is an input that bought nothing and is charged as one; and an orb falling down the lane you are *not* in pays you for leaving it alone, because on a board where standing still is usually wrong, the times it is right are the whole test.
+- Above about level five the orb can step across once on the way down, so the lane you read is not always the lane it lands in and a dodge made too early is a dodge you have to make again.
+- The results screen prints the map ledger under the mode’s own numbers — orbs dodged, orbs taken, how fast you answered and your best clean streak — and the coach will tell you outright when a run was lost in the corner rather than on the bench.
+- THE LAB is on the practice screen. Thirteen benches, ten levels each, one record per level, and the section opens every mode on the lowest rung you have not cleared. The number on the rung is the difficulty the bench is played at — it scales the prompts, the pads and the orbs together — and clearing a level opens the next, or two of them if you cleared it outright.
+
+### Changed
+
+- The summoner bank belongs to the map now, in every mode: your ability row plays the bench and D and F play the corner. That is one sentence for all thirteen modes rather than a rule per mode, and it is why the two keys are never a prompt on the floor any more.
+- SEQUENCE and CHORD are the four ability keys rather than six. A queue you read two ahead and a pair your fingers land together are both intact; what left them is the pair of keys that now belongs to the board.
+- SWITCH measures the same thing over the near bank, the far bank and the mouse — Q and W, E and R, and a click pad that no longer holds still, so arriving at the mouse is a journey rather than a change of mind.
+- SPLIT is rebuilt around the corner instead of around the rim of the arena. It runs the board at double rate behind a centre queue that never stops, which is what the mode always claimed to be about: the rim of the floor is somewhere your eyes already are, and the corner of the screen is not. That is exactly why the game puts the minimap there.
 
 ## v2.7.0 — LANE PHASE
 

@@ -174,11 +174,11 @@ export class ApmVectorDrill extends LabDrill {
     return false;
   }
 
-  onAbility(): void {
+  protected onKey(): void {
     this.stray(this.anchor.pos);
   }
 
-  solution(): LabSolution {
+  protected modeSolution(): LabSolution {
     const want = HEADINGS[this.call].dir;
     const p = this.anchor;
     // Inside the dwell the correct thing is to keep going, not to command
