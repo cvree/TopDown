@@ -130,6 +130,10 @@ export const practiceFor = (id: DrillId): DrillId => {
     // it is Silver Bolts.
     case 'targetswitch':
     case 'lasthit':
+    // A lane that went badly is nearly always a farming problem wearing a
+    // fight's clothes, and Silver Bolts is where the client practises "which
+    // unit am I hitting and did I finish it".
+    case 'lanePhase':
     case 'aim':
       return 'vayneBolts';
     // Anything about the edge of your own reach is the mode built on it.

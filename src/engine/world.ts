@@ -1257,6 +1257,36 @@ export class World {
     this.visionAccum = 0;
   }
 
+  /**
+   * Clear away the bodies of minions nothing is waiting on any more.
+   *
+   * The world has never removed a corpse, and for a ninety second drill that
+   * is the right call: nothing costs less than leaving a dead thing where it
+   * fell, and every id stays valid for whatever is still holding it. A ten
+   * minute lane is a different proposition — twenty waves of thirteen minions
+   * is two hundred and fifty bodies, and unit separation compares every pair
+   * of them, two hundred and forty times a second.
+   *
+   * So a mode long enough to need it can ask for a sweep. Only minions are
+   * taken, and only once no missile is still steering at them: champions and
+   * structures keep their bodies because a champion is coming back and a
+   * turret's id is on the scoreboard. Anything that was pointing a `targetId`
+   * at a swept minion now reads back `undefined`, which every brain in the
+   * engine already treats as "nothing there" — that is the same answer it got
+   * from a corpse.
+   */
+  reapMinions(): number {
+    let removed = 0;
+    for (let i = this.actors.length - 1; i >= 0; i--) {
+      const a = this.actors[i];
+      if (a.alive || !a.isMinion) continue;
+      if (this.projectiles.some((p) => p.targetId === a.id)) continue;
+      this.actors.splice(i, 1);
+      removed++;
+    }
+    return removed;
+  }
+
   /** Free-window bookkeeping helper: is this actor able to move without cost? */
   static isFreeToMove(a: Actor): boolean {
     return a.phase !== 'windup';

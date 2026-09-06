@@ -16,6 +16,14 @@ import {
   type ApmProgress,
   type ApmRunReport,
 } from './apm';
+import {
+  applyLaneRun,
+  emptyLaneProgress,
+  laneTierOf,
+  normalizeLaneProgress,
+  type LaneProgress,
+  type LaneTierRecord,
+} from './lane';
 import { isDemotion, isPromotion, rankFromRating, type RankInfo } from './ranks';
 import { distribute, overallRating, updateRating } from './rating';
 import { AXIS_LABEL, SKILL_AXES, type SkillAxis } from './skills';
@@ -53,7 +61,7 @@ export interface KeyMetric {
   id: string;
   label: string;
   value: number;
-  format: 'pct' | 'ms' | 'units' | 'int' | 'sec';
+  format: 'pct' | 'ms' | 'units' | 'int' | 'sec' | 'rate';
   direction: MetricDirection;
 }
 
@@ -307,6 +315,14 @@ export interface Profile {
   apm: ApmProgress;
   /** The WASD academy: nine modules, taken in order, played on the keys. */
   wasd: WasdProgress;
+  /**
+   * The lane ladder: one record per opponent.
+   *
+   * Kept apart from `bests` because a creep score set against IRON and one set
+   * against CHALLENGER are not the same number measured twice — folding them
+   * together would retire a real record with an easy one.
+   */
+  lane: LaneProgress;
   /** Overall rating recorded at the start of each local day, for trends. */
   dailyMarks: { date: string; overall: number; ratings?: Record<SkillAxis, number> }[];
   /** Every mistake the trainer has measured, newest last. Capped. */
@@ -400,6 +416,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   ezreal: emptyEzrealProgress(),
   apm: emptyApmProgress(),
   wasd: emptyWasdProgress(),
+  lane: emptyLaneProgress(),
   dailyMarks: [],
   errorLog: [],
   recentBests: [],
@@ -534,6 +551,10 @@ export const loadProfile = (): Profile => {
       // Same for the academy: a profile written before it existed comes back
       // with an empty course rather than a crash on modules.wasdMove.
       wasd: normalizeWasdProgress(parsed.wasd),
+      // And the lane ladder, repaired the same way: a profile written before
+      // the mode existed comes back with an empty ladder rather than a crash
+      // on the first card the menu draws.
+      lane: normalizeLaneProgress(parsed.lane),
       recentBests: keepKnownDrills<RecentBest>(parsed.recentBests, (b) => b.drill, 60),
     };
   } catch {
@@ -609,6 +630,8 @@ export interface ProgressReport {
   apm: ApmRunReport | null;
   /** Present only for runs in the WASD academy. */
   wasd: WasdRunReport | null;
+  /** Present only for a lane phase run: the record for the tier it was played at. */
+  lane: LaneTierRecord | null;
   /**
    * The best run of this drill as it stood *before* this one — the thing the
    * replay draws a ghost of. Null on a first run, when there is nothing to
@@ -863,6 +886,22 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
       })
     : null;
 
+  // The lane keeps one record per opponent, because the opponent is the whole
+  // of what a creep score means. The tier is read off the difficulty the run
+  // was played at rather than passed down separately: the difficulty *is* the
+  // tier in this mode, and a second channel for the same fact is a second
+  // chance to disagree with itself.
+  const lane =
+    result.drill === 'lanePhase'
+      ? applyLaneRun(p.lane, {
+          tier: laneTierOf(result.difficulty).id,
+          score: result.score,
+          csPerMin: result.keyMetrics.find((m) => m.id === 'csPerMin')?.value ?? 0,
+          csLead: result.keyMetrics.find((m) => m.id === 'csLead')?.value ?? 0,
+          goldLead: result.keyMetrics.find((m) => m.id === 'goldLead')?.value ?? 0,
+        }).record
+      : null;
+
   // The academy keeps the last run's headline numbers for the same reason the
   // champion path does: so it can name the habit that is costing you rather
   // than only the score that resulted from it.
@@ -921,6 +960,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     ezreal,
     apm,
     wasd,
+    lane,
   };
 };
 
@@ -1012,6 +1052,11 @@ export const formatMetric = (v: number, f: KeyMetric['format']): string => {
       return `${Math.round(v)}u`;
     case 'sec':
       return `${v.toFixed(1)}s`;
+    // A rate is the one figure a lane is actually read in — creep score a
+    // minute — and rounding it to a whole number would throw away the half
+    // that separates a good lane from an average one.
+    case 'rate':
+      return v.toFixed(1);
     default:
       return `${Math.round(v)}`;
   }

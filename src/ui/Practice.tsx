@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { PRACTICE_MODES, RUN_MODE_LIST, type RunMode } from '../drills/modes';
+import { LANE_LENGTHS, LANE_TIERS, type LaneTier } from '../progression/lane';
 import { CAITLYN_STATS, caitlynCd } from '../engine/caitlyn';
 import { VAYNE_STATS, tumbleCdAt, condemnCdAt, condemnPracticeCdAt } from '../engine/vayne';
 import type { Profile } from '../progression/profile';
@@ -8,7 +10,7 @@ import './practice.css';
 
 interface Props {
   profile: Profile;
-  onPlay: (id: DrillId, mode: RunMode) => void;
+  onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number }) => void;
 }
 
 /** mm:ss, for a survival record. */
@@ -55,11 +57,16 @@ export function Practice({ profile, onPlay }: Props) {
             <div className="eyebrow">Night Hunter · practice</div>
             <h1 className="display pr-h1">VAYNE</h1>
             <p className="dim pr-lead">
-              One number and four parts of one champion, and two ways to play each of them.{' '}
-              <b>PLAY</b> is a minute — the same minute every time, so the score means
-              something next to the last one. <b>SURVIVE</b> has no clock: it gets harder
-              the longer you last and ends when you die or make the mode’s own mistake three
-              times.
+              <b>LANE PHASE</b> is the game: League's wave clock, League's minions, League's
+              turret, and somebody on the other side farming, trading and counting lethal.
+              Pick who they are and how long a lane, and the mode does the rest. Everything
+              under it is one part of that lane, rehearsed until it is automatic.
+            </p>
+            <p className="dim pr-lead">
+              The parts come in two lengths. <b>PLAY</b> is a minute — the same minute every
+              time, so the score means something next to the last one. <b>SURVIVE</b> has no
+              clock: it gets harder the longer you last and ends when you die or make the
+              mode’s own mistake three times.
             </p>
             <p className="dim pr-lead">
               <b>RANGE</b> comes first and hands you no abilities at all, because every mode
@@ -77,6 +84,8 @@ export function Practice({ profile, onPlay }: Props) {
 
         </header>
 
+        <LaneCard profile={profile} onPlay={onPlay} />
+
         <div className="pr-modes">
           {PRACTICE_MODES.map((id) => (
             <ModeCard key={id} id={id} profile={profile} onPlay={onPlay} />
@@ -87,6 +96,126 @@ export function Practice({ profile, onPlay }: Props) {
         <SheriffReference />
       </div>
     </div>
+  );
+}
+
+/**
+ * THE LANE.
+ *
+ * Every other card on this screen is a mechanic. This one is the game, and it
+ * is first because it is the reason the rest of the screen exists: the modes
+ * below it take one part of a lane and rehearse it until it is automatic, and
+ * this is where you find out whether any of that survived contact with
+ * somebody trying to stop you.
+ *
+ * It asks two questions the other cards never do, and both of them are the
+ * player's to answer rather than the ladder's:
+ *
+ *  - **Who is on the other side.** Five opponents, and the difference between
+ *    them is entirely behaviour: how late they see a minion, whether they
+ *    punish the last hit you just committed to, whether they hold the wave,
+ *    whether they can count lethal. None of them has more health than the one
+ *    below it.
+ *  - **How long a lane.** Two and a half minutes to run the same five waves
+ *    over and over, or the whole first ten minutes when you want the levels,
+ *    the ultimate and the wave state that only exist later.
+ */
+function LaneCard({
+  profile,
+  onPlay,
+}: {
+  profile: Profile;
+  onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number }) => void;
+}) {
+  const meta = DRILLS.lanePhase;
+  const [tier, setTier] = useState<LaneTier>(LANE_TIERS[1]);
+  const record = profile.lane?.tiers?.[tier.id];
+
+  return (
+    <section className="pr-card panel pr-lane" style={{ ['--c' as string]: tier.accent }}>
+      <div className="pr-card-head">
+        <div>
+          <div className="eyebrow">the whole job, end to end</div>
+          <h2 className="display pr-name">{meta.name}</h2>
+          <div className="pr-tag">{meta.tagline}</div>
+        </div>
+        <div className="pr-lane-record mono">
+          {record && record.runs > 0 ? (
+            <>
+              <b>{record.bestCsPerMin.toFixed(1)}</b>
+              <span>best CS/min vs {tier.label}</span>
+              <i>
+                {record.runs} lane{record.runs > 1 ? 's' : ''} · {record.wins} won on gold
+              </i>
+            </>
+          ) : (
+            <>
+              <b>—</b>
+              <span>no lane against {tier.label} yet</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      <p className="pr-brief">{meta.brief}</p>
+      <p className="pr-transfers">
+        <span className="eyebrow">In game</span>
+        {meta.transfers}
+      </p>
+
+      <div className="pr-lane-tiers">
+        {LANE_TIERS.map((t) => {
+          const rec = profile.lane?.tiers?.[t.id];
+          return (
+            <button
+              key={t.id}
+              className={`pr-tier${t.id === tier.id ? ' on' : ''}`}
+              style={{ ['--c' as string]: t.accent }}
+              onMouseEnter={() => audio.play('uiHover')}
+              onClick={() => {
+                audio.play('uiTab');
+                setTier(t);
+              }}
+            >
+              <b>{t.label}</b>
+              <i className="mono">{t.expect.toFixed(1)} CS/min</i>
+              {rec && rec.runs > 0 && <em className="mono">best {rec.bestCsPerMin.toFixed(1)}</em>}
+            </button>
+          );
+        })}
+      </div>
+      <p className="pr-lane-blurb">{tier.blurb}</p>
+
+      <div className="pr-buttons pr-lane-lengths">
+        {LANE_LENGTHS.map((len) => (
+          <button
+            key={len.id}
+            className="pr-go pr-go-play"
+            onMouseEnter={() => audio.play('uiHover')}
+            onClick={() => {
+              audio.play('uiClick');
+              onPlay('lanePhase', 'play', { difficulty: tier.difficulty, duration: len.seconds });
+            }}
+          >
+            <span className="pr-go-label">{len.label}</span>
+            <span className="pr-go-sub">{len.blurb}</span>
+            <span className="pr-go-best mono">vs {tier.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <p className="set-note">
+        The lane opens at 1:05 with the first wave walking in, and every wave after it
+        arrives thirty seconds apart with a cannon on every third — League's clock,
+        untouched. Minions are League's: 477 health on a melee, 296 on a caster, 900 on a
+        cannon, and 21, 14 and 60 gold. Your turret hits for 152 and ramps forty per cent a
+        shot into a champion. You both start at level one on base statistics, take a point
+        every time the wave pays for one, and regenerate at League's rate — which is to say
+        hardly at all, so <b>F</b> to recall is a real decision and not a convenience. There
+        is no shop, so gold is the scoreboard rather than a purchase, and no jungler, so
+        nobody is walking out of the river.
+      </p>
+    </section>
   );
 }
 

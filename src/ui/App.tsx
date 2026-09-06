@@ -16,6 +16,7 @@ import {
   type ProgressReport,
   type RunResult,
 } from '../progression/profile';
+import { LANE_TIERS, laneTierOf } from '../progression/lane';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
 import { PATCH_NOTES, VERSION } from '../patchnotes/notes';
 import type { SkillAxis } from '../progression/skills';
@@ -56,6 +57,17 @@ interface Flow {
   drill: DrillId;
   mode: RunMode;
   seed: number;
+  /**
+   * What the menu chose, where the menu chooses.
+   *
+   * Every other mode in the client works out its own difficulty from the
+   * ladder and its own length from the run mode, and that is right: a rep is
+   * comparable precisely because nobody picked its settings. The lane is the
+   * one place the choice belongs to the player — which opponent, and how long
+   * a lane — because those are not settings, they are the thing being played.
+   */
+  difficulty?: number;
+  duration?: number;
 }
 
 interface ResultState {
@@ -184,17 +196,20 @@ export function App() {
 
   // ------------------------------------------------------------- flow start
 
-  const startRun = useCallback((drill: DrillId, mode: RunMode) => {
-    audio.unlock();
-    setResults(null);
-    setFlow({ drill, mode, seed: newSeed() });
-  }, []);
+  const startRun = useCallback(
+    (drill: DrillId, mode: RunMode, opts: { difficulty?: number; duration?: number } = {}) => {
+      audio.unlock();
+      setResults(null);
+      setFlow({ drill, mode, seed: newSeed(), difficulty: opts.difficulty, duration: opts.duration });
+    },
+    [],
+  );
 
   const difficulty = useMemo(
-    () => (flow ? drillDifficulty(profile, flow.drill) : 0.35),
+    () => (flow ? flow.difficulty ?? drillDifficulty(profile, flow.drill) : 0.35),
     // Difficulty is read once per run; recomputing mid-run would be wrong.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [flow?.drill, flow?.seed],
+    [flow?.drill, flow?.seed, flow?.difficulty],
   );
 
   // ---------------------------------------------------------- run finished
@@ -273,11 +288,25 @@ export function App() {
     audio.play('uiBack');
   }, []);
 
-  /** The other mode of the run you just played, without going back to the menu. */
+  /**
+   * The other mode of the run you just played, without going back to the menu.
+   *
+   * The lane has no other mode — it is one shape of run with an opponent
+   * attached — so there the same button means the next opponent up, at the
+   * same length. That is the thing a player actually wants after a lane that
+   * went well, and it is the one place in the client where "harder" is a
+   * choice rather than a consequence of the ladder.
+   */
   const switchMode = useCallback(() => {
     if (!flow) return;
     setResults(null);
     setRankUp(null);
+    if (flow.drill === 'lanePhase') {
+      const i = LANE_TIERS.findIndex((t) => t.id === laneTierOf(flow.difficulty ?? 0.32).id);
+      const next = LANE_TIERS[Math.min(LANE_TIERS.length - 1, i + 1)];
+      setFlow({ ...flow, difficulty: next.difficulty, seed: newSeed() });
+      return;
+    }
     setFlow({ ...flow, mode: flow.mode === 'play' ? 'survive' : 'play', seed: newSeed() });
   }, [flow]);
 
@@ -312,10 +341,15 @@ export function App() {
           drill={flow.drill}
           mode={flow.mode}
           difficulty={difficulty}
+          durationOverride={flow.duration}
           seed={flow.seed}
           settings={profile.settings}
           onSettingsChange={patchSettings}
-          context={`${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`}
+          context={
+            flow.drill === 'lanePhase'
+              ? `LANE PHASE · ${laneTierOf(difficulty).label}`
+              : `${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`
+          }
           onComplete={handleComplete}
           onExit={exitToMenu}
           onRetry={retry}
@@ -328,7 +362,18 @@ export function App() {
             onRetry={retry}
             onExit={exitToMenu}
             onNext={switchMode}
-            nextLabel={`Try ${RUN_MODES[flow.mode === 'play' ? 'survive' : 'play'].label}`}
+            nextLabel={
+              flow.drill === 'lanePhase'
+                ? `Lane against ${
+                    LANE_TIERS[
+                      Math.min(
+                        LANE_TIERS.length - 1,
+                        LANE_TIERS.findIndex((t) => t.id === laneTierOf(flow.difficulty ?? 0.32).id) + 1,
+                      )
+                    ].label
+                  }`
+                : `Try ${RUN_MODES[flow.mode === 'play' ? 'survive' : 'play'].label}`
+            }
           />
         )}
         {rankUp && (
@@ -472,5 +517,6 @@ const formatHead = (v: number, f: string): string => {
   if (f === 'ms') return `${Math.round(v)}ms`;
   if (f === 'units') return `${Math.round(v)}u`;
   if (f === 'sec') return `${v.toFixed(1)}s`;
+  if (f === 'rate') return v.toFixed(1);
   return `${Math.round(v)}`;
 };

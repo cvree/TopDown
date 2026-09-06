@@ -17,7 +17,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { isDrillId, type DrillId } from '../src/drills/catalog';
 import { isErrorCode } from '../src/progression/errors';
-import { loadProfile, newProfile, saveProfile, type Profile } from '../src/progression/profile';
+import { applyRun, loadProfile, newProfile, saveProfile, type Profile, type RunResult } from '../src/progression/profile';
+import { LANE_TIERS } from '../src/progression/lane';
+import { MetricsRecorder, derive } from '../src/engine/metrics';
 import { buildPlan, axisReadings, lastSession, recentImprovements } from '../src/progression/plan';
 import {
   errorRollup,
@@ -169,6 +171,7 @@ const hostileProfile = (): Record<string, unknown> => ({
   ezreal: { stages: { ezQ: { best: 0.5, difficulty: 0.4 } } },
   apm: { modes: null },
   wasd: null,
+  lane: { tiers: { gold: { runs: 'lots', bestCsPerMin: null }, notATier: { runs: 4 } } },
   dailyMarks: null,
   errorLog: [{ code: 'NOT_A_CODE', drill: 'movement', t: Date.now(), count: 1, rate: 0.5 }, null],
   recentBests: null,
@@ -287,6 +290,53 @@ section('Everything the home screen asks a profile, on every profile', () => {
       }
     }
   }
+});
+
+section('The lane ladder survives a profile that is wrong about it', () => {
+  const p = load(hostileProfile());
+  expect(
+    'every tier comes back, whatever was stored',
+    LANE_TIERS.every((t) => typeof p.lane.tiers[t.id]?.runs === 'number'),
+    Object.keys(p.lane.tiers).join(', '),
+  );
+  expect('a run count that was a word comes back as a number', p.lane.tiers.gold.runs === 0, `${p.lane.tiers.gold.runs}`);
+  expect('and a tier that does not exist is dropped', p.lane.tiers.notATier === undefined, 'a stale tier survived');
+});
+
+section('A lane run is recorded against the opponent it was played against', () => {
+  const p = newProfile();
+  const blank = new MetricsRecorder().m;
+  const lane = (csPerMin: number, csLead: number, goldLead: number, score: number): RunResult => ({
+    drill: 'lanePhase',
+    mode: 'play',
+    seed: 1,
+    difficulty: LANE_TIERS[2].difficulty,
+    score,
+    performance: 0.6,
+    axisPerformance: { lastHitting: 0.6 },
+    metrics: blank,
+    derived: derive(blank, 800),
+    keyMetrics: [
+      { id: 'csPerMin', label: 'CS PER MINUTE', value: csPerMin, format: 'rate', direction: 'higher' },
+      { id: 'csLead', label: 'CS DIFFERENCE', value: csLead, format: 'int', direction: 'higher' },
+      { id: 'goldLead', label: 'GOLD DIFFERENCE', value: goldLead, format: 'int', direction: 'higher' },
+    ],
+    endReason: 'time',
+    seconds: 150,
+    strikes: 0,
+    helped: [],
+    hurt: [],
+    advice: '',
+  });
+  const first = applyRun(p, lane(6.2, 4, 220, 900));
+  expect('the report carries the lane record', first.lane !== null, 'no lane in the report');
+  expect('the run lands on the tier it was played at', p.lane.tiers.gold.runs === 1, `${p.lane.tiers.gold.runs}`);
+  expect('and a lane won on gold is counted', p.lane.tiers.gold.wins === 1, `${p.lane.tiers.gold.wins}`);
+  applyRun(p, lane(4.1, -6, -300, 400));
+  expect('a worse lane does not overwrite the record', p.lane.tiers.gold.bestCsPerMin === 6.2, `${p.lane.tiers.gold.bestCsPerMin}`);
+  expect('but it is still counted as a lane played', p.lane.tiers.gold.runs === 2, `${p.lane.tiers.gold.runs}`);
+  expect('and a lane lost on gold is not a win', p.lane.tiers.gold.wins === 1, `${p.lane.tiers.gold.wins}`);
+  expect('nothing lands on a tier that was not played', p.lane.tiers.iron.runs === 0, `${p.lane.tiers.iron.runs}`);
 });
 
 line('\n=== Every screen that reads a profile draws it, on every profile ===');

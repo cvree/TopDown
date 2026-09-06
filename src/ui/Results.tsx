@@ -8,6 +8,7 @@ import { percentileForRating, rankFromRating } from '../progression/ranks';
 import { expectedRating } from '../progression/rating';
 import { AXIS_LABEL } from '../progression/skills';
 import { APM_LEVELS, CLEAR_AT, levelDifficulty } from '../progression/apm';
+import { laneTierOf } from '../progression/lane';
 import { VAYNE_STAGES } from '../progression/vayne';
 import { WASD_MODULES } from '../progression/wasd';
 import { ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
@@ -292,6 +293,41 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
             </div>
           </div>
         </div>
+
+        {report.lane && (
+          <div className={`res-vayne ${stage >= 3 ? 'in' : ''}`}>
+            <div className="panel pad">
+              <div className="panel-title">The lane, against {laneTierOf(result.difficulty).label}</div>
+              <div className="rv-grid">
+                <div className="rv-stage">
+                  <span className="eyebrow">Best CS a minute</span>
+                  <div className="rv-num display">{report.lane.bestCsPerMin.toFixed(1)}</div>
+                  <div className="rv-best mono">
+                    THIS OPPONENT FARMS {laneTierOf(result.difficulty).expect.toFixed(1)}
+                  </div>
+                </div>
+                <div className="rv-mastery">
+                  <span className="eyebrow">Lanes played</span>
+                  <div className="rv-num display">{report.lane.runs}</div>
+                  <span className="mono">{report.lane.wins} won on gold</span>
+                </div>
+                <div className="rv-title">
+                  <span className="eyebrow">Best CS difference</span>
+                  <b className="display">
+                    {report.lane.bestCsLead > -900
+                      ? `${report.lane.bestCsLead > 0 ? '+' : ''}${Math.round(report.lane.bestCsLead)}`
+                      : '—'}
+                  </b>
+                  <p>
+                    A lane is a comparison rather than a score: the creep score difference is
+                    what a coach would look at first, and it is the only number here that
+                    already has the opponent in it.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {report.vayne && (
           <div className={`res-vayne ${stage >= 3 ? 'in' : ''}`}>

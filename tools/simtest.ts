@@ -12,6 +12,7 @@ import { APM_DRILL_IDS, type LabSolution } from '../src/drills/apm';
 import { WASD_DRILL_IDS } from '../src/drills/wasd';
 import { DRILLS, WASD_SEQUENCE, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
+import { clearPaint, newPaint } from '../src/engine/paint';
 import {
   InputSystem,
   UNBOUND,
@@ -29,11 +30,14 @@ import { angleDelta, dist, norm } from '../src/engine/math';
 import { ARCHETYPES } from '../src/engine/archetypes';
 import { EnemyBrain, tuningFor, type BotBehavior } from '../src/engine/ai';
 import type { Actor, Vec2 } from '../src/engine/types';
-import { incomingDamage } from '../src/engine/lane';
+import { LEAGUE_MINION_STATS, LEAGUE_RULES, incomingDamage } from '../src/engine/lane';
+import { XP_THRESHOLDS, levelFromXp } from '../src/engine/levels';
+import { LANE_TIERS, laneTierOf } from '../src/progression/lane';
+import { laneTuning } from '../src/engine/lanebot';
 import type { VayneKit } from '../src/engine/vayne';
 import { VAYNE_STATS, condemnCdAt, condemnPracticeCdAt } from '../src/engine/vayne';
 import { EZREAL_STATS, type EzrealKit } from '../src/engine/ezreal';
-import { CAITLYN_STATS, type CaitlynKit } from '../src/engine/caitlyn';
+import { CAITLYN_STATS, caitlynAtLevel, type CaitlynKit } from '../src/engine/caitlyn';
 import { EZREAL_DRILL_IDS, ezrealStage, type EzrealDrillId } from '../src/drills/ezreal';
 import {
   EZREAL_STAGES,
@@ -80,6 +84,7 @@ type Policy =
   | 'sequence'
   | 'lead'
   | 'lastHit'
+  | 'laneFarm'
   | 'wasd'
   | 'wasdHold'
   | 'wasdMash'
@@ -168,6 +173,17 @@ const runDrill = (
   let t = 0;
   let reactTimer = 0;
   let orbitDir = 1;
+  /**
+   * The drawing pass, exercised.
+   *
+   * Nothing in this harness used to call `paint`, which meant the one part of
+   * a drill that only ever runs in a browser was the one part with no proof
+   * behind it — and a thrown exception there is a black screen and a lost run
+   * rather than a wrong number. It reads the world and writes into a buffer,
+   * so calling it here costs nothing and covers every drill in the suite.
+   */
+  const paint = newPaint();
+  let paintAt = 0;
   // Academy bookkeeping: which way the strafe policy is running, and whether
   // it has already reacted to the telegraph currently on screen.
   let strafeSide = 1;
@@ -177,6 +193,8 @@ const runDrill = (
   let lastLabInput = -1;
   /** The mark the range policies have already reacted to, by actor id. */
   let lastMarkId = -1;
+  /** Whether the lane policy is currently on its way home. */
+  let laneBacking = false;
   const maxT = (meta.duration > 0 ? meta.duration : 60) + 2;
 
   while (session.phase !== 'ended' && t < maxT) {
@@ -274,6 +292,57 @@ const runDrill = (
               const gx = Math.min(cx - 430, bounds.w * 0.55);
               const gy = cy + 90;
               if (Math.hypot(gx - p.pos.x, gy - p.pos.y) > 40) {
+                input.push({ kind: 'move', x: gx, y: gy, t: t * 1000 });
+              }
+            }
+            break;
+          }
+          case 'laneFarm': {
+            // A competent laner and nothing more: take the minion when the
+            // window is open, stand at the back of your own wave the rest of
+            // the time, and go home when you are too low to be standing there.
+            // It never dodges anything and never trades, which is exactly the
+            // point — it is the floor, and the mode should still reward it.
+            reactTimer = 0.03;
+            const w = session.world;
+            const her = w.actors.find((a) => a.alive && a.team === 'enemy' && a.unitKind === 'champion');
+            const share = p.hp / p.maxHp;
+            if (share < 0.5) laneBacking = true;
+            if (share > 0.95) laneBacking = false;
+            if (laneBacking) {
+              const recalling = (drill as unknown as { recallLeft: number }).recallLeft > 0;
+              const safe = !her || dist(p.pos, her.pos) > 1200;
+              if (!recalling) {
+                if (safe && Math.hypot(p.vel.x, p.vel.y) < 1) drill.onAbility('f', { ...p.pos });
+                else if (p.phase !== 'windup') {
+                  input.push({ kind: 'move', x: 260, y: bounds.h / 2, t: t * 1000 });
+                }
+              }
+              break;
+            }
+            const minions = w.actors.filter((a) => a.alive && a.team === 'enemy' && a.isMinion);
+            let pick: (typeof minions)[number] | null = null;
+            for (const m of minions) {
+              const gap = dist(p.pos, m.pos) - m.radius;
+              if (gap > p.attack.range) continue;
+              if (incomingDamage(w, m, Infinity, { only: p.id }) > 0) continue;
+              const lead = (1 / p.attack.attackSpeed) * p.attack.windupRatio + gap / p.attack.projectileSpeed;
+              const at = m.hp - incomingDamage(w, m, lead, { exclude: p.id });
+              if (at <= 0 || at > p.attack.damage) continue;
+              if (!pick || m.hp < pick.hp) pick = m;
+            }
+            if (pick && p.attackCd <= 0.001 && p.phase !== 'windup') {
+              input.push({ kind: 'move', x: pick.pos.x, y: pick.pos.y, t: t * 1000 });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const near = minions.filter((m) => m.pos.x < bounds.w * 0.62);
+            if (near.length) {
+              const cx = near.reduce((sum, m) => sum + m.pos.x, 0) / near.length;
+              const cy = near.reduce((sum, m) => sum + m.pos.y, 0) / near.length;
+              const gx = cx - 400;
+              const gy = cy + 80;
+              if (Math.hypot(gx - p.pos.x, gy - p.pos.y) > 60) {
                 input.push({ kind: 'move', x: gx, y: gy, t: t * 1000 });
               }
             }
@@ -1554,12 +1623,17 @@ const runDrill = (
 
     session.step(SIM_DT);
     t += SIM_DT;
+    if (t - paintAt >= 0.25) {
+      paintAt = t;
+      clearPaint(paint);
+      drill.paint(paint, t);
+    }
   }
 
   const out = drill.outcome();
   const m = session.metrics.m;
   const d = derive(m, session.world.player?.maxHp ?? 720);
-  return { out, m, d, session, drill };
+  return { out, m, d, session, drill, paint };
 };
 
 /**
@@ -1847,6 +1921,140 @@ line('\n=== LAST HIT: every point of damage has an owner ===');
   expect('minions kill each other without you', d.missed > 10, `${d.missed}`);
   expect('an unattended lane is farmed by the rival', d.rivalCs > 4, `${d.rivalCs}`);
   expect('doing nothing farms nothing', d.cs === 0, `${d.cs}`);
+}
+
+line('\n=== LANE PHASE: the numbers are League\'s ===');
+{
+  const m = LEAGUE_MINION_STATS;
+  expect('a melee minion has 477 health and pays 21 gold', m.melee.hp === 477 && m.melee.gold === 21, `${m.melee.hp}/${m.melee.gold}`);
+  expect('a caster has 296 and pays 14', m.caster.hp === 296 && m.caster.gold === 14, `${m.caster.hp}/${m.caster.gold}`);
+  expect('a cannon has 900 and pays 60', m.cannon.hp === 900 && m.cannon.gold === 60, `${m.cannon.hp}/${m.cannon.gold}`);
+  expect('the turret reaches 775 and hits for 152', LEAGUE_RULES.turret.range === 775 && LEAGUE_RULES.turret.damage === 152, `${LEAGUE_RULES.turret.range}/${LEAGUE_RULES.turret.damage}`);
+  expect('waves are thirty seconds apart with a cannon every third', LEAGUE_RULES.waveInterval === 30 && LEAGUE_RULES.cannonEvery === 3, `${LEAGUE_RULES.waveInterval}/${LEAGUE_RULES.cannonEvery}`);
+
+  // Under-tower farming is arithmetic, and these two rows are the arithmetic.
+  const shots = (hp: number) => Math.ceil(hp / LEAGUE_RULES.turret.damage);
+  expect('a caster dies to two turret shots', shots(m.caster.hp) === 2, `${shots(m.caster.hp)}`);
+  expect('a melee dies to four', shots(m.melee.hp) === 4, `${shots(m.melee.hp)}`);
+
+  // The level curve, and the fact every solo laner plays around.
+  const wave = m.melee.xp * 3 + m.caster.xp * 3;
+  expect('level two costs 280 experience', XP_THRESHOLDS[1] === 280, `${XP_THRESHOLDS[1]}`);
+  expect('a whole first wave is not quite level two', wave < 280 && wave > 250, `${wave.toFixed(1)}`);
+  expect(
+    'and the first minion of the second wave is',
+    levelFromXp(wave + m.melee.xp) === 2,
+    `${levelFromXp(wave + m.melee.xp)}`,
+  );
+  expect('level three costs 660', XP_THRESHOLDS[2] === 660, `${XP_THRESHOLDS[2]}`);
+}
+
+line('\n=== LANE PHASE: the ladder is behaviour, never statistics ===');
+{
+  const runs = LANE_TIERS.map((tier) => ({ tier, r: runDrill('lanePhase', 'idle', tier.difficulty) }));
+  for (const { tier, r } of runs) {
+    const bot = (r.drill as unknown as { bot: { ledger: Record<string, number>; actor: { attack: { damage: number }; maxHp: number } } }).bot;
+    const d = r.drill as unknown as Record<string, number>;
+    line(
+      `  ${tier.label.padEnd(11)} unattended: bot ${String(bot.ledger.cs).padStart(3)} cs of ${d.allyMinionsLost}  lv${bot.ledger.level}  ad ${bot.actor.attack.damage}  hp ${Math.round(bot.actor.maxHp)}`,
+    );
+  }
+  const csOf = (i: number) => (runs[i].r.drill as unknown as { bot: { ledger: { cs: number } } }).bot.ledger.cs;
+  expect('a harder laner farms more of its wave', csOf(4) > csOf(2) && csOf(2) > csOf(0), `${csOf(0)} / ${csOf(2)} / ${csOf(4)}`);
+  expect('and the top of the ladder takes nearly all of it', csOf(4) / Math.max(1, (runs[4].r.drill as unknown as Record<string, number>).allyMinionsLost) > 0.75, `${csOf(4)}`);
+
+  // The promise the whole difficulty system makes: nothing is inflated.
+  const statsOf = (i: number) => (runs[i].r.drill as unknown as { bot: { ledger: { level: number }; actor: { attack: { damage: number } } } }).bot;
+  for (const i of [0, 4]) {
+    const b = statsOf(i);
+    expect(
+      `${LANE_TIERS[i].label} has exactly a level ${b.ledger.level} Caitlyn's attack`,
+      b.actor.attack.damage === caitlynAtLevel(b.ledger.level).ad,
+      `${b.actor.attack.damage} vs ${caitlynAtLevel(b.ledger.level).ad}`,
+    );
+  }
+  const floor = laneTuning(0);
+  const ceiling = laneTuning(1);
+  expect(
+    'the ladder moves reaction, foresight and punishment and nothing else',
+    ceiling.reaction < floor.reaction && ceiling.foresight > floor.foresight && ceiling.punish > floor.punish,
+    `${floor.reaction.toFixed(2)}→${ceiling.reaction.toFixed(2)}`,
+  );
+}
+
+line('\n=== LANE PHASE: farming it beats standing in it ===');
+{
+  // Averaged over seeds, because a lane is a hundred and fifty seconds of
+  // somebody else's decisions and one of them is worth several minions.
+  const seeds = [7, 12345, 99991];
+  const lanes = (policy: Policy) => seeds.map((sd) => runDrill('lanePhase', policy, LANE_TIERS[1].difficulty, sd));
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const played = lanes('laneFarm');
+  const idle = lanes('idle');
+  const fieldOf = (rs: ReturnType<typeof lanes>, k: string) =>
+    mean(rs.map((r) => (r.drill as unknown as Record<string, number>)[k]));
+  const perfOf = (rs: ReturnType<typeof lanes>) => mean(rs.map((r) => r.out.performance));
+  line(
+    `  played : cs ${fieldOf(played, 'cs').toFixed(1)}  level ${fieldOf(played, 'level').toFixed(1)}  gold ${Math.round(fieldOf(played, 'gold'))}  deaths ${fieldOf(played, 'deaths').toFixed(1)}  perf ${pct(perfOf(played))}`,
+  );
+  line(
+    `  idle   : cs ${fieldOf(idle, 'cs').toFixed(1)}  level ${fieldOf(idle, 'level').toFixed(1)}  deaths ${fieldOf(idle, 'deaths').toFixed(1)}  perf ${pct(perfOf(idle))}`,
+  );
+  expect('a lane you actually farm scores', perfOf(played) > 0.45, pct(perfOf(played)));
+  expect('and standing in one does not', perfOf(idle) < 0.25, pct(perfOf(idle)));
+  expect('farming it beats standing in it by a mile', perfOf(played) > perfOf(idle) * 3, `${pct(perfOf(played))} vs ${pct(perfOf(idle))}`);
+  expect('the wave arrives on League\'s clock', fieldOf(played, 'enemyMinionsLost') >= 24 && fieldOf(played, 'enemyMinionsLost') <= 40, `${fieldOf(played, 'enemyMinionsLost')} minions`);
+  expect('farming pays levels', fieldOf(played, 'level') >= 3, `level ${fieldOf(played, 'level').toFixed(1)}`);
+  expect('and gold', fieldOf(played, 'gold') > 400, `${Math.round(fieldOf(played, 'gold'))}`);
+  expect('and it is farm rather than kills', fieldOf(played, 'cs') >= 8, `${fieldOf(played, 'cs').toFixed(1)} cs`);
+}
+
+line('\n=== LANE PHASE: a death is a respawn timer, not the end of the lane ===');
+{
+  const r = runDrill('lanePhase', 'idle', LANE_TIERS[4].difficulty);
+  const d = r.drill as unknown as Record<string, number>;
+  line(`  unattended vs CHALLENGER: deaths ${d.deaths}  ran ${r.session.elapsed.toFixed(0)}s  bodies left ${r.session.world.actors.length}`);
+  expect('standing in a lane against a challenger gets you killed', d.deaths >= 1, `${d.deaths}`);
+  expect('and the lane carries on to the clock', r.session.elapsed > 140, `${r.session.elapsed.toFixed(0)}s`);
+  expect('the run ends on time rather than on the death', r.session.endReason === 'time', r.session.endReason);
+  // Twenty waves of thirteen bodies would be two hundred and fifty actors and
+  // an O(n²) separation pass; the sweep is what keeps a ten minute lane real.
+  expect('dead minions are swept up', r.session.world.actors.length < 60, `${r.session.world.actors.length} actors`);
+}
+
+line('\n=== LANE PHASE: the drawing pass draws the lane ===');
+{
+  // The harness paints every drill it runs, so this only has to assert that
+  // what the lane draws is the lane: the road and both turret circles as
+  // ground markers, and a plate on every enemy minion, which is where the
+  // whole last-hit read lives.
+  const coached = runDrill('lanePhase', 'laneFarm', LANE_TIERS[0].difficulty);
+  const blind = runDrill('lanePhase', 'laneFarm', LANE_TIERS[4].difficulty);
+  const plates = coached.paint.plates;
+  line(`  IRON draws ${coached.paint.markers.length} markers and ${plates.length} plates; CHALLENGER draws ${blind.paint.plates.length}`);
+  expect('the lane and both turret circles are drawn', coached.paint.markers.length >= 3, `${coached.paint.markers.length}`);
+  expect('every enemy minion carries a plate', plates.length > 0, `${plates.length}`);
+  expect(
+    'the low tiers name the decision for you',
+    plates.some((pl) => pl.threshold !== undefined),
+    'no damage threshold drawn',
+  );
+  expect(
+    'and the top of the ladder draws none of it',
+    blind.paint.plates.every((pl) => pl.threshold === undefined && pl.tone === undefined),
+    'the challenger lane was still coaching',
+  );
+  expect(
+    'but damage already in the air is legibility rather than advice, so it stays',
+    blind.paint.plates.every((pl) => pl.incoming !== undefined),
+    'the incoming wash went missing',
+  );
+}
+
+line('\n=== LANE PHASE: the tier a difficulty belongs to ===');
+{
+  expect('the ladder maps back onto itself', LANE_TIERS.every((t) => laneTierOf(t.difficulty).id === t.id), 'all five');
+  expect('and rounds to the nearest rung', laneTierOf(0.5).id === 'gold', laneTierOf(0.5).id);
 }
 
 line('\n=== Honesty: doing nothing scores near zero everywhere ===');

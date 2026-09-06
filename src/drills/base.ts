@@ -156,6 +156,15 @@ export const units = (id: string, label: string, value: number): KeyMetric => ({
   direction: 'lower',
 });
 
+/** A per-minute figure, kept to one decimal place. */
+export const rate = (id: string, label: string, value: number, direction: 'higher' | 'lower' = 'higher'): KeyMetric => ({
+  id,
+  label,
+  value,
+  format: 'rate',
+  direction,
+});
+
 export const secs = (id: string, label: string, value: number, direction: 'higher' | 'lower' = 'higher'): KeyMetric => ({
   id,
   label,

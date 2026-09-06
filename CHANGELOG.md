@@ -6,10 +6,34 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.6.0**.
+Currently shipping **v2.7.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.7.0 — LANE PHASE
+
+*2026-09-06*
+
+The first ten minutes of a game of League, at League’s own numbers, against somebody farming and trading on the other side of the wave. Everything else in this client is a piece of it.
+
+### Added
+
+- LANE PHASE, and it is the mode the rest of the client has been building toward. A lane opens at 1:05 with the first wave walking in, waves arrive every thirty seconds with a cannon on every third, and you play it end to end against an enemy laner doing exactly the job you are. Two and a half minutes when you want to run it again immediately, five and a half to get through level six, or nine minutes for the whole thing.
+- Every number in it is League’s. Melee minions have 477 health and pay 21 gold; casters 296 and 14; the cannon 900 and 60. Experience is 59.06, 29.5 and 92.4, which is why a full first wave leaves you fourteen short of level two and the first minion of the second wave gives it to you. Your outer turret reaches 775 units, hits a minion for 152 — so a caster dies to two shots and a melee to four — and ramps forty per cent a shot into a champion, which is what puts a clock on a dive.
+- Both champions start at level one on base statistics and grow off League’s own curve, taking a point every time the wave pays for one. Nothing is handed to you: at level one you have a single ability and a trinket, the ultimate arrives at six if the lane got you there, and the difference between your level and hers is a number on the HUD because it is the number that decides the next fight.
+- Mana, for the first time anywhere in this client, and only here. It is what stops a Peacemaker every ten seconds from being a Peacemaker every ten seconds for the whole lane — an opponent who opens with four of them has nothing left for level six, and that trade is most of what early poke actually is. Condemn costs 90 of your 232, so it is a decision rather than a button.
+- Recall, on F. Eight seconds of standing still, broken by a step or a hit, for a full health bar and every minion that died while you were gone. Health regenerates at League’s rate — about one a second — so being chipped is a state you have to do something about rather than one you wait out, and knowing when to go is a lane skill this client could not previously contain.
+- A death is a respawn timer and a walk back, not the end of the run. League’s base respawn table, exactly, which before fifteen minutes is exactly the wait you know.
+- Five opponents, and the difference between them is entirely behaviour. An IRON laner sees a killable minion nearly half a second late, throws away one attack in two on a healthy one and shoves its own wave into your turret. A CHALLENGER one is on the minion the instant the window opens — predicting the damage already in the air, exactly as the plate on the health bar teaches you to — punishes four out of five of the last hits you commit to, sets minions up under its own turret so the shot leaves them in its window, holds the wave on its own side when it is ahead, saves the Peacemaker for a target that cannot step out of it, counts lethal before it walks at you, and will come under your turret to finish you when the arithmetic says it survives. None of them has a point more health or damage than any other.
+- The lane is a lane: two walls to condemn somebody into and four bushes to break vision in, with the fog on. The results screen leads with creep score a minute against what that opponent farms, then the differences — creep score, gold, level — because a lane is a comparison and not a solo run, and names the missed farm by cause: too late, too early, or given to your own turret.
+
+### Changed
+
+- The practice screen opens on the lane. Everything under it is one part of that lane rehearsed until it is automatic, which is what the modes were always for, and the screen now says so in that order.
+- The results screen keeps one record per opponent rather than one for the mode. A creep score set against IRON and one set against CHALLENGER are not the same number measured twice, and folding them together would retire a real record with an easy one.
+- The in-run HUD has a sixth figure, because a lane is read on six at once: the game clock, creep score and its rate, your level, your mana, the gold difference and the scoreline.
+- LAST HIT is unchanged. It is a ninety second drill about one gesture and its smaller numbers are the right numbers for that; the lane keeps League’s, and the two now share one wave engine with two rulesets rather than one set of compromises.
 
 ## v2.6.0 — THE SHERIFF
 

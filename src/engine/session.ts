@@ -474,7 +474,7 @@ export class Session {
       // concerned: the run was ended by the player failing, not by a clock.
       this.endReason = 'death';
       this.end();
-    } else if (player && !player.alive) {
+    } else if (player && !player.alive && !(this.drill?.survivesDeath ?? false)) {
       this.endReason = 'death';
       this.end();
     } else if (this.forceEnd) {
@@ -1002,6 +1002,20 @@ export abstract class DrillBase {
   endReason: 'time' | 'death' | 'complete' | 'abort' = 'time';
   constructor(protected readonly s: Session) {}
   abstract setup(): void;
+  /**
+   * True when dying is something this drill handles itself.
+   *
+   * Every mode in the trainer until now ended the instant the player's body
+   * did, and that was right: a rep is one attempt at one thing, and the
+   * attempt is over. A lane phase is not a rep. In League a death costs you a
+   * respawn timer, a walk back and whatever the wave did while you were gone,
+   * and then you carry on laning — so a mode claiming to be the first ten
+   * minutes has to be able to contain one. A drill that says yes here owes the
+   * player a body back; nothing else in the session changes.
+   */
+  get survivesDeath(): boolean {
+    return false;
+  }
   onStart(): void {}
   update(_dt: number): void {}
   onEvents(_events: readonly WorldEvent[]): void {}

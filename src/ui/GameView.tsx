@@ -26,6 +26,16 @@ interface Props {
   /** PLAY is a one-minute rep; SURVIVE runs until it beats you. */
   mode: RunMode;
   difficulty: number;
+  /**
+   * Overrides the length the mode would otherwise imply.
+   *
+   * There is exactly one mode that sets it. PLAY is a minute everywhere else
+   * and that is the point of it — but a lane phase whose length was decided by
+   * the mode system rather than by the lane would be a lane phase that could
+   * not contain a lane phase, and the run length there is part of what the
+   * player is choosing.
+   */
+  durationOverride?: number;
   seed: number;
   settings: AppSettings;
   /**
@@ -163,6 +173,22 @@ const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: 
     h.label === 'centre · check range' ? { key: camKey, label: h.label } : h,
   );
   const meta = DRILLS[drill];
+  // The lane is played as Vayne but is not on the champion path, and it has
+  // one key nothing else in the client has: recall. A ten minute mode whose
+  // most important decision is on an unlabelled key would be a mode where
+  // nobody ever backs.
+  if (drill === 'lanePhase') {
+    const kit = (['q', 'w', 'e', 'r', 'd'] as AbilitySlot[])
+      .filter((slot) => VAYNE_SLOT_NAMES[slot] && slot !== 'w')
+      .map((slot) => ({ key: abilityKeyLabel(settings, drill, slot), label: VAYNE_SLOT_NAMES[slot] as string }));
+    const keep = scheme === 'wasd' ? ['move', 'attack', 'to shoot'] : ['move · attack', 'attack-move'];
+    return [
+      ...base.filter((h) => keep.includes(h.label)),
+      ...kit,
+      { key: abilityKeyLabel(settings, drill, 'f'), label: 'recall' },
+      { key: 'ESC', label: 'pause · settings' },
+    ];
+  }
   if (meta.group !== 'VAYNE') return base;
   // Silver Bolts is a passive counter rather than a key, so it never appears.
   const kit = meta.abilities
@@ -177,6 +203,7 @@ const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: 
 export function GameView({
   drill,
   difficulty,
+  durationOverride,
   seed,
   settings,
   onSettingsChange,
@@ -237,7 +264,7 @@ export function GameView({
   // The mode decides the clock, not the mode's contents: every PLAY run is a
   // minute and every SURVIVE run is open-ended, which is the whole point of
   // there being two of them.
-  const duration = durationFor(mode);
+  const duration = durationOverride ?? durationFor(mode);
   const surviving = mode === 'survive';
   // Printed rather than assumed: instant reset is rebindable, so the pause
   // screen has to read the binding instead of promising a key that may have
@@ -783,8 +810,13 @@ export function GameView({
           <span className="hud-chain-label">CLEAN CHAIN</span>
         </div>
 
+        {/* Six slots rather than five. Five was every mode until the lane,
+            which reads on six numbers at once — the clock, the creep score,
+            the level, the mana, the gold difference and the scoreline — and
+            a lane missing one of them is a lane you cannot judge. Modes with
+            fewer fields hide the rest, as they always did. */}
         <div className="hud-stats">
-          {[0, 1, 2, 3, 4].map((i) => (
+          {[0, 1, 2, 3, 4, 5].map((i) => (
             <div className="hud-field" data-field key={i}>
               <div className="hud-field-label" data-fl />
               <div className="hud-field-value tone-neutral" data-fv />

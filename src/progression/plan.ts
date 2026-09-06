@@ -68,7 +68,11 @@ const drillForAxis = (axis: SkillAxis, exclude: Set<DrillId>): DrillId | null =>
     if (exclude.has(meta.id)) continue;
     // The APM ladder and the two courses are chosen by their own screens; a
     // plan that reaches into them would fight those screens for the same slot.
-    if (isApmDrill(meta.id) || meta.group === 'VAYNE' || meta.group === 'WASD') continue;
+    // The APM ladder, the two courses and the lane are chosen by their own
+    // screens; a plan that reached into them would fight those screens for the
+    // same slot — and the lane in particular is a choice of opponent and
+    // length that nothing else is entitled to make on the player's behalf.
+    if (isApmDrill(meta.id) || meta.group === 'VAYNE' || meta.group === 'WASD' || meta.group === 'LANE') continue;
     const w = meta.axes[axis] ?? 0;
     if (w > bestWeight) {
       bestWeight = w;
@@ -349,7 +353,7 @@ export interface Improved {
   /** Percentage improvement over what it beat. */
   delta: number;
   value: number;
-  format: 'pct' | 'ms' | 'units' | 'int' | 'sec';
+  format: 'pct' | 'ms' | 'units' | 'int' | 'sec' | 'rate';
   at: number;
 }
 

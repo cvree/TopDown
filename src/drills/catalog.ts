@@ -10,6 +10,8 @@ export type DrillId =
   | 'kite'
   | 'spacing'
   | 'lasthit'
+  /* --- the whole job, end to end, against somebody doing the same --- */
+  | 'lanePhase'
   | 'targetswitch'
   | 'combos'
   | 'duel1v1'
@@ -57,7 +59,7 @@ export type DrillId =
   | 'apmSwitch'
   | 'apmSustain';
 
-export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'WASD' | 'APM' | 'VAYNE' | 'EZREAL' | 'CAITLYN';
+export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'WASD' | 'APM' | 'VAYNE' | 'EZREAL' | 'CAITLYN' | 'LANE';
 
 export interface DrillMeta {
   id: DrillId;
@@ -220,6 +222,23 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     keyMetric: 'CS ACCURACY',
     zoom: 0.7,
     order: 7,
+  },
+  lanePhase: {
+    id: 'lanePhase',
+    name: 'LANE PHASE',
+    tagline: 'The first ten minutes, against somebody',
+    brief:
+      "League's own lane: 477 health melee minions, a cannon every third wave, an outer turret that ramps, and an enemy laner farming, trading and counting lethal on the other side of it. You start at level one with nothing but a trinket and take a point every time the wave pays for one.",
+    transfers:
+      'The actual job. Farming cleanly while somebody makes it expensive, which is the only thing the first ten minutes of a game ever asks.',
+    group: 'LANE',
+    axes: { lastHitting: 0.6, spacing: 0.2, combat: 0.2 },
+    duration: 150,
+    abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
+    accent: '#ffd166',
+    keyMetric: 'CS PER MINUTE',
+    zoom: 0.42,
+    order: 8,
   },
   targetswitch: {
     id: 'targetswitch',
@@ -924,6 +943,10 @@ export const PRESSURE_TIER: Record<DrillId, PressureTier> = {
   spacing: 'applied',
   kite: 'applied',
   lasthit: 'applied',
+  // The most pressure this client can apply to a mechanic: a live opponent
+  // doing the same job, with a wave, a turret and a clock all making the
+  // mistake more expensive than any drill can.
+  lanePhase: 'live',
   targetswitch: 'applied',
   combos: 'applied',
   duel1v1: 'live',

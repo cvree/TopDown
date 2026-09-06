@@ -299,7 +299,14 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
    Real lane pressure — turret shots you have to count, an enemy laner taking
    the same farm, minion aggro that punishes you for touching the champion, wave
    state that punishes free pushing — is rare. APEX has it; Skill Gap and LDG
-   have last-hit modes but nothing in the sources indicates this depth.
+   have last-hit modes but nothing in the sources indicates this depth. **As of
+   v2.7 this gap is closed rather than narrowed:** LANE PHASE is the first ten
+   minutes end to end at League's own minion, turret, experience, level, mana
+   and respawn figures, against a laner that farms on prediction, punishes the
+   last hits you commit to, manages the wave and counts lethal — with the whole
+   ladder between Iron and Challenger expressed as behaviour rather than
+   statistics. Torx's mobile *LoL Last Hit* is the nearest thing in the
+   inventory and it has no opponent in it at all.
 5. **Macro is a one-horse race.** MOBA Trainer's 51-pattern map plus daily
    puzzles is the only serious macro-training product, it is pro-endorsed, and it
    addresses the part of the ladder where mechanics stop deciding games. APEX has
@@ -344,8 +351,13 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
   the field throws shapes; this one throws a champion's kit for a reason, at
   the moment that kit is most likely to land, and the results screen names
   which of her four buttons you are losing to.
-- A last-hit drill that is a simulated lane with turret shots, minion aggro and a
-  contesting laner (§5.4).
+- **A whole lane phase, not a last-hit drill.** LANE PHASE plays the first ten
+  minutes at League's own numbers — 477/296/900 health minions, 21/14/60 gold,
+  59.06/29.5/92.4 experience, a 775-unit turret hitting for 152 and ramping into
+  champions, thirty-second waves with a cannon on every third, League's level
+  curve, mana, health regeneration, recall and respawn table — against a laner
+  doing the same job. Underneath it the original last-hit drill is unchanged: a
+  ninety-second rep about the gesture, on numbers scaled for that (§5.4).
 - Twelve isolated skill tests including **Map Recall** and **Cooldown Tracker** —
   the gaze and working-memory findings in §4 say these matter, and essentially
   nobody else trains them.
@@ -377,8 +389,9 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
 - **Social proof.** Leaderboards (LDG), pro endorsements (MOBA Trainer),
   a published pilot study however soft (Skill Gap). APEX has none of the three.
 - **Session framing.** Skill Gap's Isolated / Combined / Warm-Up taxonomy is a
-  better shelf for a drill library than a flat list, and APEX now has 29 drills
-  + 13 lab benches + 12 tests to shelve.
+  better shelf for a drill library than a flat list, and APEX now has 30 drills
+  + 13 lab benches + 12 tests to shelve — though the client itself no longer
+  shows a flat list at all: it shows one lane and the six pieces of it.
 
 **What I would do next, in order:**
 

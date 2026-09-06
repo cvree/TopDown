@@ -33,6 +33,15 @@ export interface MinionStats {
   radius: number;
   moveSpeed: number;
   gold: number;
+  /**
+   * Experience the killing team's nearby champions share.
+   *
+   * League's own figures, and they are here rather than in the drill because
+   * they are a property of the minion in the same way its gold is. A lane
+   * where the levels arrive at the wrong minute is not a lane: hitting two
+   * before the other laner is most of what wave one is *for*.
+   */
+  xp: number;
   attack: AttackProfile;
 }
 
@@ -50,6 +59,7 @@ export const MINION_STATS: Record<MinionRole, MinionStats> = {
     radius: 26,
     moveSpeed: 235,
     gold: 21,
+    xp: 59.06,
     attack: {
       attackSpeed: 1.05,
       windupRatio: 0.28,
@@ -64,6 +74,7 @@ export const MINION_STATS: Record<MinionRole, MinionStats> = {
     radius: 24,
     moveSpeed: 235,
     gold: 14,
+    xp: 29.5,
     attack: {
       attackSpeed: 0.85,
       windupRatio: 0.34,
@@ -80,12 +91,97 @@ export const MINION_STATS: Record<MinionRole, MinionStats> = {
     radius: 33,
     moveSpeed: 220,
     gold: 60,
+    xp: 92.4,
     attack: {
       attackSpeed: 0.62,
       windupRatio: 0.4,
       backswingRatio: 0.3,
       range: 340,
       damage: 22,
+      projectileSpeed: 760,
+      projectileShape: 'wave',
+      projectileRadius: 14,
+    },
+  },
+};
+
+/**
+ * The wave, at League's own numbers.
+ *
+ * The table above is a *scaled* lane: its health totals were chosen so that a
+ * ninety-second rep behind one specific level-9 champion produces clean
+ * one-attack last hits, and it is the right table for a drill about the
+ * gesture. It is the wrong table for a lane phase, because the whole of lane
+ * phase is arithmetic — how many attacks a melee minion is away from dying,
+ * whether the caster is under your auto before or after the turret's shot,
+ * what a cannon is worth — and arithmetic done against invented numbers
+ * transfers to nothing.
+ *
+ * So these are Summoner's Rift's, as shipped:
+ *
+ *  - **Melee** 477 health, 12 attack damage, 21 gold, 59.06 experience.
+ *  - **Caster** 296 health, 23 attack damage, 14 gold, 29.5 experience.
+ *  - **Cannon** 900 health, 41 attack damage, 60 gold, 92.4 experience.
+ *
+ * Read the experience column against the level curve and the two facts every
+ * solo laner in the game plays around fall straight out: a full first wave is
+ * 265.7 experience against the 280 needed for level two, so two arrives on the
+ * first minion of the second wave; three arrives inside the third wave, which
+ * is the one the cannon rides in with. Neither of those is a rule this file
+ * enforces. They are consequences of the numbers, which is the only way a
+ * trainer can claim a habit will survive contact with the game.
+ *
+ * Minions grow in League — every ninety seconds, from fifteen minutes — and
+ * they do not grow here, because nothing in this mode runs past ten.
+ */
+export const LEAGUE_MINION_STATS: Record<MinionRole, MinionStats> = {
+  melee: {
+    hp: 477,
+    radius: 26,
+    moveSpeed: 325,
+    gold: 21,
+    xp: 59.06,
+    attack: {
+      attackSpeed: 1.25,
+      windupRatio: 0.28,
+      backswingRatio: 0.3,
+      /** League: melee minions reach 111 units, which is to say they touch you. */
+      range: 111,
+      damage: 12,
+      projectileSpeed: 0,
+    },
+  },
+  caster: {
+    hp: 296,
+    radius: 24,
+    moveSpeed: 325,
+    gold: 14,
+    xp: 29.5,
+    attack: {
+      attackSpeed: 1.0,
+      windupRatio: 0.34,
+      backswingRatio: 0.28,
+      /** League: 550, the same reach as a marksman. This is why they hurt. */
+      range: 550,
+      damage: 23,
+      projectileSpeed: 650,
+      projectileShape: 'orb',
+      projectileRadius: 9,
+    },
+  },
+  cannon: {
+    hp: 900,
+    radius: 33,
+    moveSpeed: 325,
+    gold: 60,
+    xp: 92.4,
+    attack: {
+      attackSpeed: 0.7,
+      windupRatio: 0.4,
+      backswingRatio: 0.3,
+      /** League: the siege minion's reach is 300. */
+      range: 300,
+      damage: 41,
       projectileSpeed: 760,
       projectileShape: 'wave',
       projectileRadius: 14,
@@ -102,6 +198,99 @@ const TURRET_ATTACK: AttackProfile = {
   projectileSpeed: 1450,
   projectileShape: 'shard',
   projectileRadius: 17,
+};
+
+/**
+ * An outer turret, at League's numbers.
+ *
+ * 775 units of reach, 152 damage a shot, and the ramp that makes a dive a
+ * countdown rather than a decision: every consecutive shot into the same
+ * champion lands for forty per cent more, up to three stacks. Those four
+ * figures are the whole of "can I go in", and they are the reason the answer
+ * changes depending on whether the turret has already been shooting somebody.
+ */
+const LEAGUE_TURRET: AttackProfile = {
+  attackSpeed: 0.83,
+  windupRatio: 0.42,
+  backswingRatio: 0.2,
+  range: 775,
+  damage: 152,
+  projectileSpeed: 1450,
+  projectileShape: 'shard',
+  projectileRadius: 17,
+};
+
+/**
+ * How a turret treats a champion standing in it.
+ *
+ * `base` is the first shot; each consecutive one after that adds `ramp` of it,
+ * to a maximum of `cap` stacks. The counter resets the instant the turret
+ * changes target, which is why bringing a minion wave with you is the whole of
+ * diving safely.
+ */
+export interface TurretRamp {
+  base: number;
+  ramp: number;
+  cap: number;
+}
+
+/**
+ * Everything about a lane that is a *rule* rather than a body.
+ *
+ * The trainer has two lanes in it and they want different rules. LAST HIT is a
+ * ninety-second gesture drill: it wants waves quickly, small health totals and
+ * a turret whose arithmetic is clean against one specific champion. LANE PHASE
+ * is the first ten minutes of a game of League: it wants League's wave clock,
+ * League's minions and League's turret, because it is claiming to be that
+ * thing rather than to teach one movement out of it.
+ *
+ * Rather than fork the file, the rules are a parameter. Everything below this
+ * line — targeting priority, aggro memory, the wave column, the turret's
+ * switching logic — is identical in both, because all of that is League's
+ * behaviour rather than League's balance.
+ */
+export interface LaneRules {
+  stats: Record<MinionRole, MinionStats>;
+  /** Seconds between waves. League: thirty, from the first one onward. */
+  waveInterval: number;
+  /** Seconds before the first wave of the run walks out of the gates. */
+  firstWave: number;
+  /** A cannon rides with every Nth wave. League: every third, before 15:00. */
+  cannonEvery: number;
+  turret: AttackProfile;
+  turretRamp: TurretRamp;
+  /**
+   * True when the wave clock should speed up with difficulty.
+   *
+   * The gesture drill does this — a harder LAST HIT is a busier one — and a
+   * lane phase must not, because a wave clock that depends on who you are
+   * playing against is not a wave clock you can learn to count.
+   */
+  tempoFromDifficulty: boolean;
+}
+
+/** The ninety-second gesture drill's lane. Exactly what LAST HIT always had. */
+export const TRAINER_RULES: LaneRules = {
+  stats: MINION_STATS,
+  waveInterval: 15.5,
+  firstWave: 0,
+  cannonEvery: 3,
+  turret: TURRET_ATTACK,
+  turretRamp: { base: 110, ramp: 45 / 110, cap: 3 },
+  tempoFromDifficulty: true,
+};
+
+/** Summoner's Rift's lane, for the mode that claims to be it. */
+export const LEAGUE_RULES: LaneRules = {
+  stats: LEAGUE_MINION_STATS,
+  /** League: a wave leaves the base every thirty seconds, all game. */
+  waveInterval: 30,
+  firstWave: 0,
+  /** League: waves three, six, nine… carry the siege minion before 15:00. */
+  cannonEvery: 3,
+  turret: LEAGUE_TURRET,
+  turretRamp: { base: 152, ramp: 0.4, cap: 3 },
+  tempoFromDifficulty: false,
 };
 
 /** How far a minion looks for something to hit, and how far it will follow. */
@@ -289,7 +478,11 @@ export class TurretBrain {
   /** Consecutive shots on the current champion target, for the damage ramp. */
   private streak = 0;
 
-  constructor(readonly actor: Actor) {}
+  constructor(
+    readonly actor: Actor,
+    private readonly ramp: TurretRamp = TRAINER_RULES.turretRamp,
+    private readonly minionDamage: number = TURRET_ATTACK.damage,
+  ) {}
 
   update(world: World, dt: number): void {
     void dt;
@@ -329,11 +522,19 @@ export class TurretBrain {
     me.targetId = target ? target.id : null;
     // The champion ramp: the third shot hurts far more than the first, which
     // is exactly why a dive has a shot clock.
-    me.attack.damage = target?.unitKind === 'champion' ? 110 + this.streak * 45 : TURRET_ATTACK.damage;
+    me.attack.damage =
+      target?.unitKind === 'champion'
+        ? this.ramp.base * (1 + this.ramp.ramp * this.streak)
+        : this.minionDamage;
+  }
+
+  /** Shots into the current champion so far, 0..cap. What a dive is counting. */
+  get rampStacks(): number {
+    return this.streak;
   }
 
   onShot(): void {
-    this.streak = Math.min(3, this.streak + 1);
+    this.streak = Math.min(this.ramp.cap, this.streak + 1);
   }
 }
 
@@ -341,6 +542,16 @@ export interface LaneOptions {
   bounds: { w: number; h: number };
   /** 0..1. Drives wave tempo and the rival's competence, never anyone's health. */
   difficulty: number;
+  /** Which lane this is. Defaults to the gesture drill's. */
+  rules?: LaneRules;
+  /**
+   * How far in from each end of the floor the turrets stand, as a share of the
+   * width. The lane's whole balance is this number against the turret's reach:
+   * what is left between the two circles is the ground a wave can actually be
+   * fought over, and if it goes to nothing then farming your own wave is
+   * already a dive.
+   */
+  turretInset?: number;
 }
 
 export interface LaneEvent {
@@ -368,6 +579,7 @@ export class Lane {
 
   private brains: MinionBrain[] = [];
   private turrets: TurretBrain[] = [];
+  readonly rules: LaneRules;
 
   constructor(
     private readonly world: World,
@@ -375,24 +587,33 @@ export class Lane {
     private readonly opts: LaneOptions,
   ) {
     const { w, h } = opts.bounds;
+    this.rules = opts.rules ?? TRAINER_RULES;
     this.laneY = h * 0.5;
     // Lane geometry is the balance, so it is derived rather than guessed.
     // Waves meet in the middle; each turret's reach has to stop short of that
     // meeting point by a clear margin, or farming the wave you were given is
     // already a tower dive. Chasing a pushed wave crosses the line — which is
     // exactly the decision the drill wants you making on purpose.
-    const turretX = w * 0.075;
+    const turretX = w * (opts.turretInset ?? 0.075);
     this.allyTurret = this.spawnTurret('player', { x: turretX, y: this.laneY });
     this.enemyTurret = this.spawnTurret('enemy', { x: w - turretX, y: this.laneY });
     // Minions form up in front of their own turret, so a spawning wave never
     // has to be shoved out of the structure it just walked past.
     this.allyGate = { x: turretX + 112, y: this.laneY };
     this.enemyGate = { x: w - turretX - 112, y: this.laneY };
-    this.turrets.push(new TurretBrain(this.allyTurret), new TurretBrain(this.enemyTurret));
-    // Waves come faster than League's thirty seconds because a drill is ninety
-    // seconds long, not thirty minutes. Everything else about them is honest.
-    this.waveInterval = 15.5 - opts.difficulty * 3;
-    this.waveCd = 0;
+    const ramp = this.rules.turretRamp;
+    const minionDamage = this.rules.turret.damage;
+    this.turrets.push(
+      new TurretBrain(this.allyTurret, ramp, minionDamage),
+      new TurretBrain(this.enemyTurret, ramp, minionDamage),
+    );
+    // The gesture drill's waves come faster than League's thirty seconds
+    // because a rep is ninety seconds long, not thirty minutes; the lane phase
+    // takes League's clock untouched, because counting it is half the mode.
+    this.waveInterval = this.rules.tempoFromDifficulty
+      ? this.rules.waveInterval - opts.difficulty * 3
+      : this.rules.waveInterval;
+    this.waveCd = this.rules.firstWave;
   }
 
   /** The enemy laner, if this difficulty has earned one. */
@@ -431,7 +652,7 @@ export class Lane {
       immovable: true,
       label: team === 'player' ? 'YOUR TURRET' : 'ENEMY TURRET',
       attack: {
-        ...TURRET_ATTACK,
+        ...this.rules.turret,
         projectileColor: team === 'player' ? '#8fe9ff' : '#ffbb66',
       },
     });
@@ -440,8 +661,18 @@ export class Lane {
   /** Composition follows League: three melee, three casters, a cannon every third. */
   private composition(wave: number): MinionRole[] {
     const roles: MinionRole[] = ['melee', 'melee', 'melee', 'caster', 'caster', 'caster'];
-    if (wave % 3 === 0) roles.splice(3, 0, 'cannon');
+    if (wave % this.rules.cannonEvery === 0) roles.splice(3, 0, 'cannon');
     return roles;
+  }
+
+  /** What the next wave will be made of, before it exists. */
+  nextComposition(): MinionRole[] {
+    return this.composition(this.waveIndex + 1);
+  }
+
+  /** True when the wave now forming carries the siege minion. */
+  get nextIsCannon(): boolean {
+    return (this.waveIndex + 1) % this.rules.cannonEvery === 0;
   }
 
   private spawnWave(): void {
@@ -453,7 +684,7 @@ export class Lane {
       const goal = team === 'player' ? this.enemyGate : this.allyGate;
       const dir = team === 'player' ? 1 : -1;
       roles.forEach((role, i) => {
-        const s = MINION_STATS[role];
+        const s = this.rules.stats[role];
         // Melee lead, casters and the cannon trail: the column marches out of
         // the base in the order it will meet the other one.
         const rank = roles.length - 1 - i;
@@ -498,6 +729,26 @@ export class Lane {
   /** Tell the turrets a shot went out, so the champion damage ramp advances. */
   noteTurretShot(actorId: number): void {
     for (const t of this.turrets) if (t.actor.id === actorId) t.onShot();
+  }
+
+  /**
+   * What a body is worth in experience.
+   *
+   * Read off the unit's own class rather than stored on it, because experience
+   * is a property of *what a minion is* and the world has no business knowing
+   * the word. Anything that is not a minion is worth nothing here: champion
+   * experience is a different table and this lane has no jungle in it.
+   */
+  xpFor(a: Actor): number {
+    if (!a.isMinion) return 0;
+    const role = a.unitKind;
+    if (role !== 'melee' && role !== 'caster' && role !== 'cannon') return 0;
+    return this.rules.stats[role].xp;
+  }
+
+  /** How many ramp stacks a turret has on the champion it is shooting. */
+  rampOf(turret: Actor): number {
+    return this.turrets.find((t) => t.actor.id === turret.id)?.rampStacks ?? 0;
   }
 
   enemyMinions(): Actor[] {

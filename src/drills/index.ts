@@ -10,6 +10,7 @@ import { CombosDrill } from './combos';
 import { DodgeDrill } from './dodge';
 import { EzrealDrill, isEzrealDrill } from './ezreal';
 import { KiteDrill } from './kite';
+import { LanePhaseDrill } from './lanephase';
 import { LastHitDrill } from './lasthit';
 import { MovementDrill } from './movement';
 import { RangeDrill } from './rangecheck';
@@ -47,6 +48,8 @@ export const createDrill = (id: DrillId, session: Session): Drill => {
       return new SpacingDrill(session);
     case 'lasthit':
       return new LastHitDrill(session);
+    case 'lanePhase':
+      return new LanePhaseDrill(session);
     case 'targetswitch':
       return new TargetSwitchDrill(session);
     case 'combos':
@@ -130,6 +133,12 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
     // them for a wave to be pushed somewhere that matters.
     case 'lasthit':
       return { w: 2100, h: 880 };
+    // A lane, at League's proportions. Turret to turret is about 3600 units
+    // in a real mid lane and it is 3600 here; the corridor between the walls
+    // is a thousand units wide, which is what makes a Peacemaker dodgeable
+    // and a Condemn worth aiming at the side of the lane.
+    case 'lanePhase':
+      return { w: 4400, h: 1400 };
     case 'duel1v2':
     case 'duel1v3':
       return { w: 1800, h: 1050 };

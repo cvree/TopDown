@@ -5,9 +5,14 @@ rewarding should be the thing that actually makes you better.
 
 It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
-drawn on the ground where the thing it is about actually is. One distance, one
-champion and four parts of her, one opponent, and two ways to play each of
-them:
+drawn on the ground where the thing it is about actually is.
+
+At the top of the menu is **LANE PHASE**: the first ten minutes of a game of
+League, at League's own numbers, against an enemy laner farming and trading on
+the other side of the wave. You pick the opponent and the length; everything
+else is the game. Under it are the parts of that lane, rehearsed one at a time
+— one distance, one champion and four pieces of her, one opponent — each with
+two ways to play it:
 
 - **PLAY** — one minute. The same minute every time, so a score means something
   next to the one before it.
@@ -53,9 +58,83 @@ npm run build      # production bundle
 
 ## What it trains
 
-Six modes, each one with a PLAY and a SURVIVE on it. Four of them are parts of
-the same champion. The first is the distance all four of them assume. The last
-is the only one that is not about your hands at all.
+One lane, and six modes made out of the pieces of it. Four of those are parts
+of the same champion; the first is the distance all four of them assume; the
+last is the only one that is not about your hands at all.
+
+### Lane phase
+
+**LANE PHASE** is the job rather than a piece of it, and it is the mode the
+rest of the client exists to feed. A lane opens at 1:05 with the first wave
+walking in, waves arrive every thirty seconds with a cannon on every third, and
+you play it end to end against an enemy laner doing exactly what you are doing.
+
+Every number in it is League's, because the whole of laning is arithmetic and
+arithmetic against invented numbers transfers to nothing:
+
+| | Health | Gold | Experience |
+| --- | --- | --- | --- |
+| **Melee minion** | 477 | 21 | 59.06 |
+| **Caster minion** | 296 | 14 | 29.5 |
+| **Cannon minion** (every third wave) | 900 | 60 | 92.4 |
+
+Read the experience column against the level curve — 280 for level two, a
+hundred more for each level after — and the facts every solo laner plays around
+fall straight out: a full first wave is 265.7, so level two arrives on the
+first minion of the second wave, and level three arrives inside the third wave,
+which is the one the cannon rides in with. The outer turret reaches 775 units,
+hits a minion for 152 — a caster dies to two shots, a melee to four — and ramps
+forty per cent a shot into a champion, which is what puts a clock on a dive.
+
+Both champions start at level one on base statistics, grow off League's own
+curve, and take a point every time the wave pays for one. Two resources exist
+here and nowhere else in the client, because both of them shape the first ten
+minutes and neither belongs in a sixty-second rep:
+
+- **Mana.** 232 growing 35 a level, regenerating about 1.4 a second. Condemn
+  costs 90 of it. It is also what stops the Peacemaker opposite from being a
+  Peacemaker every ten seconds all lane — an opponent who opens with four of
+  them has nothing left at level six.
+- **Health that does not come back.** League's regeneration is about one a
+  second, so being chipped is a state you have to answer. **F** recalls: eight
+  seconds of standing still, broken by a step or a hit, for a full bar and
+  every minion that died while you were gone. A death is a respawn timer and a
+  walk back, on League's own table, not the end of the run.
+
+Five opponents, and the difference between them is **entirely behavioural** —
+not one of them has a point more health or damage than any other:
+
+| Tier | Farms | What it does |
+| --- | --- | --- |
+| **Iron** | 3.4 CS/min | Sees the minion late, swings at healthy ones, shoves its own wave into your turret |
+| **Silver** | 5.2 | Farms most of what it can reach, occasionally notices you walking up |
+| **Gold** | 6.8 | Takes its farm, punishes the last hits you telegraph, stops walking into your wave to do it |
+| **Diamond** | 8.4 | Near-perfect farm, holds the wave on its own side, spends the Peacemaker on targets that cannot dodge it |
+| **Challenger** | 10.2 | Misses nothing, punishes everything, freezes you off the wave, counts lethal, and dives you when it is right |
+
+The thing that actually separates them is one number: how much of the damage
+already in the air they count when deciding to attack. A laner with no
+foresight fires when the bar is *already* under their damage and is therefore
+always half a second late; one with full foresight fires when the bar *will
+be*, and takes the minion every time. It is the same arithmetic the mode draws
+on the health bar for you at the lower tiers — the bot is not doing anything a
+person cannot, it is doing the thing the plate is teaching.
+
+Three lengths: 2:30 for five waves and a cannon, 5:30 to get through level six,
+9:00 for the whole first ten minutes. The results screen leads with creep score
+a minute against what that opponent farms, then the differences — creep score,
+gold, level — because a lane is a comparison rather than a solo run, and it
+names missed farm by cause: too late, too early, or given to your own turret.
+Records are kept per opponent, because a creep score against Iron and one
+against Challenger are not the same number measured twice.
+
+What is deliberately *not* modelled, and stated rather than hidden: there is no
+shop, so gold is the scoreboard rather than a purchase; there is no jungler, so
+nobody walks out of the river; and resistances are folded into the health pools
+rather than simulated, because both champions in this lane deal physical damage
+and one multiplication is exact where two systems would be theatre.
+
+### The pieces
 
 | Mode | Keys | Measures | The habit it builds |
 | --- | --- | --- | --- |
@@ -65,6 +144,12 @@ is the only one that is not about your hands at all.
 | **Condemn** | Q E D | Wall stun rate, angles you made rather than found | Standing on the right side of the wall *before* the fight |
 | **Night Hunter** | Q W E R D | Kit execution, vision held and wards placed, against a floor that refills | Playing Vayne rather than an ADC who owns her abilities — in the dark |
 | **Sheriff** | Q D | Peacemaker dodge rate, traps stepped in, ultimates broken on terrain | Dodging a champion rather than a pattern — and doing it while still trading |
+
+**LAST HIT** still exists underneath the lane and is unchanged: a ninety second
+drill about one gesture, with health totals scaled so that a caster is a
+one-attack last hit off a turret shot. Its smaller numbers are the right
+numbers for a mode about the gesture; the lane keeps League's. Both are built
+on one wave engine with two rulesets rather than one set of compromises.
 
 D is the trinket, and it is on every mode because it is not part of the
 champion: it is not levelled, it is not hers, and in a real game it is on the
@@ -189,6 +274,11 @@ It can be turned off in **Gameplay** settings, for a player still learning the
 kit who would rather not learn two things at once.
 
 ### The two run modes
+
+These are the two shapes of a *rep*, and every mode below the lane has both.
+The lane itself has neither: it has an opponent and a length, both chosen on
+its card, because a lane is not a rep — the thing being measured is what
+happens over ten minutes rather than what your hands did in sixty seconds.
 
 **PLAY is one minute.** Every mode, every time. Night Hunter included: clearing
 the floor sends the next wave rather than ending the run, because a minute that
@@ -400,6 +490,27 @@ depends on:
   asserted directly to deal no damage and to take 1.25 seconds of movement,
   the Peacemaker is asserted to be the shot she takes at a target who cannot
   move, and running away scores under 45%.
+- **Every drill's drawing pass runs in the suite.** The one part of a mode that
+  only executes in a browser used to have no proof behind it, and a throw there
+  is a black screen rather than a wrong number. The lane additionally asserts
+  what it draws: the road, both turret circles, a plate on every enemy minion,
+  the damage threshold at the coached tiers and none of it at Challenger — with
+  the damage-already-in-the-air wash surviving both, because that is legibility
+  rather than advice.
+- **The lane is League's lane, and the ladder in it is behaviour.** Every
+  minion's health, gold and experience is asserted directly, along with the
+  turret's 775 units and 152 damage, the two-shot caster and four-shot melee,
+  the thirty second wave clock and the 280 that is level two — so a number
+  cannot drift without the suite saying so. Five opponents are then run
+  unattended: each tier farms strictly more of its wave than the tier below it,
+  the top takes over three quarters of it, and the Iron and Challenger laners
+  are asserted to have *exactly* the same attack damage at the same level.
+- **A lane you farm scores and a lane you stand in does not**, averaged over
+  seeds — and a death in one is a respawn timer rather than the end of the run,
+  which is asserted by leaving a player standing in front of a Challenger and
+  checking the lane still runs to its clock. The dead-minion sweep is checked
+  too, because twenty waves of thirteen bodies is what a ten-minute mode costs
+  if nothing clears them up.
 - 1v1 is winnable; 1v2 and 1v3 cost progressively more health; all three are
   winnable, averaged across seeds.
 - The same policy performs worse at higher difficulty.
@@ -666,8 +777,11 @@ words in it.
 
 ### Practice
 
-The menu is the whole of the first screen. Four cards, one per part of the
-champion; each carries what the mode asks of you, the League habit it builds,
+The menu is the whole of the first screen. The lane is at the top of it, with
+five opponents in a row and three lengths under them — the record it prints is
+per opponent, because that is the only way a creep score means anything — and
+under that a card per part of the champion; each carries what the mode asks of
+you, the League habit it builds,
 the slice of the bar it hands you drawn as four keys — the ones you do not get
 are shown greyed rather than hidden, so the four cards read as four slices of
 one champion — and two buttons, PLAY and SURVIVE, each with the record it is

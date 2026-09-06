@@ -35,6 +35,7 @@
  * says which.
  */
 import { audio } from './audio';
+import { grown, grownAttackSpeed } from './levels';
 import { clamp, dist, norm } from './math';
 import type { DrillPaint } from './paint';
 import { PALETTE } from './palette';
@@ -323,9 +324,144 @@ export interface CaitlynLoadout {
 export const caitlynCd = (leagueCd: number): number =>
   Math.round(leagueCd * CAITLYN_STATS.practiceShare * 10) / 10;
 
+/**
+ * The Sheriff as a laner — the numbers that only exist because a mode plays
+ * her from level one.
+ *
+ * Everything in `CAITLYN_STATS` is one snapshot of her, taken at level 9 and
+ * bent in one place (her basic attack) so that a dodging drill measures
+ * dodging. None of that survives contact with a lane phase: an opponent who
+ * arrives at minute two with her level-9 kit is not a lane, and an opponent
+ * whose auto-attack is two thirds of what it should be is a lane you cannot
+ * lose. So the lane builds her out of these instead, and every one of them is
+ * League's own.
+ *
+ * Two are worth reading twice, because they are what the matchup *is*:
+ *
+ *  - **650 attack range against Vayne's 550.** Standing where you can hit her
+ *    means standing where she has been hitting you for a hundred units of
+ *    walking. Every trade in this lane starts from behind, and the only
+ *    answers are the wave, the tumble, and not taking the trade.
+ *  - **The Peacemaker scales off her attack damage.** It is 130% of it on top
+ *    of the rank's flat damage, which is why her poke gets meaningfully worse
+ *    to stand in as the levels arrive rather than staying a fixed nuisance.
+ */
+export const CAITLYN_LANE = {
+  /** League: 580 health, growing 107 a level. */
+  hp: { base: 580, growth: 107 },
+  /** League: 27 armour, growing 4.7 a level. Folded into the pool. */
+  armor: { base: 27, growth: 4.7 },
+  /** League: 60 attack damage, growing 3.8 a level. */
+  ad: { base: 60, growth: 3.8 },
+  /** League: 0.681 base attack speed, growing 4% a level. */
+  attackSpeed: { base: 0.681, growthPct: 4 },
+
+  /** League: Piltover Peacemaker deals 50/90/130/170/210 (+130% total AD). */
+  qDamageByRank: [50, 90, 130, 170, 210],
+  qAdRatio: 1.3,
+  /** League: 10/9/8/7/6 seconds. */
+  qCdByRank: [10, 9, 8, 7, 6],
+  /** League: 90 Caliber Net deals 70/110/150/190/230. */
+  eDamageByRank: [70, 110, 150, 190, 230],
+  /** League: Ace in the Hole deals 250/475/700 (+200% bonus AD, which is nil). */
+  rDamageByRank: [250, 475, 700],
+  /** League: 90/75/60 seconds. */
+  rCdByRank: [90, 75, 60],
+  /**
+   * Headshot's bonus, as a share of her attack damage.
+   *
+   * League scales it with her level from roughly 50% to 125%; the lane sits at
+   * the early-game end of that because the lane is the early game. It is the
+   * single most-underestimated number in the matchup — every sixth auto she
+   * lands on you is one and a half autos.
+   */
+  headshotBonus: 0.6,
+  /**
+   * The order she puts points in: Q first and maxed, one in W, one in E, R on
+   * cooldown from six. That is the standard Caitlyn, and it means her poke is
+   * the thing that gets worse to stand in front of every single level.
+   */
+  skillOrder: ['q', 'e', 'q', 'w', 'q', 'r', 'q', 'w', 'q', 'w', 'r', 'w', 'w', 'e', 'e', 'r', 'e', 'e'] as const,
+} as const;
+
+/**
+ * Her mana, for the same reason Vayne has one in the lane and nowhere else.
+ *
+ * League: 315 mana growing 40 a level, regenerating 7.4 every five seconds and
+ * growing 0.7. The costs are what stop a Peacemaker every ten seconds from
+ * being a Peacemaker every ten seconds for the whole lane — a laner who opens
+ * with four of them is a laner with nothing left for the fight at level six,
+ * and that trade-off is most of what early poke actually is.
+ */
+export const CAITLYN_MANA = {
+  base: 315,
+  growth: 40,
+  regen: 7.4,
+  regenGrowth: 0.7,
+  cost: { q: 50, w: 50, e: 75, r: 100 },
+} as const;
+
+export const caitlynManaAt = (level: number): { max: number; regen: number } => ({
+  max: Math.round(grown(CAITLYN_MANA.base, CAITLYN_MANA.growth, level)),
+  regen: grown(CAITLYN_MANA.regen, CAITLYN_MANA.regenGrowth, level) / 5,
+});
+
+/** Caitlyn as she actually is at a given level, before items and runes. */
+export const caitlynAtLevel = (level: number): { hp: number; ad: number; attackSpeed: number } => {
+  const armor = grown(CAITLYN_LANE.armor.base, CAITLYN_LANE.armor.growth, level);
+  return {
+    hp: Math.round(grown(CAITLYN_LANE.hp.base, CAITLYN_LANE.hp.growth, level) * (1 + armor / 100)),
+    ad: Math.round(grown(CAITLYN_LANE.ad.base, CAITLYN_LANE.ad.growth, level)),
+    attackSpeed: grownAttackSpeed(CAITLYN_LANE.attackSpeed.base, CAITLYN_LANE.attackSpeed.growthPct, level),
+  };
+};
+
 export class CaitlynKit {
   readonly stats: CaitlynStats = emptyStats();
   readonly loadout: Required<CaitlynLoadout>;
+
+  /**
+   * What each button is worth, and what each one costs her.
+   *
+   * Both tables default to the dodge drill's Sheriff — one specific level 9
+   * Caitlyn, on the practice share of her cooldowns — and both are rewritten
+   * wholesale by `applyLevel` for the mode that plays her from level one. They
+   * are fields rather than constants because a lane phase has a Caitlyn whose
+   * Peacemaker hurts more at eight minutes than at two, and a kit that read its
+   * damage out of a frozen table could not have one.
+   */
+  damage = {
+    q: CAITLYN_STATS.qDamage as number,
+    e: CAITLYN_STATS.eDamage as number,
+    r: CAITLYN_STATS.rDamage as number,
+    headshot: CAITLYN_STATS.headshotBonus as number,
+  };
+  cooldowns = {
+    q: CAITLYN_STATS.qCd as number,
+    w: CAITLYN_STATS.wCd as number,
+    e: CAITLYN_STATS.eCd as number,
+    r: CAITLYN_STATS.rCd as number,
+  };
+  /**
+   * The share of League's cooldown she actually pays.
+   *
+   * The dodge drill charges 45% of it so a sixty second rep contains enough
+   * Peacemakers to be practice. A lane phase charges all of it, because ten
+   * minutes is long enough to contain her real kit and because "her Q is down
+   * for the next nine seconds" is a thing a laner is supposed to be counting.
+   */
+  cdShare = CAITLYN_STATS.practiceShare as number;
+
+  /**
+   * Whether she decides for herself.
+   *
+   * On, she is the Sheriff of the dodge drill: four buttons thrown at you the
+   * moment each is up, which is what a mode about reading telegraphs wants.
+   * Off, something else owns her decisions — the lane bot, which has a whole
+   * lane of context to weigh and cannot have her firing a Peacemaker at a
+   * minion wave because it happened to come off cooldown.
+   */
+  autopilot = true;
 
   /** Her body, once a drill has handed her one. Null while she is reloading. */
   actor: Actor | null = null;
@@ -464,7 +600,100 @@ export class CaitlynKit {
       this.stepCast(dt, me, player);
       return;
     }
-    this.decide(dt, me, player);
+    if (this.autopilot) this.decide(dt, me, player);
+  }
+
+  /** League's cooldown for one of her abilities, as this run charges it. */
+  private chargeCd(leagueCd: number): number {
+    return Math.round(leagueCd * this.cdShare * 10) / 10;
+  }
+
+  /** True while she is between casts and free to be given an order. */
+  get ready(): boolean {
+    return this.cast === null && this.decisionCd <= 0;
+  }
+
+  /** Seconds left on a slot, for a director that has to plan around them. */
+  cdOf(slot: 'q' | 'w' | 'e' | 'r'): number {
+    return slot === 'q' ? this.qCd : slot === 'w' ? this.wCd : slot === 'e' ? this.eCd : this.rCd;
+  }
+
+  /**
+   * Press a button, on somebody else's judgement.
+   *
+   * The counterpart to `autopilot`. Every check that belongs to the *ability* —
+   * is it off cooldown, is she allowed it in this mode, is there an angle, is
+   * there line of sight — is still made here, because those are the ability's
+   * own rules and a director that had to know them would be a second copy of
+   * this file. Every check that belongs to the *situation* — is this worth a
+   * Peacemaker, is she safe enough to stand still for it — belongs to the
+   * director, and none of it is made here.
+   *
+   * Returns true only when the cast actually started.
+   */
+  command(slot: CaitlynCastSlot | 'w', target: Actor, at?: Vec2): boolean {
+    const me = this.actor;
+    if (!me || !me.alive || this.cast || this.decisionCd > 0) return false;
+    switch (slot) {
+      case 'q':
+        if (!this.loadout.peacemaker || this.qCd > 0) return false;
+        if (dist(me.pos, target.pos) > CAITLYN_STATS.qRange) return false;
+        return this.startPeacemaker(me, target, target.rootedFor > 0 || target.slowFor > 0);
+      case 'w': {
+        if (!this.loadout.trap || this.wCd > 0) return false;
+        const to = at ?? target.pos;
+        if (dist(me.pos, to) > CAITLYN_STATS.wRange) return false;
+        this.placeTrapAt(me, to);
+        return true;
+      }
+      case 'e':
+        if (!this.loadout.net || this.eCd > 0) return false;
+        if (dist(me.pos, target.pos) > CAITLYN_STATS.eRange) return false;
+        return this.startNet(me, target);
+      case 'r':
+        if (!this.loadout.ace || this.rCd > 0) return false;
+        if (dist(me.pos, target.pos) > CAITLYN_STATS.rRange) return false;
+        return this.startAce(me, target);
+    }
+  }
+
+  /**
+   * Rebuild her around a level and a set of ranks.
+   *
+   * Health, attack damage and attack speed come off League's growth curve —
+   * with armour folded into the pool, for the reason the Vayne block gives —
+   * and the ability tables come off the rank she has actually put points into.
+   * Called every time the lane hands her a level, so the champion standing
+   * across from you at minute eight is not the one you traded with at minute
+   * two.
+   */
+  applyLevel(level: number, ranks: { q: number; w: number; e: number; r: number }): void {
+    const a = this.actor;
+    const stats = caitlynAtLevel(level);
+    if (a) {
+      const share = a.maxHp > 0 ? a.hp / a.maxHp : 1;
+      a.maxHp = stats.hp;
+      a.hp = Math.min(stats.hp, stats.hp * share);
+      a.attack.damage = stats.ad;
+      a.attack.attackSpeed = stats.attackSpeed;
+    }
+    const at = <T>(table: readonly T[], r: number): T =>
+      table[Math.min(table.length, Math.max(1, Math.round(r))) - 1];
+    this.damage = {
+      // League: 50/90/130/170/210 plus 130% of her total attack damage.
+      q: Math.round(at(CAITLYN_LANE.qDamageByRank, ranks.q) + stats.ad * CAITLYN_LANE.qAdRatio),
+      e: at(CAITLYN_LANE.eDamageByRank, ranks.e),
+      // League: 250/475/700 plus 200% *bonus* attack damage, which without a
+      // shop is zero — so a lane phase ultimate is exactly the base figure.
+      r: at(CAITLYN_LANE.rDamageByRank, ranks.r),
+      headshot: CAITLYN_LANE.headshotBonus,
+    };
+    this.cooldowns = {
+      q: at(CAITLYN_LANE.qCdByRank, ranks.q),
+      w: CAITLYN_STATS.wCd,
+      e: CAITLYN_STATS.eCd,
+      r: at(CAITLYN_LANE.rCdByRank, ranks.r),
+    };
   }
 
   /**
@@ -575,10 +804,10 @@ export class CaitlynKit {
     const aim = this.aimAt(me.pos, player, CAITLYN_STATS.qSpeed, CAITLYN_STATS.qCast);
     const dir = norm(aim.x - me.pos.x, aim.y - me.pos.y);
     if (dir.x === 0 && dir.y === 0) return false;
-    this.qCd = caitlynCd(CAITLYN_STATS.qCd);
+    this.qCd = this.chargeCd(this.cooldowns.q);
     this.decisionCd = 0.35;
     this.stats.qCasts++;
-    this.stats.threatDamage += CAITLYN_STATS.qDamage;
+    this.stats.threatDamage += this.damage.q;
     this.cast = {
       slot: 'q',
       dir,
@@ -600,7 +829,7 @@ export class CaitlynKit {
       ownerId: me.id,
       vel: { x: c.dir.x * CAITLYN_STATS.qSpeed, y: c.dir.y * CAITLYN_STATS.qSpeed },
       speed: CAITLYN_STATS.qSpeed,
-      damage: CAITLYN_STATS.qDamage,
+      damage: this.damage.q,
       radius: CAITLYN_STATS.qWidth / 2,
       // League's Q pierces everything in the line. Here it matters for one
       // reason beyond fidelity: a missile that is never consumed by the first
@@ -639,8 +868,16 @@ export class CaitlynKit {
       y: clamp(player.pos.y + dir.y * reach, 60, this.s.world.bounds.h - 60),
     };
     if (dist(me.pos, at) > CAITLYN_STATS.wRange) return;
+    this.placeTrapAt(me, at);
+  }
 
-    this.wCd = caitlynCd(CAITLYN_STATS.wCd);
+  /** The trap itself, once somebody has decided where it goes. */
+  private placeTrapAt(me: Actor, where: Vec2): void {
+    const at = {
+      x: clamp(where.x, 60, this.s.world.bounds.w - 60),
+      y: clamp(where.y, 60, this.s.world.bounds.h - 60),
+    };
+    this.wCd = this.chargeCd(this.cooldowns.w);
     this.decisionCd = 0.5;
     this.stats.trapsPlaced++;
     this.traps.push({ id: this.trapId++, pos: at, arm: CAITLYN_STATS.wArm, life: CAITLYN_STATS.wLife, sprung: false });
@@ -650,6 +887,7 @@ export class CaitlynKit {
     while (this.traps.length > CAITLYN_STATS.wMax) this.traps.shift();
     audio.play('enemyCast', { intensity: 0.6, pan: this.s.panOf(at) });
     this.s.fx.ring(at.x, at.y, 6, CAITLYN_STATS.wRadius, CAITLYN_STATS.wArm, CAITLYN_TRAP, 2.5, 'pulse');
+    void me;
   }
 
   private stepTraps(dt: number, player: Actor | undefined): void {
@@ -698,10 +936,10 @@ export class CaitlynKit {
     const aim = this.aimAt(me.pos, player, CAITLYN_STATS.eSpeed, NET_CAST);
     const dir = norm(aim.x - me.pos.x, aim.y - me.pos.y);
     if (dir.x === 0 && dir.y === 0) return false;
-    this.eCd = caitlynCd(CAITLYN_STATS.eCd);
+    this.eCd = this.chargeCd(this.cooldowns.e);
     this.decisionCd = 0.3;
     this.stats.netCasts++;
-    this.stats.threatDamage += CAITLYN_STATS.eDamage;
+    this.stats.threatDamage += this.damage.e;
     this.cast = {
       slot: 'e',
       dir,
@@ -724,7 +962,7 @@ export class CaitlynKit {
       ownerId: me.id,
       vel: { x: c.dir.x * CAITLYN_STATS.eSpeed, y: c.dir.y * CAITLYN_STATS.eSpeed },
       speed: CAITLYN_STATS.eSpeed,
-      damage: CAITLYN_STATS.eDamage,
+      damage: this.damage.e,
       radius: CAITLYN_STATS.eWidth / 2,
       pierce: true,
       shape: 'orb',
@@ -748,10 +986,10 @@ export class CaitlynKit {
     // cooldown, and a lock-on thrown at somebody already behind terrain is a
     // cast she would have to be blind to make.
     if (!this.lineOfSight(me.pos, player.pos)) return false;
-    this.rCd = caitlynCd(CAITLYN_STATS.rCd);
+    this.rCd = this.chargeCd(this.cooldowns.r);
     this.decisionCd = 0.6;
     this.stats.aceCasts++;
-    this.stats.threatDamage += CAITLYN_STATS.rDamage;
+    this.stats.threatDamage += this.damage.r;
     const dir = norm(player.pos.x - me.pos.x, player.pos.y - me.pos.y);
     this.cast = {
       slot: 'r',
@@ -788,9 +1026,9 @@ export class CaitlynKit {
       return;
     }
     this.stats.aceHits++;
-    this.stats.damageDealt += CAITLYN_STATS.rDamage;
-    this.stats.dodgeableTaken += CAITLYN_STATS.rDamage;
-    this.s.world.damage(victim, CAITLYN_STATS.rDamage, me);
+    this.stats.damageDealt += this.damage.r;
+    this.stats.dodgeableTaken += this.damage.r;
+    this.s.world.damage(victim, this.damage.r, me);
     this.s.fx.addFlash(0.14, CAITLYN_ACE);
     this.s.fx.ring(victim.pos.x, victim.pos.y, 8, 170, 0.4, CAITLYN_ACE, 5, 'shock');
     audio.play('hazardFire', { intensity: 1.3, pan: this.s.panOf(victim.pos) });
@@ -852,13 +1090,13 @@ export class CaitlynKit {
     if (shot.slot === 'q') {
       this.stats.qHits++;
       if (shot.free) this.stats.qFreeHits++;
-      this.stats.damageDealt += CAITLYN_STATS.qDamage;
-      this.stats.dodgeableTaken += CAITLYN_STATS.qDamage;
+      this.stats.damageDealt += this.damage.q;
+      this.stats.dodgeableTaken += this.damage.q;
       if (player) this.s.micro('PEACEMAKER', player.pos, CAITLYN_COLOR);
     } else {
       this.stats.netHits++;
-      this.stats.damageDealt += CAITLYN_STATS.eDamage;
-      this.stats.dodgeableTaken += CAITLYN_STATS.eDamage;
+      this.stats.damageDealt += this.damage.e;
+      this.stats.dodgeableTaken += this.damage.e;
       // League: a netted target is headshot-marked exactly as a trapped one is.
       this.hsPrimed = true;
       if (player) this.s.micro('NETTED', player.pos, CAITLYN_COLOR);
@@ -884,7 +1122,7 @@ export class CaitlynKit {
     if (!due) return;
     this.hsCount = 0;
     this.hsPrimed = false;
-    const bonus = Math.round(me.attack.damage * CAITLYN_STATS.headshotBonus);
+    const bonus = Math.round(me.attack.damage * this.damage.headshot);
     this.stats.headshots++;
     this.stats.damageDealt += bonus;
     this.s.world.damage(player, bonus, me);

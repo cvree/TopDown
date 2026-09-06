@@ -217,6 +217,107 @@
   color: var(--text-2);
 }
 
+
+/* -------------------------------------------------------------- the lane */
+
+/* The one card that is the game rather than a piece of it, so it is wider
+   than the grid below it and lit a little harder. */
+.pr-lane {
+  margin-bottom: 26px;
+  padding: 26px 26px 22px;
+}
+.pr-lane .pr-name {
+  font-size: 34px;
+}
+.pr-lane-record {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+}
+.pr-lane-record b {
+  font-family: var(--display);
+  font-size: 30px;
+  color: var(--c);
+  line-height: 1;
+}
+.pr-lane-record span {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+.pr-lane-record i {
+  font-size: 10px;
+  color: var(--text-3);
+  font-style: normal;
+}
+
+/* Five opponents, as one row of chips. The ladder has to read as a ladder at
+   a glance, so the accent moves with the tier and the selected one is the
+   only thing on the row wearing it. */
+.pr-lane-tiers {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+.pr-tier {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--stroke);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.008));
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+}
+.pr-tier:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--c) 70%, transparent);
+}
+.pr-tier.on {
+  border-color: var(--c);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 22%, transparent), rgba(255, 255, 255, 0.01));
+  box-shadow: 0 0 22px -10px color-mix(in srgb, var(--c) 90%, transparent);
+}
+.pr-tier b {
+  font-family: var(--display);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--text-1);
+}
+.pr-tier.on b {
+  color: var(--c);
+}
+.pr-tier i,
+.pr-tier em {
+  font-size: 10px;
+  font-style: normal;
+  color: var(--text-3);
+}
+.pr-lane-blurb {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-2);
+  margin: 0;
+  min-height: 40px;
+}
+.pr-lane-lengths {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .pr-lane-tiers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pr-lane-lengths {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 900px) {
   .pr-modes {
     grid-template-columns: minmax(0, 1fr);

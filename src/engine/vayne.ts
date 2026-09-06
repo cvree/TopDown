@@ -29,6 +29,7 @@
  */
 import { audio } from './audio';
 import type { AbilitySlot } from './input';
+import { grown, grownAttackSpeed } from './levels';
 import { clamp, dist, norm } from './math';
 import { PALETTE } from './palette';
 import type { DrillPaint } from './paint';
@@ -62,6 +63,18 @@ export interface VayneLoadout {
   ward?: boolean;
   /** Defaults to the laning Vayne — one point in everything. */
   ranks?: Partial<VayneRanks>;
+  /**
+   * Charge League's own cooldowns rather than the practice share.
+   *
+   * Every mode in this client shortens Condemn and shortens the trinket, and
+   * both of those decisions are about the *length of a rep*: a sixty second
+   * run against League's twenty second cooldown contains three condemns, two
+   * of which arrive with nothing in front of a wall. A lane phase is ten
+   * minutes long. It contains her real kit at her real cooldowns, and it has
+   * to, because counting an opponent's cooldown — and being counted — is one
+   * of the things the mode exists to teach.
+   */
+  leagueCooldowns?: boolean;
 }
 
 /**
@@ -253,6 +266,110 @@ export const VAYNE_STATS = {
 } as const;
 
 /** Tumble's cooldown at a given rank, in seconds. */
+/**
+ * Vayne's stat block, for the one mode that plays her from level one.
+ *
+ * Everything in `VAYNE_STATS` above is a snapshot of one specific mid-game
+ * Vayne, which is the right thing for a drill about a gesture and the wrong
+ * thing for a lane phase: the first ten minutes of a game of League are a
+ * fight between two numbers that change every ninety seconds, and a champion
+ * whose numbers do not change cannot be in that fight.
+ *
+ * These are her League figures, growth included, and they are only ever read
+ * by the lane. Two notes on what is folded in and what is left out:
+ *
+ *  - **Armour is folded into the health pool.** This engine has no
+ *    resistances, and adding a mitigation system for a lane in which both
+ *    champions deal physical damage would be two systems doing one
+ *    multiplication. So the pool a lane champion carries is their real pool
+ *    multiplied by their physical mitigation — the health they *behave* as
+ *    though they have. Trades therefore last as long as League's, which is the
+ *    property that actually matters.
+ *  - **Items and runes are not modelled.** There is no shop in a ten minute
+ *    lane trainer, so both sides play the whole phase on base statistics.
+ *    Every figure below is what the champion is worth naked, which makes the
+ *    lane a little slower than a real one and keeps it exactly symmetrical.
+ */
+/**
+ * The warding totem, at League's own figures.
+ *
+ * The trinket every other mode carries is deliberately not League's — twelve
+ * seconds and eight of life, because spending vision on the next ten seconds
+ * is a habit a one minute rep can build and holding a piece of the map for two
+ * minutes is not. A lane phase is the one run long enough for the real thing,
+ * and the real thing is a very different object: one charge, a long wait, and
+ * a ward that stands for a minute and a half. Which bush it goes in, and at
+ * what minute, is a decision you get to make about four times in ten minutes,
+ * and that scarcity is the whole of why vision is a skill.
+ */
+export const LEAGUE_TRINKET = { cd: 150, life: 90, max: 1 } as const;
+
+/**
+ * Mana, which only the lane has.
+ *
+ * No other mode in this client models it, and no other mode should: a sixty
+ * second rep about one gesture would be a rep about a resource bar, and the
+ * gesture is the subject. A lane phase is the opposite case — mana is one of
+ * the two or three things that *shape* the first ten minutes of a game of
+ * League, and a lane without it is a lane where both champions throw every
+ * ability the instant it is up. That single omission would make the enemy
+ * laner's poke roughly twice as frequent as any real one, which is not a
+ * harder lane, it is a different game.
+ *
+ * League's figures for Vayne: 232 mana growing 35 a level, regenerating 6.97
+ * every five seconds and growing 0.65. Tumble costs 30, Condemn 90, Final Hour
+ * 80, and Silver Bolts is a passive that costs nothing.
+ */
+export const VAYNE_MANA = {
+  base: 232,
+  growth: 35,
+  /** Mana per five seconds, and its growth per level. */
+  regen: 6.97,
+  regenGrowth: 0.65,
+  cost: { q: 30, w: 0, e: 90, r: 80, d: 0, f: 0 },
+} as const;
+
+/** Vayne's mana pool and regeneration at a level. */
+export const vayneManaAt = (level: number): { max: number; regen: number } => ({
+  max: Math.round(grown(VAYNE_MANA.base, VAYNE_MANA.growth, level)),
+  regen: grown(VAYNE_MANA.regen, VAYNE_MANA.regenGrowth, level) / 5,
+});
+
+export const VAYNE_GROWTH = {
+  /** League: 550 health, growing 103 a level. */
+  hp: { base: 550, growth: 103 },
+  /** League: 23 armour, growing 4.2 a level. Folded into the pool, see above. */
+  armor: { base: 23, growth: 4.2 },
+  /** League: 60 attack damage, growing 3.3 a level. */
+  ad: { base: 60, growth: 3.3 },
+  /** League: 0.658 base attack speed, growing 3.3% a level. */
+  attackSpeed: { base: 0.658, growthPct: 3.3 },
+} as const;
+
+/** Vayne as she actually is at a given level, before items and runes. */
+export const vayneAtLevel = (level: number): { hp: number; ad: number; attackSpeed: number } => {
+  const armor = grown(VAYNE_GROWTH.armor.base, VAYNE_GROWTH.armor.growth, level);
+  return {
+    hp: Math.round(grown(VAYNE_GROWTH.hp.base, VAYNE_GROWTH.hp.growth, level) * (1 + armor / 100)),
+    ad: Math.round(grown(VAYNE_GROWTH.ad.base, VAYNE_GROWTH.ad.growth, level)),
+    attackSpeed: grownAttackSpeed(VAYNE_GROWTH.attackSpeed.base, VAYNE_GROWTH.attackSpeed.growthPct, level),
+  };
+};
+
+/**
+ * The order the points go in.
+ *
+ * League's standard Vayne: one point in Q at level one because the lane is
+ * unplayable without an escape, W second because Silver Bolts is where the
+ * damage lives, E third for the answer to somebody walking at you, and then Q
+ * maxed first with the ultimate taken the moment it is available. The lane
+ * mode takes them automatically off this list rather than opening a menu
+ * mid-run, and prints which one arrived.
+ */
+export const VAYNE_SKILL_ORDER: (keyof VayneRanks)[] = [
+  'q', 'w', 'e', 'q', 'q', 'r', 'q', 'w', 'q', 'w', 'r', 'w', 'w', 'e', 'e', 'r', 'e', 'e',
+];
+
 export const tumbleCdAt = (r: number): number => rank(VAYNE_STATS.tumbleCdByRank, r);
 /** Condemn's cooldown at a given rank in League, in seconds. */
 export const condemnCdAt = (r: number): number => rank(VAYNE_STATS.condemnCdByRank, r);
@@ -431,6 +548,7 @@ export class VayneKit {
       finalHour: loadout.finalHour ?? false,
       ward: loadout.ward ?? true,
       ranks: loadout.ranks ?? {},
+      leagueCooldowns: loadout.leagueCooldowns ?? false,
     };
     this.ranks = { ...LANE_RANKS, ...(loadout.ranks ?? {}) };
   }
@@ -949,15 +1067,10 @@ export class VayneKit {
     const reach = this.s.world.terrainAlong(p.pos, dir, throwTo, WARD_RADIUS);
     const pos = { x: p.pos.x + dir.x * reach.distance, y: p.pos.y + dir.y * reach.distance };
 
-    const ward = this.s.world.placeWard(
-      'player',
-      pos,
-      VAYNE_STATS.wardSight,
-      VAYNE_STATS.wardLife,
-      VAYNE_STATS.wardMax,
-    );
+    const trinket = this.trinket;
+    const ward = this.s.world.placeWard('player', pos, VAYNE_STATS.wardSight, trinket.life, trinket.max);
     this.wardIds.add(ward.id);
-    this.wardCd = VAYNE_STATS.wardCd;
+    this.wardCd = trinket.cd;
     this.stats.wards++;
 
     this.s.fx.trace([{ ...p.pos }, pos], WARD_COLOR, 0.35, 3);
@@ -1063,9 +1176,9 @@ export class VayneKit {
           return this.loadout.ward
             ? {
                 ...a,
-                name: `WARD ${this.wardsOut}/${VAYNE_STATS.wardMax}`,
+                name: `WARD ${this.wardsOut}/${this.trinket.max}`,
                 locked: false,
-                cd: clamp(this.wardCd / VAYNE_STATS.wardCd, 0, 1),
+                cd: clamp(this.wardCd / this.trinket.cd, 0, 1),
                 // Lit when it is up and she has none out: the moment the
                 // trinket is a decision rather than a spare charge.
                 highlight: this.wardCd <= 0 && this.wardsOut === 0,
@@ -1084,7 +1197,14 @@ export class VayneKit {
   }
 
   get condemnCdTotal(): number {
-    return condemnPracticeCdAt(this.ranks.e);
+    return this.loadout.leagueCooldowns ? condemnCdAt(this.ranks.e) : condemnPracticeCdAt(this.ranks.e);
+  }
+
+  /** The trinket this run is carrying: the rep's, or League's own totem. */
+  get trinket(): { cd: number; life: number; max: number } {
+    return this.loadout.leagueCooldowns
+      ? LEAGUE_TRINKET
+      : { cd: VAYNE_STATS.wardCd, life: VAYNE_STATS.wardLife, max: VAYNE_STATS.wardMax };
   }
 
   /** How many of hers are alight right now. */
