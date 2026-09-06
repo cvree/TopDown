@@ -4,6 +4,7 @@ import { createApmDrill } from './apm';
 import { createWasdDrill } from './wasd';
 import { ArenaDrill } from './arena';
 import type { Drill } from './base';
+import { CaitlynDodgeDrill } from './caitlyn';
 import { DRILLS, type DrillId } from './catalog';
 import { CombosDrill } from './combos';
 import { DodgeDrill } from './dodge';
@@ -64,6 +65,8 @@ export const createDrill = (id: DrillId, session: Session): Drill => {
       return new VayneCondemnDrill(session);
     case 'vayneHunt':
       return new VayneHuntDrill(session);
+    case 'caitlynDodge':
+      return new CaitlynDodgeDrill(session);
     default:
       throw new Error(`unknown drill: ${id}`);
   }
@@ -154,6 +157,12 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
       return { w: 1900, h: 1100 };
     case 'vayneBolts':
       return { w: 1720, h: 1000 };
+    // The Sheriff's floor. Her Peacemaker reaches 1250 units on its own and
+    // her ultimate reaches the whole map, so the arena has to be wide enough
+    // that a max-range Q is a real thing you can be caught by from off screen
+    // — and tall enough that the cover has somewhere to stand.
+    case 'caitlynDodge':
+      return { w: 2200, h: 1260 };
     default:
       return { w: 1660, h: 960 };
   }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
-import { heroFor } from '../engine/heroes';
+import { HERO_LIST, heroFor, type HeroId } from '../engine/heroes';
 import {
   ACTION_LABELS,
   CLICK_ACTIONS,
@@ -113,7 +113,16 @@ type Item =
       wasdOnly: true;
       options: ChoiceOption<'hands' | 'cursor'>[];
     }
-  | { kind: 'bindings'; label: string; terms: string };
+  | { kind: 'bindings'; label: string; terms: string }
+  /**
+   * The roster.
+   *
+   * Its own kind rather than another `choice`, because a champion is not a
+   * two-option fork with a paragraph under it — it is eight silhouettes that
+   * have to be compared side by side, and the thing you are choosing between
+   * is the outline rather than the sentence.
+   */
+  | { kind: 'hero'; label: string; hint: string; terms: string };
 
 interface Section {
   id: string;
@@ -123,6 +132,20 @@ interface Section {
 }
 
 const SECTIONS: Section[] = [
+  {
+    id: 'champion',
+    name: 'Champion',
+    blurb:
+      'The body you wear. It is a silhouette and nothing else — every number in the simulation is identical behind every one of them, which is what keeps a score set on one comparable with a score set on another.',
+    items: [
+      {
+        kind: 'hero',
+        label: 'Playing as',
+        hint: 'Your outline, your livery and your weapon in every mode that does not name its own champion. The Vayne modes always spawn her, because they are about her specific numbers.',
+        terms: 'champion hero skin body silhouette roster caitlyn vayne look appearance',
+      },
+    ],
+  },
   {
     id: 'movement',
     name: 'Movement',
@@ -287,6 +310,9 @@ const haystack = (section: Section, item: Item): string =>
     item.terms ?? '',
     item.kind === 'choice' ? item.options.map((o) => `${o.name} ${o.body}`).join(' ') : '',
     item.kind === 'bindings' ? [...new Set([...CLICK_ACTIONS, ...WASD_ACTIONS])].map((a) => ACTION_LABELS[a]).join(' ') : '',
+    // A hero is findable by its own name, its role and the words describing
+    // the outline — which is how somebody actually looks for one.
+    item.kind === 'hero' ? HERO_LIST.map((h) => `${h.name} ${h.role} ${h.title} ${h.silhouette}`).join(' ') : '',
   ]
     .join(' ')
     .toLowerCase();
@@ -298,6 +324,8 @@ const isDefault = (s: AppSettings, item: Item): boolean => {
     case 'slider':
     case 'choice':
       return s[item.key] === DEFAULT_SETTINGS[item.key];
+    case 'hero':
+      return s.hero === DEFAULT_SETTINGS.hero;
     case 'bindings':
       // Pruned rather than counted: a profile written by an older build can
       // hold an override that says exactly what the default already says, and
@@ -317,6 +345,8 @@ const resetPatch = (item: Item): Partial<AppSettings> => {
       return { [item.key]: DEFAULT_SETTINGS[item.key] } as Partial<AppSettings>;
     case 'choice':
       return { [item.key]: DEFAULT_SETTINGS[item.key] } as Partial<AppSettings>;
+    case 'hero':
+      return { hero: DEFAULT_SETTINGS.hero };
     case 'bindings':
       return { bindings: {}, wasdBindings: {} };
   }
@@ -439,16 +469,27 @@ export function Settings({ settings, onChange, onBack, inRun = false, backLabel 
               );
             })}
 
-            {/* Who you are, stated rather than chosen. There is one champion
-                in this client and every mode is about her, so a picker here
-                would be a form field offering to make the trainer wrong. */}
+            {/* Who you are, and a way to change it. It sits under the nav
+                rather than in it because it is the answer to a question the
+                sections do not ask — and because the one setting a player
+                most wants to see at a glance should be visible from every
+                section rather than only from its own. */}
             <div className="sn-hero">
               <span className="eyebrow">Playing as</span>
-              <div className="sn-hero-card" style={{ ['--c' as string]: hero.accent }}>
+              <button
+                className="sn-hero-card"
+                style={{ ['--c' as string]: hero.accent }}
+                onMouseEnter={() => audio.play('uiHover')}
+                onClick={() => {
+                  audio.play('uiTab');
+                  setQuery('');
+                  setActive('champion');
+                }}
+              >
                 <HeroSigil hero={hero.id} size={26} />
                 <b>{hero.name}</b>
                 <em>{hero.title}</em>
-              </div>
+              </button>
             </div>
 
             <button
@@ -641,9 +682,89 @@ function Row({
           </div>
         </div>
       );
+    case 'hero':
+      return (
+        <Roster
+          label={item.label}
+          hint={item.hint}
+          changed={changed}
+          value={settings.hero}
+          onChange={(hero) => onChange({ hero })}
+        />
+      );
     case 'bindings':
       return <Bindings settings={settings} onChange={onChange} wasd={wasd} scheme={scheme} />;
   }
+}
+
+/**
+ * THE ROSTER.
+ *
+ * Eight bodies, compared as outlines. Every card leads with the sigil — the
+ * weapon and the headgear, which are the two things that survive being looked
+ * at from the arena camera — then the name, then one line about the shape.
+ * The paragraph is there for the person deciding; the sigil is there for the
+ * person who has already decided and is now finding their pick again.
+ *
+ * Nothing here touches the simulation. The screen says so out loud, because a
+ * picker that looked like a stat screen would invite exactly the question this
+ * trainer has to keep answering no to.
+ */
+function Roster({
+  label,
+  hint,
+  changed,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  changed: boolean;
+  value: HeroId;
+  onChange: (hero: HeroId) => void;
+}) {
+  return (
+    <div className="set-block">
+      <div className="set-block-head">
+        <div className="opt-label">{label}</div>
+        {changed && <i className="chg-dot" title="Changed from default" />}
+      </div>
+      <p className="set-blurb" style={{ marginTop: 0 }}>
+        {hint}
+      </p>
+      <div className="hero-pick">
+        {HERO_LIST.map((h) => {
+          const on = h.id === value;
+          return (
+            <button
+              key={h.id}
+              className={`hero-card${on ? ' on' : ''}`}
+              style={{ ['--c' as string]: h.accent }}
+              aria-pressed={on}
+              onMouseEnter={() => audio.play('uiHover')}
+              onClick={() => {
+                if (on) return;
+                audio.play('uiClick');
+                onChange(h.id);
+              }}
+            >
+              <div className="hc-top">
+                <HeroSigil hero={h.id} size={30} />
+                <div className="hc-id">
+                  <b>{h.name}</b>
+                  <span>{h.role}</span>
+                </div>
+                {h.championPath && <i className="hc-tag">PATH</i>}
+                {h.opponent && <i className="hc-tag hc-tag-foe">FACED</i>}
+              </div>
+              <div className="hc-sil">{h.silhouette}</div>
+              <p>{h.blurb}</p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // -------------------------------------------------------------- bindings

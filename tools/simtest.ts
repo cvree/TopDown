@@ -33,6 +33,7 @@ import { incomingDamage } from '../src/engine/lane';
 import type { VayneKit } from '../src/engine/vayne';
 import { VAYNE_STATS, condemnCdAt, condemnPracticeCdAt } from '../src/engine/vayne';
 import { EZREAL_STATS, type EzrealKit } from '../src/engine/ezreal';
+import { CAITLYN_STATS, type CaitlynKit } from '../src/engine/caitlyn';
 import { EZREAL_DRILL_IDS, ezrealStage, type EzrealDrillId } from '../src/drills/ezreal';
 import {
   EZREAL_STAGES,
@@ -97,6 +98,7 @@ type Policy =
   | 'vayneCondemn'
   | 'vayneKit'
   | 'vayneWasd'
+  | 'caitlyn'
   | 'apmOrbwalk'
   | 'lab'
   | 'labWasd'
@@ -1282,6 +1284,122 @@ const runDrill = (
             });
             break;
           }
+          case 'caitlyn': {
+            // The reference answer to the Sheriff, and every branch of it is
+            // one of the four reads the mode is built to teach.
+            //
+            // Nothing here is quicker than a person: the whole policy runs on
+            // a 20ms poll and every decision it makes is one it could have
+            // made off the telegraph that is already drawn on the floor. If it
+            // could not, the mode would be measuring reflexes rather than
+            // reading, and the score would not be worth having.
+            reactTimer = 0.02;
+            const kit = kitOf(drill);
+            const sheriff = (drill as unknown as { sheriff?: CaitlynKit }).sheriff;
+            const her = sheriff?.actor;
+            const cast = sheriff?.cast ?? null;
+            session.cursorWorld = her ? { x: her.pos.x, y: her.pos.y } : { x: p.pos.x, y: p.pos.y };
+
+            /** Somewhere to stand that is not inside an armed trap. */
+            const clearOfTraps = (goal: Vec2): Vec2 => {
+              if (!sheriff) return goal;
+              for (const trap of sheriff.traps) {
+                if (trap.arm > 0) continue;
+                const gap = dist(trap.pos, goal) - CAITLYN_STATS.wRadius - p.radius - 18;
+                if (gap >= 0) continue;
+                const out = norm(goal.x - trap.pos.x, goal.y - trap.pos.y);
+                goal = { x: goal.x - out.x * gap, y: goal.y - out.y * gap };
+              }
+              return goal;
+            };
+            const walk = (goal: Vec2) => {
+              const g = clearOfTraps(goal);
+              input.push({
+                kind: 'move',
+                x: Math.max(60, Math.min(bounds.w - 60, g.x)),
+                y: Math.max(60, Math.min(bounds.h - 60, g.y)),
+                t: t * 1000,
+              });
+            };
+
+            // 1. The ultimate. It is a lock-on, so feet are worth nothing and
+            //    the only answer is a wall. Walk to the far side of the
+            //    nearest one, measured from her rather than from you.
+            if (cast && cast.slot === 'r' && her) {
+              let best: Vec2 | null = null;
+              let bestD = Infinity;
+              for (const wall of session.world.walls) {
+                const away = norm(wall.x - her.pos.x, wall.y - her.pos.y);
+                const depth = Math.hypot(wall.w, wall.h) / 2 + p.radius + 40;
+                const spot = { x: wall.x + away.x * depth, y: wall.y + away.y * depth };
+                const d2 = dist(p.pos, spot);
+                if (d2 < bestD) {
+                  bestD = d2;
+                  best = spot;
+                }
+              }
+              if (best) {
+                walk(best);
+                break;
+              }
+            }
+
+            // 2. The Peacemaker. The lane is already drawn and the direction
+            //    is already locked, so the answer is a single step at right
+            //    angles to it, taken now rather than when the missile appears.
+            if (cast && (cast.slot === 'q' || cast.slot === 'e') && her) {
+              const rx = p.pos.x - her.pos.x;
+              const ry = p.pos.y - her.pos.y;
+              const off = rx * -cast.dir.y + ry * cast.dir.x;
+              const side = off >= 0 ? 1 : -1;
+              const perp = { x: -cast.dir.y * side, y: cast.dir.x * side };
+              const need = (cast.slot === 'q' ? CAITLYN_STATS.qWidth : CAITLYN_STATS.eWidth) / 2 + p.radius + 60;
+              const step = Math.max(0, need - Math.abs(off)) + 120;
+              // The tumble is 300 units of it for free, and free distance is
+              // exactly what a dash is for. Backswing only: taken in the
+              // windup it would throw the attack away, which is the mistake
+              // every other mode in this client exists to remove.
+              if (kit && kit.tumbleCd <= 0 && p.phase === 'backswing' && step > 140) {
+                input.push({ kind: 'ability', slot: 'q', x: p.pos.x + perp.x * 320, y: p.pos.y + perp.y * 320, t: t * 1000 });
+                break;
+              }
+              walk({ x: p.pos.x + perp.x * step, y: p.pos.y + perp.y * step });
+              break;
+            }
+
+            if (!her || !her.alive) break;
+
+            // 3. Nothing incoming: orbwalk her, and spend the tumble in the
+            //    backswing the way the champion is meant to be played.
+            if (kit && p.phase === 'backswing' && kit.tumbleCd <= 0) {
+              const away = norm(p.pos.x - her.pos.x, p.pos.y - her.pos.y);
+              const lateral = { x: -away.y, y: away.x };
+              const dir = norm(away.x * 0.4 + lateral.x * orbitDir, away.y * 0.4 + lateral.y * orbitDir);
+              input.push({ kind: 'ability', slot: 'q', x: p.pos.x + dir.x * 320, y: p.pos.y + dir.y * 320, t: t * 1000 });
+              break;
+            }
+            if (p.phase === 'windup') break;
+            const dc = dist(p.pos, her.pos);
+            if (p.attackCd <= 0.001 && dc - her.radius <= p.attack.range) {
+              input.push({ kind: 'move', x: her.pos.x, y: her.pos.y, t: t * 1000 });
+              break;
+            }
+            const desiredC = p.attack.range * 0.9 + her.radius;
+            const radialC = norm(p.pos.x - her.pos.x, p.pos.y - her.pos.y);
+            const tangentC = { x: -radialC.y, y: radialC.x };
+            const corrC = Math.max(-1, Math.min(1, (desiredC - dc) / 180));
+            let gxC = p.pos.x + (radialC.x * corrC + tangentC.x * orbitDir * 0.5) * 320;
+            let gyC = p.pos.y + (radialC.y * corrC + tangentC.y * orbitDir * 0.5) * 320;
+            const marginCa = 200;
+            if (gxC < marginCa || gxC > bounds.w - marginCa || gyC < marginCa || gyC > bounds.h - marginCa) {
+              orbitDir *= -1;
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              gxC = p.pos.x + toCentre.x * 300;
+              gyC = p.pos.y + toCentre.y * 300;
+            }
+            walk({ x: gxC, y: gyC });
+            break;
+          }
           // ---------------------------------------------------------- the lab
           case 'lab':
           case 'labWasd': {
@@ -1418,6 +1536,9 @@ const runDrill = (
         policy === 'vayneWasd' ||
         policy === 'vayneBolts' ||
         policy === 'vayneCondemn' ||
+        // The Sheriff mode's cursor lives on her: it is what holds the target
+        // through a run in which the feet are constantly pointing elsewhere.
+        policy === 'caitlyn' ||
         policy === 'lab' ||
         policy === 'labWasd' ||
         // The academy's aiming policies drive the cursor independently of the
@@ -1784,6 +1905,7 @@ line('\n=== The score is a curve, not a coin flip ===');
     ['ezStrafe', 'ezreal', 'wasd'],
     ['ezKite', 'ezreal', 'wasd'],
     ['vayneTumble', 'vayneLateral', 'click'],
+    ['caitlynDodge', 'caitlyn', 'click'],
   ];
   const SEEDS = [7, 1234, 99991, 424242];
   for (const [id, policy, scheme] of CASES) {
@@ -1871,6 +1993,7 @@ line('\n=== CHEESE SWEEP: every drill against every bad idea ===');
     'vayneBolts',
     'vayneCondemn',
     'vayneHunt',
+    'caitlynDodge',
     ...WASD_SEQUENCE,
     ...(EZREAL_DRILL_IDS as unknown as DrillId[]),
   ];
@@ -2328,6 +2451,99 @@ line('\n=== VAYNE: each stage rewards playing it the way it is taught ===');
   line(`  hunt    : kit ${pct(hunt.out.keyMetrics[1].value)}  kills ${hunt.out.keyMetrics[2].value}  procs ${hunt.out.keyMetrics[3].value}  hp ${pct(hunt.d.hpRetained)}  perf ${pct(hunt.out.performance)}`);
   expect('the full kit wins the hunt', hunt.m.kills >= 1, `${hunt.m.kills} kills`);
   expect('the hunt rewards playing the champion', hunt.out.performance > 0.45, pct(hunt.out.performance));
+}
+
+line('\n=== THE SHERIFF: dodging somebody who is aiming back ===');
+{
+  // The claim this mode makes is narrow and testable: the difference between
+  // a player who moves on the telegraph and one who does not is visible in
+  // the score, and it is visible for the right reason — the Peacemakers that
+  // did not land.
+  const read = runDrill('caitlynDodge', 'caitlyn', 0.35);
+  const blind = runDrill('caitlynDodge', 'vayneTumble', 0.35);
+  const km = (r: typeof read, id: string) => r.out.keyMetrics.find((k) => k.id === id)?.value ?? 0;
+
+  line(
+    `  reading : Q dodged ${pct(km(read, 'qDodge'))}  taken ${km(read, 'qHits')}  traps ${km(read, 'traps')}  ults broken ${km(read, 'aceBlocked')}/${km(read, 'aceBlocked') + km(read, 'aceHits')}  perf ${pct(read.out.performance)}`,
+  );
+  line(
+    `  ignoring: Q dodged ${pct(km(blind, 'qDodge'))}  taken ${km(blind, 'qHits')}  traps ${km(blind, 'traps')}  perf ${pct(blind.out.performance)}`,
+  );
+
+  expect('a player who reads the telegraph dodges most of them', km(read, 'qDodge') > 0.65, pct(km(read, 'qDodge')));
+  expect('and a player who ignores it does not', km(blind, 'qDodge') < km(read, 'qDodge') - 0.1, `${pct(km(blind, 'qDodge'))} vs ${pct(km(read, 'qDodge'))}`);
+  expect('reading her is worth more than ignoring her', read.out.performance > blind.out.performance + 0.05, `${pct(read.out.performance)} vs ${pct(blind.out.performance)}`);
+  expect('the mode rewards playing it properly', read.out.performance > 0.55, pct(read.out.performance));
+
+  // The trap, asserted against the kit directly rather than through a run.
+  //
+  // Both halves of the claim are claims about one instant — no damage, and
+  // your feet taken — and a run would only ever be circumstantial evidence
+  // for either. So the scenario is built: a live Sheriff, a live Vayne, and
+  // an armed trap under her.
+  {
+    const input = new FakeInput();
+    const session = new Session(
+      {
+        duration: 60,
+        arena: arenaFor('caitlynDodge'),
+        seed: 4242,
+        difficulty: 0.4,
+        abilities: DRILLS.caitlynDodge.abilities,
+      },
+      input as unknown as InputSystem,
+      fakeRenderer,
+    );
+    const cd = createDrill('caitlynDodge', session);
+    session.attachDrill(cd);
+    session.countdown = 0;
+    session.step(SIM_DT);
+    const sheriff = (cd as unknown as { sheriff: CaitlynKit }).sheriff;
+    const p = session.world.player;
+    const her = sheriff.actor;
+    if (!p || !her) throw new Error('the Sheriff mode did not field both champions');
+
+    // Standing on an armed trap.
+    sheriff.traps.length = 0;
+    sheriff.traps.push({ id: 999, pos: { x: p.pos.x, y: p.pos.y }, arm: 0, life: 5, sprung: false });
+    const before = p.hp;
+    sheriff.update(SIM_DT);
+    expect('a snap trap deals no damage at all', p.hp === before, `${before} -> ${p.hp}`);
+    expect('what it takes is your feet', p.rootedFor >= CAITLYN_STATS.wRoot - 0.01, `${p.rootedFor.toFixed(2)}s`);
+    expect('and the trap is spent', sheriff.traps.length === 0, `${sheriff.traps.length} left`);
+
+    // And the point of taking them: a target who cannot move is the target the
+    // Peacemaker is for, and she takes that shot at the first opportunity.
+    session.world.place(her, p.pos.x + 700, p.pos.y);
+    sheriff.qCd = 0;
+    sheriff.cast = null;
+    for (let i = 0; i < 240 && !sheriff.cast; i++) sheriff.update(SIM_DT);
+    expect('a held target is what the Peacemaker is for', sheriff.cast?.slot === 'q', `${sheriff.cast?.slot ?? 'nothing'}`);
+    expect('and the kit knows the shot was a free one', sheriff.cast?.free === true, `${sheriff.cast?.free}`);
+    // The cast commits her too: one more frame and she is rooted for the rest
+    // of her own cast time, which is the window the telegraph is promising.
+    sheriff.update(SIM_DT);
+    expect('she is rooted for her own cast time', her.rootedFor > 0.3, `${her.rootedFor.toFixed(2)}s`);
+  }
+
+  // Her ultimate is answered by terrain and by nothing else. Both halves are
+  // asserted directly against the kit rather than through a run, because the
+  // whole claim is a geometric one.
+  {
+    const r = runDrill('caitlynDodge', 'idle', 0.4);
+    const sheriff = (r.drill as unknown as { sheriff: CaitlynKit }).sheriff;
+    const seen = sheriff.stats.aceBlocked + sheriff.stats.aceHits;
+    expect('the ultimate goes off inside a minute', seen > 0, `${seen} casts resolved`);
+    expect('and it lands on somebody standing in the open', sheriff.stats.aceHits > 0, `${sheriff.stats.aceHits}`);
+  }
+
+  // And the honesty check every mode in this client is held to.
+  const idle = runDrill('caitlynDodge', 'idle', 0.4);
+  line(`  idle    : perf ${pct(idle.out.performance)}  score ${idle.out.score}`);
+  expect('the Sheriff cannot be passed by doing nothing', idle.out.performance < 0.3, pct(idle.out.performance));
+  const runner = runDrill('caitlynDodge', 'flee', 0.4);
+  line(`  fleeing : perf ${pct(runner.out.performance)}  Q dodged ${pct(km(runner, 'qDodge'))}`);
+  expect('and running away is not a strategy either', runner.out.performance < 0.45, pct(runner.out.performance));
 }
 
 line('\n=== Honesty: the Vayne path cannot be passed by presence ===');
@@ -3166,7 +3382,7 @@ line('\n=== VAYNE: the trinket, and a condemn that comes back ===');
 
   // Every mode hands you the trinket, on the same key, whatever else it has
   // taken away: the ward is part of the hands rather than part of the kit.
-  for (const id of ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'] as DrillId[]) {
+  for (const id of ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt', 'caitlynDodge'] as DrillId[]) {
     expect(`${id} keeps the trinket`, DRILLS[id].abilities.includes('d'), DRILLS[id].abilities.join());
     const r = runDrill(id, 'idle', 0.3);
     const bar = r.drill.abilities().find((a) => a.slot === 'd');

@@ -23,6 +23,9 @@ const WEAPON: Record<string, string> = {
   daggers: 'M20 16 L44 48 M44 16 L20 48 M18 44 L26 52 M46 44 L38 52',
   // A hammer head on a haft.
   hammer: 'M20 14 H44 V28 H20 Z M32 28 V56',
+  // A long gun, muzzle up: barrel, scope, stock. The longest reach in the box,
+  // which is the whole of what the silhouette is saying.
+  rifle: 'M30 6 V44 L24 52 H36 L30 44 M30 20 H40 M22 38 H30',
   none: 'M32 18 V50 M22 34 H42',
 };
 
@@ -31,6 +34,8 @@ const HEAD: Record<string, string> = {
   helm: 'M18 22 V12 L32 5 L46 12 V22 L32 27 Z',
   horns: 'M18 24 L12 10 L24 16 M46 24 L52 10 L40 16 M22 24 H42',
   crown: 'M18 24 V10 L25 17 L32 6 L39 17 L46 10 V24 Z',
+  // Brim and crown. Wider than anything else on this list, on purpose.
+  tophat: 'M10 24 H54 M22 24 V8 H42 V24 M22 18 H42',
   none: '',
 };
 

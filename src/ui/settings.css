@@ -124,6 +124,7 @@
   gap: 7px;
 }
 .sn-hero-card {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -574,4 +575,104 @@ input[type='range']::-moz-range-thumb {
 .sc-keys .kbd {
   font-size: 10px;
   padding: 2px 6px;
+}
+
+
+/* ------------------------------------------------------------- the roster
+   Eight bodies, compared as outlines rather than as numbers — because there
+   are no numbers: every hero on this grid shares one attack profile, one
+   health pool and one move speed, and the only thing a pick changes is what
+   you are looking at. So the sigil leads, the shape is named in one line, and
+   the paragraph is for the person still deciding. */
+.hero-pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+}
+.hero-card {
+  /* A button taller than its content centres that content, and a grid row is
+     as tall as its tallest card — so without this the shorter cards float
+     their names down the box and the row stops reading as a row. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 13px 14px 12px;
+  border: 1px solid var(--stroke);
+  border-top: 2px solid transparent;
+  background: rgba(4, 8, 16, 0.6);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: border-color 0.18s var(--ease), background 0.18s var(--ease);
+}
+.hero-card:hover {
+  border-color: var(--stroke-2);
+}
+.hero-card.on {
+  border-color: color-mix(in srgb, var(--c) 55%, transparent);
+  border-top-color: var(--c);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 14%, transparent), rgba(4, 8, 16, 0.72));
+}
+.hc-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hero-card .hero-sigil {
+  color: var(--c);
+  flex: none;
+}
+.hc-id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.hc-id b {
+  font-family: var(--ui);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--text);
+}
+.hc-id span {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+/* Two badges, and they answer different questions: PATH is the body the Vayne
+   modes put you in whatever this grid says, FACED is the one you meet on the
+   other side of a telegraph. */
+.hc-tag {
+  font-style: normal;
+  flex: none;
+  align-self: flex-start;
+  padding: 2px 6px;
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  color: var(--c);
+  border: 1px solid color-mix(in srgb, var(--c) 40%, transparent);
+}
+.hc-tag-foe {
+  color: var(--text-3);
+  border-color: var(--stroke-2);
+}
+.hc-sil {
+  margin-top: 9px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--c) 78%, var(--text-3));
+}
+.hero-card p {
+  margin: 7px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-3);
+}
+.hero-card.on p {
+  color: var(--text-2);
 }

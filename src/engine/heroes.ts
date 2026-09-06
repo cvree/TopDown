@@ -36,7 +36,8 @@ export type HeroId =
   | 'arcanist'
   | 'revenant'
   | 'berserker'
-  | 'nightHunter';
+  | 'nightHunter'
+  | 'caitlyn';
 
 /** The subset of `RigSpec` that is the champion rather than the situation. */
 export interface HeroLook {
@@ -70,6 +71,14 @@ export interface HeroDef {
    * she is a body you can wear everywhere else too, but the path owns her.
    */
   championPath?: boolean;
+  /**
+   * Set on a champion the client also fields as an opponent.
+   *
+   * It changes nothing about wearing her — the simulation reads a hero as a
+   * silhouette and nothing else — and exists so a screen can say *you will
+   * meet this one* without hard-coding a name into a card.
+   */
+  opponent?: boolean;
 }
 
 export const HEROES: Record<HeroId, HeroDef> = {
@@ -219,6 +228,33 @@ export const HEROES: Record<HeroId, HeroDef> = {
       cape: true,
     },
     championPath: true,
+  },
+  // The Sheriff. She is on the roster for the same reason she is in the arena:
+  // the mode below the champion path puts her in front of you for a minute at
+  // a time, and a body you have spent a minute reading is a body worth being
+  // able to wear. Rifle and top hat are hers alone — nothing else here carries
+  // either — so she is the one silhouette on this list you can name from the
+  // far corner of the map.
+  caitlyn: {
+    id: 'caitlyn',
+    name: 'CAITLYN',
+    title: 'The Sheriff of Piltover',
+    role: 'Marksman',
+    accent: '#ffb02e',
+    blurb:
+      'Top hat, long coat, and a rifle longer than she is tall. The furthest-reaching outline on the roster and the easiest to read at distance — which is the point of her, in the arena and on this list.',
+    silhouette: 'Upright, hatted, long two-handed rifle',
+    look: {
+      build: 'lean',
+      primary: '#2b3a63',
+      secondary: '#131a2e',
+      accent: '#ffb02e',
+      skin: '#e8c4a4',
+      weapon: 'rifle',
+      headgear: 'tophat',
+      cape: true,
+    },
+    opponent: true,
   },
 };
 

@@ -16,8 +16,8 @@ import { contactShadow } from './textures';
  * only thing you can actually read.
  */
 
-export type WeaponKind = 'sword' | 'greatsword' | 'bow' | 'staff' | 'daggers' | 'hammer' | 'none';
-export type HeadKind = 'hood' | 'helm' | 'horns' | 'crown' | 'none';
+export type WeaponKind = 'sword' | 'greatsword' | 'bow' | 'staff' | 'daggers' | 'hammer' | 'rifle' | 'none';
+export type HeadKind = 'hood' | 'helm' | 'horns' | 'crown' | 'tophat' | 'none';
 export type Build = 'lean' | 'medium' | 'heavy' | 'small';
 
 export interface RigSpec {
@@ -329,6 +329,19 @@ export class ChampionRig {
         add(parent, box(headR * 1.5, headR * 0.24, headR * 0.18), accent, 0, headR * 0.86, headR * 0.92);
         break;
       }
+      case 'tophat': {
+        // A brim and a crown, and both of them are silhouette rather than
+        // decoration: from directly overhead the brim is a disc wider than the
+        // shoulders, which is the one head on the roster you can name without
+        // seeing a face. The band is the accent, so the colour lands where the
+        // eye already is.
+        const brim = add(parent, new THREE.CylinderGeometry(headR * 1.9, headR * 1.95, headR * 0.16, 16), secondary, 0, headR * 1.34, 0);
+        brim.castShadow = true;
+        add(parent, new THREE.CylinderGeometry(headR * 1.06, headR * 1.14, headR * 1.5, 14), secondary, 0, headR * 2.1, 0);
+        const band = add(parent, new THREE.CylinderGeometry(headR * 1.16, headR * 1.16, headR * 0.26, 14), accent, 0, headR * 1.52, 0);
+        band.castShadow = false;
+        break;
+      }
       case 'crown': {
         for (let i = 0; i < 6; i++) {
           const a = (i / 6) * Math.PI * 2;
@@ -404,6 +417,28 @@ export class ChampionRig {
         arc.castShadow = true;
         bow.add(arc);
         add(bow, box(H * 0.004, H * 0.36, H * 0.004), accent, H * 0.06, 0, 0);
+        break;
+      }
+      case 'rifle': {
+        // A long gun, carried levelled rather than shouldered. Both hands are
+        // on it — see `applyAttackPose` — and the barrel is deliberately longer
+        // than any blade on the roster, because from overhead that overhang is
+        // what says *this one outranges you* before a single shot is fired.
+        const grip = new THREE.Group();
+        grip.rotation.x = Math.PI / 2 - 0.16;
+        hand.add(grip);
+        // Stock, receiver, barrel, running away from the body along +y of the
+        // grip, which the rotation above has already laid flat and forward.
+        add(grip, box(H * 0.03, H * 0.13, H * 0.045), dark, 0, -H * 0.09, H * 0.012);
+        add(grip, box(H * 0.036, H * 0.16, H * 0.05), secondary, 0, H * 0.03, 0);
+        const barrel = add(grip, new THREE.CylinderGeometry(H * 0.016, H * 0.013, H * 0.44, 8), metal, 0, H * 0.33, 0);
+        barrel.castShadow = true;
+        // The scope, and a muzzle bead in the champion's own accent: two small
+        // bright marks strung along the barrel, so the direction the gun is
+        // pointing survives being three hundred units away.
+        add(grip, new THREE.CylinderGeometry(H * 0.014, H * 0.014, H * 0.11, 8), dark, 0, H * 0.12, H * 0.036).rotation.x = Math.PI / 2;
+        add(grip, new THREE.OctahedronGeometry(H * 0.022), accent, 0, H * 0.12, H * 0.052);
+        add(grip, new THREE.SphereGeometry(H * 0.02, 6, 5), accent, 0, H * 0.55, 0);
         break;
       }
       case 'staff': {
@@ -566,7 +601,7 @@ export class ChampionRig {
     this.shoulderR.group.rotation.x += shoulderX;
     this.elbowR.group.rotation.x += elbowX;
     this.chest.group.rotation.y += twist;
-    if (this.spec.weapon === 'bow' || this.spec.weapon === 'staff') {
+    if (this.spec.weapon === 'bow' || this.spec.weapon === 'staff' || this.spec.weapon === 'rifle') {
       this.shoulderL.group.rotation.x += shoulderX * 0.45;
       this.elbowL.group.rotation.x += elbowX * 0.5;
     }

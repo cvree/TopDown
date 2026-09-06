@@ -83,7 +83,17 @@ export const durationFor = (mode: RunMode): number => (mode === 'play' ? PLAY_SE
  * sentence with the same missing word in it: *how far away is far enough*. A
  * player who cannot answer that is practising four abilities on top of a hole.
  */
-export const PRACTICE_MODES: DrillId[] = ['rangecheck', 'vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt'];
+export const PRACTICE_MODES: DrillId[] = [
+  'rangecheck',
+  'vayneTumble',
+  'vayneBolts',
+  'vayneCondemn',
+  'vayneHunt',
+  // And one that is not about you at all. Everything above this line asks what
+  // your hands did; SHERIFF asks what you did about somebody else's, which is
+  // the half of a lane no amount of solo practice reaches.
+  'caitlynDodge',
+];
 
 export const isPracticeMode = (id: DrillId): boolean => PRACTICE_MODES.includes(id);
 
@@ -102,11 +112,16 @@ export const isPracticeMode = (id: DrillId): boolean => PRACTICE_MODES.includes(
 export const practiceFor = (id: DrillId): DrillId => {
   if (isPracticeMode(id)) return id;
   switch (id) {
-    // Kiting, movement and dodging are the tumble: when to spend it and where
-    // it puts you are the two questions all three of those drills ask.
+    // Dodging has its own mode now, and it is the only one with somebody on
+    // the other end of the telegraph. A diagnosis that says you moved late, or
+    // stood in something that was drawn on the floor the whole time, is a
+    // diagnosis about reading an opponent — so it lands on the opponent.
+    case 'dodge':
+      return 'caitlynDodge';
+    // Kiting and movement are the tumble: when to spend it and where it puts
+    // you are the two questions both of those drills ask.
     case 'kite':
     case 'movement':
-    case 'dodge':
     case 'wasdKite':
     case 'wasdOffKite':
     case 'wasdDefKite':

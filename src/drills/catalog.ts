@@ -19,6 +19,8 @@ export type DrillId =
   | 'vayneBolts'
   | 'vayneCondemn'
   | 'vayneHunt'
+  /* --- the mode with somebody else's champion on the other end --- */
+  | 'caitlynDodge'
   /* --- the WASD academy. Nine modules, in the order they have to be taken --- */
   | 'wasdMove'
   | 'wasdIndep'
@@ -55,7 +57,7 @@ export type DrillId =
   | 'apmSwitch'
   | 'apmSustain';
 
-export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'WASD' | 'APM' | 'VAYNE' | 'EZREAL';
+export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'WASD' | 'APM' | 'VAYNE' | 'EZREAL' | 'CAITLYN';
 
 export interface DrillMeta {
   id: DrillId;
@@ -834,6 +836,22 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     zoom: 0.74,
     order: 23,
   },
+  caitlynDodge: {
+    id: 'caitlynDodge',
+    name: 'SHERIFF',
+    tagline: 'Dodge somebody who is aiming',
+    brief:
+      'One Caitlyn, her whole kit, and your tumble. The Peacemaker draws its lane on the floor for six tenths of a second before it fires, the traps deal no damage and cost you the dodge afterwards, and nothing you do with your feet beats the ultimate — only a wall does.',
+    transfers:
+      'Dodging a real champion rather than a pattern: moving on the cast instead of on the missile, reading the ground you are walking onto, and breaking line of sight against a lock-on.',
+    group: 'CAITLYN',
+    axes: { dodging: 0.6, movement: 0.2, spacing: 0.1, combat: 0.1 },
+    duration: 60,
+    abilities: ['q', 'd'],
+    accent: '#ffb02e',
+    keyMetric: 'PEACEMAKER DODGE RATE',
+    order: 30,
+  },
 };
 
 export const DRILL_LIST = Object.values(DRILLS).sort((a, b) => a.order - b.order);
@@ -915,6 +933,9 @@ export const PRESSURE_TIER: Record<DrillId, PressureTier> = {
   vayneBolts: 'applied',
   vayneCondemn: 'applied',
   vayneHunt: 'live',
+  // An opponent who moves, aims, leads you and punishes a mistake with the
+  // ability that mistake set up. There is no more pressure than that.
+  caitlynDodge: 'live',
   // The academy teaches the hands first and only then puts them under fire:
   // the last two modules are the only ones with something fighting back.
   wasdMove: 'isolated',

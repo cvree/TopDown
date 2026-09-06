@@ -1,6 +1,7 @@
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { PRACTICE_MODES, RUN_MODE_LIST, type RunMode } from '../drills/modes';
+import { CAITLYN_STATS, caitlynCd } from '../engine/caitlyn';
 import { VAYNE_STATS, tumbleCdAt, condemnCdAt, condemnPracticeCdAt } from '../engine/vayne';
 import type { Profile } from '../progression/profile';
 import './practice.css';
@@ -29,13 +30,20 @@ const KIT_ORDER: { slot: string; name: string }[] = [
  * roughly a dozen questions before anything happened on a screen. This asks
  * two: which part of the champion, and for how long.
  *
- * Everything under the first card is Vayne. That is not a filter over a larger
- * catalogue — it is what the trainer is for. The exception is deliberate:
- * RANGE is about the one distance every champion has and no champion draws for
- * you, so it hands you a body and nothing else. A mode that put you behind a body with no
- * tumble could tell you about your hands in the abstract; it could not tell
- * you anything about the quarter of a second at the end of a roll, which is
- * where this champion is actually won and lost.
+ * Every mode on it is played as Vayne. That is not a filter over a larger
+ * catalogue — it is what the trainer is for. There are two deliberate
+ * exceptions, at the two ends of the list:
+ *
+ *  - **RANGE** is about the one distance every champion has and no champion
+ *    draws for you, so it hands you a body and nothing else. A mode that put
+ *    you behind a body with no tumble could tell you about your hands in the
+ *    abstract; it could not tell you anything about the quarter of a second at
+ *    the end of a roll, which is where this champion is won and lost.
+ *  - **SHERIFF** is the other half of a lane. Everything above it measures
+ *    what your hands did; this one measures what you did about somebody
+ *    else's, which is a skill that cannot be rehearsed alone — so it prints
+ *    her kit under the list exactly as the champion's own is printed, because
+ *    a window you are expected to beat has to be a number you can check.
  */
 export function Practice({ profile, onPlay }: Props) {
 
@@ -59,6 +67,12 @@ export function Practice({ profile, onPlay }: Props) {
               draws that ring for you any more — centring the camera paints it for under a
               second, and the mode counts every time you ask.
             </p>
+            <p className="dim pr-lead">
+              <b>SHERIFF</b> comes last and is the only one that is not about your hands. It
+              puts a Caitlyn on the other side of the floor with her whole kit and asks the
+              question no amount of solo practice reaches: what did you do about the thing
+              somebody else just aimed at you.
+            </p>
           </div>
 
         </header>
@@ -70,6 +84,7 @@ export function Practice({ profile, onPlay }: Props) {
         </div>
 
         <KitReference />
+        <SheriffReference />
       </div>
     </div>
   );
@@ -210,6 +225,73 @@ function KitReference() {
         hands you the mid-game champion with all of it at once. Condemn is also the one
         cooldown deliberately shortened everywhere — {Math.round(VAYNE_STATS.condemnPracticeShare * 100)}% of
         League's, so a minute is eight or ten attempts at the wall rather than three.
+      </p>
+    </section>
+  );
+}
+
+
+/**
+ * What she throws, and how long you have.
+ *
+ * The same contract as the kit table above, pointed the other way: every
+ * window the mode expects you to beat is printed as a number, because the only
+ * way to know whether a dodge was late is to know what "on time" was. Nothing
+ * on this list is a surprise mechanic — she is a champion, she has four
+ * buttons, and all four of them are on the screen before you press PLAY.
+ */
+function SheriffReference() {
+  const rows = [
+    {
+      slot: 'Q',
+      name: 'PILTOVER PEACEMAKER',
+      body: `A ${CAITLYN_STATS.qRange} unit line, ${CAITLYN_STATS.qWidth} wide, at ${CAITLYN_STATS.qSpeed} units a second — and ${CAITLYN_STATS.qCast}s of cast time before any of it happens, during which she cannot move and the direction is already locked. That six tenths of a second is the whole dodge: one step, early, at right angles to the lane on the floor. It pierces, so standing behind something is not an answer.`,
+    },
+    {
+      slot: 'W',
+      name: 'YORDLE SNAP TRAP',
+      body: `Thrown up to ${CAITLYN_STATS.wRange} units, arms in ${CAITLYN_STATS.wArm}s, and deals no damage whatsoever — exactly as in League. What it costs is ${CAITLYN_STATS.wRoot}s of not being able to move and a free headshot, which means the Peacemaker that follows is one you cannot dodge. Three on the floor at a time, ${CAITLYN_STATS.wLife}s each. She puts them where you are going, and under you when you are not going anywhere.`,
+    },
+    {
+      slot: 'E',
+      name: '90 CALIBER NET',
+      body: `${CAITLYN_STATS.eRange} range, ${Math.round(CAITLYN_STATS.eSlow * 100)}% slow for ${CAITLYN_STATS.eSlowFor}s, and it throws her ${CAITLYN_STATS.eSelfPush} units the other way. It is her answer to you closing the gap, and the slow is the dangerous half: a Peacemaker aimed at somebody moving at half speed is a Peacemaker aimed at somebody standing still.`,
+    },
+    {
+      slot: 'R',
+      name: 'ACE IN THE HOLE',
+      body: `A ${CAITLYN_STATS.rChannel}s channel at up to ${CAITLYN_STATS.rRange} units, and then it simply hits you for ${CAITLYN_STATS.rDamage}. There is no movement that beats it. The only thing that does is terrain on the line at the moment it lands, so the channel is your second to find a wall — and there is one within a second's walk of anywhere on that floor.`,
+    },
+    {
+      slot: 'P',
+      name: 'HEADSHOT',
+      body: `Every ${CAITLYN_STATS.headshotEvery}th basic attack lands for ${Math.round(CAITLYN_STATS.headshotBonus * 100)}% extra, and a trapped or netted target takes one immediately. It is the price of standing inside ${CAITLYN_STATS.attack.range} units of her — a hundred more than you reach — and it is why the answer to this matchup is never "stay at max range and trade".`,
+    },
+  ];
+
+  return (
+    <section className="panel pad pr-kit" style={{ ['--c' as string]: '#ffb02e' }}>
+      <div className="panel-title">The Sheriff, in numbers</div>
+      <div className="pr-kit-rows">
+        {rows.map((r) => (
+          <div className="pr-kit-row" key={r.slot}>
+            <i className="pr-kit-slot">{r.slot}</i>
+            <b className="pr-kit-name">{r.name}</b>
+            <span className="pr-kit-body">{r.body}</span>
+          </div>
+        ))}
+      </div>
+      <p className="set-note">
+        Her cooldowns are League's, and then every one of them is charged at{' '}
+        {Math.round(CAITLYN_STATS.practiceShare * 100)}% of it — so the Peacemaker comes back
+        every {caitlynCd(CAITLYN_STATS.qCd)}s rather than every {CAITLYN_STATS.qCd}, a trap
+        every {caitlynCd(CAITLYN_STATS.wCd)}s, and the ultimate twice a minute rather than
+        never. That is the same decision Condemn gets above, made for the same reason and
+        pointed the other way: a minute against her real cooldowns is six dodges, and nobody
+        has ever learned a read six repetitions at a time. Her health, her movement speed and
+        every range on this list are untouched, and her basic attack is the one number bent
+        downwards — a Sheriff who kills you with autos is a Sheriff who is testing your
+        spacing rather than your dodging, and there is already a mode for that.
       </p>
     </section>
   );

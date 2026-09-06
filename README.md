@@ -6,7 +6,8 @@ rewarding should be the thing that actually makes you better.
 It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
 drawn on the ground where the thing it is about actually is. One distance, one
-champion and four parts of her, and two ways to play each of them:
+champion and four parts of her, one opponent, and two ways to play each of
+them:
 
 - **PLAY** — one minute. The same minute every time, so a score means something
   next to the one before it.
@@ -15,10 +16,11 @@ champion and four parts of her, and two ways to play each of them:
   long you lasted.
 
 That is the whole menu. There is no daily plan to opt into, no calibration to
-sit through, no course to unlock and no champion to choose — the ladder places
-you from your first three runs, and every mode puts you behind the same
-champion, because the quarter of a second at the end of a tumble is not a thing
-you can practise in the abstract.
+sit through and no course to unlock — the ladder places you from your first
+three runs, and every mode puts you behind the same champion, because the
+quarter of a second at the end of a tumble is not a thing you can practise in
+the abstract. The roster in Settings is a silhouette and nothing else: not one
+number in the simulation moves behind any of the eight bodies on it.
 
 Behind it is a ranked mechanical skill system driven by measured performance
 rather than time played, and a results screen designed so you can see exactly
@@ -51,8 +53,9 @@ npm run build      # production bundle
 
 ## What it trains
 
-Five modes, each one with a PLAY and a SURVIVE on it. Four of them are parts of
-the same champion. The first is the distance all four of them assume.
+Six modes, each one with a PLAY and a SURVIVE on it. Four of them are parts of
+the same champion. The first is the distance all four of them assume. The last
+is the only one that is not about your hands at all.
 
 | Mode | Keys | Measures | The habit it builds |
 | --- | --- | --- | --- |
@@ -61,6 +64,7 @@ the same champion. The first is the distance all four of them assume.
 | **Silver Bolts** | Q W D | Bolt efficiency, stacks dropped | Finishing the third hit instead of switching at two |
 | **Condemn** | Q E D | Wall stun rate, angles you made rather than found | Standing on the right side of the wall *before* the fight |
 | **Night Hunter** | Q W E R D | Kit execution, vision held and wards placed, against a floor that refills | Playing Vayne rather than an ADC who owns her abilities — in the dark |
+| **Sheriff** | Q D | Peacemaker dodge rate, traps stepped in, ultimates broken on terrain | Dodging a champion rather than a pattern — and doing it while still trading |
 
 D is the trinket, and it is on every mode because it is not part of the
 champion: it is not levelled, it is not hers, and in a real game it is on the
@@ -76,6 +80,50 @@ charges 45% of League's figure, so a maxed E is 5.4 seconds rather than twelve
 and Night Hunter's single point is nine rather than twenty. Rank still shapes
 it, and the practice screen prints both numbers — three casts a run is not a
 number of attempts anybody learns a positional ability from.
+
+### The Sheriff
+
+Everything above this line measures what your hands did. **SHERIFF** measures
+what you did about somebody else's, which is a different skill and the one
+half of a lane that no amount of solo practice reaches.
+
+It puts a Caitlyn on the other side of the floor with her whole kit. She is
+modelled the way the champion path is modelled — League's ranges, League's
+cast times, League's trap that deals no damage — because a mode about reading
+an opponent is worth nothing if the opponent is an approximation. The matchup
+is the reason it is her: 650 range against Vayne's 550 means she is allowed to
+stand where you cannot reach and you are not, so every unit of that gap has to
+be taken with a tumble timed off the end of an attack.
+
+Four answers, and no two of them are the same movement:
+
+| Ability | The window | The answer |
+| --- | --- | --- |
+| **Q Piltover Peacemaker** | A 1250 × 90 lane, drawn on the floor for the whole 0.625s of the cast, direction already locked | One step, early, at right angles. It pierces, so cover is not an answer |
+| **W Yordle Snap Trap** | Arms in a second, then sits there for twelve | Read the ground you are walking *onto*. It deals no damage — what it costs is 1.25s of not moving and the Peacemaker that follows |
+| **E 90 Caliber Net** | Short, fast, and it throws her 390 units out of your reach | Do not be there. The 50% slow is the dangerous half: a Q aimed at somebody moving at half speed is a Q aimed at somebody standing still |
+| **R Ace in the Hole** | A one second channel, then it simply hits you | Terrain. Nothing you do with your feet beats it, and there is a wall within a second of anywhere on that floor |
+
+Her passive is in too, so time inside her range is never free: every sixth
+attack is a Headshot, and a trapped or netted target takes one immediately.
+
+The mode refuses to be a corner. She has to die for a good score and the only
+way to kill her is to stand inside her reach on purpose and leave again — so
+the run is scored on the reading *and* on the pressure, and neither half can
+carry it. SURVIVE ends on the third Peacemaker that lands and sends her a
+deputy as it ramps.
+
+Her cooldowns are League's, charged at 45% of them — the same decision Condemn
+gets, for the same reason. A minute against her real figures is six
+Peacemakers, and nobody learns a read six repetitions at a time. Her health,
+her movement speed and every range in the kit are untouched. Her basic attack
+is the one number bent downwards: a Sheriff who kills you with autos is testing
+your spacing rather than your dodging, and there is already a mode for that.
+
+Difficulty changes how well she leads you and how quickly she reacts, and
+nothing else — she throws the same number of Peacemakers at every setting, so a
+dodge rate set on one difficulty means the same thing as a dodge rate set on
+another.
 
 ### The range check
 
@@ -228,9 +276,11 @@ Fourteen named mistakes, detected from the same metrics the rating consumes:
 | `CHIP_DAMAGE` | Finished low without one big mistake — it came off in pieces | 1 v 1 |
 
 The "fixed by" column names the drill in the wider catalogue that isolates the
-mechanic. The menu offers Range and four Vayne modes, so a fix button starts the one
-that trains the same thing — anything about the edge of your own reach lands on
-Range; kiting, movement and dodging problems on Tumble; targeting and
+mechanic. The menu offers Range, four Vayne modes and the Sheriff, so a fix
+button starts the one that trains the same thing — anything about the edge of
+your own reach lands on Range; kiting and movement problems on Tumble; dodging
+problems on Sheriff, because moving late and standing in a telegraph are
+problems with reading an opponent and so they hand you one; targeting and
 last-hitting on Silver Bolts; skillshots on Condemn; anything else on Night
 Hunter. The mapping is one function, `practiceFor` in
 `src/drills/modes.ts`, so it is a single place to argue with.
@@ -343,6 +393,13 @@ depends on:
   measures the whole run.
 - **Every drill scores under 30% for a player who does nothing.** No drill can
   be passed by presence alone.
+- **The Sheriff is beaten by reading her and by nothing else.** A reference
+  player who moves on the telegraph dodges over 90% of the Peacemakers and
+  scores in the seventies; the identical player with the telegraph ignored
+  dodges three quarters of them and scores around fifty. A snap trap is
+  asserted directly to deal no damage and to take 1.25 seconds of movement,
+  the Peacemaker is asserted to be the shot she takes at a target who cannot
+  move, and running away scores under 45%.
 - 1v1 is winnable; 1v2 and 1v3 cost progressively more health; all three are
   winnable, averaged across seeds.
 - The same policy performs worse at higher difficulty.
@@ -502,8 +559,18 @@ things fall out of that:
   camera and video controls state outright that they never touch the
   simulation, so scores stay comparable across machines.
 
+The first section is the roster — eight champions, compared as outlines rather
+than as stat lines, because there is no stat line. Every hero shares one attack
+profile, one health pool and one move speed, which is exactly what keeps a
+rating earned behind one comparable with a rating earned behind another: the
+ladder measures your hands, and your hands do not change when your cape does.
+Two cards carry a badge. **PATH** is Night Hunter, the body the Vayne modes
+spawn whatever the roster says; **FACED** is Caitlyn, the one you meet on the
+other end of a telegraph in SHERIFF.
+
 | Setting | What it does |
 | --- | --- |
+| **Champion** | Which of the eight bodies you wear. A silhouette and nothing else |
 | **Movement scheme** | Click to move, or WASD |
 | **Dash aim** | WASD only: a dash goes where your keys are held, or to the cursor |
 | **Bindings** | Every action, per scheme — one key to one action, conflicts resolved as you make them |

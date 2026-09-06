@@ -6,10 +6,33 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.5.0**.
+Currently shipping **v2.6.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.6.0 — THE SHERIFF
+
+*2026-09-06*
+
+There is somebody on the other side of the floor now. Caitlyn, her whole kit, and a mode about the half of a lane you cannot rehearse alone — plus a roster you can actually pick from again.
+
+### Added
+
+- SHERIFF, a sixth mode, and the first one that is not about your hands. It puts a Caitlyn on the other side of the arena with all four of her abilities and asks what you did about them. Everything above it on the menu measures your execution; this measures your reading, and no amount of solo practice reaches it.
+- Her kit is modelled the way the champion path is modelled. Piltover Peacemaker draws its lane on the floor for the whole 0.625 seconds of its cast time, locks its direction the instant it starts, and pierces — so it is beaten by one step taken early and by nothing taken late. Yordle Snap Trap deals no damage at all, exactly as in League: what it costs is a second and a quarter of not being able to move and the Peacemaker she throws at you the moment she notices. 90 Caliber Net slows you by half and throws her out of your reach, which is what makes closing the gap a decision. Ace in the Hole is a lock-on: nothing you do with your feet beats it, and there is a wall within a second of anywhere on that floor.
+- She has Headshot, so time spent inside her 650 units is never free — a hundred more than Vayne reaches, which is the whole physical problem of the matchup — and she reloads a few seconds after you put her down, because killing her has to be worth something and killing her permanently would end the rep.
+- The results screen leads with your Peacemaker dodge rate and then prints the ledger behind it: Peacemakers taken, traps stepped in, ultimates broken on terrain against ultimates taken, headshots taken, takedowns, and the share of everything she aimed at you that never landed. It separates the Peacemakers that hit you while you were already held from the ones you simply missed, because those are two different mistakes and only one of them happened when the missile was in the air.
+- SURVIVE on the Sheriff ends on the third Peacemaker that lands, and sends her a deputy as the pressure ramps, so the far corner of the arena stops being somewhere you can stand.
+- The practice screen prints her kit in numbers under the champion’s own, for the same reason the champion’s is printed: a window you are expected to beat has to be a figure you can check against the game.
+- CAITLYN joins the roster as a body you can wear — top hat, long coat and a rifle longer than she is tall, which is the furthest-reaching outline on the list and the only one carrying either of those two things.
+
+### Changed
+
+- The champion picker is back. Settings opens on a roster of eight, each card leading with the silhouette rather than a stat line — because there is no stat line: every hero shares one attack profile, one health pool and one move speed, and a pick changes what you are looking at and nothing else. The Vayne modes still always spawn her, because they are about her specific numbers.
+- A “fix this” button on a dodging diagnosis now starts SHERIFF rather than TUMBLE. Moving late, or standing in something that was drawn on the floor the whole time, is a problem with reading an opponent — so it should hand you an opponent.
+- Her cooldowns are League’s, charged at 45% of them, which is the same decision Condemn already gets and made for the same reason: a minute against her real figures is six Peacemakers, and nobody has ever learned a read six repetitions at a time. Her health, her movement speed and every range in her kit are untouched, and her basic attack is the one number bent downwards — a Sheriff who kills you with autos is testing your spacing rather than your dodging, and there is already a mode for that.
+- Difficulty changes how well she reads you and how fast she reacts, and nothing else: she throws the same number of Peacemakers at every setting, so a dodge rate set on one difficulty is comparable with a dodge rate set on another.
 
 ## v2.5.0 — THE EDGE
 

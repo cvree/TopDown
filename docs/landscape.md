@@ -337,6 +337,13 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
 - Windup/backswing cancellation modelled and *scored*, with headless proofs that
   correct play beats spam (§5.2).
 - A champion path that teaches a kit's rules rather than its key order (§5.3).
+- **A modelled *opponent*, not a pattern generator.** SHERIFF fields a Caitlyn
+  with League's own ranges, cast times and trap behaviour — including the trap
+  dealing no damage, which is the whole reason it is dangerous — and scores
+  what the player did about each ability separately. Every dodging trainer in
+  the field throws shapes; this one throws a champion's kit for a reason, at
+  the moment that kit is most likely to land, and the results screen names
+  which of her four buttons you are losing to.
 - A last-hit drill that is a simulated lane with turret shots, minion aggro and a
   contesting laner (§5.4).
 - Twelve isolated skill tests including **Map Recall** and **Cooldown Tracker** —
@@ -362,7 +369,8 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
   the best answer to "make me mechanically better," which is a full lane on
   its own.
 - **Champion breadth.** Skill Gap advertises 14 champion styles; EloAscend has
-  three champions; APEX has one champion path (Vayne).
+  three champions; APEX has one champion path (Vayne), one modelled opponent
+  (Caitlyn) and a second path (Ezreal) built but not surfaced in the client.
 - **Distribution.** LoL Dodge Game's Overwolf build lets players drill *inside
   the queue and loading screen* — the highest-intent practice moment there is.
   APEX is a web app you have to remember to open.
@@ -394,8 +402,18 @@ Ranked by how open they are, i.e. how badly the existing set covers them.
    next to Execute Check in the existing rack.
 5. **Second champion path, chosen for contrast.** Vayne teaches windup discipline.
    A second path should teach something else entirely — combo buffering under
-   pressure, or a mobility kit where the skill is *where you land*.
-6. **Get one leaderboard and one external number.** A Ranked-difficulty
+   pressure, or a mobility kit where the skill is *where you land*. The Ezreal
+   path in `src/drills/ezreal.ts` is that second path, already built and
+   already covered by the harness; surfacing it is a menu decision rather than
+   an engineering one.
+6. **More modelled opponents, one matchup at a time.** Caitlyn proved the
+   shape: a kit whose telegraphs are the curriculum, an enemy-side kit class
+   that owns its own abilities while the existing bot brain owns its feet, and
+   a score that reads per-ability rather than per-hit. Every subsequent
+   opponent is that pattern again with different numbers, and each one is a
+   matchup a player can name — which is a far easier thing to want than
+   "dodging practice".
+7. **Get one leaderboard and one external number.** A Ranked-difficulty
    leaderboard per axis (LDG's model) plus, eventually, an honest pre/post study
    — even a small, transparent one — buys credibility nobody else in the
    category currently has.

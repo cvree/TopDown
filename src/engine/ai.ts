@@ -139,6 +139,17 @@ export class EnemyBrain {
 
   /** What situation this unit exists to create. Drills may override it. */
   behavior: BotBehavior;
+  /**
+   * Whether this bot still throws its archetype's signature ability.
+   *
+   * A body wearing a modelled champion's kit — the Sheriff, in the mode built
+   * around her — has its own buttons and its own cooldowns, and the archetype's
+   * one-line ability underneath would fire on top of them: two telegraphs from
+   * one champion, one of which is nobody's. So a drill that dresses a bot as a
+   * champion turns this off, and the brain goes back to being what it is good
+   * at, which is a pair of feet.
+   */
+  signature = true;
   /** Where a tethered unit will not leave, and how far it will go. */
   anchor: Vec2 | null = null;
   leash = 520;
@@ -342,7 +353,7 @@ export class EnemyBrain {
     }
 
     // Signature ability.
-    if (this.abilityCd <= 0 && d < this.def.attack.range * 1.9) {
+    if (this.signature && this.abilityCd <= 0 && d < this.def.attack.range * 1.9) {
       this.castAbility(world, me, player, believed);
       this.abilityCd = this.def.abilityCd / Math.max(0.4, this.tune.aggression);
       return;
