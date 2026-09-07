@@ -59,9 +59,11 @@ import {
   levelDifficulty,
   levelStars,
   modeMastery,
+  normalizeApmProgress,
   recommendedLevel,
   seedApmLadder,
 } from '../src/progression/apm';
+import { isOpenEnded, type RunMode } from '../src/drills/modes';
 import { Rng } from '../src/engine/rng';
 import { World } from '../src/engine/world';
 
@@ -142,6 +144,21 @@ const fakeRenderer: ViewProjection = {
   screenToWorld: (x: number, y: number) => ({ x, y }),
 };
 
+/**
+ * Anything about a run that is not the drill, the policy or the difficulty.
+ *
+ * It exists for one run shape: INFINITE has no clock, so the harness has to be
+ * able to say how long to play for and which shape to play in — and a run
+ * shape is exactly the kind of thing that must be testable, because it is the
+ * one part of a drill nobody can see by reading the drill.
+ */
+interface RunOpts {
+  /** Which run shape. Defaults to the mode-implied one-minute rep. */
+  mode?: RunMode;
+  /** Seconds to play. Defaults to the drill's own length. */
+  seconds?: number;
+}
+
 const runDrill = (
   id: DrillId,
   policy: Policy,
@@ -149,13 +166,19 @@ const runDrill = (
   seed = 12345,
   scheme: MovementScheme = 'click',
   tumbleAim: TumbleAim = 'hands',
+  opts: RunOpts = {},
 ) => {
   const meta = DRILLS[id];
   const bounds = arenaFor(id);
   const input = new FakeInput();
+  const mode: RunMode = opts.mode ?? 'play';
+  // An open-ended shape has no duration at all: the harness's own clock is
+  // what stops it, exactly as a player pressing "end run" would.
+  const played = opts.seconds ?? (meta.duration > 0 ? meta.duration : 60);
   const session = new Session(
     {
-      duration: meta.duration > 0 ? meta.duration : 60,
+      duration: mode === 'play' ? played : 0,
+      mode,
       arena: bounds,
       seed,
       difficulty,
@@ -207,7 +230,7 @@ const runDrill = (
   let lastMarkId = -1;
   /** Whether the lane policy is currently on its way home. */
   let laneBacking = false;
-  const maxT = (meta.duration > 0 ? meta.duration : 60) + 2;
+  const maxT = played + 2;
 
   while (session.phase !== 'ended' && t < maxT) {
     const p = session.world.player;
@@ -1670,6 +1693,10 @@ const runDrill = (
     }
   }
 
+  // A run the harness stopped rather than the clock is finished the way the
+  // pause screen finishes one, so `endReason` and `elapsed` mean what they
+  // would have meant in the client.
+  if (session.phase !== 'ended') session.finish();
   const out = drill.outcome();
   const m = session.metrics.m;
   const d = derive(m, session.world.player?.maxHp ?? 720);
@@ -2952,6 +2979,79 @@ line('\n=== THE LAB: nothing on the bench stands still ===');
   }
 }
 
+line('\n=== THE LAB: the infinite run finds the level you belong on ===');
+{
+  // The claim the whole mode rests on: play well and the floor comes up, play
+  // badly and it comes down, and where it stops is a fact about the player
+  // rather than about the menu. It is checked from both ends on the same
+  // bench, opening on the same rung, so the only difference between the two
+  // runs is which pair of hands is on it.
+  const OPENED = 5;
+  const held = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'labHeld')?.value ?? 0;
+  const peak = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'labPeak')?.value ?? 0;
+  const low = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'labLow')?.value ?? 0;
+  const infinite = (id: DrillId, policy: Policy, seconds = 150) =>
+    runDrill(id, policy, levelDifficulty(OPENED), 12345, 'click', 'hands', { mode: 'infinite', seconds });
+
+  let rose = 0;
+  let fell = 0;
+  for (const id of APM_DRILL_IDS) {
+    const good = infinite(id as DrillId, 'lab');
+    const bad = infinite(id as DrillId, 'idle');
+    line(
+      `  ${id.padEnd(13)} played held ${held(good).toFixed(1)} (peak ${peak(good).toFixed(1)})` +
+        `   idle held ${held(bad).toFixed(1)} (low ${low(bad).toFixed(1)})`,
+    );
+    if (peak(good) > OPENED + 0.25) rose++;
+    if (low(bad) < OPENED - 0.25) fell++;
+    expect(`${id} keeps its floor on the ladder`, held(good) >= 1 && peak(good) <= APM_LEVELS && low(bad) >= 1, `${low(bad).toFixed(1)}..${peak(good).toFixed(1)}`);
+    expect(
+      `${id} eases for hands that are not there`,
+      held(bad) < held(good),
+      `${held(bad).toFixed(1)} idle vs ${held(good).toFixed(1)} played`,
+    );
+  }
+  expect('playing well raises the floor, in every mode', rose === APM_DRILL_IDS.length, `${rose} of ${APM_DRILL_IDS.length}`);
+  expect('doing nothing lowers it, in every mode', fell === APM_DRILL_IDS.length, `${fell} of ${APM_DRILL_IDS.length}`);
+
+  // The interesting case is neither of those: a player who is good at the
+  // bench and blind to the corner is somebody the tide has to *park* rather
+  // than pin, because half of what they do is correct and half of it costs
+  // them the chain. It is the closest thing this harness has to a person.
+  const parked = infinite('apmPulse', 'labBlind', 300);
+  line(`  a player who ignores the corner parks at ${held(parked).toFixed(1)} (${low(parked).toFixed(1)}..${peak(parked).toFixed(1)})`);
+  expect(
+    'a half-good player is parked between the ends rather than pinned to one',
+    held(parked) > 1.4 && held(parked) < APM_LEVELS - 0.4,
+    `held ${held(parked).toFixed(2)}`,
+  );
+
+  // Nothing is allowed to fall off either end of the ladder, however long the
+  // run or however one-sided it is.
+  const drowned = infinite('apmPulse', 'idle', 400);
+  const cruised = infinite('apmBuffer', 'lab', 400);
+  expect('the floor bottoms out at level 1', low(drowned) >= 1 && held(drowned) >= 1, `${low(drowned).toFixed(2)}`);
+  expect('and tops out at level 10', peak(cruised) <= APM_LEVELS, `${peak(cruised).toFixed(2)}`);
+
+  // The run that has a rung is not touched by any of this: a rep whose floor
+  // moved would not be a rep, and every record in the section assumes it did
+  // not.
+  const rep = runDrill('apmPulse', 'lab', levelDifficulty(OPENED));
+  expect('a PLAY run reports no floor at all', rep.out.keyMetrics.every((k) => k.id !== 'labHeld'), 'labHeld present');
+  expect('and its difficulty is the rung it was played at', rep.out.effectiveDifficulty === undefined, String(rep.out.effectiveDifficulty));
+
+  // An infinite run hands back the level it found as what the run was worth,
+  // because its performance is held inside one band by construction and the
+  // rung is the entire finding.
+  const found = infinite('apmPulse', 'lab');
+  expect(
+    'an infinite run is worth the rung it settled at',
+    Math.abs((found.out.effectiveDifficulty ?? 0) - levelDifficulty(held(found))) < 1e-9,
+    `${found.out.effectiveDifficulty} vs ${levelDifficulty(held(found))}`,
+  );
+  expect('and it is open-ended, so it never sets a score', isOpenEnded('infinite'), 'infinite counted as a rep');
+}
+
 line('\n=== THE LAB: the board in the corner is a second task, in every mode ===');
 {
   // Every mode runs the two-lane dodge on the minimap, every mode counts it,
@@ -3180,6 +3280,7 @@ line('\n=== APM LADDER: ten explicit levels, and nothing moves on its own ===');
         unlocked: APM_LEVELS,
         lastLevel: APM_LEVELS,
         runs: APM_LEVELS,
+        infinite: { runs: 0, bestHeld: 0, bestPeak: 0, bestSeconds: 0, bestApm: 0 },
       }),
     ) === 100,
     'weighted stars',
@@ -3203,6 +3304,54 @@ line('\n=== APM LADDER: ten explicit levels, and nothing moves on its own ===');
   );
   const unplaced = emptyApmProgress();
   expect('an unrated player starts at the bottom', seedApmLadder(unplaced, 0) === 1, 'level 1');
+}
+
+line('\n=== The infinite run keeps its own ledger and never touches the stars ===');
+{
+  const p = emptyApmProgress();
+  // A three-starred rung, so there is something for an infinite run to be
+  // caught damaging.
+  applyApmRun(p, { drill: 'apmPulse', level: 1, performance: STAR_AT[2] + 0.05, score: 3000, apm: 200, endurance: false });
+  const starsBefore = p.modes.apmPulse.levels[0].best;
+  const scoreBefore = p.modes.apmPulse.levels[0].bestScore;
+  const openedBefore = p.modes.apmPulse.unlocked;
+
+  const run = applyApmRun(p, {
+    drill: 'apmPulse',
+    level: 1,
+    performance: 0.71,
+    score: 9999,
+    apm: 240,
+    endurance: false,
+    infinite: { held: 6.4, peak: 7.2, low: 1.8, seconds: 214 },
+  });
+
+  expect('an infinite run reports as one', run.infinite !== null, 'no infinite block');
+  expect('it writes its own record', p.modes.apmPulse.infinite.bestHeld === 6.4 && p.modes.apmPulse.infinite.runs === 1, `${p.modes.apmPulse.infinite.bestHeld}`);
+  expect('it opens the rung it stood on', p.modes.apmPulse.unlocked === 6 && openedBefore < 6, `${p.modes.apmPulse.unlocked}`);
+  expect('it awards no star', run.starsAfter === run.starsBefore, `${run.starsBefore} → ${run.starsAfter}`);
+  expect('and it cannot move a level record it never played', p.modes.apmPulse.levels[0].best === starsBefore && p.modes.apmPulse.levels[0].bestScore === scoreBefore, 'a rung was written');
+  expect('nor a level it did play through', p.modes.apmPulse.levels[5].runs === 0 && p.modes.apmPulse.levels[5].best === 0, 'the settled rung was written');
+  expect('it still sets the section rate record', p.bestApm === 240 && p.bestApmMode === 'apmPulse', `${p.bestApm}`);
+  expect('it is counted as a run of the mode', p.modes.apmPulse.runs === 2, `${p.modes.apmPulse.runs}`);
+
+  const worse = applyApmRun(p, {
+    drill: 'apmPulse',
+    level: 1,
+    performance: 0.7,
+    score: 100,
+    apm: 90,
+    endurance: false,
+    infinite: { held: 3.1, peak: 3.4, low: 1, seconds: 40 },
+  });
+  expect('a worse infinite run takes nothing away', p.modes.apmPulse.infinite.bestHeld === 6.4 && p.modes.apmPulse.unlocked === 6, `${p.modes.apmPulse.infinite.bestHeld}`);
+  expect('and it opens nothing it did not reach', worse.infinite?.unlockedTo === null, `${worse.infinite?.unlockedTo}`);
+  expect('but it is still counted', p.modes.apmPulse.infinite.runs === 2, `${p.modes.apmPulse.infinite.runs}`);
+  expect('and the longest run is remembered', p.modes.apmPulse.infinite.bestSeconds === 214, `${p.modes.apmPulse.infinite.bestSeconds}`);
+
+  // A stored profile from before the mode existed has to come back playable.
+  const repaired = normalizeApmProgress({ modes: { apmPulse: { unlocked: 4, lastLevel: 2, runs: 3, levels: [] } } } as never);
+  expect('a profile written before the tide comes back with a ledger', repaired.modes.apmPulse.infinite.runs === 0 && repaired.modes.apmSustain.infinite.bestHeld === 0, 'no ledger');
 }
 
 line('\n=== The Vayne path, driven with the keys ===');

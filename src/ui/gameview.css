@@ -106,6 +106,9 @@
 .hud-clock.surviving .hud-mode {
   color: var(--danger);
 }
+.hud-clock.infinite .hud-mode {
+  color: var(--violet, #c58bff);
+}
 /* The strike budget. Three pips, and they only ever go out. */
 .hud-strikes {
   display: flex;
@@ -183,6 +186,46 @@
 .diff-bars span.on {
   background: var(--gold);
   box-shadow: 0 0 8px rgba(200, 170, 110, 0.6);
+}
+/* The moving floor.
+ *
+ * Everywhere else these ten pips are a setting and nobody has to watch them.
+ * In the infinite run they are the mode, so the rung gets a number of its own
+ * above them and a colour that says which way it is going: amber climbing,
+ * blue easing, neutral while it has found you. */
+.hud-diff.living .hud-diff-label {
+  color: var(--text-2);
+}
+.hud-rung {
+  font-family: var(--display);
+  font-size: 26px;
+  line-height: 1;
+  margin-top: 3px;
+  color: var(--text-1);
+  transition: color 0.4s ease, text-shadow 0.4s ease;
+}
+.hud-rung::after {
+  display: inline-block;
+  width: 0.7em;
+  margin-left: 0.12em;
+  font-size: 0.5em;
+  vertical-align: 0.35em;
+  opacity: 0.85;
+  content: '·';
+}
+.hud-rung[data-drift='up'] {
+  color: var(--warn, #ffb02e);
+  text-shadow: 0 0 16px rgba(255, 176, 46, 0.45);
+}
+.hud-rung[data-drift='up']::after {
+  content: '▲';
+}
+.hud-rung[data-drift='down'] {
+  color: var(--accent, #58e0ff);
+  text-shadow: 0 0 16px rgba(88, 224, 255, 0.4);
+}
+.hud-rung[data-drift='down']::after {
+  content: '▼';
 }
 .hud-fps {
   font-family: var(--mono);
@@ -941,4 +984,15 @@
 /* Live: the ring is on the floor right now and this is what is left of it. */
 .hud-check.on {
   color: var(--accent);
+}
+
+/* The way out of a run that has no clock. */
+.hud-endnote {
+  margin-top: 4px;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--text-3);
+}
+.hud-endnote .kbd {
+  margin-right: 5px;
 }

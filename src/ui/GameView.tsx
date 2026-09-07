@@ -21,6 +21,7 @@ import { arenaFor, createDrill } from '../drills';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { MAP_KEYS } from '../drills/apm';
 import { RUN_MODES, SURVIVE_STRIKES, durationFor, type RunMode } from '../drills/modes';
+import { difficultyLevel } from '../progression/apmladder';
 import type { AppSettings, RunResult } from '../progression/profile';
 import { Minimap } from './hud/Minimap';
 import { Settings } from './Settings';
@@ -333,6 +334,11 @@ export function GameView({
   // there being two of them.
   const duration = durationOverride ?? durationFor(mode);
   const surviving = mode === 'survive';
+  // The lab's open-ended shape. It has no clock and no rung: the floor moves
+  // under the player for as long as they keep going, so the HUD prints a live
+  // level instead of a fixed difficulty and the pause screen has to offer a
+  // way of stopping that still counts.
+  const infinite = mode === 'infinite';
   // Printed rather than assumed: instant reset is rebindable, so the pause
   // screen has to read the binding instead of promising a key that may have
   // moved.
@@ -451,6 +457,9 @@ export function GameView({
     const elCycleFill = q<HTMLDivElement>('[data-cycle-fill]');
     const elCycleLabel = q<HTMLDivElement>('[data-cycle-label]');
     const elFps = q<HTMLDivElement>('[data-fps]');
+    const diffPips = Array.from(hud.querySelectorAll('[data-diff] span')) as HTMLElement[];
+    const elRung = hud.querySelector<HTMLDivElement>('[data-rung]');
+    let lastPips = -1;
     const elCam = q<HTMLDivElement>('[data-cam]');
     const elCheck = hud.querySelector<HTMLDivElement>('[data-check]');
     const elCheckFill = hud.querySelector<HTMLDivElement>('[data-check-fill]');
@@ -482,6 +491,23 @@ export function GameView({
       }
 
       elScore.textContent = snap.score.toLocaleString();
+
+      // The floor, when the floor moves. Everywhere else these ten pips are a
+      // setting; in the infinite run they are the mode's whole read-out, so
+      // they are written every frame the rung changes rather than once at the
+      // top of the run.
+      if (elRung) {
+        const lab = drillInstance as { levelNow?: () => number | null; driftNow?: () => number | null };
+        const lvl = lab.levelNow?.() ?? difficultyLevel(difficulty);
+        const drift = lab.driftNow?.() ?? 0;
+        elRung.textContent = lvl.toFixed(1);
+        elRung.dataset.drift = drift > 0.05 ? 'up' : drift < -0.05 ? 'down' : 'hold';
+        const lit = Math.max(1, Math.round(lvl));
+        if (lit !== lastPips) {
+          lastPips = lit;
+          diffPips.forEach((pip, i) => pip.classList.toggle('on', i < lit));
+        }
+      }
 
       // A drill with no health pool — the lab benches, where nothing can hurt
       // you and there is no body to hurt — shows no bar at all. A permanently
@@ -678,6 +704,10 @@ export function GameView({
             // A survive run leads with how long it lasted, because that is
             // what it measured. Everything the mode itself measured follows,
             // in the order it would have led with in PLAY.
+            // SURVIVE leads with how long it lasted, because that is what it
+            // measured. INFINITE does not: it lasted exactly as long as the
+            // player felt like playing, and what it measured is the rung the
+            // floor settled at — which the drill puts at the front itself.
             keyMetrics: surviving
               ? [
                   {
@@ -780,6 +810,23 @@ export function GameView({
   }, []);
 
   /**
+   * Stop the infinite run, and keep it.
+   *
+   * Straight at the session, like Resume: the run ends the way a clock would
+   * have ended it, so the frame after this one builds the result and the
+   * screen that follows is the results screen rather than the menu. The Exit
+   * button next to it still throws the run away, which is the distinction a
+   * player means when they choose between the two.
+   */
+  const endRun = useCallback(() => {
+    const session = sessionRef.current;
+    if (!session) return;
+    audio.play('uiClick');
+    session.finish();
+    setPhase(session.phase);
+  }, []);
+
+  /**
    * Settings, from inside the run.
    *
    * Opening it suspends input rather than detaching it: the arena stays
@@ -843,11 +890,19 @@ export function GameView({
           <div className="hud-brief">{meta.brief}</div>
         </div>
 
-        <div className={`hud-clock${surviving ? ' surviving' : ''}`}>
+        <div className={`hud-clock${surviving ? ' surviving' : ''}${infinite ? ' infinite' : ''}`}>
           <div className="hud-mode">{RUN_MODES[mode].label}</div>
           <div className="hud-time num" data-time>
             0:00
           </div>
+          {/* A run with no clock has to say how it ends, on screen, from the
+              first second — the button is behind the pause key and nothing
+              else in the client has ever needed one. */}
+          {infinite && (
+            <div className="hud-endnote">
+              <b className="kbd">{shortCodeLabel(bindingsFor(settings, drill).pause.primary)}</b> to end &amp; score
+            </div>
+          )}
           {/* The strike budget, and only in the mode that spends one. In PLAY
               a mistake costs you score and nothing else, and a row of pips
               counting down to nothing would be a threat the mode never
@@ -868,9 +923,18 @@ export function GameView({
         </div>
 
         <div className="hud-right">
-          <div className="hud-diff">
-            <span className="hud-diff-label">DIFFICULTY</span>
-            <div className="diff-bars">
+          <div className={`hud-diff${infinite ? ' living' : ''}`}>
+            <span className="hud-diff-label">{infinite ? 'LEVEL' : 'DIFFICULTY'}</span>
+            {/* In every other run this is a setting, printed once. In the
+                infinite run it is the mode: the rung is what the tide is
+                looking for, so it is a live number with the direction of
+                travel on it rather than ten pips nobody has to watch. */}
+            {infinite && (
+              <div className="hud-rung num" data-rung data-drift="hold">
+                {difficultyLevel(difficulty).toFixed(1)}
+              </div>
+            )}
+            <div className="diff-bars" data-diff>
               {Array.from({ length: 10 }).map((_, i) => (
                 <span key={i} className={i < Math.round(difficulty * 10) ? 'on' : ''} />
               ))}
@@ -1033,12 +1097,23 @@ export function GameView({
             <div className="eyebrow">PAUSED</div>
             <h2>{meta.name}</h2>
             <p className="dim" style={{ maxWidth: 400, margin: '0 0 22px' }}>
-              {meta.brief}
+              {infinite
+                ? 'No clock, so this is where the run ends. End it and it is scored at the level the floor settled on; exit and it is thrown away.'
+                : meta.brief}
             </p>
             <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
               <button className="btn primary" onClick={resume}>
                 Resume
               </button>
+              {/* A run with no clock has to have somewhere to put the full
+                  stop, and it must not be the same button as "throw this
+                  away" — so the one shape that never ends on its own is the
+                  one shape with a way of ending that counts. */}
+              {infinite && (
+                <button className="btn" onClick={endRun}>
+                  End run &amp; score
+                </button>
+              )}
               <button className="btn" onClick={openSetup}>
                 Settings
               </button>

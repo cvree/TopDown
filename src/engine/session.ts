@@ -311,7 +311,10 @@ export class Session {
    * minutes is a different wave from the one that opened the run.
    */
   get liveDifficulty(): number {
-    return clamp(this.config.difficulty + this.pressure * SURVIVE_RAMP_RANGE, 0, 1);
+    // A drill whose own floor moves is the authority on where it is. Only the
+    // lab's infinite run answers this; everything else falls through to the
+    // figure the run opened at plus whatever the survive ramp has added.
+    return this.drill?.difficultyNow() ?? clamp(this.config.difficulty + this.pressure * SURVIVE_RAMP_RANGE, 0, 1);
   }
 
   /**
@@ -512,6 +515,22 @@ export class Session {
 
   abort(): void {
     this.endReason = 'abort';
+    this.end();
+  }
+
+  /**
+   * End the run now, and score it.
+   *
+   * The counterpart to `abort`, and the difference between them is the whole
+   * of what a player means by the two buttons: an abort is "that one did not
+   * count", a finish is "that is where I stopped". Nothing with a clock needs
+   * it — a rep ends when the minute does — but a run with no clock has to have
+   * somewhere to put the full stop, or the only way out of it would be to
+   * throw it away.
+   */
+  finish(): void {
+    if (this.phase === 'ended') return;
+    this.endReason = 'complete';
     this.end();
   }
 
@@ -1036,6 +1055,13 @@ export abstract class DrillBase {
     return false;
   }
   onStart(): void {}
+  /**
+   * The difficulty this drill is running at right now, when it moves on its
+   * own. Null — the usual answer — means the run's own figure is the truth.
+   */
+  difficultyNow(): number | null {
+    return null;
+  }
   update(_dt: number): void {}
   onEvents(_events: readonly WorldEvent[]): void {}
   onTargetOrder(_a: Actor): void {}

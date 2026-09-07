@@ -41,6 +41,33 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.9.0',
+    name: 'THE TIDE',
+    date: '2026-09-07',
+    headline:
+      'Right-click any lab bench and the level stops being something you choose: the floor moves under your hands until it finds the one you belong on.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'INFINITE, on the right mouse button. Right-click any of the thirteen benches in the lab — or take the ∞ under its PLAY button — and the run opens on the level the card is showing and then lets go of it. There is no clock and no rung: the floor rises while you are winning and falls while you are drowning — about a rung every seven seconds at full tilt, and half again as fast coming back down — until the two cancel out. Where it settles is the score.',
+          'The floor reads two things about you and needs both. How much of what you did was correct — pressed, held and wasted commands all counted the way the lab has always counted them — and how many correct actions a minute you are actually sustaining against the rate that mode is calibrated for. Clean and slow does not climb, and fast and filthy does not climb either.',
+          'Every rung is a moment. Crossing one banners the new level, flashes the arena and rings off your body — amber going up, blue coming down — and the top right of the HUD prints the level live to one decimal place with the direction of travel next to it, in place of the ten difficulty pips that are a setting everywhere else.',
+          'The results screen leads with the rung you held: the length-weighted average of the whole run, not the peak you touched for four seconds and not wherever you happened to stop. It prints the highest floor you reached, the lowest you fell to, how long you lasted, and whether any of the three is a record.',
+          'Holding a rung opens it on the ladder. Settle at level seven and level seven is yours to play for score — it awards no star, because a star is for beating a rung and this is for standing on one. The results screen offers the level it found as the next run, at the one-minute length that can actually set a record.',
+          'Every bench keeps its own infinite ledger — the highest rung ever held, the highest floor ever reached and the longest run — and the card in the menu prints the first of them under the ∞.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'SUSTAIN does not end an infinite run. Dropping two beats inside a step is still the mode’s defining failure, but in the one run shape with no end it steps the metronome back instead of stopping — the floor is already the ramp there, and the tide has just been told in the only language it reads that this is faster than these hands go.',
+          'An infinite run is scored at the rung it found rather than the rung it opened on, so what it is worth to your rating is the level you actually held. It never sets a score record, for the same reason a survive run never has: it is long by construction.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.8.1',
     name: 'YOUR KEYS',
     date: '2026-09-07',

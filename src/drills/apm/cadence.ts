@@ -229,8 +229,26 @@ export class ApmSustainDrill extends LabDrill {
     audio.play('flowPulse', { intensity: 0.4 });
   }
 
-  /** Two dropped beats inside one step and the run is over, on purpose. */
+  /**
+   * Two dropped beats inside one step and the run is over, on purpose.
+   *
+   * Except in the one run shape that has no end. There the floor is already
+   * the ramp — the tide has just been told, in the only language it reads,
+   * that this is faster than these hands go — so breaking is a step backwards
+   * and the mode carries on. Ending the run instead would make the one bench
+   * built entirely out of "how fast can you still hold it" the one bench you
+   * could not ask that question of indefinitely.
+   */
   private collapse(): void {
+    if (this.s.mode === 'infinite') {
+      this.s.setBanner(`BROKE AT ${Math.round(this.rate)} APM — EASING`, 1.8);
+      this.s.fx.addFlash(0.1, PALETTE.danger);
+      audio.play('fail', 0.7);
+      this.step = Math.max(0, this.step - 2);
+      this.stepAt = this.s.elapsed;
+      this.missesThisStep = 0;
+      return;
+    }
     this.s.setBanner(`BROKE AT ${Math.round(this.rate)} APM`, 2.2);
     this.s.fx.addFlash(0.14, PALETTE.danger);
     audio.play('fail');

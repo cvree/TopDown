@@ -6,7 +6,9 @@ import type { HudField } from '../../engine/session';
 import type { Vec2 } from '../../engine/types';
 import type { KeyMetric } from '../../progression/profile';
 import type { SkillAxis } from '../../progression/skills';
-import { Drill, band, count, pct, type DrillOutcome } from '../base';
+import { Drill, band, count, pct, rate, secs, type DrillOutcome } from '../base';
+import { Tide } from './tide';
+import { APM_LEVELS, difficultyLevel, levelDifficulty } from '../../progression/apmladder';
 
 /**
  * THE LAB — the APM trainer's shared engine.
@@ -139,6 +141,16 @@ export abstract class ApmDrill extends Drill {
   protected peakTier = 0;
   protected scoreAcc = 0;
 
+  /**
+   * The floor, when it moves.
+   *
+   * Null in every run shape but one. INFINITE builds it on the first frame —
+   * not in a constructor, because the rate it is calibrated against is a
+   * subclass field and does not exist yet while a base constructor is running.
+   */
+  protected tide: Tide | null = null;
+  private tideBuilt = false;
+
   private peakApm = 0;
   private beatCd = 0;
   private lastActionAt = 0;
@@ -208,8 +220,32 @@ export abstract class ApmDrill extends Drill {
 
   // ---------------------------------------------------------------- state
 
+  /**
+   * The difficulty the mode is built at, right now.
+   *
+   * A number in PLAY and in SURVIVE, because a rep that moved under you is not
+   * a rep. A moving floor in INFINITE, which is the whole of that mode: every
+   * window, every spacing, every clock in every bench reads this one getter,
+   * so a tide that changes it changes all thirteen modes at once and none of
+   * them had to be told.
+   */
   protected get d(): number {
-    return this.s.config.difficulty;
+    return this.tide ? this.tide.difficulty : this.s.config.difficulty;
+  }
+
+  /** The moving floor, for the HUD. Null whenever the floor is not moving. */
+  difficultyNow(): number | null {
+    return this.tide ? this.tide.difficulty : null;
+  }
+
+  /** The rung the floor is on, continuously. Null when nothing is moving. */
+  levelNow(): number | null {
+    return this.tide ? this.tide.level : null;
+  }
+
+  /** Which way the floor is heading, -1..1. Null when nothing is moving. */
+  driftNow(): number | null {
+    return this.tide ? this.tide.drift : null;
   }
 
   /**
@@ -312,6 +348,13 @@ export abstract class ApmDrill extends Drill {
   protected hit(pos: Vec2, opts: HitOpts = {}): void {
     if (opts.action !== false) this.note();
     this.hits++;
+    // Every hit is a correct *action*, whether or not the press was the thing
+    // that paid out: the rate the tide is calibrated against is this engine's
+    // own correct-per-minute, which counts hits and never asks how the payoff
+    // arrived. Reading the flag here instead made the movement modes — where
+    // the command is counted separately from the outcome it causes — look to
+    // the tide like a player who was not pressing anything at all.
+    this.tide?.good(this.s.elapsed, true);
     const quality = clamp(opts.quality ?? 0.5, 0, 1);
     const perfect = quality >= 0.72;
     if (perfect) this.perfects++;
@@ -349,6 +392,10 @@ export abstract class ApmDrill extends Drill {
    */
   protected hold(pos: Vec2, label = 'HELD'): void {
     this.holds++;
+    // Correct, and not a keystroke: it moves the tide's read of your form and
+    // leaves its read of your rate exactly where it was, which is the same
+    // split this verb exists to make everywhere else.
+    this.tide?.good(this.s.elapsed, false);
     this.chain++;
     this.bestChain = Math.max(this.bestChain, this.chain);
     audio.setComboPitch(this.chain);
@@ -367,6 +414,11 @@ export abstract class ApmDrill extends Drill {
     } else {
       this.expiries++;
     }
+    // A wrong press is worth more to the tide than a prompt that ran out: one
+    // is a hand that went to the wrong place, the other is a floor that is
+    // simply going faster than you are, and the second is the thing the tide
+    // is meant to fix rather than punish.
+    this.tide?.bad(opts.input === false ? 1.25 : 1.6);
     // The cost of a mistake is the flow tier, not the fine: losing a ×2.4 is
     // worth thousands, and a deduction large enough to zero a whole run just
     // teaches people to stop rather than to recover.
@@ -395,6 +447,7 @@ export abstract class ApmDrill extends Drill {
   protected stray(pos: Vec2): void {
     this.note();
     this.strays++;
+    this.tide?.bad(0.6);
     this.scoreAcc = Math.max(0, this.scoreAcc - 30);
     this.heat *= 0.82;
     // A couple of rungs, not the whole ladder. One fumbled double-click should
@@ -448,6 +501,18 @@ export abstract class ApmDrill extends Drill {
   // ---------------------------------------------------------------- frame
 
   update(dt: number): void {
+    if (!this.tideBuilt) {
+      this.tideBuilt = true;
+      // The first frame is the earliest moment `targetApm` exists: a subclass
+      // field is written after the base constructor has already run.
+      if (this.s.mode === 'infinite') {
+        this.tide = new Tide({
+          openAt: difficultyLevel(this.s.config.difficulty),
+          targetRate: this.targetRate,
+        });
+      }
+    }
+
     // The engine owns the chain. Writing it every frame keeps the HUD widget,
     // the arena's energy and the audio bed reading this ladder rather than the
     // session's own orbwalk counter, which means something else here.
@@ -471,6 +536,36 @@ export abstract class ApmDrill extends Drill {
     this.pollHeldDirection(dt);
     this.metronome(dt);
     this.tick(dt);
+    // Last, so the floor a mode was built against this frame is the floor it
+    // was drawn at, and the next rung arrives on the next frame rather than
+    // halfway through this one.
+    if (this.tide) {
+      this.tide.step(dt, this.s.elapsed);
+      this.announceRung();
+    }
+  }
+
+  /**
+   * The floor moving under you, said out loud.
+   *
+   * A difficulty that changes silently is a difficulty a player will swear
+   * never changed — so a rung is a moment: a banner, a flash, a ring off the
+   * body, and a note that rises when the floor does and falls when it does
+   * not. It is the only feedback in the lab that is about the *mode* rather
+   * than about the press, which is why it is allowed to interrupt.
+   */
+  private announceRung(): void {
+    const c = this.tide?.takeCrossing();
+    if (!c) return;
+    const color = c.up ? PALETTE.warn : PALETTE.accent;
+    this.s.setBanner(c.up ? `LEVEL ${c.level}  ▲ HARDER` : `LEVEL ${c.level}  ▼ EASED`, 1.6);
+    audio.play(c.up ? 'flowTier' : 'abilityReady', { intensity: c.up ? 0.85 : 0.55 });
+    this.s.fx.addFlash(c.up ? 0.09 : 0.05, color);
+    const p = this.s.world.player;
+    if (p) {
+      this.s.fx.ring(p.pos.x, p.pos.y, 24, 260 + c.level * 20, 0.6, color, 3.5, 'shock');
+      if (c.up) this.s.fx.addShake(2.5, 9);
+    }
   }
 
   /**
@@ -646,28 +741,69 @@ export abstract class ApmDrill extends Drill {
     const layerMetrics = this.extraMetrics();
     const coaching = this.notes();
     const layers = this.extraNotes();
+
+    // What the floor did, when there was a floor. An infinite run's whole
+    // result is these three numbers: where it settled, how high it got, and
+    // how far that is from where it opened.
+    const tide = this.tide;
+    if (tide) {
+      const held = tide.settled;
+      const moved = held - tide.opened;
+      if (moved >= 0.6)
+        helped.push(
+          `The floor came up ${moved.toFixed(1)} rungs under you — you opened on ${tide.opened.toFixed(1)} and held ${held.toFixed(1)}.`,
+        );
+      if (tide.peak >= 9.5) helped.push('You reached the top of the ladder. There is no rung above this one.');
+      else if (tide.peak - held >= 0.9)
+        hurt.push(
+          `You touched level ${tide.peak.toFixed(1)} and could not stay there — the run settled ${(tide.peak - held).toFixed(1)} rungs below its own peak.`,
+        );
+      if (moved <= -0.6)
+        hurt.push(`The floor had to come down ${Math.abs(moved).toFixed(1)} rungs to find you.`);
+    }
+
     const advice =
       coaching.advice ??
       this.extraAdvice() ??
-      (accuracy < 0.78
-        ? 'Slow down about ten percent. At this accuracy the extra speed is costing more than it earns.'
-        : correct < this.targetRate * 0.7
-          ? 'Stop waiting for certainty. Commit to the first correct input and let your hands catch up.'
-          : this.bestChain < 12
-            ? 'You have the speed; you are losing it to breaks. Protect the chain — the multiplier is most of the score.'
-            : 'Raise the difficulty. The prompts get tighter, and the ceiling goes up with them.');
+      (tide
+        ? tide.settled >= APM_LEVELS - 0.4
+          ? `You held level ${tide.settled.toFixed(1)}. Nothing here is above you any more — take the same rung in PLAY and put it on the board.`
+          : `The tide put you at level ${Math.round(tide.settled)}. That is the rung to play for score: it is the hardest one you can still hold clean.`
+        : accuracy < 0.78
+          ? 'Slow down about ten percent. At this accuracy the extra speed is costing more than it earns.'
+          : correct < this.targetRate * 0.7
+            ? 'Stop waiting for certainty. Commit to the first correct input and let your hands catch up.'
+            : this.bestChain < 12
+              ? 'You have the speed; you are losing it to breaks. Protect the chain — the multiplier is most of the score.'
+              : 'Raise the difficulty. The prompts get tighter, and the ceiling goes up with them.');
 
     return {
       score: this.liveScore(),
       performance,
       axisPerformance: this.axisSplit(performance, accuracy, speed),
+      // The tide spends the whole run holding your performance inside one
+      // band, so the *performance* of an infinite run is nearly a constant and
+      // the difficulty it was held at is the entire finding. Handing the rung
+      // back as the run's effective difficulty is what makes that finding
+      // count for rating instead of averaging away into nothing.
+      ...(tide ? { effectiveDifficulty: levelDifficulty(tide.settled) } : {}),
       // Order matters: the results screen leads with the first and shows the
       // next four in a row. So it goes headline rate, the rate that was
       // scored, what the mode itself measures, what the layers under it
       // measured — the corner of the screen is where a good run is most often
       // actually lost — and then how much of it all was clean. Everything
       // after that is kept for the records rather than the four cells.
+      // A run whose floor moved reports the floor first: what it settled at is
+      // the result, and every rate under it is a rate *at that level* rather
+      // than a rate on its own.
       keyMetrics: [
+        ...(tide
+          ? [
+              rate('labHeld', 'LEVEL HELD', tide.settled),
+              secs('lasted', 'LASTED', this.s.elapsed),
+              rate('labPeak', 'PEAK LEVEL', tide.peak),
+            ]
+          : []),
         count('apm', 'SUSTAINED APM', Math.round(avgApm)),
         count('correctApm', 'CORRECT ACTIONS / MIN', Math.round(correct)),
         ...own.slice(0, 1),
@@ -676,6 +812,7 @@ export abstract class ApmDrill extends Drill {
         count('chain', 'BEST CHAIN', this.bestChain),
         count('peakApm', 'PEAK APM', Math.round(peak)),
         ...(this.holds > 0 ? [count('held', 'CORRECTLY HELD', this.holds)] : []),
+        ...(tide ? [rate('labLow', 'LOWEST LEVEL', tide.low)] : []),
         ...own.slice(1),
         ...layerMetrics.slice(1),
       ],

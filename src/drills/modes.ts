@@ -1,7 +1,7 @@
 import type { DrillId } from './catalog';
 
 /**
- * The two ways to play anything.
+ * The ways to play anything.
  *
  * The trainer used to offer a different shape of run per section — a
  * calibration sequence, a daily queue, an APM rung, an endurance toggle, a
@@ -16,10 +16,18 @@ import type { DrillId } from './catalog';
  *    the mode's defining mistake three times, and it gets harder the longer
  *    you last. The number it gives back is how long you lasted.
  *
- * That is the whole mode system. Nothing else in the client needs to know
- * about it beyond the duration it implies and the strike budget it grants.
+ * There is now a third, and it is not a third question at the menu: INFINITE
+ * is the lab's own shape and the lab's alone, reached by right-clicking a
+ * bench rather than by a button next to the other two. It has no clock and no
+ * rung — the floor moves under you for as long as you play, up while you are
+ * winning and down while you are not — so it cannot be a length or a strike
+ * budget the way the other two are, and the only thing the rest of the client
+ * needs to know about it is that it is open-ended and never sets a score.
+ *
+ * Nothing else in the client needs to know about any of it beyond the duration
+ * each implies and the strike budget it grants.
  */
-export type RunMode = 'play' | 'survive';
+export type RunMode = 'play' | 'survive' | 'infinite';
 
 /** PLAY is one minute, for every mode, always. */
 export const PLAY_SECONDS = 60;
@@ -63,12 +71,37 @@ export const RUN_MODES: Record<RunMode, ModeMeta> = {
     blurb: `No clock. It ramps until it beats you — three mistakes or one death and it is over.`,
     accent: '#ff5fa8',
   },
+  infinite: {
+    id: 'infinite',
+    label: 'INFINITE',
+    tagline: 'until you stop',
+    blurb:
+      'No clock and no rung. The level rises while you are winning and falls while you are not, and where it settles is the score.',
+    accent: '#c58bff',
+  },
 };
 
+/**
+ * The two buttons a card offers.
+ *
+ * INFINITE is deliberately not on it. It is one mode's shape rather than a
+ * third question, and putting it in this list would print it on every champion
+ * card in the client — none of which has a floor that could move.
+ */
 export const RUN_MODE_LIST: ModeMeta[] = [RUN_MODES.play, RUN_MODES.survive];
 
 /** How long a run of `mode` lasts. Zero means "until it ends itself". */
 export const durationFor = (mode: RunMode): number => (mode === 'play' ? PLAY_SECONDS : 0);
+
+/**
+ * Whether a run's length was decided by the player rather than by the mode.
+ *
+ * Both open-ended shapes are long by construction, so neither is allowed to
+ * set a score record — a number that only goes up with time on the clock is
+ * not a record, it is a stopwatch. They can still set rate records, because a
+ * rate is a rate however long you held it.
+ */
+export const isOpenEnded = (mode: RunMode): boolean => mode !== 'play';
 
 /**
  * The practice list, in the order it is taught.

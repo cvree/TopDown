@@ -4,7 +4,7 @@ import { sanitizeOverrides } from '../engine/input';
 import { clamp, mean } from '../engine/math';
 import type { DerivedMetrics, RunMetrics, TimelineMark } from '../engine/metrics';
 import { DRILLS, isDrillId, type DrillId } from '../drills/catalog';
-import type { RunMode } from '../drills/modes';
+import { isOpenEnded, type RunMode } from '../drills/modes';
 import { detectErrors, isErrorCode, primaryLimiter, type DetectedError, type ErrorCode } from './errors';
 import {
   applyApmRun,
@@ -767,9 +767,10 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
   // A double-length run accumulates a longer score by construction, so it is
   // allowed to set rate records and never a score record.
   if (p.recentBests.length > 60) p.recentBests.splice(0, p.recentBests.length - 60);
-  // A survive run is scored the same way an endurance run always was: it is
-  // long by construction, so it may set rate records and never a score record.
-  const openEnded = opts.endurance || result.mode === 'survive';
+  // Both open-ended shapes are scored the same way an endurance run always
+  // was: they are long by construction, so they may set rate records and never
+  // a score record.
+  const openEnded = opts.endurance || isOpenEnded(result.mode);
   if (result.mode === 'survive') {
     const prevSurvive = p.survive[result.drill];
     if (!prevSurvive || result.seconds > prevSurvive.seconds) {
@@ -875,6 +876,20 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
   // The rate the ladder records is the *correct* one — the number the mode's
   // score is built on — rather than the raw headline rate, so a level record
   // can never be set by mashing.
+  // An infinite run hands back the floor it found rather than the rung it was
+  // pointed at, and it does it through the key metrics for the same reason
+  // the lane reads its tier off the difficulty: one channel per fact, so the
+  // arena and the ladder cannot disagree about what happened.
+  const heldMetric = result.keyMetrics.find((m) => m.id === 'labHeld')?.value;
+  const infinite =
+    result.mode === 'infinite' && heldMetric !== undefined
+      ? {
+          held: heldMetric,
+          peak: result.keyMetrics.find((m) => m.id === 'labPeak')?.value ?? heldMetric,
+          low: result.keyMetrics.find((m) => m.id === 'labLow')?.value ?? heldMetric,
+          seconds: result.seconds,
+        }
+      : undefined;
   const apm = isApmDrill(result.drill)
     ? applyApmRun(p.apm, {
         drill: result.drill,
@@ -883,6 +898,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
         score: result.score,
         apm: result.keyMetrics.find((m) => m.id === 'correctApm')?.value ?? 0,
         endurance: opts.endurance ?? false,
+        infinite,
       })
     : null;
 

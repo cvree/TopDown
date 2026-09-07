@@ -120,6 +120,9 @@ export function Practice({ profile, settings, onPlay }: Props) {
               corner dropping something you have to get out of the way of while your hands are
               busy. It measures one thing — correct commands a minute — and it is the only
               part of this client you play with a number in mind rather than a habit.
+              Right-click a bench and it stops asking you for a level: the floor moves under
+              your hands instead, up while you are winning and down while you are not, until
+              it finds the one you belong on.
             </p>
           </div>
 
@@ -539,8 +542,31 @@ function LabSection({
               [m.id]: Math.max(1, Math.min(level + by, rec.unlocked)),
             }));
           };
+          // Defensive, like everything else this screen reads out of a stored
+          // profile: a menu that throws on a half-written record is a player
+          // who cannot reach the screen that would fix it.
+          const inf = rec.infinite ?? { runs: 0, bestHeld: 0, bestPeak: 0, bestSeconds: 0, bestApm: 0 };
+          // The infinite run opens on whatever rung the card is showing and
+          // then stops caring about it. It is on the right mouse button
+          // because it is the same activity as PLAY with one thing removed —
+          // the choice of level — and a second full-size button would suggest
+          // it is a second mode rather than the same bench with the floor let
+          // loose. The chip under it is the same gesture for anyone whose
+          // pointer, browser or hands do not have a right click to give.
+          const goInfinite = () => {
+            audio.play('uiClick');
+            onPlay(m.id, 'infinite', { difficulty: levelDifficulty(level), level });
+          };
           return (
-            <article className="pr-lab-mode" key={m.id} style={{ ['--c' as string]: meta.accent }}>
+            <article
+              className="pr-lab-mode"
+              key={m.id}
+              style={{ ['--c' as string]: meta.accent }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                goInfinite();
+              }}
+            >
               <header className="pr-lab-head">
                 <b className="pr-lab-name">{meta.name}</b>
                 <span className="pr-lab-kind mono">{m.kind === 'isolated' ? 'ONE THING' : 'TWO AT ONCE'}</span>
@@ -591,6 +617,23 @@ function LabSection({
                   {lv.best > 0 ? `best ${Math.round(lv.best * 100)}%` : 'no run on this rung'}
                 </span>
               </button>
+              <button
+                className="pr-lab-inf"
+                onMouseEnter={() => audio.play('uiHover')}
+                onClick={goInfinite}
+                title={`${meta.name}: an infinite run, opening on level ${level}. Right-click the card for the same thing.`}
+              >
+                <span className="pr-inf-mark" aria-hidden>
+                  ∞
+                </span>
+                <span className="pr-inf-label">
+                  INFINITE
+                  <i>right-click</i>
+                </span>
+                <span className="pr-inf-best mono">
+                  {inf.runs > 0 ? `held ${inf.bestHeld.toFixed(1)}` : 'finds your level'}
+                </span>
+              </button>
             </article>
           );
         })}
@@ -598,8 +641,19 @@ function LabSection({
       <p className="set-note">
         A level is a place you go back to, beat, and leave behind. Clearing one opens the
         next; clearing it outright opens two, so a rung you are plainly past does not have to
-        be ground. Nothing here is adaptive — the number on the rung is the difficulty the
+        be ground. <b>PLAY</b> is not adaptive — the number on the rung is the difficulty the
         bench will be played at, and it scales the pads, the windows and the orbs together.
+      </p>
+      <p className="set-note">
+        <b>Right-click any bench</b> — or take the <b>∞</b> under it — for the one run in this
+        client that has no rung at all. <b>INFINITE</b> opens on the level the card is showing
+        and then lets the floor go: it comes up while you are winning and down while you are
+        drowning — about a rung every seven seconds at full tilt, and half again as fast
+        coming back down — until it finds the level at which you are just holding on. There is no clock, so it ends when you say so on the pause screen. The
+        rung it settles at is the score, and it is also the answer to the only question this
+        section has ever asked you — which level should I be practising. Holding one opens it
+        on the ladder above; it never awards a star, because a star is for beating a rung and
+        this is for standing on one.
       </p>
     </section>
   );

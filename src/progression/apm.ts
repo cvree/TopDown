@@ -1,6 +1,7 @@
 import { clamp } from '../engine/math';
 import { APM_DRILL_IDS, APM_TARGET_APM, isApmDrill, type ApmDrillId } from '../drills/apm';
 import { DRILLS } from '../drills/catalog';
+import { APM_LEVELS, CLEAR_AT, STAR_AT, levelDifficulty } from './apmladder';
 
 /**
  * The APM trainer's own progression.
@@ -28,23 +29,16 @@ import { DRILLS } from '../drills/catalog';
  *    level 10 is a different claim from three stars on level 1.
  */
 
-export const APM_LEVELS = 10;
-
-/** The performance a run needs to clear the level it was played at. */
-export const CLEAR_AT = 0.6;
-
-/** The two marks above the clear, for the second and third star. */
-export const STAR_AT: [number, number, number] = [CLEAR_AT, 0.74, 0.88];
-
 /**
- * The difficulty a level is played at.
+ * The ladder's geometry lives one file down, in `apmladder.ts`.
  *
- * Level 1 is deliberately gentle and level 10 is deliberately past what the
- * adaptive system would ever choose for you — the top of this ladder is meant
- * to be a wall, not a plateau.
+ * It is re-exported here because this is where the rest of the client has
+ * always asked for it, and it is *defined* there because the arena needs it
+ * too now: the infinite run moves the rung while the player is standing on it,
+ * and a drill importing this file would close a loop through the catalogue.
  */
-export const levelDifficulty = (level: number): number =>
-  clamp(0.08 + (clamp(level, 1, APM_LEVELS) - 1) * 0.1, 0.05, 1);
+export { APM_LEVELS, CLEAR_AT, STAR_AT, levelDifficulty };
+export { difficultyLevel } from './apmladder';
 
 export type ApmModeKind = 'isolated' | 'combined';
 
@@ -181,6 +175,28 @@ export interface ApmLevelRecord {
   bestApm: number;
 }
 
+/**
+ * What the infinite run leaves behind.
+ *
+ * Not a level record, because an infinite run is not played at a level — the
+ * floor moves the whole time, and writing its result onto whichever rung it
+ * happened to finish on would corrupt the one thing the explicit ladder is
+ * for. It keeps its own three numbers instead, and the only thing it is
+ * allowed to do to the ladder proper is *open* rungs: holding level seven is
+ * proof you may play level seven, and it is not proof that you cleared it.
+ */
+export interface ApmInfiniteRecord {
+  runs: number;
+  /** The highest rung ever held — the length-weighted mean of a whole run. */
+  bestHeld: number;
+  /** The highest the floor ever got, even for a moment. */
+  bestPeak: number;
+  /** The longest infinite run, in seconds. */
+  bestSeconds: number;
+  /** Best sustained correct actions a minute in an infinite run. */
+  bestApm: number;
+}
+
 export interface ApmModeRecord {
   levels: ApmLevelRecord[];
   /** Highest level that may be played, 1..APM_LEVELS. */
@@ -188,6 +204,8 @@ export interface ApmModeRecord {
   /** The level the player last chose, so the screen reopens where they left. */
   lastLevel: number;
   runs: number;
+  /** The open-ended run's own ledger. Synthesised for profiles without one. */
+  infinite: ApmInfiniteRecord;
 }
 
 export interface ApmProgress {
@@ -205,11 +223,20 @@ export interface ApmProgress {
 
 const emptyLevel = (): ApmLevelRecord => ({ runs: 0, best: 0, bestScore: 0, bestApm: 0 });
 
+const emptyInfinite = (): ApmInfiniteRecord => ({
+  runs: 0,
+  bestHeld: 0,
+  bestPeak: 0,
+  bestSeconds: 0,
+  bestApm: 0,
+});
+
 const emptyMode = (): ApmModeRecord => ({
   levels: Array.from({ length: APM_LEVELS }, emptyLevel),
   unlocked: 1,
   lastLevel: 1,
   runs: 0,
+  infinite: emptyInfinite(),
 });
 
 export const emptyApmProgress = (): ApmProgress => ({
@@ -249,6 +276,16 @@ export const normalizeApmProgress = (raw: Partial<ApmProgress> | undefined): Apm
     rec.unlocked = clamp(Math.round(src.unlocked ?? 1), 1, APM_LEVELS);
     rec.lastLevel = clamp(Math.round(src.lastLevel ?? 1), 1, APM_LEVELS);
     rec.runs = Math.max(0, src.runs ?? 0);
+    const inf = src.infinite;
+    if (inf) {
+      rec.infinite = {
+        runs: Math.max(0, inf.runs ?? 0),
+        bestHeld: clamp(inf.bestHeld ?? 0, 0, APM_LEVELS),
+        bestPeak: clamp(inf.bestPeak ?? 0, 0, APM_LEVELS),
+        bestSeconds: Math.max(0, inf.bestSeconds ?? 0),
+        bestApm: Math.max(0, inf.bestApm ?? 0),
+      };
+    }
     if (Array.isArray(src.levels)) {
       for (let i = 0; i < APM_LEVELS; i++) {
         const lv = src.levels[i];
@@ -384,6 +421,27 @@ export const seedApmLadder = (p: ApmProgress, overallRating: number): number => 
 
 // -------------------------------------------------------------------- runs
 
+/** What an infinite run did, for the screen that has to say so. */
+export interface ApmInfiniteReport {
+  /** The rung the run stood on: the length-weighted mean of the floor. */
+  held: number;
+  /** The highest it reached, and the lowest it fell to. */
+  peak: number;
+  low: number;
+  /** The rung the run opened on, and how long it lasted. */
+  opened: number;
+  seconds: number;
+  /** The records this run was measured against, as they stood before it. */
+  previousHeld: number;
+  previousPeak: number;
+  previousSeconds: number;
+  heldRecord: boolean;
+  peakRecord: boolean;
+  longest: boolean;
+  /** The rung this run opened in the ladder proper, if it opened one. */
+  unlockedTo: number | null;
+}
+
 export interface ApmRunReport {
   mode: ApmMode;
   level: number;
@@ -410,6 +468,16 @@ export interface ApmRunReport {
   /** Where the section will send them next. */
   nextLevel: number;
   endurance: boolean;
+  /** Present exactly when this was an infinite run. */
+  infinite: ApmInfiniteReport | null;
+}
+
+/** The floor's own account of an infinite run, read off its key metrics. */
+export interface ApmInfiniteInput {
+  held: number;
+  peak: number;
+  low: number;
+  seconds: number;
 }
 
 export interface ApmRunInput {
@@ -420,6 +488,12 @@ export interface ApmRunInput {
   /** Sustained correct actions per minute, from the run's key metrics. */
   apm: number;
   endurance: boolean;
+  /**
+   * Set when the run had no rung to write to because the rung moved. The
+   * level above is then the rung it *opened* on, which is a fact about where
+   * the player pointed the menu rather than about what they played.
+   */
+  infinite?: ApmInfiniteInput;
 }
 
 /**
@@ -442,6 +516,78 @@ export const applyApmRun = (p: ApmProgress, run: ApmRunInput): ApmRunReport => {
   const clearedBefore = levelCleared(lv);
 
   rec.runs += 1;
+  if (run.apm > p.bestApm) {
+    p.bestApm = run.apm;
+    p.bestApmMode = run.drill;
+  }
+
+  // ------------------------------------------------------------- infinite
+  //
+  // A run whose floor moved is scored against itself and against nothing on
+  // the ladder. It writes its own three records, it opens the rungs it proved
+  // it can stand on, and it leaves every star exactly where it found it —
+  // because a star is a claim about a *fixed* rung, and this run did not play
+  // one.
+  if (run.infinite) {
+    const inf = rec.infinite;
+    const held = clamp(run.infinite.held, 1, APM_LEVELS);
+    const peak = clamp(run.infinite.peak, 1, APM_LEVELS);
+    const previousHeld = inf.bestHeld;
+    const previousPeak = inf.bestPeak;
+    const previousSeconds = inf.bestSeconds;
+    const previousApm = inf.bestApm;
+    inf.runs += 1;
+    inf.bestHeld = Math.max(inf.bestHeld, held);
+    inf.bestPeak = Math.max(inf.bestPeak, peak);
+    inf.bestSeconds = Math.max(inf.bestSeconds, run.infinite.seconds);
+    inf.bestApm = Math.max(inf.bestApm, run.apm);
+    // Holding a rung opens it. It does not clear it: access is a claim about
+    // what you can survive, and a star is a claim about what you can beat.
+    const openedBefore = rec.unlocked;
+    rec.unlocked = clamp(Math.max(rec.unlocked, Math.floor(held)), 1, APM_LEVELS);
+    rec.lastLevel = clamp(Math.round(held), 1, APM_LEVELS);
+
+    p.mastery = computeApmMastery(p);
+    p.peak = Math.max(p.peak, p.mastery);
+
+    return {
+      mode,
+      level,
+      performance: run.performance,
+      cleared: levelCleared(lv),
+      firstClear: false,
+      starsBefore,
+      starsAfter: starsBefore,
+      previousBest,
+      best: lv.best,
+      apm: run.apm,
+      bestApm: inf.bestApm,
+      apmRecord: run.apm > previousApm,
+      unlockedTo: null,
+      skipped: false,
+      masteryBefore,
+      masteryAfter: p.mastery,
+      titleBefore,
+      titleAfter: apmTitleFor(p.peak),
+      nextLevel: recommendedLevel(p, run.drill),
+      endurance: true,
+      infinite: {
+        held,
+        peak,
+        low: clamp(run.infinite.low, 1, APM_LEVELS),
+        opened: level,
+        seconds: run.infinite.seconds,
+        previousHeld,
+        previousPeak,
+        previousSeconds,
+        heldRecord: held > previousHeld,
+        peakRecord: peak > previousPeak,
+        longest: run.infinite.seconds > previousSeconds,
+        unlockedTo: rec.unlocked > openedBefore ? rec.unlocked : null,
+      },
+    };
+  }
+
   rec.lastLevel = level;
   lv.runs += 1;
   if (run.performance > lv.best) lv.best = clamp(run.performance, 0, 1);
@@ -451,10 +597,6 @@ export const applyApmRun = (p: ApmProgress, run: ApmRunInput): ApmRunReport => {
   if (!run.endurance) lv.bestScore = Math.max(lv.bestScore, run.score);
   const apmRecord = run.apm > lv.bestApm;
   lv.bestApm = Math.max(lv.bestApm, run.apm);
-  if (run.apm > p.bestApm) {
-    p.bestApm = run.apm;
-    p.bestApmMode = run.drill;
-  }
 
   const cleared = levelCleared(lv);
   const firstClear = cleared && !clearedBefore;
@@ -490,6 +632,7 @@ export const applyApmRun = (p: ApmProgress, run: ApmRunInput): ApmRunReport => {
     titleAfter: apmTitleFor(p.peak),
     nextLevel: recommendedLevel(p, run.drill),
     endurance: run.endurance,
+    infinite: null,
   };
 };
 

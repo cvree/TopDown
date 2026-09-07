@@ -452,7 +452,63 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
           </div>
         )}
 
-        {report.apm && (
+        {report.apm?.infinite && (
+          <div className={`res-apm ${stage >= 3 ? 'in' : ''}`}>
+            <div className="panel pad">
+              <div className="panel-title">The tide</div>
+              <div className="ra-grid">
+                <div className="ra-level">
+                  <span className="eyebrow">
+                    Opened on level {report.apm.infinite.opened} · {Math.round(report.apm.infinite.seconds)}s
+                  </span>
+                  <div className="ra-num display">{report.apm.infinite.held.toFixed(1)}</div>
+                  <div className="ra-best mono">
+                    LEVEL HELD
+                    {report.apm.infinite.heldRecord ? (
+                      <i className="good"> · BEST EVER</i>
+                    ) : (
+                      report.apm.infinite.previousHeld > 0 && (
+                        <i className="faint"> · best {report.apm.infinite.previousHeld.toFixed(1)}</i>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                <div className="ra-rate">
+                  <span className="eyebrow">Reached</span>
+                  <div className="ra-num display">{report.apm.infinite.peak.toFixed(1)}</div>
+                  <span className={report.apm.infinite.peakRecord ? 'good mono' : 'faint mono'}>
+                    {report.apm.infinite.peakRecord
+                      ? 'HIGHEST FLOOR YET'
+                      : `fell to ${report.apm.infinite.low.toFixed(1)}`}
+                  </span>
+                </div>
+
+                <div className="ra-title">
+                  <span className="eyebrow">Correct actions / min</span>
+                  <b className="display">{Math.round(report.apm.apm)}</b>
+                  <p>
+                    {report.apm.apmRecord ? 'RATE RECORD' : `best ${Math.round(report.apm.bestApm)}`}
+                    {report.apm.infinite.longest && <span className="ra-new">LONGEST</span>}
+                  </p>
+                </div>
+              </div>
+
+              {report.apm.infinite.unlockedTo !== null ? (
+                <div className="ra-unlock">
+                  You stood on it, so it is yours to play. <b>Level {report.apm.infinite.unlockedTo}</b> is
+                  now open on the ladder — no star, because holding a rung is not beating one.
+                </div>
+              ) : (
+                <div className="ra-unlock quiet">
+                  {`The floor settled at ${report.apm.infinite.held.toFixed(1)}. That is the rung to play for score: the hardest one you can still hold clean.`}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {report.apm && !report.apm.infinite && (
           <div className={`res-apm ${stage >= 3 ? 'in' : ''}`}>
             <div className="panel pad">
               <div className="panel-title">The APM ladder</div>

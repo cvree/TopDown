@@ -17,6 +17,8 @@ import {
   type RunResult,
 } from '../progression/profile';
 import { LANE_TIERS, laneTierOf } from '../progression/lane';
+import { APM_LEVELS, levelDifficulty } from '../progression/apm';
+import { clamp } from '../engine/math';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
 import { PATCH_NOTES, VERSION } from '../patchnotes/notes';
 import type { SkillAxis } from '../progression/skills';
@@ -77,6 +79,14 @@ interface Flow {
    * chance for the two to disagree.
    */
   level?: number;
+  /**
+   * The rung an infinite run settled at, once it has been played.
+   *
+   * Kept on the flow rather than read back out of the result, because the
+   * button that uses it — "play the level it found" — has to still be right
+   * after the results screen has been dismissed and re-entered.
+   */
+  heldLevel?: number;
 }
 
 interface ResultState {
@@ -243,6 +253,14 @@ export function App() {
         return;
       }
 
+      // The rung the tide settled at, kept for the button that offers to play
+      // it for score. Read off the run's own metric rather than recomputed,
+      // so the menu and the ladder are quoting the same number.
+      if (flow.mode === 'infinite') {
+        const held = result.keyMetrics.find((m) => m.id === 'labHeld')?.value;
+        if (held !== undefined) setFlow((f) => (f ? { ...f, heldLevel: held } : f));
+      }
+
       let report: ProgressReport | null = null;
       setProfile((prev) => {
         const next: Profile = {
@@ -327,6 +345,21 @@ export function App() {
       setFlow({ ...flow, difficulty: next.difficulty, seed: newSeed() });
       return;
     }
+    // An infinite run's "next" is the rung it just found, played for score:
+    // the whole point of the tide is to hand you a level worth playing, and
+    // the only way to put one on the board is a one-minute rep at it.
+    if (flow.mode === 'infinite') {
+      const held = clamp(Math.round(flow.heldLevel ?? flow.level ?? 1), 1, APM_LEVELS);
+      setFlow({
+        ...flow,
+        mode: 'play',
+        level: held,
+        difficulty: levelDifficulty(held),
+        heldLevel: undefined,
+        seed: newSeed(),
+      });
+      return;
+    }
     setFlow({ ...flow, mode: flow.mode === 'play' ? 'survive' : 'play', seed: newSeed() });
   }, [flow]);
 
@@ -368,7 +401,9 @@ export function App() {
           context={
             flow.drill === 'lanePhase'
               ? `LANE PHASE · ${laneTierOf(difficulty).label}`
-              : `${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`
+              : flow.mode === 'infinite'
+                ? `${DRILLS[flow.drill].name} · INFINITE · opened on level ${flow.level ?? 1}`
+                : `${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`
           }
           onComplete={handleComplete}
           onExit={exitToMenu}
@@ -392,7 +427,9 @@ export function App() {
                       )
                     ].label
                   }`
-                : `Try ${RUN_MODES[flow.mode === 'play' ? 'survive' : 'play'].label}`
+                : flow.mode === 'infinite'
+                  ? `Play level ${clamp(Math.round(flow.heldLevel ?? flow.level ?? 1), 1, APM_LEVELS)} for score`
+                  : `Try ${RUN_MODES[flow.mode === 'play' ? 'survive' : 'play'].label}`
             }
           />
         )}

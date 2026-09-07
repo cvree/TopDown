@@ -441,3 +441,58 @@
 .pr-lab-mode .pr-go {
   margin-top: 2px;
 }
+
+/* ------------------------------------------------------------------ infinite
+ *
+ * The second way into a bench. Deliberately a chip rather than a second
+ * PLAY-sized button: it is the same mode with the level taken away, not a
+ * second mode, and the card should read as one activity with a variant under
+ * it. The ∞ is the affordance; the "right-click" line under the word is there
+ * because the gesture it names is invisible otherwise.
+ */
+.pr-lab-inf {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--c) 26%, var(--stroke));
+  border-left: 2px solid color-mix(in srgb, var(--c) 60%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 9%, transparent), transparent 70%);
+  color: var(--text-2);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.16s var(--ease), background 0.16s var(--ease), transform 0.16s var(--ease);
+}
+.pr-lab-inf:hover {
+  transform: translateX(2px);
+  border-color: color-mix(in srgb, var(--c) 70%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 20%, transparent), transparent 76%);
+}
+.pr-inf-mark {
+  font-size: 19px;
+  line-height: 1;
+  color: var(--c);
+  opacity: 0.9;
+}
+.pr-inf-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  color: var(--text-1);
+}
+.pr-inf-label i {
+  font-style: normal;
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  color: var(--text-3);
+}
+.pr-inf-best {
+  margin-left: auto;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+}
