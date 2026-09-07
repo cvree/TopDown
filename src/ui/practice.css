@@ -86,7 +86,10 @@
   flex-shrink: 0;
 }
 .pr-keys i {
-  width: 24px;
+  /* Wide enough for a letter, and free to grow for a binding that is not one:
+     these print the key the player has, and that key can be RMB. */
+  min-width: 24px;
+  padding: 0 4px;
   height: 24px;
   display: grid;
   place-content: center;

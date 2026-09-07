@@ -14,11 +14,14 @@ import type { ApmDrillId } from '../drills/apm';
 import { LANE_LENGTHS, LANE_TIERS, type LaneTier } from '../progression/lane';
 import { CAITLYN_STATS, caitlynCd } from '../engine/caitlyn';
 import { VAYNE_STATS, tumbleCdAt, condemnCdAt, condemnPracticeCdAt } from '../engine/vayne';
-import type { Profile } from '../progression/profile';
+import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from '../engine/input';
+import type { AppSettings, Profile } from '../progression/profile';
 import './practice.css';
 
 interface Props {
   profile: Profile;
+  /** The layout every key printed on this screen is read from. */
+  settings: AppSettings;
   onPlay: (
     id: DrillId,
     mode: RunMode,
@@ -30,12 +33,29 @@ interface Props {
 const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 /** Which keys a mode actually hands you, in the order they sit on the bar. */
-const KIT_ORDER: { slot: string; name: string }[] = [
-  { slot: 'Q', name: 'TUMBLE' },
-  { slot: 'W', name: 'SILVER BOLTS' },
-  { slot: 'E', name: 'CONDEMN' },
-  { slot: 'R', name: 'FINAL HOUR' },
+const KIT_ORDER: { slot: AbilitySlot; name: string }[] = [
+  { slot: 'q', name: 'TUMBLE' },
+  { slot: 'w', name: 'SILVER BOLTS' },
+  { slot: 'e', name: 'CONDEMN' },
+  { slot: 'r', name: 'FINAL HOUR' },
 ];
+
+/**
+ * The keys this profile plays on.
+ *
+ * The menu used to print the slot's *name* — a literal Q, W, E, R — which is
+ * the letter League ships and not necessarily the letter this player presses.
+ * A card that says a mode hands you Q, next to a run in which Q is on the
+ * right mouse button, is the menu disagreeing with the arena about the one
+ * thing they both have to agree on.
+ */
+const bindingsOf = (settings: AppSettings | undefined): Bindings => {
+  // Optional chaining because a stored profile is not trusted anywhere else in
+  // the client either, and a menu that throws on a half-written settings block
+  // is a player who cannot reach the screen that would fix it.
+  const scheme = settings?.movementScheme ?? 'click';
+  return resolveBindings(scheme, scheme === 'wasd' ? settings?.wasdBindings : settings?.bindings);
+};
 
 /**
  * THE MENU.
@@ -60,7 +80,8 @@ const KIT_ORDER: { slot: string; name: string }[] = [
  *    her kit under the list exactly as the champion's own is printed, because
  *    a window you are expected to beat has to be a number you can check.
  */
-export function Practice({ profile, onPlay }: Props) {
+export function Practice({ profile, settings, onPlay }: Props) {
+  const bound = bindingsOf(settings);
 
   return (
     <div className="scroll">
@@ -104,11 +125,11 @@ export function Practice({ profile, onPlay }: Props) {
 
         </header>
 
-        <LaneCard profile={profile} onPlay={onPlay} />
+        <LaneCard profile={profile} bound={bound} onPlay={onPlay} />
 
         <div className="pr-modes">
           {PRACTICE_MODES.map((id) => (
-            <ModeCard key={id} id={id} profile={profile} onPlay={onPlay} />
+            <ModeCard key={id} id={id} profile={profile} bound={bound} onPlay={onPlay} />
           ))}
         </div>
 
@@ -143,9 +164,11 @@ export function Practice({ profile, onPlay }: Props) {
  */
 function LaneCard({
   profile,
+  bound,
   onPlay,
 }: {
   profile: Profile;
+  bound: Bindings;
   onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number }) => void;
 }) {
   const meta = DRILLS.lanePhase;
@@ -232,7 +255,8 @@ function LaneCard({
         cannon, and 21, 14 and 60 gold. Your turret hits for 152 and ramps forty per cent a
         shot into a champion. You both start at level one on base statistics, take a point
         every time the wave pays for one, and regenerate at League's rate — which is to say
-        hardly at all, so <b>F</b> to recall is a real decision and not a convenience. There
+        hardly at all, so <b>{shortCodeLabel(bound.f.primary)}</b> to recall is a real decision and
+        not a convenience. There
         is no shop, so gold is the scoreboard rather than a purchase, and no jungler, so
         nobody is walking out of the river.
       </p>
@@ -243,16 +267,18 @@ function LaneCard({
 function ModeCard({
   id,
   profile,
+  bound,
   onPlay,
 }: {
   id: DrillId;
   profile: Profile;
+  bound: Bindings;
   onPlay: (id: DrillId, mode: RunMode) => void;
 }) {
   const meta = DRILLS[id];
   const best = profile.bests[id];
   const survived = profile.survive[id];
-  const uses = new Set(meta.abilities.map((a) => a.toUpperCase()));
+  const uses = new Set<AbilitySlot>(meta.abilities);
 
   return (
     <section className="pr-card panel" style={{ ['--c' as string]: meta.accent }}>
@@ -267,7 +293,7 @@ function ModeCard({
           <div className="pr-keys">
             {KIT_ORDER.map((k) => (
               <i key={k.slot} className={uses.has(k.slot) ? 'on' : ''} title={k.name}>
-                {k.slot}
+                {shortCodeLabel(bound[k.slot].primary)}
               </i>
             ))}
           </div>

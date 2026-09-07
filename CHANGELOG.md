@@ -6,10 +6,31 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.8.0**.
+Currently shipping **v2.8.1**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.8.1 — YOUR KEYS
+
+*2026-09-07*
+
+Every key this client prints on a screen is now the key you would actually press, and the ultimate key has stopped throwing lab runs away.
+
+### Changed
+
+- The ultimate key is the ultimate key, and nothing else. It used to double as instant reset in any drill that left the slot idle — which is seven of the thirteen lab benches — so a stray press of the far bank’s second key threw the run away and started it again, with nothing on screen saying it would. Instant reset now only ever answers to its own binding, which the pause screen prints.
+- A hint whose action you have unbound is dropped from the row rather than printed with a dash next to it.
+- The lab’s hint row names the bench keys it is about to ask you for, so the first prompt of your first run is not the first time you meet them.
+
+### Fixed
+
+- The lab prints your bindings rather than the layout it ships with. Every pad on every bench, every box in the key queue and both lanes on the board in the corner were reading the *scheme’s defaults* — so a player who had moved their ability row was being asked for Q while their Q was somewhere else entirely, and a mode that puts a letter on a circle and asks you to press it is unplayable for exactly as long as that takes to work out.
+- A binding on a mouse button is printed as one. Q on the right button says RMB on the pad, on the ability bar, in the queue and in the hint row, in place of a letter nothing on your desk is labelled with.
+- The hint row down the side of the arena reads your layout instead of naming the keys the client shipped with. Move, attack-move, stop, the camera check, the camera lock and the whole ability row were string literals — true of a fresh profile and of nothing else — and it is the first thing a new player reads.
+- Rebinding from inside a run reaches the bench. The lab reads its keys every frame it prints one, so a key changed on the pause screen is on the pads by the time the panel closes, which is the only way to test a rebind that actually counts.
+- The practice menu names the keys a mode hands you rather than the letters League ships. The kit badges on every card, and the recall key in the lane’s own paragraph, come from your bindings.
+- The attack-range card in Settings prints the key the check is on rather than promising Space to somebody who moved it.
 
 ## v2.8.0 — THE BENCH MOVES
 

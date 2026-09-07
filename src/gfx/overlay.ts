@@ -294,9 +294,15 @@ export class OverlayHud {
 
           g.textAlign = 'center';
           g.textBaseline = 'middle';
+          // The box is a fixed 46 pixels and the text in it is a binding, so
+          // it is a letter on most keyboards and LSHIFT on somebody's. Shrink
+          // to fit rather than let a rebind run out over the box beside it.
+          const glyph = b.seq[i].toUpperCase();
           g.font = '700 20px "Chakra Petch", "Inter", sans-serif';
+          const over = g.measureText(glyph).width / (boxW - 8);
+          if (over > 1) g.font = `700 ${Math.max(9, Math.floor(20 / over))}px "Chakra Petch", "Inter", sans-serif`;
           g.fillStyle = done ? '#8ff0bb' : active ? '#eafcff' : '#93a6bd';
-          g.fillText(b.seq[i].toUpperCase(), bx + boxW / 2, y + 17);
+          g.fillText(glyph, bx + boxW / 2, y + 17);
           g.font = '600 9px "Inter", sans-serif';
           g.fillStyle = 'rgba(190,208,228,0.75)';
           g.fillText(b.labels[i] ?? '', bx + boxW / 2, y + 34);

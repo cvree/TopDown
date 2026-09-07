@@ -2,9 +2,13 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ReactElement }
 import { audio } from '../engine/audio';
 import {
   InputSystem,
+  MOVE_ACTIONS,
+  UNBOUND,
   codeLabel,
   resolveBindings,
+  shortCodeLabel,
   type AbilitySlot,
+  type ActionId,
   type Bindings,
   type MovementScheme,
 } from '../engine/input';
@@ -113,37 +117,77 @@ const bindingsFor = (settings: AppSettings, drill: DrillId): Bindings => {
   return resolveBindings(scheme, scheme === 'wasd' ? settings.wasdBindings : settings.bindings);
 };
 
-/** The hint row, which is different in the two schemes and short in both. */
-const HINTS: Record<MovementScheme, { key: string; label: string }[]> = {
-  click: [
-    { key: 'RMB', label: 'move · attack' },
-    { key: 'A', label: 'attack-move' },
-    { key: 'S', label: 'stop' },
-    { key: 'SPACE', label: 'centre · check range' },
-    { key: 'Y', label: 'camera lock' },
-    { key: 'WHEEL', label: 'zoom' },
-    { key: 'ESC', label: 'pause · settings' },
-  ],
-  wasd: [
-    { key: 'WASD', label: 'move' },
-    { key: 'LMB', label: 'attack' },
-    { key: 'Q E R F', label: 'abilities' },
-    // Both ways of buying a shot, because there are two and a player who only
-    // knows the first one is orbwalking with one hand tied.
-    { key: 'RELEASE', label: 'or LMB to shoot' },
-    { key: 'SPACE', label: 'centre · check range' },
-    { key: 'WHEEL', label: 'zoom' },
-    { key: 'ESC', label: 'pause · settings' },
-  ],
+/**
+ * One line of the hint row.
+ *
+ * The id is what the drill-specific rows filter on. It used to be the label
+ * text, which meant a row could only be kept by matching an English sentence
+ * against a list of English sentences — and one of those sentences had been
+ * edited since the list was written, so the row it named had quietly stopped
+ * being kept at all.
+ */
+interface Hint {
+  id: string;
+  key: string;
+  label: string;
+}
+
+/** The key an action is on, as printed. */
+const keyOf = (b: Bindings, action: ActionId): string => shortCodeLabel(b[action].primary);
+
+/**
+ * Four movement keys as one chip.
+ *
+ * WASD reads as a word and W A S D does not, so single-character keys are run
+ * together; the moment one of them is Left Shift they need the space back.
+ */
+const joinKeys = (keys: string[]): string =>
+  keys.every((k) => k.length === 1) ? keys.join('') : keys.join(' ');
+
+/**
+ * The hint row, read off the player's own layout.
+ *
+ * Every key in it used to be a string literal — RMB, A, S, SPACE, Y — which
+ * was true of a fresh profile and of nothing else. A hint row that names the
+ * key you have not got is worse than no hint row: it is the first thing a new
+ * player reads and the reason they conclude the drill is broken.
+ */
+const baseHints = (scheme: MovementScheme, b: Bindings): Hint[] => {
+  // Escape pauses whatever Pause is bound to — the input system guarantees it
+  // — so this row is the one that is honest about naming a fixed key.
+  const pause = { id: 'pause', key: 'ESC', label: 'pause · settings' };
+  const check = { id: 'check', key: keyOf(b, 'centerCamera'), label: 'centre · check range' };
+  const zoom = { id: 'zoom', key: 'WHEEL', label: 'zoom' };
+  if (scheme === 'wasd') {
+    // The confirm button rather than the modifier: under WASD the modifier is
+    // Shift and what you actually press to shoot something is the click.
+    const attack = shortCodeLabel(b.attackMove.secondary ?? 'Mouse0');
+    return [
+      { id: 'move', key: joinKeys(MOVE_ACTIONS.map((a) => keyOf(b, a))), label: 'move' },
+      { id: 'attack', key: attack, label: 'attack' },
+      { id: 'abilities', key: (['q', 'w', 'e', 'r'] as ActionId[]).map((a) => keyOf(b, a)).join(' '), label: 'abilities' },
+      // Both ways of buying a shot, because there are two and a player who only
+      // knows the first one is orbwalking with one hand tied.
+      { id: 'release', key: 'RELEASE', label: `or ${attack} to shoot` },
+      check,
+      zoom,
+      pause,
+    ];
+  }
+  return [
+    { id: 'move', key: keyOf(b, 'move'), label: 'move · attack' },
+    { id: 'attackMove', key: keyOf(b, 'attackMove'), label: 'attack-move' },
+    { id: 'stop', key: keyOf(b, 'stop'), label: 'stop' },
+    check,
+    { id: 'cameraLock', key: keyOf(b, 'cameraLock'), label: 'camera lock' },
+    zoom,
+    pause,
+  ];
 };
 
-
-
-/** What is actually printed on the ability key, which the scheme decides. */
-const abilityKeyLabel = (settings: AppSettings, drill: DrillId, slot: AbilitySlot): string => {
-  const b = bindingsFor(settings, drill)[slot];
-  return codeLabel(b.primary).toUpperCase();
-};
+/** What is actually printed on the ability key, which the player decides. */
+const abilityKeyLabel = (settings: AppSettings, drill: DrillId, slot: AbilitySlot): string =>
+  shortCodeLabel(bindingsFor(settings, drill)[slot].primary);
 
 /** Vayne's kit, by the name each slot answers to. */
 const VAYNE_SLOT_NAMES: Partial<Record<AbilitySlot, string>> = {
@@ -163,17 +207,19 @@ const VAYNE_SLOT_NAMES: Partial<Record<AbilitySlot, string>> = {
  * key each ability is *actually* on, read from the live bindings, with the
  * ability's own name next to it.
  */
-const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: string }[] => {
+const hintsFor = (settings: AppSettings, drill: DrillId): Hint[] => {
   const scheme = schemeFor(settings, drill);
-  // The check is the only hint whose key is worth reading off the live
-  // bindings even here: it is the one press that answers a question the screen
-  // is otherwise refusing to answer, so a player who has rebound it must not
-  // be told to press the key it used to be on.
-  const camKey = codeLabel(bindingsFor(settings, drill).centerCamera.primary).toUpperCase();
-  const base = HINTS[scheme].map((h) =>
-    h.label === 'centre · check range' ? { key: camKey, label: h.label } : h,
-  );
+  const base = baseHints(scheme, bindingsFor(settings, drill));
   const meta = DRILLS[drill];
+  /**
+   * The generic rows a mode keeps once its own keys have pushed the rest out.
+   *
+   * A row whose key is unbound is dropped rather than printed as a dash: the
+   * player took that action off their keyboard on purpose, and a hint that
+   * names no key is a line of the cheat sheet spent saying nothing.
+   */
+  const keep = (ids: string[]): Hint[] =>
+    base.filter((h) => ids.includes(h.id) && h.key !== shortCodeLabel(UNBOUND));
   // The lane is played as Vayne but is not on the champion path, and it has
   // one key nothing else in the client has: recall. A ten minute mode whose
   // most important decision is on an unlabelled key would be a mode where
@@ -181,13 +227,12 @@ const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: 
   if (drill === 'lanePhase') {
     const kit = (['q', 'w', 'e', 'r', 'd'] as AbilitySlot[])
       .filter((slot) => VAYNE_SLOT_NAMES[slot] && slot !== 'w')
-      .map((slot) => ({ key: abilityKeyLabel(settings, drill, slot), label: VAYNE_SLOT_NAMES[slot] as string }));
-    const keep = scheme === 'wasd' ? ['move', 'attack', 'to shoot'] : ['move · attack', 'attack-move'];
+      .map((slot) => ({ id: slot, key: abilityKeyLabel(settings, drill, slot), label: VAYNE_SLOT_NAMES[slot] as string }));
     return [
-      ...base.filter((h) => keep.includes(h.label)),
+      ...keep(scheme === 'wasd' ? ['move', 'attack'] : ['move', 'attackMove']),
       ...kit,
-      { key: abilityKeyLabel(settings, drill, 'f'), label: 'recall' },
-      { key: 'ESC', label: 'pause · settings' },
+      { id: 'recall', key: abilityKeyLabel(settings, drill, 'f'), label: 'recall' },
+      { id: 'pause', key: 'ESC', label: 'pause · settings' },
     ];
   }
   // The lab's two lane keys. The board in the corner prints them under its own
@@ -195,22 +240,31 @@ const hintsFor = (settings: AppSettings, drill: DrillId): { key: string; label: 
   // reading a hundred-and-fifty-pixel panel for the first time.
   if (meta.group === 'APM') {
     const lanes = MAP_KEYS.map((slot) => abilityKeyLabel(settings, drill, slot)).join(' ');
-    const keep = scheme === 'wasd' ? ['move', 'attack'] : ['move · attack'];
+    // The bench is the ability row, and which of it a mode uses is the mode's
+    // own business — but which keys those are is the player's, so the row
+    // names them rather than leaving a bench of circles to be decoded.
+    const bench = meta.abilities.filter((slot) => !MAP_KEYS.includes(slot));
     return [
-      ...base.filter((h) => keep.includes(h.label)),
-      { key: lanes, label: 'lanes · dodge the map' },
-      { key: 'ESC', label: 'pause · settings' },
+      // The bench is keys and the board is keys; the only pointer row worth a
+      // line here is the one that puts the cursor on a pad.
+      ...keep(scheme === 'wasd' ? ['move', 'attack'] : ['move']),
+      ...(bench.length
+        ? [{ id: 'bench', key: bench.map((slot) => abilityKeyLabel(settings, drill, slot)).join(' '), label: 'the bench' }]
+        : []),
+      { id: 'lanes', key: lanes, label: 'lanes · dodge the map' },
+      { id: 'pause', key: 'ESC', label: 'pause · settings' },
     ];
   }
-  if (meta.group !== 'VAYNE') return base;
+  if (meta.group !== 'VAYNE') return base.filter((h) => h.key !== shortCodeLabel(UNBOUND));
   // Silver Bolts is a passive counter rather than a key, so it never appears.
   const kit = meta.abilities
     .filter((slot) => slot !== 'w' && VAYNE_SLOT_NAMES[slot])
-    .map((slot) => ({ key: abilityKeyLabel(settings, drill, slot), label: VAYNE_SLOT_NAMES[slot] as string }));
-  // The row is only useful while it is short, so the champion's own keys push
-  // out the generic ones rather than queueing behind them.
-  const keep = scheme === 'wasd' ? ['move', 'attack', 'to shoot'] : ['move · attack', 'attack-move'];
-  return [...base.filter((h) => keep.includes(h.label)), ...kit, { key: 'ESC', label: 'pause · settings' }];
+    .map((slot) => ({ id: slot, key: abilityKeyLabel(settings, drill, slot), label: VAYNE_SLOT_NAMES[slot] as string }));
+  return [
+    ...keep(scheme === 'wasd' ? ['move', 'attack'] : ['move', 'attackMove']),
+    ...kit,
+    { id: 'pause', key: 'ESC', label: 'pause · settings' },
+  ];
 };
 
 export function GameView({
@@ -326,6 +380,9 @@ export function GameView({
         difficulty,
         abilities: meta.abilities,
         scheme,
+        // So a drill that prints a key prints the player's key. The lab is the
+        // only thing that reads it, and it is the whole of its console.
+        bindings: bindingsFor(settings, drill),
         tumbleAim: settings.tumbleAim ?? 'hands',
         hero: settings.hero,
         fogOfWar: settings.fogOfWar !== false,
@@ -699,6 +756,9 @@ export function GameView({
       scheme,
     });
     session.config.scheme = scheme;
+    // The lab reads this every frame it prints a key on, so a rebind made on
+    // the pause screen is on the bench by the time the panel closes.
+    session.config.bindings = bindingsFor(settings, drill);
     session.config.tumbleAim = settings.tumbleAim ?? 'hands';
     // Under WASD the champion is steered rather than sent, and that is a flag
     // on the actor: switching schemes mid-run has to move it, or the champion
@@ -897,7 +957,7 @@ export function GameView({
             leaves is a cheat sheet you stop reading and start seeing. */}
         <div className="hud-hints">
           {hintsFor(settings, drill).map((h) => (
-            <span key={h.key}>
+            <span key={h.id}>
               <b className="kbd">{h.key}</b> {h.label}
             </span>
           ))}
@@ -914,7 +974,7 @@ export function GameView({
             learns how long one lasts by watching one. */}
         {settings.rangeDisplay === 'check' && (
           <div className="hud-check" data-check>
-            <b className="kbd">{codeLabel(bindingsFor(settings, drill).centerCamera.primary).toUpperCase()}</b>
+            <b className="kbd">{shortCodeLabel(bindingsFor(settings, drill).centerCamera.primary)}</b>
             <span>RANGE</span>
             <i className="hc-bar">
               <b data-check-fill />

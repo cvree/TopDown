@@ -506,7 +506,7 @@ export function App() {
             exitLabel="Back to practice"
           >
             {route === 'practice' && (
-              <Practice profile={profile} onPlay={startRun} />
+              <Practice profile={profile} settings={profile.settings} onPlay={startRun} />
             )}
             {route === 'progress' && (
               <Progress

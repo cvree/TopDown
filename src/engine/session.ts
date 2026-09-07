@@ -3,7 +3,7 @@ import type { MapBoard } from './mapboard';
 import { SURVIVE_RAMP, SURVIVE_RAMP_RANGE, SURVIVE_STRIKES, type RunMode } from '../drills/modes';
 import { FxSystem } from './fx';
 import { DEFAULT_HERO, type HeroId } from './heroes';
-import type { AbilitySlot, InputSystem, MovementScheme } from './input';
+import { defaultsFor, type AbilitySlot, type Bindings, type InputSystem, type MovementScheme } from './input';
 import { clamp, dist } from './math';
 import { MetricsRecorder } from './metrics';
 import { PALETTE } from './palette';
@@ -141,6 +141,19 @@ export interface SessionConfig {
   abilities: AbilitySlot[];
   /** How the champion is driven. Defaults to League's click scheme. */
   scheme?: MovementScheme;
+  /**
+   * The keys this run is actually played on.
+   *
+   * The simulation never presses a key — the input system has already turned
+   * one into an action by the time anything here sees it — so this is here for
+   * exactly one reason: a drill that *prints* a key has to print the key the
+   * player would press. The lab is the whole of that, and it used to print the
+   * scheme's defaults, which is a lie the moment anybody rebinds anything.
+   *
+   * Optional, and it falls back to the scheme's defaults, so the headless
+   * harness can keep building a session out of a config and a fake input.
+   */
+  bindings?: Bindings;
   /** Where a dash points under WASD. Meaningless under the click scheme. */
   tumbleAim?: TumbleAim;
   /**
@@ -259,6 +272,11 @@ export class Session {
 
   get scheme(): MovementScheme {
     return this.config.scheme ?? 'click';
+  }
+
+  /** The player's own layout, for anything that has to name a key on screen. */
+  get bindings(): Bindings {
+    return this.config.bindings ?? defaultsFor(this.scheme);
   }
 
   get mode(): RunMode {

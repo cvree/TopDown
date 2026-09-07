@@ -21,6 +21,7 @@ import {
   codeLabel,
   findConflicts,
   resolveBindings,
+  shortCodeLabel,
   type AbilitySlot,
   type Bindings,
   type InputEventKind,
@@ -3529,6 +3530,46 @@ line('\n=== BINDINGS: a rebound key is the binding ===');
     input.detach();
   }
 
+  // --- the ultimate key is not a restart button -------------------------
+  //
+  // R used to double as instant reset in any drill that left the slot idle,
+  // which is seven of the thirteen lab benches. Pressing the far bank's second
+  // key on one of those threw the run away and started it again, and no HUD
+  // anywhere said it would.
+  {
+    const input = rig(resolveBindings('click', {}), 'click', ['q', 'e']);
+    key(true, 'KeyR');
+    expect('an idle ultimate key does not restart the run', kinds(input).length === 0, 'KeyR reset the run');
+    input.detach();
+  }
+  {
+    const input = rig(resolveBindings('click', {}), 'click', ['q', 'e']);
+    key(true, 'Backquote');
+    expect('reset still answers to its own binding', kinds(input).join() === 'reset', 'the reset key did nothing');
+    input.detach();
+  }
+  {
+    const input = rig(resolveBindings('click', { reset: { primary: 'KeyR' } }), 'click', ['q', 'e']);
+    key(true, 'KeyR');
+    expect('and to a rebind that puts it back on R', kinds(input).join() === 'reset', 'R was not honoured as reset');
+    input.detach();
+  }
+  {
+    const input = rig(resolveBindings('click', {}), 'click', ['q', 'r']);
+    key(true, 'KeyR');
+    expect('a drill that uses the ultimate still casts it', kinds(input).join() === 'ability:r', 'R stopped casting');
+    input.detach();
+  }
+
+  // --- what the screen prints is what the player presses ----------------
+  {
+    expect('a mouse binding prints as a mouse button', shortCodeLabel('Mouse2') === 'RMB', shortCodeLabel('Mouse2'));
+    expect('the left button too', shortCodeLabel('Mouse0') === 'LMB', shortCodeLabel('Mouse0'));
+    expect('a letter prints as its letter', shortCodeLabel('KeyJ') === 'J', shortCodeLabel('KeyJ'));
+    expect('a long name is abbreviated', shortCodeLabel('ShiftLeft') === 'LSHIFT', shortCodeLabel('ShiftLeft'));
+    expect('an unbound slot still prints something', shortCodeLabel(UNBOUND).length > 0, 'printed nothing');
+  }
+
   // --- an overlay owns the keyboard while it is open --------------------
   {
     const input = rig(resolveBindings('click', {}));
@@ -3559,6 +3600,70 @@ line('\n=== BINDINGS: a rebound key is the binding ===');
 
   g.window = savedWindow;
   g.document = savedDocument;
+}
+
+line('\n=== THE LAB: the bench prints the keys the player actually has ===');
+{
+  /** One lab mode, built on a given layout, painted once. */
+  const bench = (overrides: Record<string, { primary: string; secondary?: string }>) => {
+    const id: DrillId = 'apmSequence';
+    const bindings = resolveBindings('click', overrides);
+    const session = new Session(
+      {
+        duration: 45,
+        arena: arenaFor(id),
+        seed: 4242,
+        difficulty: 0.4,
+        abilities: DRILLS[id].abilities,
+        scheme: 'click',
+        bindings,
+      },
+      new FakeInput() as unknown as InputSystem,
+      fakeRenderer,
+    );
+    const drill = createDrill(id, session);
+    session.attachDrill(drill);
+    session.countdown = 0;
+    // A few steps so the queue is dealt and the board has something in it.
+    for (let i = 0; i < 120; i++) session.step(SIM_DT);
+    const paint = newPaint();
+    drill.paint(paint, 1);
+    const printed = paint.billboards.flatMap((b) =>
+      b.kind === 'label' ? [b.text] : b.kind === 'keys' ? b.seq : [],
+    );
+    return { printed, board: drill.mapBoard() };
+  };
+
+  // The shipped layout, so the check below is measuring the rebind and not the
+  // mode having stopped printing keys at all.
+  {
+    const { printed, board } = bench({});
+    expect('the default bench prints the default keys', printed.includes('Q'), printed.join(' '));
+    expect('and the board prints the summoner pair', board?.lanes[0].key === 'D', board?.lanes[0].key ?? 'none');
+  }
+
+  // Q on the right mouse button — exactly what the settings screen writes,
+  // move evicted and left unbound. The pad used to go on saying Q.
+  {
+    const { printed } = bench({ q: { primary: 'Mouse2' }, move: { primary: UNBOUND } });
+    expect('a pad on a mouse button says so', printed.includes('RMB'), printed.join(' '));
+    expect('and stops claiming the key it left', !printed.includes('Q'), printed.join(' '));
+  }
+
+  // A moved ability row, which is the ordinary case: nothing exotic, just a
+  // player who plays on ESDF and had been reading somebody else's keyboard.
+  {
+    const { printed } = bench({ q: { primary: 'KeyJ' }, w: { primary: 'KeyK' } });
+    expect('a rebound ability row prints its own letters', printed.includes('J') && printed.includes('K'), printed.join(' '));
+  }
+
+  // The board in the corner is on the summoner pair, and it is the one place
+  // in the lab that always claimed to print the player's own bindings.
+  {
+    const { board } = bench({ d: { primary: 'Mouse1' }, f: { primary: 'Digit4' } });
+    expect('a rebound lane key reaches the board', board?.lanes[0].key === 'MMB', board?.lanes[0].key ?? 'none');
+    expect('both of them', board?.lanes[1].key === '4', board?.lanes[1].key ?? 'none');
+  }
 }
 
 line('\n=== TERRAIN: bots go around walls rather than into them ===');

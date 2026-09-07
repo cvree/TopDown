@@ -15,6 +15,7 @@ import {
   sanitizeOverrides,
   type ActionId,
   type Binding,
+  type Bindings,
   type MovementScheme,
 } from '../engine/input';
 import { DEFAULT_SETTINGS, type AppSettings, type RangeDisplay } from '../progression/profile';
@@ -80,8 +81,17 @@ interface ChoiceOption<V extends string> {
   /** The small word beside the name. */
   sub?: string;
   body: string;
-  /** Keys printed along the bottom of the card. */
+  /** Keys printed along the bottom of the card, as literal names. */
   keys?: string[];
+  /**
+   * Keys printed along the bottom of the card, read off the player's layout.
+   *
+   * A card that describes a *scheme* names the scheme's own keys and should:
+   * picking it is what writes them. A card that describes something the player
+   * already has bound has to ask what it is bound to — the range check used to
+   * print "Space" at a player who had moved the camera key years ago.
+   */
+  actionKeys?: ActionId[];
 }
 
 type Item =
@@ -223,7 +233,7 @@ const SECTIONS: Section[] = [
             name: 'ON A CHECK',
             sub: 'default',
             body: 'Nothing is drawn until you centre the camera, and that press paints your reach for under a second. It is how the game you are training for works: the distance is in your head or it is nowhere, and a check is what you spend when it is not.',
-            keys: ['Space'],
+            actionKeys: ['centerCamera'],
           },
           {
             value: 'always',
@@ -598,6 +608,16 @@ export function Settings({ settings, onChange, onBack, inRun = false, backLabel 
   );
 }
 
+/**
+ * The keys printed under a choice card.
+ *
+ * Literal ones for the cards that describe a layout — picking CLICK TO MOVE is
+ * what puts move on the right button, so naming the right button is the point
+ * of the card. Live ones for the cards that describe something already bound.
+ */
+const cardKeys = <V extends string>(o: ChoiceOption<V>, bound: Bindings): string[] | undefined =>
+  o.keys ?? o.actionKeys?.map((a) => codeLabel(bound[a].primary));
+
 // ----------------------------------------------------------------- one row
 
 function Row({
@@ -614,6 +634,9 @@ function Row({
   scheme: MovementScheme;
 }) {
   const changed = !isDefault(settings, item);
+  // The layout this profile is actually playing on, for any card that prints a
+  // key the player already has rather than one that picking the card assigns.
+  const bound = resolveBindings(scheme, scheme === 'wasd' ? settings.wasdBindings : settings.bindings);
 
   switch (item.kind) {
     case 'toggle':
@@ -667,9 +690,9 @@ function Row({
                     {o.sub && <span>{o.sub}</span>}
                   </div>
                   <p>{o.body}</p>
-                  {o.keys && (
+                  {cardKeys(o, bound) && (
                     <div className="sc-keys">
-                      {o.keys.map((k) => (
+                      {cardKeys(o, bound)!.map((k) => (
                         <kbd className="kbd" key={k}>
                           {k}
                         </kbd>
@@ -1027,7 +1050,7 @@ function Bindings({
         without being punished for forgetting the modifier.{' '}
         {wasd
           ? 'Under WASD an attack order never walks you anywhere — it only chooses what you shoot, and the four movement keys always win a key they share.'
-          : 'R doubles as instant reset in drills with no ultimate bound.'}
+          : 'Instant reset only ever answers to its own binding: the ultimate key is the ultimate key, in every mode, including the ones that never light it.'}
       </p>
     </div>
   );

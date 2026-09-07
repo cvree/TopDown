@@ -632,9 +632,14 @@ export class InputSystem {
       e.preventDefault();
       return;
     }
-    // R doubles as instant reset in drills that have no ultimate bound.
-    if (this.matches('r', code) && !this.opts.activeSlots.has('r')) {
-      this.queue.push({ kind: 'reset', t });
+    // The ultimate key is the ultimate key, and nothing else.
+    //
+    // It used to double as instant reset in any drill that left R idle, which
+    // meant most of the lab: seven of the thirteen benches never light the far
+    // bank's second pad, and on those seven a stray R threw the run away and
+    // started it again. A key that restarts your run has to be a key you chose
+    // for that — reset has its own binding, and the pause screen prints it.
+    if (this.matches('r', code)) {
       e.preventDefault();
       return;
     }
@@ -711,6 +716,71 @@ export const codeLabel = (code: string): string => {
   if (code.startsWith('Arrow')) return `${code.slice(5)} Arrow`;
   if (/^F\d{1,2}$/.test(code)) return code;
   return NAMED_CODES[code] ?? code;
+};
+
+/**
+ * The same key, short enough to print on a pad, a lane or a HUD chip.
+ *
+ * `codeLabel` is written for the settings list, where a row is as wide as the
+ * panel and "Right Click" is the friendliest thing it could say. Everywhere
+ * else in the client a binding has to fit inside something: a 46px box in the
+ * key queue, a circle on the bench with a caption under it, the strip beneath
+ * a minimap lane. Those places used to print the *default* key rather than
+ * measure the player's, which is the only reason they ever fit.
+ *
+ * So this is the same answer, abbreviated the way a game abbreviates it — RMB,
+ * not Right Click — and never the empty string, because a pad with nothing
+ * written on it is a pad that looks like a bug.
+ */
+export const shortCodeLabel = (code: string): string => {
+  if (code === UNBOUND || !code) return '\u2014';
+  if (code.startsWith('Mouse')) {
+    const n = code.slice(5);
+    return n === '0' ? 'LMB' : n === '1' ? 'MMB' : n === '2' ? 'RMB' : `M${n}`;
+  }
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Arrow')) return ARROWS[code.slice(5)] ?? code.slice(5);
+  if (/^F\d{1,2}$/.test(code)) return code;
+  const short = SHORT_CODES[code];
+  if (short) return short;
+  if (code.startsWith('Numpad')) return `N${code.slice(6)}`;
+  return codeLabel(code).toUpperCase();
+};
+
+const ARROWS: Record<string, string> = {
+  Up: '\u2191',
+  Down: '\u2193',
+  Left: '\u2190',
+  Right: '\u2192',
+};
+
+/** The abbreviations, for the codes whose long label is too long to print. */
+const SHORT_CODES: Record<string, string> = {
+  Escape: 'ESC',
+  Backspace: 'BKSP',
+  Delete: 'DEL',
+  Insert: 'INS',
+  PageUp: 'PGUP',
+  PageDown: 'PGDN',
+  CapsLock: 'CAPS',
+  ShiftLeft: 'LSHIFT',
+  ShiftRight: 'RSHIFT',
+  ControlLeft: 'LCTRL',
+  ControlRight: 'RCTRL',
+  AltLeft: 'LALT',
+  AltRight: 'RALT',
+  MetaLeft: 'LMETA',
+  MetaRight: 'RMETA',
+  ContextMenu: 'MENU',
+  NumLock: 'NUMLK',
+  ScrollLock: 'SCRLK',
+  NumpadEnter: 'NENT',
+  NumpadAdd: 'N+',
+  NumpadSubtract: 'N-',
+  NumpadMultiply: 'N*',
+  NumpadDivide: 'N/',
+  NumpadDecimal: 'N.',
 };
 
 /**

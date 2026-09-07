@@ -1,4 +1,4 @@
-import { codeLabel, defaultsFor, type AbilitySlot } from '../../engine/input';
+import { shortCodeLabel, type AbilitySlot } from '../../engine/input';
 import type { MapBoard } from '../../engine/mapboard';
 import { clamp } from '../../engine/math';
 import { PALETTE } from '../../engine/palette';
@@ -123,9 +123,6 @@ export abstract class LabDrill extends ApmDrill {
   /** The board in the bottom-right corner. Every mode runs one. */
   protected map!: MapDodge;
 
-  /** What each key prints, which the control scheme decides. */
-  private glyphs: Partial<Record<AbilitySlot, string>> = {};
-
   /** Set by a mode that needs a driveable body rather than a bench. */
   protected mobile(): boolean {
     return false;
@@ -172,10 +169,6 @@ export abstract class LabDrill extends ApmDrill {
       p.moveSpeed = 0;
       p.hidden = true;
     }
-    const binds = defaultsFor(this.s.scheme);
-    for (const slot of ['q', 'w', 'e', 'r', 'd', 'f'] as AbilitySlot[]) {
-      this.glyphs[slot] = codeLabel(binds[slot].primary);
-    }
     this.motion = new PadMotion(this.s.world.bounds, this.s.rng);
     this.map = new MapDodge(
       this.s,
@@ -213,9 +206,19 @@ export abstract class LabDrill extends ApmDrill {
     return { x: w * 0.78, y: h * 0.82 };
   }
 
-  /** The key printed on a pad — the one your hand is actually on. */
+  /**
+   * The key printed on a pad — the one your hand is actually on.
+   *
+   * Read from the run's live bindings on every frame that asks, rather than
+   * snapshotted when the bench was built. Two reasons, and both of them are
+   * the same reason: the bench used to print the *scheme's defaults*, so a
+   * player who had moved their ability row was being asked for Q while their
+   * Q was on the right mouse button — and settings can be opened from inside a
+   * run, so a rebind made on the pause screen has to be on the pads by the
+   * time the panel closes.
+   */
   protected glyph(slot: AbilitySlot): string {
-    return this.glyphs[slot] ?? slot.toUpperCase();
+    return shortCodeLabel(this.s.bindings[slot].primary);
   }
 
   /**

@@ -352,7 +352,7 @@ const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
       import('../src/ui/Progress'),
     ]);
   return [
-    ['PRACTICE', (profile) => createElement(Practice as any, { profile, onPlay: noop })],
+    ['PRACTICE', (profile) => createElement(Practice as any, { profile, settings: profile.settings, onPlay: noop })],
     ['PROGRESS', (profile) => createElement(Progress as any, { profile, onRename: noop, onReset: noop, onPlay: noop })],
   ];
 };
