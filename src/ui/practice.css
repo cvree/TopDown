@@ -1,5 +1,6 @@
 /* The menu.
-   Two buttons per card and nothing between the player and either of them. */
+   Four sections behind one rail, two buttons per card, and nothing between
+   the player and either of them. */
 
 .practice {
   padding-top: 46px;
@@ -8,7 +9,7 @@
 }
 
 .pr-head {
-  margin-bottom: 34px;
+  margin-bottom: 22px;
 }
 .pr-h1 {
   font-size: clamp(38px, 5vw, 66px);
@@ -28,13 +29,403 @@
   color: var(--text-1);
 }
 
+
+/* ============================================================ the rail
+
+   Four tabs, and the whole point of them is that a player can see the shape
+   of the client without scrolling through it: what the four sections are,
+   how much is inside each, and how far through each one they have got.
+
+   It is sticky, because the alternative is a player who has read to the
+   bottom of the lab and has to scroll a screen and a half back up to reach
+   the codex — which is exactly the problem the tabs were introduced to fix.
+   ============================================================ */
+
+.pr-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  margin: 0 -48px 30px;
+  padding: 0 48px;
+  /* Its own plate, opaque all the way to its own edge. The page behind it is
+     body copy and cards, and a rail you can read a paragraph through is a
+     rail that stops working the moment it starts doing its job. The softness
+     goes *below* the rail instead, as a shadow, so nothing is ever half
+     legible through the middle of a tab. */
+  background: linear-gradient(180deg, rgba(3, 8, 16, 0.985), rgba(3, 8, 16, 0.965));
+  backdrop-filter: blur(16px) saturate(1.1);
+  border-bottom: 1px solid rgba(120, 90, 40, 0.4);
+}
+.pr-tabs::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 16px;
+  background: linear-gradient(180deg, rgba(3, 8, 16, 0.72), transparent);
+  pointer-events: none;
+}
+.pr-tabs::after {
+  /* The hairline of light every metal edge in this client has. */
+  content: '';
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200, 170, 110, 0.5) 18%, rgba(240, 230, 210, 0.55) 50%, rgba(200, 170, 110, 0.5) 82%, transparent);
+  pointer-events: none;
+}
+
+.pr-tablist {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+}
+
+.pr-tab {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'no text'
+    'no meta';
+  align-items: center;
+  gap: 2px 12px;
+  padding: 14px 18px 15px;
+  text-align: left;
+  color: var(--text-2);
+  border: 0;
+  border-left: 1px solid rgba(120, 90, 40, 0.22);
+  background: none;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.2s var(--ease);
+}
+.pr-tab:first-child {
+  border-left: 0;
+}
+.pr-tab::before {
+  /* The accent wash. Off entirely until the tab is hovered or open, so four
+     coloured panels never compete for the same eye. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 20%, transparent), transparent 78%);
+  opacity: 0;
+  transition: opacity 0.22s var(--ease);
+  pointer-events: none;
+}
+.pr-tab:hover::before {
+  opacity: 0.45;
+}
+.pr-tab.on::before {
+  opacity: 1;
+}
+
+.pr-tab-no {
+  grid-area: no;
+  align-self: start;
+  margin-top: 3px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--text-4);
+  transition: color 0.18s ease;
+}
+.pr-tab.on .pr-tab-no {
+  color: var(--c);
+}
+
+.pr-tab-text {
+  grid-area: text;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.pr-tab-text b {
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  color: var(--text-2);
+  line-height: 1.15;
+  white-space: nowrap;
+  transition: color 0.18s ease, text-shadow 0.22s ease;
+}
+.pr-tab-text i {
+  font-style: normal;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pr-tab:hover .pr-tab-text b {
+  color: var(--text-1, var(--text));
+}
+.pr-tab.on .pr-tab-text b {
+  color: var(--c);
+  text-shadow: 0 0 22px color-mix(in srgb, var(--c) 55%, transparent);
+}
+
+/* The two figures under the label: how much is in this section, and how far
+   through it this profile has got. A tab that can answer the second question
+   is worth more than one that can only name itself. */
+.pr-tab-meta {
+  grid-area: meta;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 3px;
+}
+.pr-tab-meta b {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: color-mix(in srgb, var(--c) 62%, var(--text-3));
+  white-space: nowrap;
+}
+.pr-tab-meta i {
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--text-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The struck rule under the open tab — the same gesture the top bar uses, in
+   the section's own colour rather than in gold. */
+.pr-tab-rule {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--c), transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c) 85%, transparent);
+  transform: scaleX(0);
+  opacity: 0;
+  transition: transform 0.26s var(--ease), opacity 0.2s ease;
+}
+.pr-tab.on .pr-tab-rule {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+.pr-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.pr-panel-lead {
+  margin: 0 0 14px;
+}
+.pr-panel-lead + .pr-panel-lead {
+  margin-top: -4px;
+}
+
+/* ------------------------------------------------------------- group heads
+
+   One rule per group of activities: what it is, how many are in it, and the
+   line explaining why these things are together rather than somewhere else.
+   A group whose reason will not fit on the rule is a group that should not
+   exist. */
+.pr-group {
+  margin-bottom: 6px;
+}
+.pr-group-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 26px 0 14px;
+}
+.pr-group-head b {
+  font-size: 13px;
+  letter-spacing: 0.24em;
+  color: var(--gold);
+  white-space: nowrap;
+}
+.pr-group-count {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--text-4);
+  border: 1px solid rgba(120, 90, 40, 0.4);
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.pr-group-rule {
+  flex: 1;
+  height: 1px;
+  min-width: 18px;
+  background: linear-gradient(90deg, rgba(200, 170, 110, 0.45), rgba(200, 170, 110, 0.06));
+}
+.pr-group-head i {
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  text-align: right;
+}
+
+/* ---------------------------------------------------------------- legend
+
+   What the buttons on the cards below actually mean, said once at the top of
+   the section rather than in the tagline of every card in it. */
+.pr-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+  margin: 4px 0 2px;
+}
+.pr-legend-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 13px;
+  border: 1px solid rgba(120, 90, 40, 0.28);
+  border-left: 2px solid color-mix(in srgb, var(--c) 70%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 8%, transparent), transparent 72%);
+}
+.pr-legend-item b {
+  font-family: var(--ui);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--c);
+}
+.pr-legend-item i {
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+/* ------------------------------------------------------ labelled fields
+
+   The lane card asks two questions and now says so above each answer, because
+   a row of five chips over a row of three buttons is two ladders unless
+   something on the screen names them. */
+.pr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.pr-field-label {
+  font-family: var(--ui);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* ------------------------------------------------------ segmented switch
+
+   Two kits behind one control, in the codex. Deliberately not a second tab
+   rail: it switches the contents of one section rather than the section. */
+.pr-seg {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 0;
+  margin: 6px 0 18px;
+  border: 1px solid rgba(120, 90, 40, 0.4);
+  background: rgba(4, 10, 18, 0.5);
+}
+.pr-seg-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 22px 9px;
+  text-align: left;
+  border-left: 1px solid rgba(120, 90, 40, 0.28);
+  transition: background 0.18s ease;
+}
+.pr-seg-btn:first-child {
+  border-left: 0;
+}
+.pr-seg-btn b {
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: var(--text-2);
+  transition: color 0.18s ease;
+}
+.pr-seg-btn i {
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+.pr-seg-btn:hover b {
+  color: var(--text);
+}
+.pr-seg-btn.on {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 22%, transparent), transparent 82%);
+}
+.pr-seg-btn.on b {
+  color: var(--c);
+  text-shadow: 0 0 20px color-mix(in srgb, var(--c) 50%, transparent);
+}
+.pr-seg-btn.on::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--c), transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--c) 80%, transparent);
+}
+
+@media (max-width: 900px) {
+  /* The rail keeps the content column's own inset — the page's padding does
+     not change with the viewport, and a rail that drifted out of line with
+     the paragraph above it would read as a second, narrower page. What
+     changes is that four tabs stop fitting, so the rail scrolls sideways and
+     the open one is scrolled into view. */
+  .pr-tablist {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .pr-tablist::-webkit-scrollbar {
+    display: none;
+  }
+  .pr-tablist {
+    grid-template-columns: repeat(4, minmax(178px, 1fr));
+    min-width: max-content;
+  }
+  .pr-group-head {
+    flex-wrap: wrap;
+  }
+  .pr-group-head i {
+    flex-basis: 100%;
+    text-align: left;
+  }
+  .pr-seg {
+    width: 100%;
+  }
+  .pr-seg-btn {
+    flex: 1;
+  }
+}
+
 /* ------------------------------------------------------------------ cards */
 
 .pr-modes {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(430px, 1fr));
+  /* auto-FILL rather than auto-fit: a group with one mode in it should get a
+     card the same width as every other card on the screen, not a card
+     stretched across the page because it is alone in its row. */
+  grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
   gap: 20px;
-  margin-bottom: 34px;
+  margin-bottom: 4px;
 }
 
 .pr-card {
@@ -440,6 +831,61 @@
 }
 .pr-lab-mode .pr-go {
   margin-top: 2px;
+}
+
+
+/* The two lines the lab has always had in its data and never printed: what a
+   bench counts, and what makes it hard once the counting is understood. They
+   are the only thing that tells thirteen benches apart at a glance. */
+.pr-lab-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 9px 0 2px;
+  border-top: 1px solid rgba(120, 90, 40, 0.2);
+}
+.pr-lab-facts > div {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+.pr-lab-facts dt {
+  font-family: var(--ui);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--c) 60%, var(--text-4));
+}
+.pr-lab-facts dd {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+/* The ladder, as ten marks: which rungs are open, and which one the card is
+   showing. The arrows can move you along it; only this can show you how long
+   it is and where on it you are standing. */
+.pr-lab-rungs {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+  margin: 1px 0 3px;
+}
+.pr-rung {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.07);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+.pr-rung.open {
+  background: color-mix(in srgb, var(--c) 42%, transparent);
+}
+.pr-rung.here {
+  background: var(--c);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 90%, transparent);
 }
 
 /* ------------------------------------------------------------------ infinite

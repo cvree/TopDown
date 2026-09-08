@@ -346,13 +346,28 @@ line('\n=== Every screen that reads a profile draws it, on every profile ===');
 // different set of callbacks it never calls here.
 const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
   const noop = () => undefined;
-  const [{ Practice }, { Progress }] =
+  const [{ Practice, SECTION_IDS }, { Progress }] =
     await Promise.all([
       import('../src/ui/Practice'),
       import('../src/ui/Progress'),
     ]);
   return [
-    ['PRACTICE', (profile) => createElement(Practice as any, { profile, settings: profile.settings, onPlay: noop })],
+    // Every tab, not only the one a fresh mount opens on. The lab's cards read
+    // further into a stored profile than anything else in the client, and they
+    // are only rendered while their own section is open — so a check that drew
+    // the default tab would be checking the least of the screen.
+    ...SECTION_IDS.map(
+      (id): [string, (p: Profile) => unknown] => [
+        `PRACTICE · ${id.toUpperCase()}`,
+        (profile) =>
+          createElement(Practice as any, {
+            profile,
+            settings: profile.settings,
+            onPlay: noop,
+            initialSection: id,
+          }),
+      ],
+    ),
     ['PROGRESS', (profile) => createElement(Progress as any, { profile, onRename: noop, onReset: noop, onPlay: noop })],
   ];
 };

@@ -41,6 +41,35 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.11.0',
+    name: 'FOUR WAYS IN',
+    date: '2026-09-08',
+    headline:
+      'The practice screen is four sections behind one rail instead of one column two thousand pixels long, and every activity on it now sits in a named group that says why it is there.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'Tabs, across the top of PRACTICE, and they are sticky: THE LANE, PRACTICE, THE LAB and THE CODEX are one click apart from anywhere on any of them. Each tab prints how much is inside it and how far through it you are — five opponents and the lanes you have played, six modes and how many are on the board, thirteen benches and the stars you hold — so the shape of the client is readable before you open any of it. Left and right walk the rail, Home and End jump to its ends.',
+          'Named groups inside every section, each with the one line explaining why those things are together. The champion modes are FOUNDATION (a body and no abilities), THE KIT (one ability at a time), THE WHOLE CHAMPION and AGAINST SOMEBODY; the lab is split into ONE THING AT A TIME and TWO AT ONCE, which is the split that actually tells you what to play next.',
+          'Every lab bench prints what it counts and what makes it hard. Both lines have been in the lab’s own data since it was built and neither has ever been on screen, and they are the only thing that tells thirteen benches apart at a glance.',
+          'A ten-mark ladder under each bench’s level arrows: which rungs are open, which one the card is showing, and how far the ten actually go. The arrows could move you along it and nothing could show you where you were standing.',
+          'A legend at the top of PRACTICE and THE LAB saying what the buttons under the cards mean — PLAY against SURVIVE, PLAY against INFINITE — once, rather than in the small print of every card.',
+          'Labels over the lane card’s two questions. It has always asked who is on the other side and how long a lane; now it says so, instead of leaving a row of five chips above a row of three buttons to be read as one ladder.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'The two kit tables moved into THE CODEX, behind a switch between the champion you play and the champion you beat. A thousand words of reference used to sit directly between the champion cards and the lab — the only part of the screen you read rather than click, wedged between the two parts you click.',
+          'The header is one paragraph instead of five. What each section is now belongs to that section rather than to a wall of prose above all of them.',
+          'The tab you were last on survives a run. Coming back from a bench in the lab and landing on the lane was the client forgetting what you were doing.',
+          'A group with one mode in it gets a card the same width as every other card, rather than one stretched across the page because it is alone in its row.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.10.0',
     name: 'THE WHOLE KIT',
     date: '2026-09-08',

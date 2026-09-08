@@ -7,18 +7,23 @@ It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
 drawn on the ground where the thing it is about actually is.
 
-At the top of the menu is **LANE PHASE**: the first ten minutes of a game of
-League, at League's own numbers, against an enemy laner farming and trading on
-the other side of the wave. You pick the opponent and the length; everything
-else is the game. Under it are the parts of that lane, rehearsed one at a time
-— one distance, one champion and four pieces of her, one opponent — each with
-two ways to play it:
+The menu is four sections behind one rail. The first is **THE LANE**: the first
+ten minutes of a game of League, at League's own numbers, against an enemy laner
+farming and trading on the other side of the wave. You pick the opponent and the
+length; everything else is the game. The second is **PRACTICE** — the parts of
+that lane, rehearsed one at a time — one distance, one champion and four pieces
+of her, one opponent — each with two ways to play it:
 
 - **PLAY** — one minute. The same minute every time, so a score means something
   next to the one before it.
 - **SURVIVE** — no clock. It ramps as you last, and it ends when you die or
   when you have made that mode's own mistake three times. The result is how
   long you lasted.
+
+The third is **THE LAB**, which is not the champion at all: thirteen benches of
+drifting pads, ten rungs each, measuring correct commands a minute and nothing
+else. The fourth is **THE CODEX** — every figure both champions are built from,
+printed, so a claim about transfer is one you can check.
 
 That is the whole menu. There is no daily plan to opt into, no calibration to
 sit through and no course to unlock — the ladder places you from your first
@@ -816,24 +821,40 @@ words in it.
 
 ### Practice
 
-The menu is the whole of the first screen. The lane is at the top of it, with
-five opponents in a row and three lengths under them — the record it prints is
-per opponent, because that is the only way a creep score means anything — and
-under that a card per part of the champion; each carries what the mode asks of
-you, the League habit it builds,
-the slice of the bar it hands you drawn as four keys — the ones you do not get
-are shown greyed rather than hidden, so the four cards read as four slices of
-one champion — and two buttons, PLAY and SURVIVE, each with the record it is
-asking you to beat printed under it.
+The menu is the whole of the first screen, and it is four sections behind one
+sticky rail rather than one column two thousand pixels long. Every tab prints
+how much is inside it and how far through it you are — five opponents and the
+lanes you have played, six modes and how many are on the board, thirteen benches
+and the stars you hold — so the shape of the client is readable before you open
+any of it. The rail walks under the arrow keys, and the tab you were last on
+survives a run.
 
-Under the cards is the kit in numbers: the roll's distance and how long it
-takes, the bolt count and what the third one does, Flash's range and what it
-crosses, Condemn's cast time,
-knockback and both of its cooldowns — League's and the practice one — the
-trinket, Final Hour, and the passive. It also says which Vayne each mode
-hands you and why — one point in Q where the rhythm is the lesson, a maxed E
-where the reps are — because a trainer claiming to feel like the champion owes
-you the figures it is claiming it with.
+**THE LANE** is one card: five opponents in a row under the question they
+answer, and three lengths under theirs. The record it prints is per opponent,
+because that is the only way a creep score means anything.
+
+**PRACTICE** is a card per part of the champion, in four named groups —
+FOUNDATION, which hands you a body and no abilities; THE KIT, one ability at a
+time; THE WHOLE CHAMPION; and AGAINST SOMEBODY, which is the only mode on the
+screen that is not about your hands. Each card carries what the mode asks of
+you, the League habit it builds, the slice of the bar it hands you drawn as four
+keys — the ones you do not get are shown greyed rather than hidden, so the cards
+read as slices of one champion — and two buttons, PLAY and SURVIVE, each with
+the record it is asking you to beat printed under it.
+
+**THE LAB** is the thirteen benches, split into ONE THING AT A TIME and TWO AT
+ONCE, which is the split that tells you what to play next. Every bench prints
+what it counts and what makes it hard, the rung it is set to, the ten-mark
+ladder that rung sits on, and the ∞ that plays it with no rung at all.
+
+**THE CODEX** is the reading: both kits in numbers behind one switch — the
+roll's distance and how long it takes, the bolt count and what the third one
+does, Flash's range and what it crosses, Condemn's cast time, knockback and both
+of its cooldowns, the trinket, Final Hour and the passive on one side; every
+window the Sheriff expects you to beat on the other. It also says which Vayne
+each mode hands you and why — one point in Q where the rhythm is the lesson, a
+maxed E where the reps are — because a trainer claiming to feel like the
+champion owes you the figures it is claiming it with.
 
 There is nothing else on it. No plan to accept, no course to unlock, no
 calibration to pass first: your rank arrives from your first three runs, and
