@@ -57,6 +57,10 @@ export class ApmBufferDrill extends LabDrill {
 
   protected build(): void {
     const c = this.centre;
+    // One pad is the mode, so the ladder has nothing to grow here — but the
+    // key still has to be one it has handed over, and it registers so the bar
+    // can lock the fingers this bench is not going to ask for.
+    this.useSlots([GATE_SLOT], 1);
     this.pad = this.drift({ slot: GATE_SLOT, pos: { x: c.x, y: c.y }, radius: 96 });
     this.schedule();
   }
@@ -148,7 +152,7 @@ export class ApmBufferDrill extends LabDrill {
     const fill = clamp(1 - lead / this.cycle, 0, 1);
     const inBuffer = lead <= this.buffer && lead >= 0;
     const open = lead < 0;
-    const color = this.done ? PALETTE.textFaint : open ? PALETTE.warn : inBuffer ? PALETTE.good : this.flow.color;
+    const color = this.done ? PALETTE.textFaint : open ? PALETTE.warn : inBuffer ? PALETTE.good : this.promptColor;
 
     this.paintPad(out, this.pad, {
       color,
@@ -234,8 +238,6 @@ export class ApmBufferDrill extends LabDrill {
   }
 }
 
-const START_SLOT: AbilitySlot = 'q';
-const CUT_SLOT: AbilitySlot = 'e';
 type CancelPhase = 'call' | 'commit' | 'cut' | 'rest';
 
 /**
@@ -258,6 +260,9 @@ type CancelPhase = 'call' | 'commit' | 'cut' | 'rest';
 export class ApmCancelDrill extends LabDrill {
   protected readonly targetApm = APM_TARGET_APM.apmCancel;
 
+  /** The two keys this rung puts the start and the cut on. */
+  private startSlot: AbilitySlot = 'q';
+  private cutSlot: AbilitySlot = 'e';
   private startPad!: Pad;
   private cutPad!: Pad;
   private phase: CancelPhase = 'call';
@@ -279,8 +284,11 @@ export class ApmCancelDrill extends LabDrill {
 
   protected build(): void {
     const c = this.centre;
-    this.startPad = this.drift({ slot: START_SLOT, pos: { x: c.x - 190, y: c.y }, radius: 78 });
-    this.cutPad = this.drift({ slot: CUT_SLOT, pos: { x: c.x + 190, y: c.y }, radius: 78 });
+    // The two keys the rung has furthest apart: a cancel is two fingers, and
+    // how far apart they are is most of what makes one hard.
+    [this.startSlot, this.cutSlot] = this.usePair();
+    this.startPad = this.drift({ slot: this.startSlot, pos: { x: c.x - 190, y: c.y }, radius: 78 });
+    this.cutPad = this.drift({ slot: this.cutSlot, pos: { x: c.x + 190, y: c.y }, radius: 78 });
     this.toCall();
   }
 
@@ -326,7 +334,7 @@ export class ApmCancelDrill extends LabDrill {
 
   protected onKey(slot: AbilitySlot): void {
     this.press(slot);
-    if (slot !== START_SLOT && slot !== CUT_SLOT) {
+    if (slot !== this.startSlot && slot !== this.cutSlot) {
       this.stray(this.centre);
       return;
     }
@@ -335,7 +343,7 @@ export class ApmCancelDrill extends LabDrill {
       return;
     }
     if (this.phase === 'call') {
-      if (slot !== START_SLOT) {
+      if (slot !== this.startSlot) {
         this.fumble(this.cutPad.pos, 'NOTHING TO CUT');
         this.toCall();
         return;
@@ -350,7 +358,7 @@ export class ApmCancelDrill extends LabDrill {
       this.phaseAt = this.s.elapsed;
       return;
     }
-    if (slot === START_SLOT) {
+    if (slot === this.startSlot) {
       // Re-issuing the order you already gave is the click-speed inflation the
       // engine exists to refuse to pay for.
       this.stray(this.startPad.pos);
@@ -378,16 +386,16 @@ export class ApmCancelDrill extends LabDrill {
   protected modeSolution(): LabSolution {
     switch (this.phase) {
       case 'call':
-        return { keys: [START_SLOT] };
+        return { keys: [this.startSlot] };
       case 'cut':
-        return { keys: [CUT_SLOT] };
+        return { keys: [this.cutSlot] };
       default:
         return { wait: true };
     }
   }
 
   protected slotName(slot: AbilitySlot): string {
-    return slot === START_SLOT ? 'START' : slot === CUT_SLOT ? 'CUT' : '';
+    return slot === this.startSlot ? 'START' : slot === this.cutSlot ? 'CUT' : '';
   }
 
   protected paintMode(out: DrillPaint, _t: number): void {
@@ -397,7 +405,7 @@ export class ApmCancelDrill extends LabDrill {
     const committing = this.phase === 'commit';
 
     this.paintPad(out, this.startPad, {
-      color: calling ? this.flow.color : PALETTE.textFaint,
+      color: calling ? this.promptColor : PALETTE.textFaint,
       glow: calling ? 0.55 + clamp(1 - this.age / this.callWindow, 0, 1) * 0.45 : 0.05,
       progress: calling ? clamp(1 - this.age / this.callWindow, 0, 1) : undefined,
       sub: 'START',

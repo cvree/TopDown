@@ -10,7 +10,6 @@ import { count, ms, pct } from '../base';
 import { APM_TARGET_APM } from './engine';
 import { BANK_LABEL, BANK_OF, LabDrill, median, type Bank, type LabSolution, type Pad } from './lab';
 
-const ALL_SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r'];
 
 /**
  * SEQUENCE — the queue, and the eye that runs ahead of the hand.
@@ -31,6 +30,8 @@ export class ApmSequenceDrill extends LabDrill {
   protected readonly targetApm = APM_TARGET_APM.apmSequence;
 
   private pads: Pad[] = [];
+  /** The part of the ability row this rung asks for. */
+  private slotsHere: AbilitySlot[] = [];
   private queue: AbilitySlot[] = [];
   private shownAt = 0;
   private window = 1.2;
@@ -40,17 +41,18 @@ export class ApmSequenceDrill extends LabDrill {
   private lastHitAt = 0;
 
   protected build(): void {
-    this.pads = this.row(ALL_SLOTS, { gap: 190, radius: 56, y: this.centre.y + 130 });
+    this.slotsHere = this.useSlots(['q', 'w', 'e', 'r']);
+    this.pads = this.row(this.slotsHere, { gap: 190, radius: 56, y: this.centre.y + 130 });
     for (let i = 0; i < 6; i++) this.push();
     this.arm();
   }
 
   /** Never the same key twice running: this is coordination, not a trill. */
   private push(): void {
-    let pick = this.s.rng.pick(ALL_SLOTS);
+    let pick = this.s.rng.pick(this.slotsHere);
     const last = this.queue[this.queue.length - 1];
     let guard = 0;
-    while (pick === last && guard++ < 8) pick = this.s.rng.pick(ALL_SLOTS);
+    while (pick === last && guard++ < 8) pick = this.s.rng.pick(this.slotsHere);
     this.queue.push(pick);
   }
 
@@ -76,7 +78,7 @@ export class ApmSequenceDrill extends LabDrill {
     this.press(slot);
     const expected = this.queue[0];
     const age = this.s.elapsed - this.shownAt;
-    const pad = this.pads[ALL_SLOTS.indexOf(slot)] ?? { pos: this.centre };
+    const pad = this.pads[this.slotsHere.indexOf(slot)] ?? { pos: this.centre };
 
     if (slot !== expected) {
       this.wrongKeys++;
@@ -123,9 +125,9 @@ export class ApmSequenceDrill extends LabDrill {
     this.paintBench(out, this.pads);
     const head = this.queue[0];
     this.pads.forEach((pad, i) => {
-      const on = ALL_SLOTS[i] === head;
+      const on = this.slotsHere[i] === head;
       this.paintPad(out, pad, {
-        color: on ? (left < 0.3 ? PALETTE.danger : this.flow.color) : PALETTE.textFaint,
+        color: on ? (left < 0.3 ? PALETTE.danger : this.promptColor) : PALETTE.textFaint,
         glow: on ? 0.5 + left * 0.5 : 0.05,
         progress: on ? left : undefined,
       });
@@ -201,6 +203,9 @@ export class ApmSwitchDrill extends LabDrill {
 
   private nearPads: Pad[] = [];
   private farPads: Pad[] = [];
+  /** The keys each bank has at this rung. The far bank is the one that grows. */
+  private nearKeys: AbilitySlot[] = [];
+  private farKeys: AbilitySlot[] = [];
   private mousePad!: Pad;
   private prompt: SwitchPrompt = { bank: 'near', slot: 'q' };
   private shownAt = 0;
@@ -215,8 +220,14 @@ export class ApmSwitchDrill extends LabDrill {
 
   protected build(): void {
     const c = this.centre;
-    this.nearPads = this.row(['q', 'w'], { gap: 190, radius: 58, y: c.y + 190 });
-    this.farPads = this.row(['e', 'r'], { gap: 190, radius: 58, y: c.y - 190 });
+    // A mode whose whole subject is the shape your hand is in cannot be played
+    // with one bank, so the far bank keeps a key even on the rung below the
+    // one that hands it over — `useSlots` is allowed to make a bench smaller
+    // and never to make it absent.
+    this.nearKeys = this.useSlots(['q', 'w'], 1);
+    this.farKeys = this.useSlots(['e', 'r'], 1);
+    this.nearPads = this.row(this.nearKeys, { gap: 190, radius: 58, y: c.y + 190 });
+    this.farPads = this.row(this.farKeys, { gap: 190, radius: 58, y: c.y - 190 });
     this.mousePad = this.drift({ slot: null, pos: { x: c.x, y: c.y }, radius: 92 });
     this.next(true);
   }
@@ -232,9 +243,9 @@ export class ApmSwitchDrill extends LabDrill {
     const bank = this.s.rng.pick(pool);
     const slot =
       bank === 'near'
-        ? this.s.rng.pick(['q', 'w'] as AbilitySlot[])
+        ? this.s.rng.pick(this.nearKeys)
         : bank === 'far'
-          ? this.s.rng.pick(['e', 'r'] as AbilitySlot[])
+          ? this.s.rng.pick(this.farKeys)
           : null;
     this.lastWasSwitch = !first && bank !== from;
     this.prompt = { bank, slot };
@@ -316,7 +327,7 @@ export class ApmSwitchDrill extends LabDrill {
 
   protected paintMode(out: DrillPaint, _t: number): void {
     const left = clamp(1 - (this.s.elapsed - this.shownAt) / this.window, 0, 1);
-    const live = this.flow.color;
+    const live = this.promptColor;
     const dead = PALETTE.textFaint;
     this.paintBench(out, this.nearPads);
     this.paintBench(out, this.farPads);

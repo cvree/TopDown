@@ -29,10 +29,17 @@ printed, so a claim about transfer is one you can check.
 all: thirteen benches of drifting pads, ten levels each, measuring correct
 commands a minute and nothing else. It is separate because it is the layer
 underneath every champion there will ever be. Every level of every bench is
-open from the first run — the ladder suggests and never gates — and a level is
-one speed, held for the whole minute, so two scores at level six are two scores
-of the same thing. The board in the corner, which is the lab's second task,
-joins at level four.
+open to everybody from their first run — the ladder suggests and never gates —
+and a level is one unchanging thing: one speed, one palette and one roster of
+keys, held for the whole minute, so two scores at level six are two scores of
+the same thing and the only ways to beat one are to be faster, cleaner and more
+precise. A rung is a roster as well as a pace: level one is two fingers, and
+each rung after it hands over another piece of your layout — the rest of the
+ability row, then the summoner bank and the board in the corner at four, then
+the three orders that are not abilities at all — so that by level seven every
+command the bench can grade is being asked for. The floor that used to move
+with your streak has a mode of its own, **SURGE**, where moving it is the
+point.
 
 That is the whole menu. There is no daily plan to opt into, no calibration to
 sit through and no course to unlock — the ladder places you from your first
@@ -570,6 +577,19 @@ depends on:
   between passes, in every mode that paints any, at level 1 and again at level
   10. "The targets move" is a claim about what is on the screen, so it is
   asserted where it happens.
+- **A rung is a roster as well as a pace.** Level one asks for two commands
+  and level ten asks for all nine, the ladder never takes one back on the way
+  up, and the ability bar of a bench really does light more keys at the top of
+  the ladder than at the bottom — checked off the bar the player reads rather
+  than off a table.
+- **The order line runs from level five and not before.** Every bench is
+  checked for silence below the rung it arrives on and for a strip that a
+  playing bot can actually answer at the top, and a mode whose whole subject is
+  clicking pads is checked to still keep its own clicks while it runs.
+- **SURGE moves the floor and PLAY does not.** On every bench, a bot that
+  chains carries the floor three rungs above the one it opened on and a bot
+  that does nothing moves it not at all; a PLAY run reports no surge; and a
+  surge run writes its own ledger, never the rung's record and never a star.
 - **The board in the corner is a second task in every mode.** Every bench runs
   the two-lane dodge and reports it. A bot that plays the bench perfectly and
   never touches the two lane keys takes seventeen orbs across three runs where
@@ -875,20 +895,32 @@ and what makes it hard, the level it is set to, the ten-mark ladder that level
 sits on — marked with the rungs you have starred and with where the board joins
 — and the ∞ that plays it with no level at all.
 
-Three rules hold across all thirteen, and they are the reason it is worth its
+Four rules hold across all thirteen, and they are the reason it is worth its
 own screen:
 
-- **Every level is open.** All ten rungs of all thirteen benches are playable
-  from your first run. The ladder still remembers — each rung keeps its own
-  record, and a clear moves the suggestion up — but it is a suggestion, because
-  the only person who knows which minute is worth your next minute is you.
-- **A level is one speed.** The rung sets every window, every spacing and every
-  clock, and holds them there for the whole minute. Nothing accelerates because
-  the run is going well: what your form moves is the reward — the chain, the
-  tier, the multiplier — not the floor.
-- **The board joins at level four.** The two-lane dodge in the corner is a
-  second task, and a second task is worth adding only to a first one you can
-  already do. Below level four the corner is empty.
+- **Every level is open, to everybody.** All ten rungs of all thirteen benches
+  are playable from your first run. Nothing here is earned or unlocked. The
+  ladder still remembers — each rung keeps its own record, and a clear moves
+  the suggestion up — but it is a suggestion, because the only person who knows
+  which minute is worth your next minute is you.
+- **A level is one unchanging thing.** The rung sets every window, every
+  spacing and every clock, and holds them there for the whole minute; so does
+  the palette, which used to climb through five colours with your streak and
+  made a good run look like a different bench. Nothing accelerates because the
+  run is going well: what your form moves is the reward — the chain, the tier,
+  the multiplier — not the floor. Which leaves exactly three ways to score
+  better, and they are the right three.
+- **A rung is a roster.** Level one is Q and W. Two adds E, three adds R, four
+  adds the summoner bank and the board in the corner, and five, six and seven
+  add the orders — move, attack-move, stop — which are commands to the champion
+  rather than keys on the console, and are graded as themselves on a strip
+  along the bottom of the floor. The screen prints the whole table.
+- **The floor moves in two modes, and only in two.** **SURGE** is a minute at
+  your rung with your chain wired to the floor: hold one and the bench climbs
+  up to three rungs above you and the colours climb with it, break it and both
+  settle back. **INFINITE** has no clock and no rung and hunts for the level
+  you can just hold. Neither writes the rung's record, because a run whose
+  difficulty moved is not a rep of the rung it opened on.
 
 ### Progress
 

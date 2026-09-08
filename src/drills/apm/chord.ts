@@ -10,7 +10,6 @@ import { count, ms } from '../base';
 import { APM_TARGET_APM } from './engine';
 import { LabDrill, median, type LabSolution, type Pad } from './lab';
 
-const SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r'];
 
 /**
  * CHORD — two keys, one instant.
@@ -34,6 +33,8 @@ export class ApmChordDrill extends LabDrill {
   protected readonly targetApm = APM_TARGET_APM.apmChord;
 
   private pads: Pad[] = [];
+  /** The part of the ability row this rung asks for. */
+  private slotsHere: AbilitySlot[] = [];
   private pair: [AbilitySlot, AbilitySlot] = ['q', 'e'];
   private shownAt = 0;
   private window = 1.3;
@@ -44,7 +45,8 @@ export class ApmChordDrill extends LabDrill {
   private missed = 0;
 
   protected build(): void {
-    this.pads = this.ring(SLOTS, 300, 62);
+    this.slotsHere = this.useSlots(['q', 'w', 'e', 'r']);
+    this.pads = this.ring(this.slotsHere, 300, 62);
     this.deal();
   }
 
@@ -54,10 +56,10 @@ export class ApmChordDrill extends LabDrill {
   }
 
   private deal(): void {
-    const a = this.s.rng.pick(SLOTS);
-    let b = this.s.rng.pick(SLOTS);
+    const a = this.s.rng.pick(this.slotsHere);
+    let b = this.s.rng.pick(this.slotsHere);
     let guard = 0;
-    while (b === a && guard++ < 8) b = this.s.rng.pick(SLOTS);
+    while (b === a && guard++ < 8) b = this.s.rng.pick(this.slotsHere);
     this.pair = [a, b];
     this.first = null;
     this.shownAt = this.s.elapsed;
@@ -65,7 +67,7 @@ export class ApmChordDrill extends LabDrill {
   }
 
   private padOf(slot: AbilitySlot): Pad {
-    return this.pads[SLOTS.indexOf(slot)];
+    return this.pads[this.slotsHere.indexOf(slot)];
   }
 
   private get midpoint() {
@@ -144,12 +146,12 @@ export class ApmChordDrill extends LabDrill {
     const left = clamp(1 - (this.s.elapsed - this.shownAt) / this.window, 0, 1);
     const holding = this.first !== null;
     const held = holding ? clamp(1 - (this.s.elapsed - this.first!.at) / this.tolerance, 0, 1) : 0;
-    for (const slot of SLOTS) {
+    for (const slot of this.slotsHere) {
       const pad = this.padOf(slot);
       const inPair = this.pair.includes(slot);
       const done = holding && this.first!.slot === slot;
       this.paintPad(out, pad, {
-        color: done ? PALETTE.good : inPair ? (holding ? PALETTE.warn : this.flow.color) : PALETTE.textFaint,
+        color: done ? PALETTE.good : inPair ? (holding ? PALETTE.warn : this.promptColor) : PALETTE.textFaint,
         glow: inPair ? 0.55 + (holding ? held : left) * 0.45 : 0.04,
         progress: inPair ? (holding ? held : left) : undefined,
       });
@@ -163,7 +165,7 @@ export class ApmChordDrill extends LabDrill {
       x2: b.x,
       y2: b.y,
       halfWidth: 4,
-      color: holding ? PALETTE.warn : this.flow.color,
+      color: holding ? PALETTE.warn : this.promptColor,
       alpha: 0.5 + (holding ? held : left) * 0.4,
       rise: 0.4,
     });

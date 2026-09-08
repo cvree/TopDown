@@ -13,7 +13,14 @@ import {
   type ApmMode,
   type ApmModeKind,
 } from '../progression/apm';
-import { MAP_MIN_LEVEL } from '../drills/apm';
+import {
+  KEYS_COMPLETE_AT,
+  MAP_MIN_LEVEL,
+  ORDER_AT,
+  keysAtLevel,
+  ordersAtLevel,
+  rungAdds,
+} from '../drills/apm';
 import type { ApmDrillId } from '../drills/apm';
 import type { Profile } from '../progression/profile';
 import './practice.css';
@@ -48,19 +55,27 @@ type PlayFn = Props['onPlay'];
  *
  * It asks one question the champion modes never do, and it is the reason the
  * ladder exists: which rung. Ten levels a mode, each one a record of its own —
- * and all ten of them are open from the first run. The section *suggests* the
- * lowest rung you have not cleared, because that is nearly always the useful
- * answer; it does not enforce it, because the whole activity is choosing a
- * level and holding it until it is easy, and a player who wants to look at
- * level ten on day one should be allowed to look at level ten on day one.
+ * and **all ten of them are open to everybody from the first run**. Nothing on
+ * this screen is earned, unlocked or gated. The section *suggests* the lowest
+ * rung you have not cleared, because that is nearly always the useful answer;
+ * it does not enforce it, because the whole activity is choosing a level and
+ * holding it until it is easy, and a player who wants to look at level ten on
+ * day one should be allowed to look at level ten on day one.
  *
- * Two things are true of every rung of every bench.
+ * Three things are true of every rung of every bench.
  *
  * **The pace is fixed.** A level is a place. The bench runs at the speed the
  * rung says and holds it for the whole minute, so two runs at level six are
  * two runs at the same difficulty and the number that comes out of them means
  * something next to the other one. What your form moves is the reward — the
- * chain, the tier, the multiplier — not the floor.
+ * chain, the tier, the multiplier — not the floor. The way to do better is to
+ * be faster, cleaner and more precise at the same unchanging thing.
+ *
+ * **The rung is a roster as well as a pace.** Level one is two fingers. Every
+ * rung after it hands over one more piece of your layout — the third and
+ * fourth abilities, then the summoner bank and the board that owns it, then
+ * the three orders that are not abilities at all — so that by the top of the
+ * ladder every command the bench can grade is being asked for at once.
  *
  * **The map arrives at four.** The board in the corner is a second task, and a
  * second task is worth adding only to a first one you can already do. Levels
@@ -152,6 +167,37 @@ function GroupHead({ label, note, count }: { label: string; note: string; count?
   );
 }
 
+/**
+ * The key ladder, printed.
+ *
+ * The one thing about the section a new player could not previously find out
+ * without playing all ten rungs: what a level actually changes besides the
+ * speed. Ten cells, and the ones that hand over a key say which.
+ */
+function KeyLadder() {
+  return (
+    <div className="lab-keyladder">
+      <div className="lab-kl-head mono">
+        WHAT EACH RUNG PUTS IN YOUR HANDS · <b>all ten open to everybody</b>
+      </div>
+      <ol className="lab-kl-rungs">
+        {Array.from({ length: APM_LEVELS }, (_, i) => i + 1).map((n) => {
+          const adds = rungAdds(n);
+          return (
+            <li key={n} className={`lab-kl-rung${adds ? ' gains' : ''}`}>
+              <b className="mono">{n}</b>
+              <span>{adds || 'the whole roster, faster'}</span>
+              <i className="mono">
+                {keysAtLevel(n).length + ordersAtLevel(n).length} COMMANDS
+              </i>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 function LabPanel({
   profile,
   picked,
@@ -173,18 +219,37 @@ function LabPanel({
       </p>
       <p className="dim pr-lead pr-panel-lead">
         <b>The pads move</b>, further and faster the higher the level, so your eyes are working
-        for the whole minute rather than the first ten seconds of it. And from{' '}
-        <b>level {MAP_MIN_LEVEL}</b> up, <b>the minimap is a second task</b>: a bad orb falls
-        slowly down one of two lanes, your summoner keys are which lane you stand in, and an orb
-        that lands on you costs the whole flow tier your hands just spent a minute building —
-        which is exactly what a gank you did not look up for costs. Below level {MAP_MIN_LEVEL}{' '}
-        the corner is empty and the bench is the whole of the job.
+        for the whole minute rather than the first ten seconds of it. And <b>a level is a roster
+        as well as a speed</b>: rung one is two fingers, and every rung after it hands over one
+        more piece of your layout, so that by <b>level {KEYS_COMPLETE_AT}</b> every command this
+        bench can grade is being asked for and the last three rungs are all of it at once.
+      </p>
+
+      <KeyLadder />
+
+      <p className="dim pr-lead pr-panel-lead">
+        Two of those rungs add a whole second instrument. From <b>level {MAP_MIN_LEVEL}</b>{' '}
+        <b>the minimap is a second task</b>: a bad orb falls slowly down one of two lanes, your
+        summoner keys are which lane you stand in, and an orb that lands on you costs the whole
+        flow tier your hands just spent a minute building — which is exactly what a gank you did
+        not look up for costs. From <b>level {ORDER_AT.move}</b> a strip along the bottom starts
+        asking for <b>the orders</b> — move, attack-move, stop. They are not abilities, they go to
+        the champion rather than to a cooldown, and answering with the wrong one of the three is a
+        fumble rather than a miss: a right-click where you meant to attack-move is not a slow
+        command, it is a different one.
       </p>
 
       <div className="pr-legend">
         <span className="pr-legend-item" style={{ ['--c' as string]: '#58e0ff' }}>
           <b>PLAY</b>
           <i>One minute at the rung on the card, at a speed that never changes under you.</i>
+        </span>
+        <span className="pr-legend-item" style={{ ['--c' as string]: '#ff8a3d' }}>
+          <b>▲ SURGE</b>
+          <i>
+            One minute, and your chain drives the floor — hold one and the bench climbs above your
+            rung and the colours climb with it.
+          </i>
         </span>
         <span className="pr-legend-item" style={{ ['--c' as string]: '#c58bff' }}>
           <b>∞ INFINITE</b>
@@ -216,6 +281,8 @@ function LabPanel({
                     // would fix it.
                     infRuns={rec.infinite?.runs ?? 0}
                     infHeld={rec.infinite?.bestHeld ?? 0}
+                    surgeRuns={rec.surge?.runs ?? 0}
+                    surgeBest={rec.surge?.bestSurge ?? 0}
                     onStep={(by) => onStep(m, level, by)}
                     onPlay={onPlay}
                   />
@@ -228,18 +295,28 @@ function LabPanel({
 
       <p className="set-note">
         A level is a place you go back to, beat, and leave behind. Nothing on this screen is
-        locked: all ten rungs of all thirteen benches are playable from your first run, because
-        the only person who knows which one is worth your next minute is you. What the ladder
-        still does is <b>remember</b> — every rung keeps its own record, and your best on level 6
-        cannot be taken away by a bad run on level 7.
+        locked, earned or unlocked: <b>all ten rungs of all thirteen benches are playable by
+        everybody from their first run</b>, because the only person who knows which one is worth
+        your next minute is you. What the ladder still does is <b>remember</b> — every rung keeps
+        its own record, and your best on level 6 cannot be taken away by a bad run on level 7.
       </p>
       <p className="set-note">
         <b>PLAY is not adaptive.</b> The number on the rung is the difficulty the bench will be
         played at, it scales the pads, the windows and the orbs together, and it stays where it
-        is for the whole minute. The floor used to speed up as a run went well, which meant a
-        good start was paid for with a harder finish and no two runs at a level were the same
-        level. Your form moves the chain, the tier and the multiplier. It does not move the
-        bench.
+        is for the whole minute — and so do the colours, which used to climb with your streak and
+        made a good run look like a different bench. The floor used to speed up as a run went
+        well, which meant a good start was paid for with a harder finish and no two runs at a
+        level were the same level. Here your form moves the chain, the tier and the multiplier
+        and nothing else, so the only ways to score better are the three that ought to be:{' '}
+        <b>faster, cleaner, more precise</b>, at a thing that does not change under you.
+      </p>
+      <p className="set-note">
+        <b>SURGE is where that used to live, and it is a mode now.</b> Same bench, same rung, same
+        minute — except that your chain is wired to the floor. Hold one and the pads run away from
+        you, the windows close and the whole console repaints through the five flow colours; break
+        it and everything settles back onto the rung you chose. It writes its own record rather
+        than the rung's, because a run whose difficulty you moved yourself is not a rep of that
+        rung. It is the answer to "how hard can I make this before I drop it".
       </p>
       <p className="set-note">
         <b>Right-click any bench</b> — or take the <b>∞</b> under it — for the one run in this
@@ -263,6 +340,8 @@ function LabBench({
   lv,
   infRuns,
   infHeld,
+  surgeRuns,
+  surgeBest,
   onStep,
   onPlay,
 }: {
@@ -273,6 +352,8 @@ function LabBench({
   lv: ApmLevelRecord;
   infRuns: number;
   infHeld: number;
+  surgeRuns: number;
+  surgeBest: number;
   onStep: (by: number) => void;
   onPlay: PlayFn;
 }) {
@@ -287,6 +368,12 @@ function LabBench({
   const goInfinite = () => {
     audio.play('uiClick');
     onPlay(mode.id, 'infinite', { difficulty: levelDifficulty(level), level });
+  };
+  // The same bench and the same rung, with the one thing PLAY refuses to do:
+  // let the run's own chain move the floor under it.
+  const goSurge = () => {
+    audio.play('uiClick');
+    onPlay(mode.id, 'surge', { difficulty: levelDifficulty(level), level });
   };
 
   return (
@@ -375,12 +462,32 @@ function LabBench({
       >
         <span className="pr-go-label">PLAY</span>
         <span className="pr-go-sub">
-          par {mode.par} APM · {level >= MAP_MIN_LEVEL ? 'with the map' : 'bench only'}
+          par {mode.par} APM · {keysAtLevel(level).length + ordersAtLevel(level).length} commands ·{' '}
+          {level >= MAP_MIN_LEVEL ? 'with the map' : 'bench only'}
         </span>
         <span className="pr-go-best mono">
           {lv.best > 0 ? `best ${Math.round(lv.best * 100)}%` : 'no run on this rung'}
         </span>
       </button>
+      <div className="pr-lab-alts">
+        <button
+          className="pr-lab-surge"
+          onMouseEnter={() => audio.play('uiHover')}
+          onClick={goSurge}
+          title={`${meta.name}: a surge run at level ${level}. One minute, and your chain drives the floor.`}
+        >
+          <span className="pr-inf-mark" aria-hidden>
+            ▲
+          </span>
+          <span className="pr-inf-label">
+            SURGE
+            <i>1 min · the streak drives it</i>
+          </span>
+          <span className="pr-inf-best mono">
+            {surgeRuns > 0 ? `+${surgeBest.toFixed(1)} rungs` : 'chain moves the floor'}
+          </span>
+        </button>
+      </div>
       <button
         className="pr-lab-inf"
         onMouseEnter={() => audio.play('uiHover')}

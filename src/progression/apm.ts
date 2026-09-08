@@ -68,12 +68,18 @@ export interface ApmMode {
  * demands at once and are worth playing only once the isolated version of
  * each has stopped being interesting — which is the order the list is in.
  *
- * Two things are true of every rung of every one of them and are therefore
- * written down in none of them: the pads travel, further and faster the higher
- * the level, and from level four up the minimap runs its two-lane dodge on the
- * summoner keys for the whole run. What the level ladder scales is the mode
- * *and* both of those — and it scales them once, at the start of the run, so a
- * rung is one difficulty rather than a range.
+ * Three things are true of every rung of every one of them and are therefore
+ * written down in none of them. The pads travel, further and faster the higher
+ * the level. From level four up the minimap runs its two-lane dodge on the
+ * summoner keys for the whole run, and from level five the strip along the
+ * bottom starts asking for the orders. And the rung is a *roster* as well as a
+ * pace — level one is two fingers, and by the top of the ladder every command
+ * the bench can grade is being asked for at once; `keyladder.ts` is the table.
+ *
+ * What the level ladder scales is the mode and all of those, and it scales
+ * them once at the start of the run, so a rung is one difficulty rather than a
+ * range. The two shapes whose floor moves — SURGE and INFINITE — keep their
+ * own records for exactly that reason.
  */
 const MODE_TABLE: Omit<ApmMode, 'par' | 'order'>[] = [
   {
@@ -206,6 +212,29 @@ export interface ApmInfiniteRecord {
   bestApm: number;
 }
 
+/**
+ * What a surge run leaves behind.
+ *
+ * Not a level record either, and for the same reason as the infinite one: the
+ * floor moved. It moved for a different cause — the player's own chain rather
+ * than a tide hunting for them — but a rung is a *place*, and a run that spent
+ * half its minute two rungs above the one on the card did not play that rung.
+ *
+ * What it keeps instead is the only number the mode is actually about: how far
+ * a streak carried the bench above where it opened.
+ */
+export interface ApmSurgeRecord {
+  runs: number;
+  /** Best score in a surge run at any rung. */
+  bestScore: number;
+  /** The most rungs a streak ever added to the floor. */
+  bestSurge: number;
+  /** The rung that surge was ridden from, so the peak means something. */
+  bestFrom: number;
+  bestChain: number;
+  bestApm: number;
+}
+
 export interface ApmModeRecord {
   levels: ApmLevelRecord[];
   /**
@@ -222,6 +251,8 @@ export interface ApmModeRecord {
   runs: number;
   /** The open-ended run's own ledger. Synthesised for profiles without one. */
   infinite: ApmInfiniteRecord;
+  /** The streak-driven run's own ledger. Synthesised the same way. */
+  surge: ApmSurgeRecord;
 }
 
 export interface ApmProgress {
@@ -247,12 +278,22 @@ const emptyInfinite = (): ApmInfiniteRecord => ({
   bestApm: 0,
 });
 
+const emptySurge = (): ApmSurgeRecord => ({
+  runs: 0,
+  bestScore: 0,
+  bestSurge: 0,
+  bestFrom: 0,
+  bestChain: 0,
+  bestApm: 0,
+});
+
 const emptyMode = (): ApmModeRecord => ({
   levels: Array.from({ length: APM_LEVELS }, emptyLevel),
   unlocked: 1,
   lastLevel: 1,
   runs: 0,
   infinite: emptyInfinite(),
+  surge: emptySurge(),
 });
 
 export const emptyApmProgress = (): ApmProgress => ({
@@ -292,6 +333,17 @@ export const normalizeApmProgress = (raw: Partial<ApmProgress> | undefined): Apm
     rec.unlocked = clamp(Math.round(src.unlocked ?? 1), 1, APM_LEVELS);
     rec.lastLevel = clamp(Math.round(src.lastLevel ?? 1), 1, APM_LEVELS);
     rec.runs = Math.max(0, src.runs ?? 0);
+    const sur = src.surge;
+    if (sur) {
+      rec.surge = {
+        runs: Math.max(0, sur.runs ?? 0),
+        bestScore: Math.max(0, sur.bestScore ?? 0),
+        bestSurge: clamp(sur.bestSurge ?? 0, 0, APM_LEVELS),
+        bestFrom: clamp(Math.round(sur.bestFrom ?? 0), 0, APM_LEVELS),
+        bestChain: Math.max(0, sur.bestChain ?? 0),
+        bestApm: Math.max(0, sur.bestApm ?? 0),
+      };
+    }
     const inf = src.infinite;
     if (inf) {
       rec.infinite = {
@@ -462,6 +514,18 @@ export interface ApmInfiniteReport {
   unlockedTo: number | null;
 }
 
+/** What a surge run did, for the screen that has to say so. */
+export interface ApmSurgeReport {
+  /** The rung it opened on, and the most rungs the streak added to it. */
+  opened: number;
+  peak: number;
+  /** The best chain the run held, which is the thing that moved the floor. */
+  chain: number;
+  previousPeak: number;
+  peakRecord: boolean;
+  scoreRecord: boolean;
+}
+
 export interface ApmRunReport {
   mode: ApmMode;
   level: number;
@@ -490,6 +554,8 @@ export interface ApmRunReport {
   endurance: boolean;
   /** Present exactly when this was an infinite run. */
   infinite: ApmInfiniteReport | null;
+  /** Present exactly when this was a surge run. */
+  surge: ApmSurgeReport | null;
 }
 
 /** The floor's own account of an infinite run, read off its key metrics. */
@@ -498,6 +564,13 @@ export interface ApmInfiniteInput {
   peak: number;
   low: number;
   seconds: number;
+}
+
+/** The streak's own account of a surge run, read off its key metrics. */
+export interface ApmSurgeInput {
+  /** The most rungs the chain ever added to the floor. */
+  peak: number;
+  chain: number;
 }
 
 export interface ApmRunInput {
@@ -514,6 +587,12 @@ export interface ApmRunInput {
    * the player pointed the menu rather than about what they played.
    */
   infinite?: ApmInfiniteInput;
+  /**
+   * Set when the run's floor moved with the player's own chain. Like an
+   * infinite run it writes no rung record — but unlike one it is a minute
+   * long, so its score is worth keeping.
+   */
+  surge?: ApmSurgeInput;
 }
 
 /**
@@ -539,6 +618,65 @@ export const applyApmRun = (p: ApmProgress, run: ApmRunInput): ApmRunReport => {
   if (run.apm > p.bestApm) {
     p.bestApm = run.apm;
     p.bestApmMode = run.drill;
+  }
+
+  // ---------------------------------------------------------------- surge
+  //
+  // A run whose floor rose with the player's own chain. It is a minute long,
+  // so unlike the infinite run it has a score worth keeping — and it is not a
+  // rung, so like the infinite run it writes no star and moves no level
+  // record. What it keeps is the sentence the mode exists to let somebody say:
+  // I opened on six and my hands carried it to nine.
+  if (run.surge) {
+    const sur = rec.surge;
+    const peak = clamp(run.surge.peak, 0, APM_LEVELS);
+    const previousPeak = sur.bestSurge;
+    const previousScore = sur.bestScore;
+    const previousApm = sur.bestApm;
+    sur.runs += 1;
+    if (peak > sur.bestSurge) {
+      sur.bestSurge = peak;
+      sur.bestFrom = level;
+    }
+    sur.bestScore = Math.max(sur.bestScore, run.score);
+    sur.bestChain = Math.max(sur.bestChain, run.surge.chain);
+    sur.bestApm = Math.max(sur.bestApm, run.apm);
+    rec.lastLevel = level;
+
+    p.mastery = computeApmMastery(p);
+    p.peak = Math.max(p.peak, p.mastery);
+
+    return {
+      mode,
+      level,
+      performance: run.performance,
+      cleared: levelCleared(lv),
+      firstClear: false,
+      starsBefore,
+      starsAfter: starsBefore,
+      previousBest,
+      best: lv.best,
+      apm: run.apm,
+      bestApm: sur.bestApm,
+      apmRecord: run.apm > previousApm,
+      unlockedTo: null,
+      skipped: false,
+      masteryBefore,
+      masteryAfter: p.mastery,
+      titleBefore,
+      titleAfter: apmTitleFor(p.peak),
+      nextLevel: recommendedLevel(p, run.drill),
+      endurance: false,
+      infinite: null,
+      surge: {
+        opened: level,
+        peak,
+        chain: run.surge.chain,
+        previousPeak,
+        peakRecord: peak > previousPeak,
+        scoreRecord: run.score > previousScore,
+      },
+    };
   }
 
   // ------------------------------------------------------------- infinite
@@ -591,6 +729,7 @@ export const applyApmRun = (p: ApmProgress, run: ApmRunInput): ApmRunReport => {
       titleAfter: apmTitleFor(p.peak),
       nextLevel: recommendedLevel(p, run.drill),
       endurance: true,
+      surge: null,
       infinite: {
         held,
         peak,
@@ -653,6 +792,7 @@ export const applyApmRun = (p: ApmProgress, run: ApmRunInput): ApmRunReport => {
     nextLevel: recommendedLevel(p, run.drill),
     endurance: run.endurance,
     infinite: null,
+    surge: null,
   };
 };
 

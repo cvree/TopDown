@@ -71,7 +71,19 @@ export const createApmDrill = (id: DrillId, session: Session): Drill | null => {
   }
 };
 
-export { APM_TARGET_APM, FLOW_TIERS } from './engine';
+export { APM_TARGET_APM, FLOW_TIERS, SURGE_RANGE } from './engine';
 export { MAP_KEYS, MAP_MIN_LEVEL } from './map';
+export {
+  KEYS_COMPLETE_AT,
+  LAB_ORDERS,
+  ORDER_AT,
+  ORDER_LABEL,
+  keysAtLevel,
+  mapAtLevel,
+  ordersAtLevel,
+  rowAtLevel,
+  rungAdds,
+} from './keyladder';
+export type { LabOrder } from './keyladder';
 export { LabDrill } from './lab';
 export type { LabSolution } from './lab';

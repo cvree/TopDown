@@ -49,16 +49,30 @@ import { APM_LEVELS, difficultyLevel, levelDifficulty } from '../../progression/
  * and so a mode about restraint can pay for restraint without paying a rate
  * for it, which is the whole reason hold() exists as a verb of its own.
  *
- * And one rule about the floor those verbs sit on: *the rung sets the pace and
- * nothing else moves it*. Every window, every spacing and every clock in every
- * bench is a function of `d` — the difficulty the level named — so two runs at
- * a level are two runs at the same difficulty and the numbers they produce can
- * be put next to each other. The engine used to feed the player's own flow
- * back into the pace, which was a lovely idea and the wrong instrument: it
- * meant a good run bought itself a harder bench, and "level 6" named a range
- * rather than a place. What your form moves now is the *reward* — the chain,
- * the tier, the multiplier, the pitch, the bed. The one shape of run with a
- * moving floor is INFINITE, where moving the floor is the entire mode.
+ * And one rule about the floor those verbs sit on: *in PLAY the rung sets the
+ * pace and nothing else moves it*. Every window, every spacing and every clock
+ * in every bench is a function of `d` — the difficulty the level named — so
+ * two runs at a level are two runs at the same difficulty and the numbers they
+ * produce can be put next to each other. The engine used to feed the player's
+ * own flow back into the pace in every mode, which was a lovely idea and the
+ * wrong instrument for a rep: it meant a good run bought itself a harder
+ * bench, and "level 6" named a range rather than a place. What your form moves
+ * in PLAY is the *reward* — the chain, the tier, the multiplier, the pitch,
+ * the bed — and the way to a better score is to be faster, cleaner and more
+ * precise at the same unchanging thing.
+ *
+ * The idea was too good to throw away, so it has a mode of its own instead.
+ * Exactly two run shapes have a floor that moves, and in both of them the
+ * moving *is* the mode:
+ *
+ *   SURGE     — the streak drives it. `heat`, the smoothed read of your chain,
+ *               is added to the difficulty and to the palette: hold a chain
+ *               and the bench climbs above your rung and the colours climb
+ *               with it, break it and both settle back onto the rung.
+ *   INFINITE  — the tide drives it, hunting for the level you can just hold.
+ *
+ * Everything downstream reads one getter — `d` — so neither of them had to be
+ * taught to thirteen modes, and PLAY is left with a floor that cannot move.
  */
 
 export interface FlowTier {
@@ -80,6 +94,17 @@ export const FLOW_TIERS: FlowTier[] = [
   { name: 'BLAZING', at: 25, mult: 2.4, color: PALETTE.warn },
   { name: 'TRANSCENDENT', at: 42, mult: 3.2, color: PALETTE.violet },
 ];
+
+/**
+ * How far a full streak lifts the floor in SURGE, in difficulty.
+ *
+ * A rung is 0.1 of difficulty, so this is three of them: a player holding
+ * TRANSCENDENT on level five is being asked level eight's questions, and the
+ * instant they break it they are back on five. Enough that the mode is a
+ * different activity from PLAY; not so much that the rung the player chose
+ * stops meaning anything.
+ */
+export const SURGE_RANGE = 0.3;
 
 /**
  * The rate a strong run sustains in each mode.
@@ -163,6 +188,10 @@ export abstract class ApmDrill extends Drill {
   private tideBuilt = false;
 
   private peakApm = 0;
+  /** The highest the streak ever pushed the floor, in SURGE. In rungs. */
+  private peakSurge = 0;
+  /** Which way `heat` was last heading, for the HUD's arrow. */
+  private heatDrift = 0;
   private beatCd = 0;
   private lastActionAt = 0;
   private sampleCd = 0;
@@ -241,22 +270,49 @@ export abstract class ApmDrill extends Drill {
    * them had to be told.
    */
   protected get d(): number {
-    return this.tide ? this.tide.difficulty : this.s.config.difficulty;
+    if (this.tide) return this.tide.difficulty;
+    return clamp(this.s.config.difficulty + this.surgeLift, 0.05, 1);
+  }
+
+  /** Whether this run's floor answers to the player's streak. */
+  protected get surging(): boolean {
+    return this.s.mode === 'surge';
+  }
+
+  /**
+   * How much the streak has lifted the floor, in difficulty. Zero everywhere
+   * but SURGE, which is the whole of what makes SURGE a different mode.
+   *
+   * It rides `heat` rather than the tier, so the floor slides with the chain
+   * instead of stepping with it: a bench that jumped a rung the instant a tier
+   * landed would be a bench that changed pace in the middle of the prompt you
+   * were already answering.
+   */
+  protected get surgeLift(): number {
+    return this.surging ? clamp(this.heat, 0, 1) * SURGE_RANGE : 0;
+  }
+
+  /** The rung the *tide* is on. Null unless a tide is running. */
+  protected get tideLevel(): number | null {
+    return this.tide ? this.tide.level : null;
   }
 
   /** The moving floor, for the HUD. Null whenever the floor is not moving. */
   difficultyNow(): number | null {
-    return this.tide ? this.tide.difficulty : null;
+    if (this.tide) return this.tide.difficulty;
+    return this.surging ? this.d : null;
   }
 
   /** The rung the floor is on, continuously. Null when nothing is moving. */
   levelNow(): number | null {
-    return this.tide ? this.tide.level : null;
+    if (this.tide) return this.tide.level;
+    return this.surging ? difficultyLevel(this.d) : null;
   }
 
   /** Which way the floor is heading, -1..1. Null when nothing is moving. */
   driftNow(): number | null {
-    return this.tide ? this.tide.drift : null;
+    if (this.tide) return this.tide.drift;
+    return this.surging ? clamp(this.heatDrift * 6, -1, 1) : null;
   }
 
   /**
@@ -276,8 +332,10 @@ export abstract class ApmDrill extends Drill {
    * your form still moves is the *reward* — the chain, the tier and the
    * multiplier — which is where a reward belongs.
    *
-   * The one deliberate exception is INFINITE, which has no rung to be static
-   * at: there `this.d` is the tide, and moving the floor is the entire mode.
+   * The two deliberate exceptions are the two modes built on a moving floor —
+   * SURGE, where the streak lifts `this.d`, and INFINITE, where the tide is
+   * `this.d`. Both arrive through that one getter, so this reads the rung in
+   * PLAY without knowing either of them exists.
    */
   protected get tempo(): number {
     return 0.8 + this.d * 1.05;
@@ -285,6 +343,24 @@ export abstract class ApmDrill extends Drill {
 
   protected get flow(): FlowTier {
     return FLOW_TIERS[this.tier];
+  }
+
+  /**
+   * The colour every prompt on the bench is drawn in.
+   *
+   * One steady accent in PLAY, whatever the chain is doing. The lab used to
+   * repaint the whole console as the flow tier climbed — grey, blue, green,
+   * amber, violet — which meant the bench you were being scored on looked like
+   * a different bench depending on how the run was going, and a player reading
+   * "amber" as "this is the hard one" was reading their own streak rather than
+   * the mode. The tier still climbs, still pays, still says so on the HUD and
+   * in the banner; it just does not repaint the thing being measured.
+   *
+   * SURGE is where that behaviour lives now, and there it is honest: the
+   * colours move because the bench really is moving with them.
+   */
+  protected get promptColor(): string {
+    return this.surging ? this.flow.color : PALETTE.accent;
   }
 
   protected get multiplier(): number {
@@ -394,7 +470,7 @@ export abstract class ApmDrill extends Drill {
     const base = opts.value ?? 100;
     this.scoreAcc += base * (1 + quality * 0.55) * this.multiplier;
 
-    const color = opts.color ?? (perfect ? PALETTE.good : this.flow.color);
+    const color = opts.color ?? (perfect ? PALETTE.good : this.promptColor);
     audio.play(perfect ? 'perfect' : 'pickup', { pan: this.s.panOf(pos) });
     // No camera on a hit. A confirmation in the lab is the spray, the ring and
     // the pitch — a shove as well would fire five times a second for a whole
@@ -525,10 +601,18 @@ export abstract class ApmDrill extends Drill {
     if (this.tier <= before) return;
     this.peakTier = Math.max(this.peakTier, this.tier);
     const f = this.flow;
+    const color = this.promptColor;
     audio.play('flowTier', { intensity: 0.7 + this.tier * 0.12 });
-    this.s.setBanner(`${f.name}  ×${f.mult.toFixed(2).replace(/0$/, '')}`, 1.5);
-    this.s.fx.addFlash(0.05 + this.tier * 0.015, f.color);
-    this.s.fx.ring(pos.x, pos.y, 20, 240 + this.tier * 60, 0.6, f.color, 4, 'shock');
+    // In SURGE the tier is also a rung, so the banner says what it just cost
+    // you as well as what it just paid.
+    this.s.setBanner(
+      this.surging
+        ? `${f.name}  ×${f.mult.toFixed(2).replace(/0$/, '')}  ·  THE BENCH SPEEDS UP`
+        : `${f.name}  ×${f.mult.toFixed(2).replace(/0$/, '')}`,
+      1.5,
+    );
+    this.s.fx.addFlash(0.05 + this.tier * 0.015, color);
+    this.s.fx.ring(pos.x, pos.y, 20, 240 + this.tier * 60, 0.6, color, 4, 'shock');
     // The first two tiers arrive inside the first few seconds of every run and
     // then again after every break, so they get the banner and the ring and no
     // camera at all. Shake is saved for the two a run is actually built on,
@@ -561,8 +645,13 @@ export abstract class ApmDrill extends Drill {
     const idle = this.s.elapsed - this.lastActionAt;
     // Hands off the keys and the room cools down on its own.
     const rate = idle > 1.1 ? 1.6 : 5;
+    this.heatDrift = target - this.heat;
     this.heat += (target - this.heat) * clamp(dt * rate, 0, 1);
     if (idle > 2.4) this.heat = Math.max(0, this.heat - dt * 0.35);
+    // What the streak was worth, when the streak was driving the floor. In
+    // rungs above the one the run opened on, because that is the sentence the
+    // mode is trying to let you say: "I held level six at level nine's pace".
+    if (this.surging) this.peakSurge = Math.max(this.peakSurge, this.surgeLift / 0.1);
 
     this.sampleCd -= dt;
     if (this.sampleCd <= 0) {
@@ -581,6 +670,19 @@ export abstract class ApmDrill extends Drill {
       this.tide.step(dt, this.s.elapsed);
       this.announceRung();
     }
+  }
+
+  /**
+   * What the run was worth to the ladder, when the floor moved with the
+   * streak.
+   *
+   * The rung the player chose plus the average of what their chain added to
+   * it, which is the honest answer to "what did they actually play": a surge
+   * run held at the top tier for most of a minute was not a level five run,
+   * and a surge run that never got a chain together was.
+   */
+  protected get surgeLevel(): number {
+    return difficultyLevel(clamp(this.s.config.difficulty + this.surgeLift, 0.05, 1));
   }
 
   /**
@@ -667,20 +769,21 @@ export abstract class ApmDrill extends Drill {
     this.beatCd = clamp(0.6 - this.tier * 0.09 - this.heat * 0.12, 0.16, 0.6);
     audio.play('flowPulse', { intensity: 0.35 + this.heat * 0.5 });
     const p = this.s.world.player;
-    if (p) this.s.fx.ring(p.pos.x, p.pos.y, p.radius + 8, p.radius + 30 + this.heat * 34, 0.24, this.flow.color, 1.6, 'pulse');
+    if (p) this.s.fx.ring(p.pos.x, p.pos.y, p.radius + 8, p.radius + 30 + this.heat * 34, 0.24, this.promptColor, 1.6, 'pulse');
   }
 
   paint(out: DrillPaint, t: number): void {
     const p = this.s.world.player;
     if (p && this.tier > 0) {
       const f = this.flow;
+      const color = this.promptColor;
       const pulse = 0.5 + 0.5 * Math.sin(t * (4 + this.tier * 1.6));
       out.markers.push({
         kind: 'ring',
         x: p.pos.x,
         y: p.pos.y,
         radius: p.radius + 22 + this.heat * 26,
-        color: f.color,
+        color,
         alpha: 0.25 + this.heat * 0.5 + pulse * 0.12,
         width: 2 + this.heat * 4,
         progress: clamp(this.chain / Math.max(1, this.nextTierAt()), 0, 1),
@@ -692,9 +795,13 @@ export abstract class ApmDrill extends Drill {
         x: p.pos.x,
         y: p.pos.y,
         text: `×${f.mult.toFixed(2).replace(/0$/, '')}`,
-        color: f.color,
+        color,
         size: 20 + this.tier * 3,
-        sub: `${f.name} · ${this.chain}`,
+        // In SURGE the badge carries the other half of the bargain: what the
+        // chain is paying, and what it has cost the floor to earn it.
+        sub: this.surging
+          ? `${f.name} · ${this.chain} · +${(this.surgeLift / 0.1).toFixed(1)} RUNGS`
+          : `${f.name} · ${this.chain}`,
       });
     }
     this.paintMode(out, t);
@@ -730,10 +837,12 @@ export abstract class ApmDrill extends Drill {
       // to pay for wasted inputs, the share that landed is not a footnote.
       ...(mid ? [mid, clean] : [clean]),
       {
-        label: 'FLOW',
+        label: this.surging ? 'SURGE' : 'FLOW',
         value:
           this.tier > 0
-            ? `${this.flow.name} ×${this.flow.mult.toFixed(2).replace(/0$/, '')}`
+            ? this.surging
+              ? `×${this.flow.mult.toFixed(2).replace(/0$/, '')} · +${(this.surgeLift / 0.1).toFixed(1)} RUNGS`
+              : `${this.flow.name} ×${this.flow.mult.toFixed(2).replace(/0$/, '')}`
             : `${this.chain} / ${FLOW_TIERS[1].at} TO FLOW`,
         bar: this.heat,
         tone: this.tier >= 3 ? 'good' : this.tier >= 1 ? 'warn' : 'neutral',
@@ -800,9 +909,32 @@ export abstract class ApmDrill extends Drill {
         hurt.push(`The floor had to come down ${Math.abs(moved).toFixed(1)} rungs to find you.`);
     }
 
+    // What the streak was worth, when the streak was the floor. The same
+    // shape of finding the tide reports, from the other direction: there the
+    // mode looks for the rung, here the player builds one.
+    if (this.surging) {
+      const rungs = this.peakSurge;
+      if (rungs >= 2.2)
+        helped.push(
+          `Your chain carried the bench ${rungs.toFixed(1)} rungs above the one you opened on.`,
+        );
+      else if (rungs < 0.8)
+        hurt.push('The floor barely moved — in this mode a chain you cannot hold is a bench that never gets interesting.');
+    }
+
+    // Each shape of run has its own last word, because each one was asking a
+    // different question: PLAY asks how clean and how fast, SURGE asks how
+    // long you can hold a chain, INFINITE asks where you belong.
+    const surgeAdvice = this.surging
+      ? this.peakSurge >= 2.2
+        ? `You held the bench ${this.peakSurge.toFixed(1)} rungs above your own. Take that rung in PLAY and put it on the board — a surge is a thing you rode, a rung is a thing you own.`
+        : 'Chain first, speed second. In this mode the multiplier and the difficulty are the same lever, so the run only gets interesting once you can hold a tier.'
+      : null;
+
     const advice =
       coaching.advice ??
       this.extraAdvice() ??
+      surgeAdvice ??
       (tide
         ? tide.settled >= APM_LEVELS - 0.4
           ? `You held level ${tide.settled.toFixed(1)}. Nothing here is above you any more — take the same rung in PLAY and put it on the board.`
@@ -824,7 +956,15 @@ export abstract class ApmDrill extends Drill {
       // the difficulty it was held at is the entire finding. Handing the rung
       // back as the run's effective difficulty is what makes that finding
       // count for rating instead of averaging away into nothing.
-      ...(tide ? { effectiveDifficulty: levelDifficulty(tide.settled) } : {}),
+      ...(tide
+        ? { effectiveDifficulty: levelDifficulty(tide.settled) }
+        : this.surging
+          ? // A surge run was not played at the rung on the card: the chain
+            // spent most of it somewhere above. Half of the peak lift is the
+            // honest average of a floor that was back down on the rung every
+            // time the chain broke.
+            { effectiveDifficulty: clamp(this.s.config.difficulty + this.peakSurge * 0.05, 0.05, 1) }
+          : {}),
       // Order matters: the results screen leads with the first and shows the
       // next four in a row. So it goes headline rate, the rate that was
       // scored, what the mode itself measures, what the layers under it
@@ -835,6 +975,7 @@ export abstract class ApmDrill extends Drill {
       // the result, and every rate under it is a rate *at that level* rather
       // than a rate on its own.
       keyMetrics: [
+        ...(this.surging ? [rate('surgePeak', 'RUNGS SURGED', this.peakSurge)] : []),
         ...(tide
           ? [
               rate('labHeld', 'LEVEL HELD', tide.settled),

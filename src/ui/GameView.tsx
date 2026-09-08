@@ -19,8 +19,8 @@ import { ABILITY_BAR, RANGE_CHECK_SECONDS, Session, type HudSnapshot } from '../
 import { RiftRenderer } from '../gfx/RiftRenderer';
 import { arenaFor, createDrill } from '../drills';
 import { DRILLS, type DrillId } from '../drills/catalog';
-import { MAP_KEYS } from '../drills/apm';
-import { RUN_MODES, SURVIVE_STRIKES, durationFor, type RunMode } from '../drills/modes';
+import { MAP_KEYS, ORDER_LABEL, keysAtLevel, ordersAtLevel } from '../drills/apm';
+import { RUN_MODES, SURVIVE_STRIKES, durationFor, hasMovingFloor, type RunMode } from '../drills/modes';
 import { difficultyLevel } from '../progression/apmladder';
 import type { AppSettings, RunResult } from '../progression/profile';
 import { Minimap } from './hud/Minimap';
@@ -219,7 +219,7 @@ const KIT_GROUPS = new Set(['VAYNE', 'CAITLYN', 'COMBAT']);
  * key each ability is *actually* on, read from the live bindings, with the
  * ability's own name next to it.
  */
-const hintsFor = (settings: AppSettings, drill: DrillId): Hint[] => {
+const hintsFor = (settings: AppSettings, drill: DrillId, level: number): Hint[] => {
   const scheme = schemeFor(settings, drill);
   const base = baseHints(scheme, bindingsFor(settings, drill));
   const meta = DRILLS[drill];
@@ -251,11 +251,17 @@ const hintsFor = (settings: AppSettings, drill: DrillId): Hint[] => {
   // lanes, but the first orb of a player's first run is not the moment to be
   // reading a hundred-and-fifty-pixel panel for the first time.
   if (meta.group === 'APM') {
-    const lanes = MAP_KEYS.map((slot) => abilityKeyLabel(settings, drill, slot)).join(' ');
-    // The bench is the ability row, and which of it a mode uses is the mode's
-    // own business — but which keys those are is the player's, so the row
-    // names them rather than leaving a bench of circles to be decoded.
-    const bench = meta.abilities.filter((slot) => !MAP_KEYS.includes(slot));
+    // The lab's cheat sheet is the rung's, not the mode's. Which keys are in
+    // play is a fact about the level — two fingers at the bottom of the ladder
+    // and every command it can grade at the top — so a row promising four
+    // abilities and a minimap on level one would be naming three things the
+    // run is never going to ask for.
+    const roster = keysAtLevel(level);
+    const bench = meta.abilities.filter((slot) => !MAP_KEYS.includes(slot) && roster.includes(slot));
+    const lanes = MAP_KEYS.every((slot) => roster.includes(slot))
+      ? MAP_KEYS.map((slot) => abilityKeyLabel(settings, drill, slot)).join(' ')
+      : null;
+    const orders = ordersAtLevel(level);
     return [
       // The bench is keys and the board is keys; the only pointer row worth a
       // line here is the one that puts the cursor on a pad.
@@ -263,7 +269,12 @@ const hintsFor = (settings: AppSettings, drill: DrillId): Hint[] => {
       ...(bench.length
         ? [{ id: 'bench', key: bench.map((slot) => abilityKeyLabel(settings, drill, slot)).join(' '), label: 'the bench' }]
         : []),
-      { id: 'lanes', key: lanes, label: 'lanes · dodge the map' },
+      ...(lanes ? [{ id: 'lanes', key: lanes, label: 'lanes · dodge the map' }] : []),
+      ...orders.map((o) => ({
+        id: `order-${o}`,
+        key: keyOf(bindingsFor(settings, drill), o),
+        label: `${ORDER_LABEL[o].toLowerCase()} · the order line`,
+      })),
       { id: 'pause', key: 'ESC', label: 'pause · settings' },
     ];
   }
@@ -350,6 +361,14 @@ export function GameView({
   // level instead of a fixed difficulty and the pause screen has to offer a
   // way of stopping that still counts.
   const infinite = mode === 'infinite';
+  // The lab's other moving floor. It has a clock like PLAY, so the only thing
+  // the HUD changes is the right-hand readout: a difficulty that moves has to
+  // be a live number rather than ten pips printed once at the top of the run.
+  const surging = mode === 'surge';
+  // The two shapes whose difficulty moves while you stand on it. Everything
+  // the HUD does differently for them is the same thing: print a live rung
+  // instead of a setting.
+  const living = hasMovingFloor(mode);
   // Printed rather than assumed: instant reset is rebindable, so the pause
   // screen has to read the binding instead of promising a key that may have
   // moved.
@@ -915,7 +934,7 @@ export function GameView({
           <div className="hud-brief">{meta.brief}</div>
         </div>
 
-        <div className={`hud-clock${surviving ? ' surviving' : ''}${infinite ? ' infinite' : ''}`}>
+        <div className={`hud-clock${surviving ? ' surviving' : ''}${infinite ? ' infinite' : ''}${surging ? ' surging' : ''}`}>
           <div className="hud-mode">{RUN_MODES[mode].label}</div>
           <div className="hud-time num" data-time>
             0:00
@@ -948,13 +967,14 @@ export function GameView({
         </div>
 
         <div className="hud-right">
-          <div className={`hud-diff${infinite ? ' living' : ''}`}>
-            <span className="hud-diff-label">{infinite ? 'LEVEL' : 'DIFFICULTY'}</span>
-            {/* In every other run this is a setting, printed once. In the
-                infinite run it is the mode: the rung is what the tide is
-                looking for, so it is a live number with the direction of
-                travel on it rather than ten pips nobody has to watch. */}
-            {infinite && (
+          <div className={`hud-diff${living ? ' living' : ''}`}>
+            <span className="hud-diff-label">{living ? 'LEVEL' : 'DIFFICULTY'}</span>
+            {/* In PLAY and SURVIVE this is a setting, printed once. In the two
+                modes whose floor moves it is the mode: the rung is what the
+                tide is looking for, and what a streak is buying, so it is a
+                live number with the direction of travel on it rather than ten
+                pips nobody has to watch. */}
+            {living && (
               <div className="hud-rung num" data-rung data-drift="hold">
                 {difficultyLevel(difficulty).toFixed(1)}
               </div>
@@ -1045,7 +1065,7 @@ export function GameView({
         {/* Controls, shown once and then gone. A cheat sheet that never
             leaves is a cheat sheet you stop reading and start seeing. */}
         <div className="hud-hints">
-          {hintsFor(settings, drill).map((h) => (
+          {hintsFor(settings, drill, difficultyLevel(difficulty)).map((h) => (
             <span key={h.id}>
               <b className="kbd">{h.key}</b> {h.label}
             </span>

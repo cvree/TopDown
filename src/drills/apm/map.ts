@@ -42,18 +42,17 @@ import { median } from './stats';
  * it somewhere else entirely.
  */
 
-/** The two lanes, and the keys that put you in them. */
-export const MAP_KEYS: [AbilitySlot, AbilitySlot] = ['d', 'f'];
-
 /**
- * The rung the board turns up on.
+ * The two lanes and the rung the board turns up on.
  *
- * The board is a second task, and a second task is only worth adding to a
- * first one you can already do. Levels one to three are where a player finds
- * out what a bench is asking for; the map arrives at four, where the bench
- * itself has stopped being the whole of the problem.
+ * Both live in the key ladder rather than here, because neither is a fact
+ * about the board: they are two entries in the one table that answers "what
+ * does a level change besides the speed", and a second copy of either would be
+ * a second thing to disagree with it. Re-exported because this is where the
+ * rest of the client has always asked for them.
  */
-export const MAP_MIN_LEVEL = 4;
+export { MAP_SLOTS as MAP_KEYS, MAP_MIN_LEVEL } from './keyladder';
+import { MAP_SLOTS as MAP_KEYS } from './keyladder';
 
 /** What the board needs from the drill it is bolted onto. */
 export interface MapVerbs {

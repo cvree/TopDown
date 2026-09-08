@@ -9,7 +9,6 @@ import { count, ms, pct } from '../base';
 import { APM_TARGET_APM } from './engine';
 import { LabDrill, median, type LabSolution, type Pad } from './lab';
 
-const SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r'];
 
 /**
  * GO / NO-GO — the press you were right not to make.
@@ -41,6 +40,8 @@ export class ApmGateDrill extends LabDrill {
   }
 
   private pads: Pad[] = [];
+  /** The part of the ability row this rung asks for. */
+  private slotsHere: AbilitySlot[] = [];
   private lit = 0;
   private barred = false;
   private shownAt = 0;
@@ -52,13 +53,14 @@ export class ApmGateDrill extends LabDrill {
   private reactionsOnGo: number[] = [];
 
   protected build(): void {
-    this.pads = this.row(SLOTS, { gap: 200, radius: 66 });
+    this.slotsHere = this.useSlots(['q', 'w', 'e', 'r']);
+    this.pads = this.row(this.slotsHere, { gap: 200, radius: 66 });
     this.deal();
   }
 
   private deal(): void {
-    let next = this.s.rng.int(0, SLOTS.length);
-    if (next === this.lit) next = (next + 1) % SLOTS.length;
+    let next = this.s.rng.int(0, this.slotsHere.length);
+    if (next === this.lit) next = (next + 1) % this.slotsHere.length;
     this.lit = next;
     // Barred pads get commoner as the rung climbs: at the top nearly half of
     // what lights up is asking to be left alone.
@@ -80,7 +82,7 @@ export class ApmGateDrill extends LabDrill {
   }
 
   protected onKey(slot: AbilitySlot): void {
-    const idx = SLOTS.indexOf(slot);
+    const idx = this.slotsHere.indexOf(slot);
     if (idx < 0) {
       this.stray(this.centre);
       return;
@@ -97,7 +99,7 @@ export class ApmGateDrill extends LabDrill {
     }
     if (idx !== this.lit) {
       this.wrong++;
-      this.fumble(pad.pos, `WRONG · ${this.glyph(SLOTS[this.lit])}`);
+      this.fumble(pad.pos, `WRONG · ${this.glyph(this.slotsHere[this.lit])}`);
       this.deal();
       return;
     }
@@ -113,11 +115,11 @@ export class ApmGateDrill extends LabDrill {
   }
 
   protected modeSolution(): LabSolution {
-    return this.barred ? { wait: true } : { keys: [SLOTS[this.lit]] };
+    return this.barred ? { wait: true } : { keys: [this.slotsHere[this.lit]] };
   }
 
   protected slotName(slot: AbilitySlot): string {
-    return SLOTS[this.lit] === slot ? (this.barred ? 'HOLD' : 'GO') : '';
+    return this.slotsHere[this.lit] === slot ? (this.barred ? 'HOLD' : 'GO') : '';
   }
 
   protected paintMode(out: DrillPaint, _t: number): void {
@@ -125,7 +127,7 @@ export class ApmGateDrill extends LabDrill {
     this.paintBench(out, this.pads);
     this.pads.forEach((pad, i) => {
       const on = i === this.lit;
-      const color = !on ? PALETTE.textFaint : this.barred ? PALETTE.danger : this.flow.color;
+      const color = !on ? PALETTE.textFaint : this.barred ? PALETTE.danger : this.promptColor;
       this.paintPad(out, pad, {
         color,
         glow: on ? 0.55 + left * 0.45 : 0.05,

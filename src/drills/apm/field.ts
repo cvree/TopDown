@@ -77,7 +77,7 @@ export class ApmFieldDrill extends LabDrill {
       born: this.s.elapsed,
       ttl: clamp((2.1 - this.d * 0.75) / this.tempo, 0.55, 2.2),
     });
-    this.s.fx.ring(pos.x, pos.y, radius * 2.4, radius, 0.22, this.flow.color, 2, 'range');
+    this.s.fx.ring(pos.x, pos.y, radius * 2.4, radius, 0.22, this.promptColor, 2, 'range');
   }
 
   protected tick(dt: number): void {
@@ -140,7 +140,7 @@ export class ApmFieldDrill extends LabDrill {
     for (const m of this.live) {
       const left = clamp(1 - (this.s.elapsed - m.born) / m.ttl, 0, 1);
       this.paintPad(out, m.pad, {
-        color: left < 0.3 ? PALETTE.danger : this.flow.color,
+        color: left < 0.3 ? PALETTE.danger : this.promptColor,
         glow: 0.35 + left * 0.5,
         progress: left,
         text: '',
@@ -189,7 +189,6 @@ export class ApmFieldDrill extends LabDrill {
   }
 }
 
-const HANDOFF_KEYS: AbilitySlot[] = ['q', 'w', 'e'];
 
 /**
  * HANDOFF — the two hands, strictly taking turns.
@@ -211,6 +210,8 @@ export class ApmHandoffDrill extends LabDrill {
   protected readonly targetApm = APM_TARGET_APM.apmHandoff;
 
   private turn: 'click' | 'key' = 'click';
+  /** The part of the ability row this rung asks the keyboard hand for. */
+  private keySlots: AbilitySlot[] = [];
   private clickPad: Pad | null = null;
   private keySlot: AbilitySlot = 'q';
   private keyPads: Pad[] = [];
@@ -222,7 +223,8 @@ export class ApmHandoffDrill extends LabDrill {
   private missed = 0;
 
   protected build(): void {
-    this.keyPads = this.row(HANDOFF_KEYS, { gap: 170, radius: 56, y: this.centre.y + 250 });
+    this.keySlots = this.useSlots(['q', 'w', 'e']);
+    this.keyPads = this.row(this.keySlots, { gap: 170, radius: 56, y: this.centre.y + 250 });
     this.deal();
   }
 
@@ -234,7 +236,7 @@ export class ApmHandoffDrill extends LabDrill {
       if (this.clickPad) this.undrift(this.clickPad);
       this.clickPad = this.drift({ slot: null, pos, radius: clamp(96 - this.d * 26, 46, 96) }, 'free');
     } else {
-      this.keySlot = this.s.rng.pick(HANDOFF_KEYS);
+      this.keySlot = this.s.rng.pick(this.keySlots);
     }
   }
 
@@ -270,7 +272,7 @@ export class ApmHandoffDrill extends LabDrill {
       return;
     }
     const age = this.s.elapsed - this.shownAt;
-    this.pass(this.keyPads[HANDOFF_KEYS.indexOf(slot)].pos, this.glyph(slot), clamp(1 - age / this.window, 0, 1));
+    this.pass(this.keyPads[this.keySlots.indexOf(slot)].pos, this.glyph(slot), clamp(1 - age / this.window, 0, 1));
   }
 
   protected onBenchClick(pos: Vec2): void {
@@ -303,7 +305,7 @@ export class ApmHandoffDrill extends LabDrill {
     const clicking = this.turn === 'click';
     if (this.clickPad) {
       this.paintPad(out, this.clickPad, {
-        color: clicking ? (left < 0.3 ? PALETTE.danger : this.flow.color) : PALETTE.textFaint,
+        color: clicking ? (left < 0.3 ? PALETTE.danger : this.promptColor) : PALETTE.textFaint,
         glow: clicking ? 0.45 + left * 0.5 : 0.03,
         progress: clicking ? left : undefined,
         text: clicking ? 'CLICK' : '',
@@ -311,9 +313,9 @@ export class ApmHandoffDrill extends LabDrill {
     }
     this.paintBench(out, this.keyPads);
     this.keyPads.forEach((pad, i) => {
-      const on = !clicking && HANDOFF_KEYS[i] === this.keySlot;
+      const on = !clicking && this.keySlots[i] === this.keySlot;
       this.paintPad(out, pad, {
-        color: on ? (left < 0.3 ? PALETTE.danger : this.flow.color) : PALETTE.textFaint,
+        color: on ? (left < 0.3 ? PALETTE.danger : this.promptColor) : PALETTE.textFaint,
         glow: on ? 0.55 + left * 0.45 : 0.05,
         progress: on ? left : undefined,
       });
@@ -362,7 +364,6 @@ export class ApmHandoffDrill extends LabDrill {
   }
 }
 
-const CENTRE_KEYS: AbilitySlot[] = ['q', 'w', 'e'];
 
 /**
  * SPLIT — two things at once, neither allowed to wait.
@@ -390,6 +391,8 @@ export class ApmSplitDrill extends LabDrill {
   protected readonly targetApm = APM_TARGET_APM.apmSplit;
 
   private pads: Pad[] = [];
+  /** The part of the ability row the centre queue runs on at this rung. */
+  private keySlots: AbilitySlot[] = [];
   private queue: AbilitySlot[] = [];
   private shownAt = 0;
   private window = 1.1;
@@ -404,15 +407,16 @@ export class ApmSplitDrill extends LabDrill {
   }
 
   protected build(): void {
-    this.pads = this.row(CENTRE_KEYS, { gap: 170, radius: 60 });
+    this.keySlots = this.useSlots(['q', 'w', 'e']);
+    this.pads = this.row(this.keySlots, { gap: 170, radius: 60 });
     for (let i = 0; i < 5; i++) this.push();
     this.arm();
   }
 
   private push(): void {
-    let pick = this.s.rng.pick(CENTRE_KEYS);
+    let pick = this.s.rng.pick(this.keySlots);
     let guard = 0;
-    while (pick === this.queue[this.queue.length - 1] && guard++ < 6) pick = this.s.rng.pick(CENTRE_KEYS);
+    while (pick === this.queue[this.queue.length - 1] && guard++ < 6) pick = this.s.rng.pick(this.keySlots);
     this.queue.push(pick);
   }
 
@@ -446,7 +450,7 @@ export class ApmSplitDrill extends LabDrill {
     const age = this.s.elapsed - this.shownAt;
     if (this.lastHitAt > 0) this.gaps.push((this.s.elapsed - this.lastHitAt) * 1000);
     this.lastHitAt = this.s.elapsed;
-    this.hit(this.pads[CENTRE_KEYS.indexOf(slot)].pos, {
+    this.hit(this.pads[this.keySlots.indexOf(slot)].pos, {
       quality: clamp(1 - age / this.window, 0, 1),
       value: 90,
       reaction: age * 1000,
@@ -461,7 +465,7 @@ export class ApmSplitDrill extends LabDrill {
   }
 
   protected slotName(slot: AbilitySlot): string {
-    return CENTRE_KEYS.includes(slot) ? 'CENTRE' : 'MAP';
+    return this.keySlots.includes(slot) ? 'CENTRE' : 'MAP';
   }
 
   protected paintMode(out: DrillPaint, _t: number): void {
@@ -478,9 +482,9 @@ export class ApmSplitDrill extends LabDrill {
     });
     this.paintBench(out, this.pads);
     this.pads.forEach((pad, i) => {
-      const on = CENTRE_KEYS[i] === this.queue[0];
+      const on = this.keySlots[i] === this.queue[0];
       this.paintPad(out, pad, {
-        color: on ? (left < 0.3 ? PALETTE.danger : this.flow.color) : PALETTE.textFaint,
+        color: on ? (left < 0.3 ? PALETTE.danger : this.promptColor) : PALETTE.textFaint,
         glow: on ? 0.5 + left * 0.5 : 0.05,
         progress: on ? left : undefined,
       });

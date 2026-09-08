@@ -896,6 +896,14 @@
  * it. The ∞ is the affordance; the "right-click" line under the word is there
  * because the gesture it names is invisible otherwise.
  */
+/* The two runs a bench offers besides PLAY. They share a shape on purpose —
+   both are the same bench with the floor let loose — and differ only in what
+   is holding the leash: your own chain, or a tide looking for you. */
+.pr-lab-alts {
+  display: flex;
+  gap: 6px;
+}
+.pr-lab-surge,
 .pr-lab-inf {
   display: flex;
   align-items: center;
@@ -911,6 +919,13 @@
   text-align: left;
   transition: border-color 0.16s var(--ease), background 0.16s var(--ease), transform 0.16s var(--ease);
 }
+.pr-lab-surge {
+  /* Its own accent rather than the bench's: SURGE is a different question
+     about the same bench, and it is the one place in the lab where the
+     colours are allowed to move. */
+  --c: #ff8a3d;
+}
+.pr-lab-surge:hover,
 .pr-lab-inf:hover {
   transform: translateX(2px);
   border-color: color-mix(in srgb, var(--c) 70%, transparent);

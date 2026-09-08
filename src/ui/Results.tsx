@@ -509,7 +509,53 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
           </div>
         )}
 
-        {report.apm && !report.apm.infinite && (
+        {report.apm?.surge && (
+          <div className={`res-apm ${stage >= 3 ? 'in' : ''}`}>
+            <div className="panel pad">
+              <div className="panel-title">The surge</div>
+              <div className="ra-grid">
+                <div className="ra-level">
+                  <span className="eyebrow">Opened on level {report.apm.surge.opened}</span>
+                  <div className="ra-num display">
+                    +{report.apm.surge.peak.toFixed(1)}
+                  </div>
+                  <div className="ra-best mono">
+                    RUNGS YOUR CHAIN ADDED
+                    {report.apm.surge.peakRecord ? (
+                      <i className="good"> · BEST EVER</i>
+                    ) : (
+                      report.apm.surge.previousPeak > 0 && (
+                        <i className="faint"> · best +{report.apm.surge.previousPeak.toFixed(1)}</i>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                <div className="ra-rate">
+                  <span className="eyebrow">Best chain</span>
+                  <div className="ra-num display">{report.apm.surge.chain}</div>
+                  <span className={report.apm.surge.scoreRecord ? 'good mono' : 'faint mono'}>
+                    {report.apm.surge.scoreRecord ? 'SCORE RECORD IN SURGE' : 'the chain is the difficulty here'}
+                  </span>
+                </div>
+
+                <div className="ra-title">
+                  <span className="eyebrow">Correct actions / min</span>
+                  <b className="display">{Math.round(report.apm.apm)}</b>
+                  <p>{report.apm.apmRecord ? 'RATE RECORD' : `best ${Math.round(report.apm.bestApm)}`}</p>
+                </div>
+              </div>
+
+              <div className="ra-unlock quiet">
+                A surge run writes its own record and never the rung's: the floor moved, so this
+                was not a rep of level {report.apm.surge.opened}. Play that rung in PLAY, where it
+                cannot move, to put it on the board.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {report.apm && !report.apm.infinite && !report.apm.surge && (
           <div className={`res-apm ${stage >= 3 ? 'in' : ''}`}>
             <div className="panel pad">
               <div className="panel-title">The APM ladder</div>

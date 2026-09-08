@@ -8,8 +8,10 @@ import type { Actor, Vec2 } from '../../engine/types';
 import type { KeyMetric } from '../../progression/profile';
 import { difficultyLevel } from '../../progression/apmladder';
 import { ApmDrill, KeyCooldowns } from './engine';
-import { MAP_KEYS, MAP_MIN_LEVEL, MapDodge } from './map';
+import { benchPair, benchSlots, mapAtLevel, ORDER_LABEL, type LabOrder } from './keyladder';
+import { MAP_KEYS, MapDodge } from './map';
 import { PadMotion, type Drift } from './motion';
+import { OrderLine } from './orders';
 
 /**
  * THE CONSOLE — the surface every lab mode is built on.
@@ -41,13 +43,25 @@ import { PadMotion, type Drift } from './motion';
  * rung — and only with the rung. Two hands are being measured on this floor
  * and the eyes were being let off entirely; they are not any more.
  *
- * And one thing that is not on this floor at all: the board in the corner. On
- * level four and above, the minimap runs a two-lane dodge for the whole of
- * every mode, on the two summoner keys, and it is wired in here so that no
- * mode ever has to know it exists. Below level four there is no board at all —
- * the bottom of the ladder is for learning what a bench asks, and a second
- * screen asking a second question is the wrong first lesson. See `map.ts` for
- * what it asks and why.
+ * And two things that are not on this floor at all, both wired in here so that
+ * no mode ever has to know they exist.
+ *
+ * *The board in the corner.* On level four and above the minimap runs a
+ * two-lane dodge for the whole of every mode, on the two summoner keys. Below
+ * level four there is no board — the bottom of the ladder is for learning what
+ * a bench asks, and a second screen asking a second question is the wrong
+ * first lesson. See `map.ts`.
+ *
+ * *The order line.* Along the bottom of the floor, from level five up, a strip
+ * that asks for the three commands that are not abilities at all: move here,
+ * attack-move here, stop. They arrive one rung at a time. See `orders.ts`.
+ *
+ * Both are entries in one table — the key ladder in `keyladder.ts` — which is
+ * the answer to a question the section could not previously answer: what does
+ * a *level* change, besides the speed. It changes how much of your keyboard is
+ * in play. Rung one is two fingers. By the top every command the bench can
+ * grade is being asked for, and a bench reads its own share of that ladder
+ * through `useSlots` below rather than hard-coding a row of four.
  */
 
 /** Which shape your hand is in to reach a key. */
@@ -101,6 +115,11 @@ export interface LabSolution {
   dir?: Vec2 | null;
   /** True when doing nothing is the correct play right now. */
   wait?: boolean;
+  /**
+   * An order the strip along the bottom wants — a command to the champion
+   * rather than a key on the console, so it is its own field and not a key.
+   */
+  order?: { kind: LabOrder; at: Vec2 | null } | null;
 }
 
 /** How a pad is drawn. The colour says what it wants; the shape says when. */
@@ -129,6 +148,17 @@ export abstract class LabDrill extends ApmDrill {
    * four up.
    */
   protected map!: MapDodge;
+  /** The strip along the bottom. Every mode runs one — from level five up. */
+  protected orderLine!: OrderLine;
+
+  /**
+   * The keys this bench is actually asking for at this rung.
+   *
+   * Filled in by `useSlots`, and read by the ability bar so that a key the
+   * ladder has not handed over yet is drawn locked rather than drawn as a
+   * finger nothing is going to ask for.
+   */
+  protected slots: AbilitySlot[] = [];
 
   /**
    * Whether the board is running.
@@ -192,7 +222,7 @@ export abstract class LabDrill extends ApmDrill {
       p.hidden = true;
     }
     this.motion = new PadMotion(this.s.world.bounds, this.s.rng);
-    this.mapOn = this.rung >= MAP_MIN_LEVEL;
+    this.mapOn = mapAtLevel(this.rung);
     this.map = new MapDodge(
       this.s,
       {
@@ -201,10 +231,25 @@ export abstract class LabDrill extends ApmDrill {
         fumble: (pos, label, opts) => this.fumble(pos, label, opts),
         stray: (pos) => this.stray(pos),
         glyph: (slot) => this.glyph(slot),
-        color: () => this.flow.color,
+        color: () => this.promptColor,
         focus: () => this.mapFocus,
       },
       this.mapPressure(),
+    );
+    this.orderLine = new OrderLine(
+      this.s,
+      {
+        hit: (pos, opts) => this.hit(pos, opts),
+        fumble: (pos, label, opts) => this.fumble(pos, label, opts),
+        stray: (pos) => this.stray(pos),
+        glyph: (order) => this.orderGlyph(order),
+        color: () => this.promptColor,
+        difficulty: () => this.d,
+      },
+      // The rung the *ladder* is on, not the one a streak has pushed the pace
+      // to: SURGE moves the pace and never the roster, so a surge run asks for
+      // the same commands from its first second to its last.
+      () => this.rung,
     );
     this.build();
   }
@@ -232,12 +277,42 @@ export abstract class LabDrill extends ApmDrill {
   /**
    * The rung being played, continuously.
    *
-   * The tide's level while the floor is moving, and the level the menu opened
-   * otherwise. Read back out of the difficulty rather than passed down,
-   * because the difficulty is the one number every run shape agrees on.
+   * The tide's level while INFINITE is moving the floor, and the level the
+   * menu opened otherwise. Read back out of the difficulty rather than passed
+   * down, because the difficulty is the one number every run shape agrees on.
+   *
+   * It deliberately reads the *tide* rather than the live difficulty, which is
+   * not the same thing in SURGE: everything the rung decides besides the pace
+   * — which keys are in play, whether the board is up, which orders the strip
+   * is asking for — is a roster, and a roster that grew a key on a good chain
+   * and lost it again on the next break would be a layout changing under the
+   * hands using it. SURGE moves the pace. It never moves this.
    */
   protected get rung(): number {
-    return this.levelNow() ?? difficultyLevel(this.s.config.difficulty);
+    return this.tideLevel ?? difficultyLevel(this.s.config.difficulty);
+  }
+
+  /**
+   * A bench's slot vocabulary, cut to what the rung has handed over, and
+   * recorded so the ability bar can lock the rest.
+   */
+  protected useSlots(vocabulary: AbilitySlot[], min = 2): AbilitySlot[] {
+    return this.take(benchSlots(vocabulary, this.rung, min));
+  }
+
+  /** The two keys a two-pad bench uses at this rung — the widest pair there is. */
+  protected usePair(): AbilitySlot[] {
+    return this.take(benchPair(this.rung));
+  }
+
+  private take(got: AbilitySlot[]): AbilitySlot[] {
+    for (const slot of got) if (!this.slots.includes(slot)) this.slots.push(slot);
+    return got;
+  }
+
+  /** The key a given order is on, as the player has it bound. */
+  protected orderGlyph(order: LabOrder): string {
+    return shortCodeLabel(this.s.bindings[order].primary);
   }
 
   /** Whether the board in the corner is part of this run. */
@@ -328,12 +403,17 @@ export abstract class LabDrill extends ApmDrill {
   /**
    * How fast the field runs and how far it swings.
    *
-   * Both read the rung and only the rung: the floor is nearly still for
-   * somebody opening level one and genuinely hard to read on level ten, and it
-   * is the *same* floor for the whole of a run either way. It used to speed up
-   * with the player's own flow, which meant a bench that got harder to read
-   * precisely as the run got worth protecting — the reward for a good chain
-   * was a worse bench, and no two runs at a level were the same level.
+   * Both read `d`, which in PLAY is the rung and only the rung: the floor is
+   * nearly still for somebody opening level one and genuinely hard to read on
+   * level ten, and it is the *same* floor for the whole of a run. It used to
+   * speed up with the player's own flow in every mode, which meant a bench
+   * that got harder to read precisely as the run got worth protecting — the
+   * reward for a good chain was a worse bench, and no two runs at a level were
+   * the same level.
+   *
+   * That behaviour is still in the client and it has a mode: in SURGE the
+   * streak is added to `d`, so the field really does run away from you as the
+   * chain climbs. Nothing here had to be told about either — one getter.
    */
   protected motionSpeed(): number {
     return 0.5 + this.d * 1.4;
@@ -378,10 +458,15 @@ export abstract class LabDrill extends ApmDrill {
       name: MAP_KEYS.includes(slot) ? 'MAP' : this.slotName(slot),
       cd: clamp(this.keys.get(slot) / PRESS_CD, 0, 1),
       highlight: want.has(slot),
-      // Below level four the board is not running, so its two keys are not
-      // part of this run and the bar says so rather than naming a screen that
-      // is not there.
-      locked: !active.has(slot) || (MAP_KEYS.includes(slot) && !this.mapOn),
+      // Two ways a key can be dark. The board's pair is dark below the rung
+      // the board turns up on, because that screen is not there; a bench key
+      // is dark until the rung has handed it over, because the ladder is a
+      // roster as well as a pace and a finger nothing will ask for should not
+      // be lit as though it might be.
+      locked:
+        !active.has(slot) ||
+        (MAP_KEYS.includes(slot) && !this.mapOn) ||
+        (!MAP_KEYS.includes(slot) && this.slots.length > 0 && !this.slots.includes(slot)),
     }));
   }
 
@@ -405,11 +490,16 @@ export abstract class LabDrill extends ApmDrill {
     // INFINITE can climb into the board's half of the ladder mid-run. It is
     // announced when it does, because a second screen that simply turns up is
     // a second screen nobody looks at.
-    if (!this.mapOn && this.rung >= MAP_MIN_LEVEL) {
+    if (!this.mapOn && mapAtLevel(this.rung)) {
       this.mapOn = true;
       this.s.setBanner('THE MAP IS LIVE', 1.6);
     }
     if (this.mapOn) this.map.update(dt);
+    // Same again for the strip along the bottom: INFINITE can climb into an
+    // order's half of the ladder mid-run, and an order that simply turned up
+    // is an order nobody would look for.
+    const gained = this.orderLine.update(dt);
+    if (gained) this.s.setBanner(`${ORDER_LABEL[gained]} · ${this.orderGlyph(gained)}`, 1.8);
   }
 
   /**
@@ -446,8 +536,15 @@ export abstract class LabDrill extends ApmDrill {
   solution(): LabSolution {
     const base = this.modeSolution();
     const dodge = this.mapOn ? this.map?.solution() : null;
-    if (!dodge) return base;
-    return { keys: [dodge], dir: base.dir ?? null };
+    // The corner outranks everything: an orb about to land costs the whole
+    // flow tier. The strip outranks the bench, because a bench prompt renews
+    // itself the instant it expires and an order does not. Under both of them
+    // a heading is left in place — a movement command is a state rather than
+    // an input, and dropping it would be a different mistake.
+    if (dodge) return { keys: [dodge], dir: base.dir ?? null };
+    const order = this.orderLine?.solution() ?? null;
+    if (order) return { order, dir: base.dir ?? null };
+    return base;
   }
 
   mapBoard(): MapBoard | null {
@@ -466,28 +563,68 @@ export abstract class LabDrill extends ApmDrill {
   }
 
   protected extraMetrics(): KeyMetric[] {
-    return this.map?.metrics() ?? [];
+    return [...(this.map?.metrics() ?? []), ...(this.orderLine?.metrics() ?? [])];
   }
 
   protected extraNotes(): { helped: string[]; hurt: string[] } {
-    return this.map?.notes() ?? { helped: [], hurt: [] };
+    const map = this.map?.notes() ?? { helped: [], hurt: [] };
+    const orders = this.orderLine?.notes() ?? { helped: [], hurt: [] };
+    return { helped: [...map.helped, ...orders.helped], hurt: [...map.hurt, ...orders.hurt] };
   }
 
   protected extraAdvice(): string | null {
-    return this.map?.advice() ?? null;
+    // The corner first, because it is the more expensive of the two mistakes.
+    return this.map?.advice() ?? this.orderLine?.advice() ?? null;
   }
 
-  /** Nothing on this bench moves on its own, so a click is only ever aimed. */
-  onClick(pos: Vec2): boolean {
-    this.onBenchClick(pos);
-    return true;
+  /**
+   * A click, arbitrated.
+   *
+   * The strip along the bottom gets first refusal and only ever takes a click
+   * that landed on its own mark, so a bench whose entire mode is clicking pads
+   * keeps every click that was aimed at one. Everything else is the bench's.
+   */
+  onClick(pos: Vec2, kind: 'move' | 'attackMove' = 'move'): boolean {
+    if (this.orderLine?.click(pos, kind)) return true;
+    this.onBenchClick(pos, kind);
+    return !this.passClicks();
   }
 
-  protected onBenchClick(pos: Vec2): void {
+  /**
+   * Whether a click the bench has judged still reaches the champion.
+   *
+   * No, in twelve of the thirteen modes: the body is bolted to the floor and a
+   * move order would be an instruction to nowhere. Yes in the one mode about
+   * movement commands, where the body really does walk where you sent it —
+   * which is the only thing making the command feel like a command.
+   */
+  protected passClicks(): boolean {
+    return false;
+  }
+
+  /**
+   * The stop key.
+   *
+   * Below the rung it arrives on the strip does not want it, and the champion
+   * may have it — which on a bench with a bolted-down body means nothing at
+   * all happens, which is the honest answer to a key this run is not using.
+   */
+  onStop(): boolean {
+    return this.orderLine?.stop() ?? false;
+  }
+
+  /** The bench's own answer to a click the strip did not want. */
+  protected onBenchClick(pos: Vec2, _kind: 'move' | 'attackMove' = 'move'): void {
     this.stray(pos);
   }
 
   // -------------------------------------------------------------- drawing
+
+  /** The bench, and then the strip under it. */
+  paint(out: DrillPaint, t: number): void {
+    super.paint(out, t);
+    this.orderLine?.paint(out);
+  }
 
   /** Draws one pad: a lit face, an edge, a countdown and what it wants. */
   protected paintPad(out: DrillPaint, pad: Pad, style: PadStyle): void {

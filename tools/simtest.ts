@@ -8,7 +8,18 @@
 import { GameLoop, SIM_DT } from '../src/engine/loop';
 import { Session, type TumbleAim, type ViewProjection } from '../src/engine/session';
 import { createDrill, arenaFor } from '../src/drills';
-import { APM_DRILL_IDS, MAP_KEYS, MAP_MIN_LEVEL, type LabSolution } from '../src/drills/apm';
+import {
+  APM_DRILL_IDS,
+  KEYS_COMPLETE_AT,
+  LAB_ORDERS,
+  MAP_KEYS,
+  MAP_MIN_LEVEL,
+  ORDER_AT,
+  keysAtLevel,
+  ordersAtLevel,
+  rungAdds,
+  type LabSolution,
+} from '../src/drills/apm';
 import { WASD_DRILL_IDS } from '../src/drills/wasd';
 import { DRILLS, WASD_SEQUENCE, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
@@ -64,7 +75,7 @@ import {
   recommendedLevel,
   seedApmLadder,
 } from '../src/progression/apm';
-import { isOpenEnded, type RunMode } from '../src/drills/modes';
+import { durationFor, isOpenEnded, type RunMode } from '../src/drills/modes';
 import { Rng } from '../src/engine/rng';
 import { World } from '../src/engine/world';
 
@@ -178,7 +189,9 @@ const runDrill = (
   const played = opts.seconds ?? (meta.duration > 0 ? meta.duration : 60);
   const session = new Session(
     {
-      duration: mode === 'play' ? played : 0,
+      // Two shapes have a clock — the one-minute rep and the one-minute rep
+      // whose floor moves — and two do not.
+      duration: durationFor(mode) > 0 ? played : 0,
       mode,
       arena: bounds,
       seed,
@@ -1532,6 +1545,24 @@ const runDrill = (
             }
             if (sol.wait) break;
             if (t - lastLabInput < LAB_MIN_GAP) break;
+            // The strip along the bottom, from the rung it turns up on. Three
+            // commands that are not keys on the bench and are graded as
+            // themselves, so a harness that only ever pressed abilities would
+            // report the top half of the ladder as unplayable.
+            if (sol.order) {
+              lastLabInput = t;
+              const o = sol.order;
+              if (o.kind === 'stop') {
+                input.push({ kind: 'stop', t: t * 1000 });
+              } else if (o.at) {
+                const ox = Math.max(40, Math.min(bounds.w - 40, o.at.x));
+                const oy = Math.max(40, Math.min(bounds.h - 40, o.at.y));
+                input.cursor = { x: ox, y: oy };
+                session.cursorWorld = { x: ox, y: oy };
+                input.push({ kind: o.kind, x: ox, y: oy, t: t * 1000 });
+              }
+              break;
+            }
             if (sol.keys && sol.keys.length) {
               // `labBlind` is the player who plays the bench perfectly and
               // never once looks at the corner of the screen. It is the only
@@ -3085,6 +3116,163 @@ line('\n=== THE LAB: the infinite run finds the level you belong on ===');
     `${found.out.effectiveDifficulty} vs ${levelDifficulty(held(found))}`,
   );
   expect('and it is open-ended, so it never sets a score', isOpenEnded('infinite'), 'infinite counted as a rep');
+}
+
+line('\n=== THE LAB: a rung is a roster as well as a pace ===');
+{
+  // The claim the key ladder makes: level one is two fingers, and by the top
+  // of the ladder every command the lab can grade has been introduced. It is
+  // checked against the ladder itself rather than against a mode, because the
+  // ladder is the thing that has to be true for all thirteen at once.
+  const bottom = keysAtLevel(1).length + ordersAtLevel(1).length;
+  const top = keysAtLevel(APM_LEVELS).length + ordersAtLevel(APM_LEVELS).length;
+  line(`  level 1 asks for ${bottom} commands; level ${APM_LEVELS} asks for ${top}`);
+  expect('level one is two fingers and nothing else', bottom === 2, `${bottom} commands`);
+  const EVERY_SLOT = ['q', 'w', 'e', 'r', 'd', 'f'] as const;
+  expect(
+    'every ability slot is in play by level 10',
+    EVERY_SLOT.every((k) => keysAtLevel(APM_LEVELS).includes(k)),
+    keysAtLevel(APM_LEVELS).join(' '),
+  );
+  expect('every order is in play by level 10', ordersAtLevel(APM_LEVELS).length === LAB_ORDERS.length, ordersAtLevel(APM_LEVELS).join(' '));
+  expect('the roster is complete before the top of the ladder', KEYS_COMPLETE_AT <= APM_LEVELS, `complete at ${KEYS_COMPLETE_AT}`);
+
+  // Monotone, both halves. A ladder that took a key away on the way up would
+  // be a layout that shrank under the hands using it.
+  let monotone = true;
+  for (let n = 2; n <= APM_LEVELS; n++) {
+    const below = [...keysAtLevel(n - 1), ...ordersAtLevel(n - 1)] as string[];
+    const here = [...keysAtLevel(n), ...ordersAtLevel(n)] as string[];
+    if (!below.every((k) => here.includes(k))) monotone = false;
+    line(`  ${String(n).padStart(2)}  ${here.join(' ').padEnd(28)} ${rungAdds(n) || '—'}`);
+  }
+  expect('the ladder never takes a command back', monotone, 'a rung lost one');
+
+  // And it is visible in the arena, not only in the table: a bench played at
+  // the bottom of the ladder asks for fewer distinct keys than the same bench
+  // played at the top. Measured off the ability bar, which is what a player
+  // actually reads.
+  const litKeys = (r: ReturnType<typeof runDrill>) =>
+    r.drill.abilities().filter((a) => !a.locked).length;
+  for (const id of ['apmPulse', 'apmGate', 'apmSustain'] as DrillId[]) {
+    const low = litKeys(runDrill(id, 'lab', levelDifficulty(1)));
+    const high = litKeys(runDrill(id, 'lab', levelDifficulty(APM_LEVELS)));
+    line(`  ${id.padEnd(13)} ${low} keys live at level 1, ${high} at level ${APM_LEVELS}`);
+    expect(`${id} asks for more of the keyboard higher up`, high > low, `${low} then ${high}`);
+  }
+}
+
+line('\n=== THE LAB: the order line, and the keys that are not abilities ===');
+{
+  // Move, attack-move and stop are the three commands a player spends a game
+  // issuing and the lab never once asked for. They arrive up the ladder, they
+  // are graded as themselves, and pressing the wrong one of them is a fumble
+  // rather than a miss — because a right-click where you meant to attack-move
+  // is not a slow command, it is a different one.
+  const asked = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'orderClean');
+  for (const id of APM_DRILL_IDS) {
+    const under = runDrill(id as DrillId, 'lab', levelDifficulty(ORDER_AT.move - 1));
+    expect(`${id} runs no order line below level ${ORDER_AT.move}`, asked(under) === undefined, asked(under) ? 'strip ran' : 'no strip');
+  }
+  let ran = 0;
+  let answered = 0;
+  for (const id of APM_DRILL_IDS) {
+    const top = runDrill(id as DrillId, 'lab', levelDifficulty(APM_LEVELS));
+    const clean = asked(top);
+    if (clean !== undefined) ran++;
+    if ((clean?.value ?? 0) > 0.5) answered++;
+  }
+  line(`  the strip ran in ${ran} of ${APM_DRILL_IDS.length} benches at level ${APM_LEVELS}; a playing harness answered it in ${answered}`);
+  expect('every bench runs the order line at the top of the ladder', ran === APM_DRILL_IDS.length, `${ran} of ${APM_DRILL_IDS.length}`);
+  expect('and the orders are answerable while the bench is running', answered === APM_DRILL_IDS.length, `${answered} of ${APM_DRILL_IDS.length}`);
+
+  // The bench still owns its own clicks. A mode whose entire subject is
+  // clicking pads must not lose them to a strip that happens to be running.
+  const field = runDrill('apmField', 'lab', levelDifficulty(APM_LEVELS));
+  const fieldLow = runDrill('apmField', 'lab', levelDifficulty(APM_LEVELS - 4));
+  line(`  field at the top scored ${pct(field.out.performance)} with the strip running, ${pct(fieldLow.out.performance)} without`);
+  expect('a click mode is still playable with the strip running', field.out.performance > 0.4, pct(field.out.performance));
+}
+
+line('\n=== THE LAB: SURGE is where the streak moves the floor ===');
+{
+  // The mode that exists so PLAY does not have to. Two runs on the same bench
+  // at the same rung, one played and one idle: the floor has to come up under
+  // the hands that are chaining and stay exactly where it was put under the
+  // hands that are not.
+  const OPENED = 5;
+  const surge = (id: DrillId, policy: Policy) =>
+    runDrill(id, policy, levelDifficulty(OPENED), 12345, 'click', 'hands', { mode: 'surge' });
+  const rungs = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'surgePeak')?.value ?? 0;
+
+  let rose = 0;
+  for (const id of APM_DRILL_IDS) {
+    const played = surge(id as DrillId, 'lab');
+    const still = surge(id as DrillId, 'idle');
+    line(`  ${id.padEnd(13)} played +${rungs(played).toFixed(1)} rungs   idle +${rungs(still).toFixed(1)}`);
+    if (rungs(played) > rungs(still) + 0.4) rose++;
+    expect(`${id} never surges for hands that are not there`, rungs(still) < 0.4, `+${rungs(still).toFixed(2)}`);
+  }
+  expect('a chain raises the floor, in every mode', rose === APM_DRILL_IDS.length, `${rose} of ${APM_DRILL_IDS.length}`);
+
+  // And it stays out of PLAY, which is the whole reason it exists.
+  const rep = runDrill('apmPulse', 'lab', levelDifficulty(OPENED));
+  expect('a PLAY run reports no surge at all', rep.out.keyMetrics.every((k) => k.id !== 'surgePeak'), 'surgePeak present');
+
+  // A surge run is a minute like PLAY — so it has a score worth keeping — and
+  // it is not a rep of the rung on the card, so it is worth more than that
+  // rung when it went well.
+  const played = surge('apmPulse', 'lab');
+  expect('a surge run has a clock, like the rep it is a variant of', !isOpenEnded('surge'), 'counted as open-ended');
+  expect('and it is worth more than the rung it opened on', (played.out.effectiveDifficulty ?? 0) > levelDifficulty(OPENED), String(played.out.effectiveDifficulty));
+
+  // The ladder keeps it apart from the rung's own record. A run whose
+  // difficulty the player moved themselves cannot be a claim about a rung.
+  const prog = emptyApmProgress();
+  applyApmRun(prog, {
+    drill: 'apmPulse',
+    level: OPENED,
+    performance: played.out.performance,
+    score: played.out.score,
+    apm: played.out.keyMetrics.find((k) => k.id === 'correctApm')?.value ?? 0,
+    endurance: false,
+    surge: { peak: rungs(played), chain: played.out.keyMetrics.find((k) => k.id === 'chain')?.value ?? 0 },
+  });
+  const rung = prog.modes.apmPulse.levels[OPENED - 1];
+  line(`  after a surge run the rung has ${rung.runs} runs on it and the surge ledger has ${prog.modes.apmPulse.surge.runs}`);
+  expect('a surge run writes no rung record', rung.runs === 0 && rung.best === 0, `best ${rung.best}`);
+  expect('and no star', levelStars(rung) === 0, `${levelStars(rung)} stars`);
+  expect(
+    'and it writes its own ledger instead',
+    prog.modes.apmPulse.surge.runs === 1 && prog.modes.apmPulse.surge.bestSurge > 0,
+    `+${prog.modes.apmPulse.surge.bestSurge.toFixed(2)}`,
+  );
+}
+
+line('\n=== THE LAB: every rung is open to everybody, always ===');
+{
+  // The section's oldest promise, and the one a key ladder could quietly have
+  // broken. A brand-new profile, one run at the top rung, and it counts for
+  // everything a run at the top rung should count for.
+  const fresh = emptyApmProgress();
+  const top = runDrill('apmPulse', 'lab', levelDifficulty(APM_LEVELS));
+  const report = applyApmRun(fresh, {
+    drill: 'apmPulse',
+    level: APM_LEVELS,
+    performance: top.out.performance,
+    score: top.out.score,
+    apm: top.out.keyMetrics.find((k) => k.id === 'correctApm')?.value ?? 0,
+    endurance: false,
+  });
+  const rec = fresh.modes.apmPulse.levels[APM_LEVELS - 1];
+  line(`  a first-ever run at level ${APM_LEVELS} scored ${pct(top.out.performance)} and recorded ${rec.runs} run, best ${rec.best.toFixed(2)}`);
+  expect('a new profile can play the top rung', rec.runs === 1 && rec.best > 0, `${rec.runs} runs`);
+  expect('and the ladder records it as that rung', report.level === APM_LEVELS, String(report.level));
+  expect(
+    'nothing in the ladder gates a level',
+    APM_MODES.every((m) => recommendedLevel(fresh, m.id) >= 1 && recommendedLevel(fresh, m.id) <= APM_LEVELS),
+    'a mode had no suggestion',
+  );
 }
 
 line('\n=== THE LAB: the board in the corner is a second task, in every mode ===');

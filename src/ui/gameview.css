@@ -109,6 +109,11 @@
 .hud-clock.infinite .hud-mode {
   color: var(--violet, #c58bff);
 }
+/* The other moving floor. Amber rather than violet: this one is a minute long
+   and the thing moving it is the player, not a tide looking for them. */
+.hud-clock.surging .hud-mode {
+  color: #ff8a3d;
+}
 /* The strike budget. Three pips, and they only ever go out. */
 .hud-strikes {
   display: flex;

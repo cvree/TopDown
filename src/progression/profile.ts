@@ -911,6 +911,17 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
           seconds: result.seconds,
         }
       : undefined;
+  // The streak-driven run reports the same way, through its own metric: how
+  // many rungs the chain added to the floor at its best. One channel per fact,
+  // so the arena and the ladder cannot disagree about what happened.
+  const surgeMetric = result.keyMetrics.find((m) => m.id === 'surgePeak')?.value;
+  const surge =
+    result.mode === 'surge' && surgeMetric !== undefined
+      ? {
+          peak: surgeMetric,
+          chain: result.keyMetrics.find((m) => m.id === 'chain')?.value ?? 0,
+        }
+      : undefined;
   const apm = isApmDrill(result.drill)
     ? applyApmRun(p.apm, {
         drill: result.drill,
@@ -920,6 +931,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
         apm: result.keyMetrics.find((m) => m.id === 'correctApm')?.value ?? 0,
         endurance: opts.endurance ?? false,
         infinite,
+        surge,
       })
     : null;
 

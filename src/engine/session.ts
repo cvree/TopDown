@@ -131,9 +131,14 @@ export type TumbleAim = 'cursor' | 'hands';
 export interface SessionConfig {
   duration: number;
   /**
-   * Which of the two run shapes this is. `play` is the one-minute rep and
-   * behaves exactly as every run always has; `survive` has no clock, hands out
-   * a strike budget, and turns the difficulty up the longer you last.
+   * Which shape of run this is.
+   *
+   * `play` is the one-minute rep and behaves exactly as every run always has.
+   * `survive` has no clock, hands out a strike budget, and turns the
+   * difficulty up the longer you last. The lab adds two of its own — `surge`,
+   * a minute whose floor rises with the player's chain, and `infinite`, which
+   * has neither clock nor rung — and both are the lab's business rather than
+   * this file's: all the session needs from them is the length.
    */
   mode?: RunMode;
   arena: { w: number; h: number };
@@ -653,6 +658,11 @@ export class Session {
           break;
         }
         case 'stop':
+          // The lab's order line takes this key from the rung it arrives on,
+          // because there it is one of the three commands being graded rather
+          // than a way of calling the champion back. Everywhere else — and on
+          // the rungs below it — it is what it has always been.
+          if (this.drill?.onStop()) break;
           this.world.issueStop(player);
           break;
         case 'ability': {
@@ -1108,6 +1118,10 @@ export abstract class DrillBase {
   onRangeCheck(): void {}
   /** Return true to consume the click so no move order is issued. */
   onClick(_pos: Vec2, _kind: 'move' | 'attackMove'): boolean {
+    return false;
+  }
+  /** Return true to consume the stop key, so the champion is not called back. */
+  onStop(): boolean {
     return false;
   }
   onAbility(slot: AbilitySlot, at: Vec2): void {

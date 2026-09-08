@@ -10,7 +10,6 @@ import { count, ms } from '../base';
 import { APM_TARGET_APM } from './engine';
 import { LabDrill, median, type LabSolution, type Pad } from './lab';
 
-const PULSE_SLOTS: AbilitySlot[] = ['q', 'e'];
 
 /**
  * PULSE — cadence, with one bit of decision on top.
@@ -27,11 +26,18 @@ const PULSE_SLOTS: AbilitySlot[] = ['q', 'e'];
  * still makes a rate honest.
  *
  * Transfer: the trill under a combo. Two abilities, two fingers, no travel.
+ *
+ * The two fingers are not always the same two. A two-pad bench cannot grow a
+ * pad the way the rest of the lab does, so the rung grows it the only way it
+ * can: by moving the pair further apart. Adjacent on rung one, opposite ends
+ * of the ability row by rung three — the same journey, made sideways.
  */
 export class ApmPulseDrill extends LabDrill {
   protected readonly targetApm = APM_TARGET_APM.apmPulse;
 
   private pads: Pad[] = [];
+  /** The pair this rung asks for. Widest available, so it grows with the rung. */
+  private keySlots: AbilitySlot[] = [];
   private lit = 0;
   private shownAt = 0;
   private window = 0.9;
@@ -45,7 +51,8 @@ export class ApmPulseDrill extends LabDrill {
   private repeatNow = false;
 
   protected build(): void {
-    this.pads = this.row(PULSE_SLOTS, { gap: 300, radius: 76 });
+    this.keySlots = this.usePair();
+    this.pads = this.row(this.keySlots, { gap: 300, radius: 76 });
     this.arm(0);
   }
 
@@ -73,7 +80,7 @@ export class ApmPulseDrill extends LabDrill {
   }
 
   protected onKey(slot: AbilitySlot): void {
-    const idx = PULSE_SLOTS.indexOf(slot);
+    const idx = this.keySlots.indexOf(slot);
     if (idx < 0) {
       this.stray(this.centre);
       return;
@@ -101,11 +108,11 @@ export class ApmPulseDrill extends LabDrill {
   }
 
   protected modeSolution(): LabSolution {
-    return { keys: [PULSE_SLOTS[this.lit]] };
+    return { keys: [this.keySlots[this.lit]] };
   }
 
   protected slotName(slot: AbilitySlot): string {
-    return slot === PULSE_SLOTS[0] ? 'LEFT PAD' : slot === PULSE_SLOTS[1] ? 'RIGHT PAD' : '';
+    return slot === this.keySlots[0] ? 'LEFT PAD' : slot === this.keySlots[1] ? 'RIGHT PAD' : '';
   }
 
   protected paintMode(out: DrillPaint, _t: number): void {
@@ -114,7 +121,7 @@ export class ApmPulseDrill extends LabDrill {
     this.pads.forEach((pad, i) => {
       const on = i === this.lit;
       this.paintPad(out, pad, {
-        color: on ? this.flow.color : PALETTE.textFaint,
+        color: on ? this.promptColor : PALETTE.textFaint,
         glow: on ? 0.6 + left * 0.4 : 0.05,
         progress: on ? left : undefined,
       });
@@ -160,7 +167,6 @@ export class ApmPulseDrill extends LabDrill {
   }
 }
 
-const SUSTAIN_SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r'];
 /** Seconds at each required cadence before it steps up. */
 const STEP_SECONDS = 12;
 /** How much faster each step asks you to be, in actions per minute. */
@@ -184,6 +190,8 @@ export class ApmSustainDrill extends LabDrill {
   protected readonly targetApm = APM_TARGET_APM.apmSustain;
 
   private pads: Pad[] = [];
+  /** The part of the ability row this rung asks for. */
+  private keySlots: AbilitySlot[] = [];
   private lit = 0;
   private beat = 0;
   private beatAt = 0;
@@ -203,7 +211,8 @@ export class ApmSustainDrill extends LabDrill {
   }
 
   protected build(): void {
-    this.pads = this.ring(SUSTAIN_SLOTS, 250, 62);
+    this.keySlots = this.useSlots(['q', 'w', 'e', 'r']);
+    this.pads = this.ring(this.keySlots, 250, 62);
     this.stepAt = 0;
     this.nextBeat(true);
   }
@@ -222,8 +231,9 @@ export class ApmSustainDrill extends LabDrill {
     this.beat = 60 / this.rate;
     this.beatAt = this.s.elapsed;
     this.answeredBeat = false;
-    let next = this.s.rng.int(0, SUSTAIN_SLOTS.length);
-    if (next === this.lit) next = (next + 1 + this.s.rng.int(0, SUSTAIN_SLOTS.length - 1)) % SUSTAIN_SLOTS.length;
+    const n = this.keySlots.length;
+    let next = this.s.rng.int(0, n);
+    if (next === this.lit) next = (next + 1 + this.s.rng.int(0, n - 1)) % n;
     this.lit = next;
     this.topRate = Math.max(this.topRate, this.rate);
     audio.play('flowPulse', { intensity: 0.4 });
@@ -268,7 +278,7 @@ export class ApmSustainDrill extends LabDrill {
   }
 
   protected onKey(slot: AbilitySlot): void {
-    const idx = SUSTAIN_SLOTS.indexOf(slot);
+    const idx = this.keySlots.indexOf(slot);
     if (idx < 0) {
       this.stray(this.centre);
       return;
@@ -298,7 +308,7 @@ export class ApmSustainDrill extends LabDrill {
   }
 
   protected modeSolution(): LabSolution {
-    return this.answeredBeat ? { wait: true } : { keys: [SUSTAIN_SLOTS[this.lit]] };
+    return this.answeredBeat ? { wait: true } : { keys: [this.keySlots[this.lit]] };
   }
 
   protected slotName(): string {
@@ -310,7 +320,7 @@ export class ApmSustainDrill extends LabDrill {
     this.pads.forEach((pad, i) => {
       const on = i === this.lit && !this.answeredBeat;
       this.paintPad(out, pad, {
-        color: on ? this.flow.color : PALETTE.textFaint,
+        color: on ? this.promptColor : PALETTE.textFaint,
         glow: on ? 0.55 + left * 0.45 : 0.05,
         progress: on ? left : undefined,
       });

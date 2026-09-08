@@ -6,10 +6,30 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.12.0**.
+Currently shipping **v2.13.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.13.0 — A LEVEL IS A PLACE
+
+*2026-09-08*
+
+A lab level is one unchanging thing now — one speed, one palette, one roster of keys — so the only ways to score better are to be faster, cleaner and more precise; the floor that used to move with your streak has a mode of its own, and the ladder hands you a new piece of your keyboard nearly every rung.
+
+### Added
+
+- SURGE, a run shape of its own, on every lab bench. One minute at the rung you chose, with one thing PLAY refuses to do: your chain is wired to the floor. Hold one and the pads run away from you, the windows close and the whole console repaints through the five flow colours — up to three rungs above the level on the card at a full streak. Break it and everything settles back onto your rung. It is the answer to "how hard can I make this before I drop it", and it keeps its own record rather than the rung’s, because a run whose difficulty you moved yourself is not a rep of that rung.
+- THE ORDER LINE, along the bottom of every bench from level 5. Three commands the lab had never once asked for even though they are what you spend a game issuing: move here, attack-move here, and stop. They are not abilities and they are not on the console — they go to the champion, two of them live on the mouse, and answering with the wrong one of the three is a fumble rather than a miss, because a right-click where you meant to attack-move is not a slow command, it is a different one.
+- The key ladder, printed on the lab screen. Ten rungs and what each one puts in your hands: Q and W at the bottom, then E, then R, then the summoner bank and the board that owns it, then the three orders. By level 7 every command the bench can grade is being asked for, and the top three rungs are all of it at once.
+
+### Changed
+
+- A level is a roster as well as a pace. Every bench used to ask for the same four fingers on every rung, which made level 1 and level 10 the same activity at two speeds and meant a player who had never opened the settings screen could finish the whole ladder without the trainer mentioning half their keyboard. Level 1 is now two fingers; each rung after it hands over one more piece of your layout. PULSE, which has only two pads and cannot grow one, grows the other way instead — the pair moves further apart as the rung climbs.
+- The bench keeps one steady colour in PLAY, whatever your chain is doing. The console used to repaint itself as the flow tier climbed — grey, blue, green, amber, violet — so the thing you were being scored on looked like a different bench depending on how the run was going. The tier still climbs, still pays, still lands with a banner and a rising pitch; it no longer repaints the measurement. Colours that move with a streak are what SURGE is for.
+- Every one of the ten rungs is open to every player from their first run, and the screen now says so where it can be read rather than only in a footnote. Nothing in the lab is earned, unlocked or gated — clearing a rung moves the suggestion, and that is all it has ever done.
+- The ability bar in the lab draws the keys the rung has not handed over yet as locked, the same way it already drew the summoner pair below level 4, so a finger nothing is going to ask for is never lit as though it might be. The cheat sheet at the bottom of the screen is the rung’s roster too, rather than a promise of four abilities and a minimap on level one.
+- The results screen tells a surge run apart from a rep: how many rungs your chain added to the floor, the chain that did it, and a note saying the rung it opened on is still unplayed.
 
 ## v2.12.0 — THE BENCH, LEVELLED
 

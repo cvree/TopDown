@@ -373,6 +373,13 @@ export function App() {
       });
       return;
     }
+    // A surge run's "next" is the same rung played straight: the streak was
+    // the difficulty, so the only way to find out what the rung is actually
+    // worth is to play it with the floor nailed down.
+    if (flow.mode === 'surge') {
+      setFlow({ ...flow, mode: 'play', seed: newSeed() });
+      return;
+    }
     setFlow({ ...flow, mode: flow.mode === 'play' ? 'survive' : 'play', seed: newSeed() });
   }, [flow]);
 
@@ -416,7 +423,9 @@ export function App() {
               ? `LANE PHASE · ${laneTierOf(difficulty).label}`
               : flow.mode === 'infinite'
                 ? `${DRILLS[flow.drill].name} · INFINITE · opened on level ${flow.level ?? 1}`
-                : `${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`
+                : flow.mode === 'surge'
+                  ? `${DRILLS[flow.drill].name} · SURGE · from level ${flow.level ?? 1}`
+                  : `${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`
           }
           onComplete={handleComplete}
           onExit={exitToMenu}
@@ -442,7 +451,9 @@ export function App() {
                   }`
                 : flow.mode === 'infinite'
                   ? `Play level ${clamp(Math.round(flow.heldLevel ?? flow.level ?? 1), 1, APM_LEVELS)} for score`
-                  : `Try ${RUN_MODES[flow.mode === 'play' ? 'survive' : 'play'].label}`
+                  : flow.mode === 'surge'
+                    ? `Play level ${clamp(Math.round(flow.level ?? 1), 1, APM_LEVELS)} with the floor nailed down`
+                    : `Try ${RUN_MODES[flow.mode === 'play' ? 'survive' : 'play'].label}`
             }
           />
         )}

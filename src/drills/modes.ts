@@ -16,18 +16,31 @@ import type { DrillId } from './catalog';
  *    the mode's defining mistake three times, and it gets harder the longer
  *    you last. The number it gives back is how long you lasted.
  *
- * There is now a third, and it is not a third question at the menu: INFINITE
- * is the lab's own shape and the lab's alone, reached by right-clicking a
- * bench rather than by a button next to the other two. It has no clock and no
- * rung — the floor moves under you for as long as you play, up while you are
- * winning and down while you are not — so it cannot be a length or a strike
- * budget the way the other two are, and the only thing the rest of the client
- * needs to know about it is that it is open-ended and never sets a score.
+ * There are now two more, and neither is a third question at the menu. Both
+ * belong to the lab and to nothing else, because both are answers to the same
+ * problem: a *moving floor* is a wonderful thing to play and a terrible thing
+ * to be scored on, so it does not belong in PLAY — it belongs in a mode of its
+ * own, where moving is the whole point.
+ *
+ *  - **SURGE** — one minute, like PLAY, except that the bench answers to your
+ *    streak. Chain your actions and the floor climbs above the rung you chose;
+ *    break the chain and it settles back onto it. The colours climb with it.
+ *    This is where the lab's old behaviour lives: it used to be true of every
+ *    run, which meant a good start bought a harder finish and "level 6" named
+ *    a range rather than a place.
+ *  - **INFINITE** — no clock and no rung. The floor hunts for the level you
+ *    can just hold, up while you are winning and down while you are not, and
+ *    where it settles is the score.
+ *
+ * Neither is reached by a button beside PLAY and SURVIVE: SURGE has its own
+ * chip under a lab bench, and INFINITE is a right-click on it. The only thing
+ * the rest of the client needs to know is which of them writes a rung's record
+ * (only PLAY does) and how long each lasts.
  *
  * Nothing else in the client needs to know about any of it beyond the duration
  * each implies and the strike budget it grants.
  */
-export type RunMode = 'play' | 'survive' | 'infinite';
+export type RunMode = 'play' | 'survive' | 'infinite' | 'surge';
 
 /** PLAY is one minute, for every mode, always. */
 export const PLAY_SECONDS = 60;
@@ -79,19 +92,40 @@ export const RUN_MODES: Record<RunMode, ModeMeta> = {
       'No clock and no rung. The level rises while you are winning and falls while you are not, and where it settles is the score.',
     accent: '#c58bff',
   },
+  surge: {
+    id: 'surge',
+    label: 'SURGE',
+    tagline: 'the streak drives it',
+    blurb:
+      'One minute, and the bench answers to your chain: hold one and the floor climbs above your rung and the colours climb with it; break it and it settles back.',
+    accent: '#ff8a3d',
+  },
 };
 
 /**
  * The two buttons a card offers.
  *
- * INFINITE is deliberately not on it. It is one mode's shape rather than a
- * third question, and putting it in this list would print it on every champion
- * card in the client — none of which has a floor that could move.
+ * SURGE and INFINITE are deliberately not on it. They are two shapes of one
+ * section's run rather than two more questions, and putting them in this list
+ * would print them on every champion card in the client — none of which has a
+ * floor that could move.
  */
 export const RUN_MODE_LIST: ModeMeta[] = [RUN_MODES.play, RUN_MODES.survive];
 
+/**
+ * Whether the run's difficulty is allowed to move under the player.
+ *
+ * The single question the rest of the client asks about a mode, and the reason
+ * these two exist at all: a rung is a *place*, so a run that writes a rung's
+ * record must be played at one fixed difficulty from the first second to the
+ * last. Exactly two shapes are exempt, and in both of them the moving is the
+ * mode.
+ */
+export const hasMovingFloor = (mode: RunMode): boolean => mode === 'infinite' || mode === 'surge';
+
 /** How long a run of `mode` lasts. Zero means "until it ends itself". */
-export const durationFor = (mode: RunMode): number => (mode === 'play' ? PLAY_SECONDS : 0);
+export const durationFor = (mode: RunMode): number =>
+  mode === 'play' || mode === 'surge' ? PLAY_SECONDS : 0;
 
 /**
  * Whether a run's length was decided by the player rather than by the mode.
@@ -100,8 +134,11 @@ export const durationFor = (mode: RunMode): number => (mode === 'play' ? PLAY_SE
  * set a score record — a number that only goes up with time on the clock is
  * not a record, it is a stopwatch. They can still set rate records, because a
  * rate is a rate however long you held it.
+ *
+ * SURGE is a minute like PLAY, so it is not open-ended — but it keeps its own
+ * records rather than the rung's, for the other reason: its floor moved.
  */
-export const isOpenEnded = (mode: RunMode): boolean => mode !== 'play';
+export const isOpenEnded = (mode: RunMode): boolean => mode !== 'play' && mode !== 'surge';
 
 /**
  * The practice list, in the order it is taught.

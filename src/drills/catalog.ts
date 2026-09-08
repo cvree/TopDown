@@ -475,17 +475,28 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
   // did not mean anything. The flow ladder is shared: chain your actions and
   // the multiplier climbs through five tiers, break and it is gone.
   //
-  // Two things are shared by all thirteen and belong to none of them. The
-  // pads travel — a bench is a formation of moving circles, swinging wider and
-  // running faster with the rung, and holding that speed for the whole run, so
-  // your eyes are working the whole minute and a level is one difficulty
-  // rather than a range. And from level four up, the minimap in the corner
-  // runs a two-lane dodge for the rest of the run: a bad orb falls slowly down
-  // one of two lanes and the summoner keys are which lane you stand in. Let it
-  // land on you and it costs the flow tier your hands just spent a minute
-  // building, which is precisely what a gank you did not look up for costs.
-  // Below level four there is no board: the bottom of a ladder is for learning
-  // what the bench itself asks.
+  // Three things are shared by all thirteen and belong to none of them.
+  //
+  // The pads travel — a bench is a formation of moving circles, swinging wider
+  // and running faster with the rung, and holding that speed for the whole run
+  // in PLAY, so your eyes are working the whole minute and a level is one
+  // difficulty rather than a range.
+  //
+  // The rung is a roster as well as a pace. Level one is two fingers; each
+  // rung after it hands over another piece of the layout, so by the top of the
+  // ladder every command the bench can grade is being asked for at once. Which
+  // slots a mode names below is therefore its *widest* vocabulary — the union
+  // of everything any rung could ask it for — and the rung decides how much of
+  // it is live on the day.
+  //
+  // And from level four up the minimap in the corner runs a two-lane dodge for
+  // the rest of the run: a bad orb falls slowly down one of two lanes and the
+  // summoner keys are which lane you stand in. Let it land on you and it costs
+  // the flow tier your hands just spent a minute building, which is precisely
+  // what a gank you did not look up for costs. Below level four there is no
+  // board: the bottom of a ladder is for learning what the bench itself asks.
+  // From level five the strip along the bottom starts asking for the orders —
+  // move, attack-move, stop — which are not abilities and never were.
   apmPulse: {
     id: 'apmPulse',
     name: 'PULSE',
@@ -495,7 +506,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'APM',
     axes: { tempo: 1 },
     duration: 40,
-    abilities: ['q', 'e', 'd', 'f'],
+    abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
     accent: '#7ceaff',
     keyMetric: 'SUSTAINED APM',
     order: 30,
@@ -565,7 +576,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'APM',
     axes: { tempo: 0.6, kiting: 0.4 },
     duration: 55,
-    abilities: ['q', 'e', 'd', 'f'],
+    abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
     accent: '#4fd6c4',
     keyMetric: 'SUSTAINED APM',
     order: 35,
@@ -818,7 +829,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'VAYNE',
     axes: { kiting: 0.75, movement: 0.15, spacing: 0.1 },
     duration: 60,
-    abilities: ['q', 'd', 'f'],
+    abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
     accent: '#c86bff',
     keyMetric: 'TUMBLE RHYTHM',
     order: 20,
@@ -847,7 +858,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     group: 'VAYNE',
     axes: { skillshot: 0.5, spacing: 0.3, movement: 0.2 },
     duration: 60,
-    abilities: ['q', 'e', 'd', 'f'],
+    abilities: ['q', 'w', 'e', 'r', 'd', 'f'],
     accent: '#ffcf6b',
     keyMetric: 'WALL STUN RATE',
     order: 22,

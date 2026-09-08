@@ -10,7 +10,6 @@ import { count, ms, pct } from '../base';
 import { APM_TARGET_APM } from './engine';
 import { LabDrill, mean, type LabSolution, type Pad } from './lab';
 
-const WHEEL_SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r'];
 /** Base seconds per wheel, before tempo. Deliberately not multiples. */
 const PERIODS = [2.4, 3.1, 3.9, 4.7];
 
@@ -61,8 +60,9 @@ export class ApmUpkeepDrill extends LabDrill {
   private lockBreaks = 0;
 
   protected build(): void {
-    const pads = this.row(WHEEL_SLOTS, { gap: 210, radius: 76 });
-    this.wheels = WHEEL_SLOTS.map((slot, i) => ({
+    const slots = this.useSlots(['q', 'w', 'e', 'r']);
+    const pads = this.row(slots, { gap: 210, radius: 76 });
+    this.wheels = slots.map((slot, i) => ({
       slot,
       pad: pads[i],
       t: this.s.rng.range(0, PERIODS[i] * 0.6),

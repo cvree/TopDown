@@ -30,10 +30,14 @@ import type { Pad } from './lab';
  * arena, which is what a target you have to chase actually does.
  *
  * Everything scales off two numbers handed in each frame: how fast the field
- * runs and how far it swings. The drill reads those from its difficulty and
- * its own flow, so the arena speeds up under a player who is doing well and
- * settles again when they break — the same self-pacing every other part of
- * the engine is built on.
+ * runs and how far it swings. The drill reads both off its difficulty and
+ * nothing else, so in PLAY the field runs at the rung's speed from the first
+ * second to the last — a level is a *place*, and a bench that sped up under a
+ * good run would make "level 6" a range rather than one. The difficulty itself
+ * is allowed to move in exactly two run shapes, and in both of them the moving
+ * is the mode: SURGE, where the player's own chain lifts it, and INFINITE,
+ * where a tide hunts for the level they can hold. Neither is this file's
+ * business — one number arrives each frame either way.
  */
 export type Drift = 'wander' | 'free';
 

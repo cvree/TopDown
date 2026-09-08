@@ -149,7 +149,16 @@ export class ApmVectorDrill extends LabDrill {
     if (dir) this.judge(dir);
   }
 
-  onClick(pos: Vec2): boolean {
+  /**
+   * The body really does walk where you sent it, which is the only thing
+   * making the command feel like a command — so this mode alone lets a click
+   * through to the champion after judging it.
+   */
+  protected passClicks(): boolean {
+    return true;
+  }
+
+  protected onBenchClick(pos: Vec2): void {
     const p = this.anchor;
     const rep =
       this.lastClick !== null &&
@@ -158,7 +167,7 @@ export class ApmVectorDrill extends LabDrill {
     this.lastClick = { x: pos.x, y: pos.y, t: this.s.elapsed };
     if (rep) {
       this.stray(pos);
-      return false;
+      return;
     }
     const v = { x: pos.x - p.pos.x, y: pos.y - p.pos.y };
     const len = Math.hypot(v.x, v.y);
@@ -166,12 +175,9 @@ export class ApmVectorDrill extends LabDrill {
     if (len < 80) {
       // A click on your own feet is not a heading.
       this.stray(pos);
-      return false;
+      return;
     }
     this.judge({ x: v.x / len, y: v.y / len });
-    // Never consumed: the body really does walk where you sent it, which is
-    // the only thing making the command feel like a command.
-    return false;
   }
 
   protected onKey(): void {
@@ -192,7 +198,7 @@ export class ApmVectorDrill extends LabDrill {
     const want = HEADINGS[this.call].dir;
     const left = clamp(1 - (this.s.elapsed - this.calledAt) / this.window, 0, 1);
     const holding = this.holdUntil > 0;
-    const color = holding ? PALETTE.good : left < 0.3 ? PALETTE.danger : this.flow.color;
+    const color = holding ? PALETTE.good : left < 0.3 ? PALETTE.danger : this.promptColor;
     const a = Math.atan2(want.y, want.x);
     const tol = this.tolerance;
     out.markers.push({
