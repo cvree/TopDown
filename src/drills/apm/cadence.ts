@@ -242,7 +242,7 @@ export class ApmSustainDrill extends LabDrill {
   private collapse(): void {
     if (this.s.mode === 'infinite') {
       this.s.setBanner(`BROKE AT ${Math.round(this.rate)} APM — EASING`, 1.8);
-      this.s.fx.addFlash(0.1, PALETTE.danger);
+      this.s.fx.badFlash(0.1, PALETTE.danger);
       audio.play('fail', 0.7);
       this.step = Math.max(0, this.step - 2);
       this.stepAt = this.s.elapsed;
@@ -250,7 +250,7 @@ export class ApmSustainDrill extends LabDrill {
       return;
     }
     this.s.setBanner(`BROKE AT ${Math.round(this.rate)} APM`, 2.2);
-    this.s.fx.addFlash(0.14, PALETTE.danger);
+    this.s.fx.badFlash(0.14, PALETTE.danger);
     audio.play('fail');
     this.endReason = 'complete';
     this.s.forceEnd = true;

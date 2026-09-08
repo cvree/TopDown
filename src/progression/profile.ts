@@ -263,6 +263,25 @@ export interface AppSettings {
   /** The browser-gesture warning has been read and dismissed. */
   gestureNoticeDismissed: boolean;
   /**
+   * Punishment feedback: the sounds and the screen effects that exist only to
+   * tell you off.
+   *
+   * Off by default, and that is a deliberate reversal. A broken streak already
+   * costs you the streak — the multiplier vanishes from the HUD, the chain
+   * reads zero, the score stops climbing — so the buzzer, the red flash and
+   * the camera shove on top of it are not information, they are a second
+   * punishment for the same mistake. In a trainer where the whole activity is
+   * making mistakes on purpose until they stop happening, that reads as the
+   * client being annoyed with you, and people stop playing benches that are
+   * annoyed with them.
+   *
+   * What it never touches is anything that *tells you something*: a wrong
+   * press still breaks the chain, still costs score, still prints BROKEN on
+   * the floor, and every figure on the results screen is unchanged. Turning it
+   * back on is for players who want the arcade back.
+   */
+  negativeFeedback: boolean;
+  /**
    * Strip the HUD to what a run needs while it is happening.
    *
    * Everything analytical — the live figures, the difficulty read-out, the
@@ -387,6 +406,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showNames: true,
   fogOfWar: true,
   gestureNoticeDismissed: false,
+  // Off: the streak is its own punishment. See the field for the argument.
+  negativeFeedback: false,
   focusMode: false,
 };
 

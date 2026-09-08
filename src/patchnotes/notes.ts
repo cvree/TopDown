@@ -41,6 +41,41 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.12.0',
+    name: 'THE BENCH, LEVELLED',
+    date: '2026-09-08',
+    headline:
+      'The lab is its own section of the client, every one of its ten levels is open from your first run, and a level now means one speed instead of a range that moved under you.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'THE LAB, in the top bar. Thirteen benches, their ladders and everything they measure now live beside PRACTICE rather than inside it. The split is the shape of the whole trainer: PRACTICE is a champion — her lane, her kit in pieces, and every number both are built from — and the lab is not a champion at all. It is the layer underneath every champion there will ever be, and as the third tab of the champion screen it read as one more thing about Vayne.',
+          'Punishment feedback, as a setting, and off by default. The buzzer when a streak breaks, the red wash over the arena and the camera shove that came with it are gone unless you ask for them back under Settings → Gameplay. Losing a streak already costs you the streak — the multiplier vanishes, the chain reads zero, the score stops climbing — and a second punishment on top of it, in a trainer where you make mistakes on purpose until they stop happening, reads as the client being annoyed with you. Nothing about what a mistake costs has changed: the chain still breaks, the score still pays, and every figure on the results screen is the same one.',
+          'A header on the lab that says what the section is before you open any of it: thirteen benches, ten levels each, all open, and the stars you hold out of every star there is.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'Every level of every bench is playable from your first run. The ladder used to gate — level 4 was shut until level 3 was cleared — which is the right shape for a campaign and the wrong one for a gym: the only person who knows which minute is worth your next minute is you. What a clear still does is mark the rung and move the suggestion up, so the card opens where the ladder has got to and every other rung is one click away.',
+          'A level is one speed now, held for the whole run. The bench used to read your own flow and run faster the better the run was going — every window, every spacing, every clock and the drift of the pads themselves — which meant a strong start bought a hostile finish, the reward for building a chain was a floor that was harder to hold it on, and no two runs at "level 6" were ever the same difficulty. Pacing rises with the rung and with nothing else. What your form moves is the reward: the chain, the tier, the multiplier, the pitch of every confirmation.',
+          'The board in the corner arrives at level 4. It is a second task, and a second task is worth adding only to a first one you can already do — so the bottom three rungs of every bench are the bench and nothing else, and the minimap is not drawn at all there. An infinite run that climbs into the board\u2019s half of the ladder is told, out loud, when it turns up.',
+          'The lab shakes the camera about a tenth as much. Every correct press used to shove the frame — five or six times a second, for a whole minute — and every flow tier and every broken chain shoved it again on top. A hit is now the spray, the ring and the rising pitch with no camera at all; the shove is kept for the two tiers a run is actually built on, where it still means something because it is rare.',
+          'The lab\u2019s level ladder on each card marks the rungs you have starred rather than the rungs that are open, because all of them are open — and it marks where the board joins, so what a level is is visible before you play it.',
+          'Taking damage still rings and sprays; the red wash and the shake it came with are part of the punishment setting now, in every mode rather than only in the lab.',
+        ],
+      },
+      {
+        tag: 'fixed',
+        items: [
+          'The lab no longer draws a minimap of a room that has nothing in it. On a bench with no board running, the corner used to show the arena map — an empty box with a hidden dot in it — because the minimap is the map of the place you are standing in everywhere else. There is no such place here, so nothing is drawn.',
+          'The rung a bench opens on is the one above the highest you have cleared. With levels chooseable in any order, a player who opened on level 8 and cleared it was being sent back to level 1 by a suggestion that looked for the lowest uncleared rung anywhere on the ladder.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.11.0',
     name: 'FOUR WAYS IN',
     date: '2026-09-08',

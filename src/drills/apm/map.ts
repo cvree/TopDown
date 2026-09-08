@@ -15,7 +15,8 @@ import { median } from './stats';
  * the bench.
  *
  * In the bottom-right corner, where the minimap lives in every game any of
- * this is for, a two-lane board runs for the whole of every mode. Your blip
+ * this is for, a two-lane board runs for the whole of every mode from level
+ * four up. Your blip
  * stands in one lane. A bad orb falls slowly down the other one — or down
  * yours, which is the case that matters — and you have until it lands to be
  * somewhere else. Two keys, one for each lane, and they are your own
@@ -43,6 +44,16 @@ import { median } from './stats';
 
 /** The two lanes, and the keys that put you in them. */
 export const MAP_KEYS: [AbilitySlot, AbilitySlot] = ['d', 'f'];
+
+/**
+ * The rung the board turns up on.
+ *
+ * The board is a second task, and a second task is only worth adding to a
+ * first one you can already do. Levels one to three are where a player finds
+ * out what a bench is asking for; the map arrives at four, where the bench
+ * itself has stopped being the whole of the problem.
+ */
+export const MAP_MIN_LEVEL = 4;
 
 /** What the board needs from the drill it is bolted onto. */
 export interface MapVerbs {
@@ -206,7 +217,7 @@ export class MapDodge {
       this.taken++;
       this.streak = 0;
       this.hurt = 1;
-      this.s.fx.addFlash(0.09, PALETTE.danger);
+      this.s.fx.badFlash(0.09, PALETTE.danger);
       audio.play('hazardFire', { intensity: 0.9, pan: PAN[o.lane] });
       this.v.fumble(at, 'ORB TAKEN', { input: false, cost: 110 });
       return;

@@ -380,6 +380,7 @@ export function GameView({
     if (meta.zoom !== undefined) renderer.setZoom(meta.zoom);
     const minimap = new Minimap(minimapCanvas);
     minimap.resize(158);
+    const minimapHost = minimapCanvas.parentElement;
 
     const scheme = schemeFor(settings, drill);
     const input = new InputSystem({
@@ -403,6 +404,7 @@ export function GameView({
         tumbleAim: settings.tumbleAim ?? 'hands',
         hero: settings.hero,
         fogOfWar: settings.fogOfWar !== false,
+        negativeFeedback: settings.negativeFeedback === true,
       },
       input,
       renderer,
@@ -633,6 +635,11 @@ export function GameView({
         drillInstance.paint(paint, session.world.time);
 
         const live = settingsRef.current;
+        // Settings can be opened from the pause screen, so the frame's taste
+        // in punishment is read every frame rather than at construction: a
+        // player who turns the red flashes off mid-run gets a run without
+        // them, not a run they have to restart.
+        session.fx.negative = live.negativeFeedback === true;
         renderer.render(session.world, session.fx, alpha, dtWall, {
           cursor: input.cursor,
           // Your reach is not part of the picture: it is what a range check
@@ -658,15 +665,22 @@ export function GameView({
 
         const now = performance.now();
         writeHud(session.hud(loop.stats.fps), now);
-        minimap.draw(
-          session.world,
-          renderer.scene.rig.coverage,
-          renderer.scene.rig.focus,
-          meta.accent,
-          // The lab replaces the map of the arena with a board of its own. It
-          // is the same corner of the screen asking the same question.
-          drillInstance.mapBoard(),
-        );
+        // The lab's lower rungs run no board and have no terrain to map, so
+        // the corner is emptied rather than filled with a picture of an empty
+        // bench.
+        const hideMap = drillInstance.mapHidden();
+        if (minimapHost) minimapHost.style.display = hideMap ? 'none' : '';
+        if (!hideMap) {
+          minimap.draw(
+            session.world,
+            renderer.scene.rig.coverage,
+            renderer.scene.rig.focus,
+            meta.accent,
+            // The lab replaces the map of the arena with a board of its own.
+            // It is the same corner of the screen asking the same question.
+            drillInstance.mapBoard(),
+          );
+        }
 
         // Quality falls back on its own rather than asking the player to find
         // a setting. Scores must never depend on the machine.

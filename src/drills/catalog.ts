@@ -477,13 +477,15 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
   //
   // Two things are shared by all thirteen and belong to none of them. The
   // pads travel — a bench is a formation of moving circles, swinging wider and
-  // running faster with the rung and with your own flow, so your eyes are
-  // working for the whole run rather than for the first ten seconds. And the
-  // minimap in the corner runs a two-lane dodge for the whole of every mode:
-  // a bad orb falls slowly down one of two lanes and the summoner keys are
-  // which lane you stand in. Let it land on you and it costs the flow tier
-  // your hands just spent a minute building, which is precisely what a gank
-  // you did not look up for costs.
+  // running faster with the rung, and holding that speed for the whole run, so
+  // your eyes are working the whole minute and a level is one difficulty
+  // rather than a range. And from level four up, the minimap in the corner
+  // runs a two-lane dodge for the rest of the run: a bad orb falls slowly down
+  // one of two lanes and the summoner keys are which lane you stand in. Let it
+  // land on you and it costs the flow tier your hands just spent a minute
+  // building, which is precisely what a gank you did not look up for costs.
+  // Below level four there is no board: the bottom of a ladder is for learning
+  // what the bench itself asks.
   apmPulse: {
     id: 'apmPulse',
     name: 'PULSE',
@@ -502,7 +504,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     id: 'apmSequence',
     name: 'SEQUENCE',
     tagline: 'The queue, read two ahead',
-    brief: 'The ability row rolls across a drifting bench and only the front key is legal. The window shrinks as you speed up.',
+    brief: 'The ability row rolls across a drifting bench and only the front key is legal. The window is the rung, and it does not move.',
     transfers: 'A long combo arriving in the right order when you are not thinking about it.',
     group: 'APM',
     axes: { tempo: 0.7, targeting: 0.3 },
@@ -586,7 +588,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     id: 'apmField',
     name: 'FIELD',
     tagline: 'The mouse half, with nothing attached',
-    brief: 'Pads cross the floor and go out. Graded in units from the centre, and they shrink and speed up as you chain.',
+    brief: 'Pads cross the floor and go out. Graded in units from the centre, and the higher the rung the smaller and faster they are.',
     transfers: 'The ceiling on every command that starts with the cursor being somewhere.',
     group: 'APM',
     axes: { tempo: 0.6, aim: 0.4 },
@@ -614,7 +616,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     id: 'apmSplit',
     name: 'SPLIT',
     tagline: 'The queue, and the corner of the screen',
-    brief: 'A key queue in the middle that never stops, and the map in the corner running at double rate behind it.',
+    brief: 'A key queue in the middle that never stops, and — from level four — the map in the corner running at double rate behind it.',
     transfers: 'Answering the minimap without your combo falling apart — on an actual minimap.',
     group: 'APM',
     axes: { tempo: 0.5, targeting: 0.35, aim: 0.15 },

@@ -72,7 +72,8 @@ type BoolKey =
   | 'showNames'
   | 'fogOfWar'
   | 'muted'
-  | 'focusMode';
+  | 'focusMode'
+  | 'negativeFeedback';
 type NumKey = 'masterVolume' | 'sfxVolume' | 'musicVolume';
 
 interface ChoiceOption<V extends string> {
@@ -253,6 +254,13 @@ const SECTIONS: Section[] = [
         label: 'Focus mode',
         hint: 'Strips the HUD to the timer, the task, your health and the score. Everything analytical waits for the results screen. F2 toggles it inside a run.',
         terms: 'minimal hud clean distraction zen focus',
+      },
+      {
+        kind: 'toggle',
+        key: 'negativeFeedback',
+        label: 'Punishment feedback',
+        hint: 'The buzzer when a streak breaks, the red wash over the arena, and the camera shove that comes with them. Off by default: losing the streak is already the cost of losing the streak, and a trainer you make mistakes in on purpose should not be annoyed with you for making them. Nothing here changes what a mistake costs — the chain still breaks, the score still pays, and every figure on the results screen is the same.',
+        terms: 'negative fail sound buzzer red flash streak break punish harsh feedback annoying',
       },
       {
         kind: 'toggle',

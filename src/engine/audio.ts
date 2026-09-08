@@ -65,6 +65,21 @@ type SfxName =
   | 'gateEnter'
   | 'announce';
 
+/**
+ * The voices that exist only to tell you off.
+ *
+ * Not "every sound with a low note in it" — a telegraph is the other side
+ * doing something, a hurt is your health leaving, and a cancelled attack is a
+ * tumble doing exactly what you asked it to. All of those are information a
+ * player needs whatever their taste in feedback. These three say one thing
+ * only: *that was wrong*. They are what `negativeSfx` silences.
+ */
+const NEGATIVE_SFX: ReadonlySet<string> = new Set<SfxName>([
+  'flowBreak',
+  'castRefuse',
+  'fail',
+]);
+
 export interface PlayOpts {
   /** 0..2-ish loudness multiplier. */
   intensity?: number;
@@ -92,6 +107,14 @@ export class AudioEngine {
   sfxVolume = 0.9;
   musicVolume = 0.35;
   muted = false;
+
+  /**
+   * Whether the punishment voices are allowed to speak.
+   *
+   * Off by default, to match the setting that drives it. Everything else is
+   * untouched: silencing the buzzer does not silence the run.
+   */
+  negativeSfx = false;
 
   /** Lazily created on the first gesture — browsers require it. */
   private ensure(): AudioContext | null {
@@ -356,6 +379,7 @@ export class AudioEngine {
 
   play(name: SfxName, intensityOrOpts: number | PlayOpts = 1, panArg = 0): void {
     if (this.muted) return;
+    if (!this.negativeSfx && NEGATIVE_SFX.has(name)) return;
     const o: PlayOpts = typeof intensityOrOpts === 'number' ? { intensity: intensityOrOpts, pan: panArg } : intensityOrOpts;
     const intensity = o.intensity ?? 1;
     const pan = o.pan ?? 0;

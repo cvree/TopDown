@@ -25,12 +25,12 @@ interface LivePad {
  * it and no consequence for it beyond whether your hand arrived.
  *
  * The pads travel. They cross the floor and bounce off it, faster on a higher
- * rung and faster again while you are hot, so a click is a lead rather than a
- * destination — which is what a click on a champion has always actually been.
- * It is graded in units from the centre rather than as a yes or no, and the
- * pads shrink as the chain grows, so the mode always asks for the smallest
- * moving target you have just proved you can hit. Clicking the floor is a
- * stray: an input you paid for and did not get.
+ * rung, so a click is a lead rather than a destination — which is what a click
+ * on a champion has always actually been. It is graded in units from the
+ * centre rather than as a yes or no, and the pads are smaller the higher the
+ * rung — the same size for the whole of a run, so the target you are being
+ * measured against is the one the level named. Clicking the floor is a stray:
+ * an input you paid for and did not get.
  *
  * Transfer: the ceiling on every command that starts with the cursor being
  * somewhere. You cannot click a champion faster than you can click a circle,
@@ -50,9 +50,16 @@ export class ApmFieldDrill extends LabDrill {
     this.spawnCd = 0.2;
   }
 
-  /** Smaller the hotter you are: the mode chases the hand it is watching. */
+  /**
+   * Smaller the higher the rung, and the same size for the whole of a run.
+   *
+   * It used to shrink with the player's own flow as well — the pads chased the
+   * hand that was doing well — which meant the run got harder exactly as it
+   * got worth keeping, and a "level 6" pad had no fixed size to be compared
+   * against between runs.
+   */
   private radius(): number {
-    return clamp(86 - this.d * 26 - this.heat * 22, 32, 90);
+    return clamp(86 - this.d * 42, 32, 90);
   }
 
   private concurrency(): number {

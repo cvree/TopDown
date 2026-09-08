@@ -20,10 +20,17 @@ import { APM_LEVELS, CLEAR_AT, STAR_AT, levelDifficulty } from './apmladder';
  *
  * Everything else here follows from that:
  *
- *  - Clearing a level opens the next one, so the ladder is walked rather than
- *    skipped, and a level cleared outright opens two, so a player who is
- *    plainly past a rung does not have to grind it.
- *  - Placement seeds where the ladder starts. An Expert-class player should not be
+ *  - **Every rung is playable, always.** The ladder used to gate: level 4 was
+ *    shut until level 3 was cleared. That is the right shape for a campaign
+ *    and the wrong one for a gym — the only person who knows which minute is
+ *    worth your next minute is you, and a player who wants to look at what
+ *    level 10 even feels like on their first day should be allowed to look.
+ *  - What a clear still does is *mark* the rung and move the suggestion up.
+ *    `unlocked` survives as the ladder's own record of how far it has been
+ *    walked — a clear moves it on one, a run that was plainly past the rung
+ *    moves it on two — and it steers the level a card opens on. It gates
+ *    nothing.
+ *  - Placement seeds where that suggestion starts. An Expert-class player should not be
  *    made to click level 1 for eight minutes to reach the part that is hard.
  *  - Mastery weights the top of the ladder heavily, because three stars on
  *    level 10 is a different claim from three stars on level 1.
@@ -63,8 +70,10 @@ export interface ApmMode {
  *
  * Two things are true of every rung of every one of them and are therefore
  * written down in none of them: the pads travel, further and faster the higher
- * the level, and the minimap runs its two-lane dodge on the summoner keys for
- * the whole run. What the level ladder scales is the mode *and* both of those.
+ * the level, and from level four up the minimap runs its two-lane dodge on the
+ * summoner keys for the whole run. What the level ladder scales is the mode
+ * *and* both of those — and it scales them once, at the start of the run, so a
+ * rung is one difficulty rather than a range.
  */
 const MODE_TABLE: Omit<ApmMode, 'par' | 'order'>[] = [
   {
@@ -77,7 +86,7 @@ const MODE_TABLE: Omit<ApmMode, 'par' | 'order'>[] = [
     id: 'apmSequence',
     kind: 'isolated',
     counts: 'The front key of a rolling queue.',
-    pressure: 'No mouse at all, and the window shrinks as you speed up.',
+    pressure: 'No mouse at all, and the queue never empties: the window is the rung, and it is narrow.',
   },
   {
     id: 'apmChord',
@@ -113,7 +122,7 @@ const MODE_TABLE: Omit<ApmMode, 'par' | 'order'>[] = [
     id: 'apmField',
     kind: 'isolated',
     counts: 'A click inside a pad.',
-    pressure: 'Graded in units from the centre, and the pads shrink as the chain grows.',
+    pressure: 'Graded in units from the centre, and the pads are smaller the higher the rung.',
   },
   {
     id: 'apmHandoff',
@@ -199,7 +208,14 @@ export interface ApmInfiniteRecord {
 
 export interface ApmModeRecord {
   levels: ApmLevelRecord[];
-  /** Highest level that may be played, 1..APM_LEVELS. */
+  /**
+   * How far up the ladder this mode has been walked, 1..APM_LEVELS.
+   *
+   * It is not a gate — every rung of every bench is playable from the first
+   * run — it is where the ladder has got to: a clear moves it on one, a run
+   * that took the rung outright moves it on two, and it is what the card's
+   * suggested level is read from.
+   */
   unlocked: number;
   /** The level the player last chose, so the screen reopens where they left. */
   lastLevel: number;
@@ -349,21 +365,25 @@ export const clearedThrough = (rec: ApmModeRecord): number => {
 };
 
 /**
- * The rung the section opens the mode on: the lowest one still uncleared.
+ * The rung a card opens on: the one above the highest you have cleared.
  *
- * Not the highest unlocked — a player who was skipped ahead should land on the
- * rung they have not beaten, not on the one after it — and not the lowest
- * unstarred, because sending somebody back to a level they already cleared is
- * exactly the busywork an explicit ladder exists to remove. It is only ever a
- * suggestion: every unlocked rung stays playable, and a scrape is visible as a
- * single star for as long as it stands.
+ * A suggestion and nothing more — every rung is playable whenever you like —
+ * but it should be the *useful* suggestion, which is the next thing there is
+ * to beat. Not the lowest uncleared rung anywhere on the ladder: now that a
+ * player can start wherever they want, somebody who opened on level 8 and
+ * cleared it would be sent back to level 1, which is the one answer that is
+ * certainly wrong. And not the highest rung they have ever touched, because a
+ * level you failed is a level you have not finished with.
+ *
+ * With nothing cleared it falls back to where the ladder has been walked to,
+ * which is level one for a new profile and the placement's rung for somebody
+ * the client has already measured.
  */
 export const recommendedLevel = (p: ApmProgress, id: ApmDrillId): number => {
   const rec = p.modes[id];
-  for (let i = 0; i < rec.unlocked; i++) {
-    if (!levelCleared(rec.levels[i])) return i + 1;
-  }
-  return rec.unlocked;
+  const cleared = clearedThrough(rec);
+  if (cleared > 0) return clamp(cleared + 1, 1, APM_LEVELS);
+  return clamp(Math.round(rec.unlocked), 1, APM_LEVELS);
 };
 
 /** The mode the section suggests next: the one with the most left in it. */

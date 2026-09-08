@@ -182,6 +182,15 @@ export interface SessionConfig {
    * never asked for fog.
    */
   fogOfWar?: boolean;
+  /**
+   * Whether the frame is allowed to punish you.
+   *
+   * The player's own setting, handed to the effect system on the first frame
+   * and refreshed by the client whenever it changes — including from the
+   * pause screen, so a run does not have to be restarted to stop the arena
+   * flashing red at a broken streak. Nothing in the simulation reads it.
+   */
+  negativeFeedback?: boolean;
 }
 
 /**
@@ -267,6 +276,7 @@ export class Session {
     this.rng = new Rng(config.seed);
     this.world = new World(config.arena, this.rng);
     this.world.playerHero = config.hero ?? DEFAULT_HERO;
+    this.fx.negative = config.negativeFeedback === true;
     this.flash = new FlashSpell(this, config.flashCd ?? FLASH_PRACTICE_CD);
   }
 
@@ -357,7 +367,7 @@ export class Session {
     if (!this.surviving) return;
     const left = this.strikesLeft;
     audio.play('fail', left > 0 ? 0.8 : 1.2);
-    this.fx.addFlash(left > 0 ? 0.09 : 0.16, PALETTE.danger);
+    this.fx.badFlash(left > 0 ? 0.09 : 0.16, PALETTE.danger);
     if (player) this.micro(reason, player.pos, PALETTE.danger);
     if (left > 0) {
       this.setBanner(`${reason} — ${left} LEFT`, 1.3);
@@ -536,7 +546,8 @@ export class Session {
     this.phase = 'ended';
     this.score = this.drill?.score() ?? this.score;
     audio.play(this.endReason === 'death' ? 'fail' : 'resultsReveal');
-    this.fx.addFlash(0.12, this.endReason === 'death' ? PALETTE.danger : PALETTE.accent);
+    if (this.endReason === 'death') this.fx.badFlash(0.12, PALETTE.danger);
+    else this.fx.addFlash(0.12, PALETTE.accent);
   }
 
   abort(): void {
@@ -735,8 +746,10 @@ export class Session {
     const angle = Math.atan2(at.y - player.pos.y, at.x - player.pos.x);
     this.renderer.castPose?.(player.id);
     audio.play(audio.castVoice(slot), { pan: this.panOf(player.pos) });
-    // The camera shoves along the cast, not at random. Ultimates shove hard.
-    this.renderer.cameraKick?.(angle, slot === 'r' ? 62 : 26);
+    // The camera shoves along the cast, not at random. Ultimates shove hard,
+    // and a bench barely shoves at all — see `castKick`.
+    const kick = (slot === 'r' ? 62 : 26) * (this.drill?.castKick() ?? 1);
+    if (kick > 0.5) this.renderer.cameraKick?.(angle, kick);
     if (slot === 'r') {
       this.fx.addFlash(0.08, PALETTE.accent);
       this.fx.ring(player.pos.x, player.pos.y, player.radius, player.radius + 200, 0.5, PALETTE.accent, 4, 'shock');
@@ -1130,6 +1143,28 @@ export abstract class DrillBase {
    */
   mapBoard(): MapBoard | null {
     return null;
+  }
+  /**
+   * Whether the corner should be left empty.
+   *
+   * Only the lab ever says yes, and only on the rungs below the one its board
+   * arrives on: there is no terrain to draw a map of and no board to put in
+   * its place, so the client draws neither rather than an empty frame.
+   */
+  mapHidden(): boolean {
+    return false;
+  }
+  /**
+   * How much camera one cast is worth here, as a multiplier on the shove.
+   *
+   * One for every mode with a champion in it, where a cast is an event. The
+   * lab turns it most of the way down, because there a "cast" is a keystroke
+   * on a bench and there are five or six of them a second: the same shove that
+   * gives a Condemn its weight, repeated a hundred and fifty times a minute,
+   * is a camera that never stops moving.
+   */
+  castKick(): number {
+    return 1;
   }
   /**
    * The ability bar. Every drill shows all six slots — the ones it does not use

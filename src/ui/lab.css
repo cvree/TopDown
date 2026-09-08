@@ -1,0 +1,58 @@
+/* THE LAB.
+
+   The bench, as its own section of the client. It borrows the practice
+   screen's furniture on purpose — the same cards, the same group heads, the
+   same PLAY button — because a bench and a champion mode are two things you
+   start the same way, and the client should not have two grammars for one
+   gesture. What is here is only what the lab needs and the champion screen
+   does not: its own colour at the top, a line of tallies under the header in
+   place of a tab rail, and one mark on the level ladder for the rung the map
+   turns up on. */
+
+.lab-screen {
+  padding-top: 46px;
+  padding-bottom: 64px;
+  max-width: 1180px;
+}
+
+/* Cyan rather than the champion's violet: the two sections should not be
+   mistaken for one another at a glance, and this is the colour the lab has
+   worn on its tab and its cards since it was built. */
+.lab-h1 {
+  background: linear-gradient(180deg, #e8fbff 0%, #7ceaff 52%, #2b7f99 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* What the section can say about itself before you read any of it. It sits
+   where the tab rail's meta line sat on the old screen, and it says the one
+   thing the ladder change made worth saying out loud: every level is open. */
+.lab-tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--stroke);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--text-3);
+}
+.lab-tally b {
+  color: #7ceaff;
+  font-weight: 600;
+  margin-right: 5px;
+}
+
+/* The rung the board arrives on, marked once on every ladder. Levels one to
+   three are the bench alone; from four the corner is a second task, and the
+   strip is the only place on the card where that is visible at a glance. */
+.pr-rung.mapped {
+  box-shadow: inset 0 -3px 0 rgba(124, 234, 255, 0.32);
+}
+.pr-rung.mapped.here {
+  box-shadow:
+    0 0 10px color-mix(in srgb, var(--c) 90%, transparent),
+    inset 0 -3px 0 rgba(124, 234, 255, 0.5);
+}

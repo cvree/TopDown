@@ -92,6 +92,16 @@ export class FxSystem {
   /** Slow-motion factor applied to *presentation only*, never to the sim. */
   timeDilation = 1;
 
+  /**
+   * Whether the punishment effects are allowed to play.
+   *
+   * Set from the player's own setting, and read only by `badShake` and
+   * `badFlash` — the two verbs every "you did that wrong" effect in the client
+   * goes through. Off by default, to match the setting: a mistake still costs
+   * exactly what it cost, and the frame stops shouting about it.
+   */
+  negative = false;
+
   private rand = Math.random;
 
   clear(): void {
@@ -114,6 +124,24 @@ export class FxSystem {
   addFlash(amount: number, color = '#ffffff'): void {
     this.flash = Math.max(this.flash, amount);
     this.flashColor = color;
+  }
+
+  /**
+   * A shake that exists because something went wrong.
+   *
+   * Same call, one gate: punishment effects are a taste, and rings, floating
+   * text and the score are the actual report. Anything that shakes for a
+   * *good* reason — a kill, a tier — still calls `addShake` directly.
+   */
+  badShake(amount: number, decay = 6): void {
+    if (!this.negative) return;
+    this.addShake(amount, decay);
+  }
+
+  /** A flash that exists because something went wrong. See `badShake`. */
+  badFlash(amount: number, color = '#ffffff'): void {
+    if (!this.negative) return;
+    this.addFlash(amount, color);
   }
 
   burst(
@@ -232,8 +260,15 @@ export class FxSystem {
    * a second and a wider coloured spray behind it. The core is what your eye
    * actually registers as the moment of contact — a single coloured puff reads
    * as an effect playing, a hot centre reads as a hit.
+   *
+   * `shake` is how much of the camera the impact is allowed to take, as a
+   * multiplier. It exists for one caller: the lab, where a hit is not an
+   * event but a *cadence* — five or six a second for a whole minute — and a
+   * camera that nudges on each one is not punctuation, it is a wobble that
+   * never stops. Everywhere else, where a hit is a thing that happened, it
+   * stays exactly as it was.
    */
-  impact(pos: Vec2, angle: number, color: string, power = 1): void {
+  impact(pos: Vec2, angle: number, color: string, power = 1, shake = 1): void {
     this.burst(pos.x, pos.y, Math.round(8 + power * 9), {
       color,
       angle,
@@ -253,7 +288,7 @@ export class FxSystem {
       kind: 'spark',
     });
     this.ring(pos.x, pos.y, 6, 38 + power * 20, 0.28, color, 2.8, 'impact');
-    this.addShake(1.6 * power, 12);
+    if (shake > 0) this.addShake(1.6 * power * shake, 12);
   }
 
   /** A near miss. A hard, thin edge that snaps past you. */
@@ -288,12 +323,18 @@ export class FxSystem {
     this.addFlash(0.17, color);
   }
 
-  /** Taking damage. Reads as bad without screaming. */
+  /**
+   * Taking damage. Reads as bad without screaming.
+   *
+   * The ring and the spray are information — that was you, and it came from
+   * there — so they play whatever the setting says. The shake and the red
+   * wash are the screaming, and they are the part the setting governs.
+   */
   hurt(pos: Vec2): void {
     this.ring(pos.x, pos.y, 30, 76, 0.4, '#ff6a8a', 3, 'impact');
     this.burst(pos.x, pos.y, 12, { color: '#ff6a8a', speed: 220, life: 0.42, size: 2.6 });
-    this.addShake(4.5, 9);
-    this.addFlash(0.1, '#ff4d6d');
+    this.badShake(4.5, 9);
+    this.badFlash(0.1, '#ff4d6d');
   }
 
   /** A cancelled attack — informative, not punishing. */

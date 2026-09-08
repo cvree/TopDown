@@ -48,6 +48,17 @@ import { APM_LEVELS, difficultyLevel, levelDifficulty } from '../../progression/
  * so "actions per minute" can never drift away from "actions that mattered" —
  * and so a mode about restraint can pay for restraint without paying a rate
  * for it, which is the whole reason hold() exists as a verb of its own.
+ *
+ * And one rule about the floor those verbs sit on: *the rung sets the pace and
+ * nothing else moves it*. Every window, every spacing and every clock in every
+ * bench is a function of `d` — the difficulty the level named — so two runs at
+ * a level are two runs at the same difficulty and the numbers they produce can
+ * be put next to each other. The engine used to feed the player's own flow
+ * back into the pace, which was a lovely idea and the wrong instrument: it
+ * meant a good run bought itself a harder bench, and "level 6" named a range
+ * rather than a place. What your form moves now is the *reward* — the chain,
+ * the tier, the multiplier, the pitch, the bed. The one shape of run with a
+ * moving floor is INFINITE, where moving the floor is the entire mode.
  */
 
 export interface FlowTier {
@@ -251,12 +262,25 @@ export abstract class ApmDrill extends Drill {
   /**
    * The speed multiplier the modes pace themselves with.
    *
-   * It reads your own flow, not a clock, which is the whole trick: the drill
-   * always sits just past the edge of what you are currently doing, so it is
-   * never boring at the bottom and never unreachable at the top.
+   * It reads the rung and nothing else. It used to read your own flow as well
+   * — the better the run was going, the faster the bench ran — and that is a
+   * lovely idea and the wrong instrument. A level is supposed to be a *place*:
+   * you go back to it, you beat it, you leave it behind, and the number you
+   * bring back is comparable with the last one because the bench was the same
+   * bench both times. A floor that accelerated under a good run meant the
+   * opposite — the better you played, the harder the thing you were being
+   * scored on, so a strong start was punished with a hostile finish and no two
+   * runs at "level 6" were ever the same difficulty.
+   *
+   * So pacing is static within a run and rises only with the rung. The thing
+   * your form still moves is the *reward* — the chain, the tier and the
+   * multiplier — which is where a reward belongs.
+   *
+   * The one deliberate exception is INFINITE, which has no rung to be static
+   * at: there `this.d` is the tide, and moving the floor is the entire mode.
    */
   protected get tempo(): number {
-    return 0.8 + this.d * 0.55 + this.heat * 0.75;
+    return 0.8 + this.d * 1.05;
   }
 
   protected get flow(): FlowTier {
@@ -372,7 +396,10 @@ export abstract class ApmDrill extends Drill {
 
     const color = opts.color ?? (perfect ? PALETTE.good : this.flow.color);
     audio.play(perfect ? 'perfect' : 'pickup', { pan: this.s.panOf(pos) });
-    this.s.fx.impact(pos, 0, color, 0.9 + quality * 0.8 + this.heat);
+    // No camera on a hit. A confirmation in the lab is the spray, the ring and
+    // the pitch — a shove as well would fire five times a second for a whole
+    // minute, which is not weight, it is a tremor.
+    this.s.fx.impact(pos, 0, color, 0.9 + quality * 0.8 + this.heat, 0);
     this.s.fx.ring(pos.x, pos.y, 8, 44 + quality * 46 + this.heat * 70, 0.3, color, 2 + this.heat * 2, 'impact');
     if (opts.label) this.s.micro(opts.label, pos, color);
     else if (perfect) this.s.micro('PERFECT', pos, PALETTE.good);
@@ -464,12 +491,19 @@ export abstract class ApmDrill extends Drill {
     this.chain = 0;
     this.heat *= 0.25;
     audio.setComboPitch(0);
+    // The buzzer, the shove and the red wash are punishment; the ring and the
+    // word are the report. Only the first three are the player's to switch
+    // off — losing the chain still costs exactly what it cost.
     audio.play('flowBreak', { pan: this.s.panOf(pos) });
     this.s.fx.ring(pos.x, pos.y, 10, 90, 0.35, PALETTE.danger, 2.5, 'impact');
     this.s.micro(lost >= 8 ? `${label} · ${lost} LOST` : label, pos, PALETTE.danger);
-    if (lost >= FLOW_TIERS[2].at) {
-      this.s.fx.addShake(3.5, 10);
-      this.s.fx.addFlash(0.06, PALETTE.danger);
+    // Only a chain worth mourning, and half the shove it used to be: on a
+    // bench where a break is an ordinary event this fired several times a
+    // minute, and a camera that lurches every twenty seconds stops reading as
+    // punctuation and starts reading as a fault.
+    if (lost >= FLOW_TIERS[3].at) {
+      this.s.fx.badShake(1.8, 12);
+      this.s.fx.badFlash(0.05, PALETTE.danger);
     }
     this.settleTier();
   }
@@ -493,9 +527,13 @@ export abstract class ApmDrill extends Drill {
     const f = this.flow;
     audio.play('flowTier', { intensity: 0.7 + this.tier * 0.12 });
     this.s.setBanner(`${f.name}  ×${f.mult.toFixed(2).replace(/0$/, '')}`, 1.5);
-    this.s.fx.addFlash(0.07 + this.tier * 0.02, f.color);
+    this.s.fx.addFlash(0.05 + this.tier * 0.015, f.color);
     this.s.fx.ring(pos.x, pos.y, 20, 240 + this.tier * 60, 0.6, f.color, 4, 'shock');
-    this.s.fx.addShake(2 + this.tier, 9);
+    // The first two tiers arrive inside the first few seconds of every run and
+    // then again after every break, so they get the banner and the ring and no
+    // camera at all. Shake is saved for the two a run is actually built on,
+    // where it still means something because it is rare.
+    if (this.tier >= 3) this.s.fx.addShake(1.4 + (this.tier - 3) * 0.8, 11);
   }
 
   // ---------------------------------------------------------------- frame
@@ -564,7 +602,7 @@ export abstract class ApmDrill extends Drill {
     const p = this.s.world.player;
     if (p) {
       this.s.fx.ring(p.pos.x, p.pos.y, 24, 260 + c.level * 20, 0.6, color, 3.5, 'shock');
-      if (c.up) this.s.fx.addShake(2.5, 9);
+      if (c.up) this.s.fx.addShake(1.2, 11);
     }
   }
 

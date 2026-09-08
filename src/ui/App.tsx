@@ -28,6 +28,7 @@ import { Crest } from './components/Crest';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
 import { GameView } from './GameView';
 import { ErrorBoundary } from './ErrorBoundary';
+import { Lab } from './Lab';
 import { Practice } from './Practice';
 import { Progress } from './Progress';
 import { PatchNotes } from './PatchNotes';
@@ -41,16 +42,25 @@ import './app.css';
 /**
  * The sections.
  *
- * Three, and one of them is setup. The client used to have seven tabs, four
+ * Four, and one of them is setup. The client used to have seven tabs, four
  * ladders, a daily plan and a calibration sequence, which between them meant a
  * player had to learn the *client* before they could practise; everything that
  * was really a way of choosing a run is now two buttons on a card.
+ *
+ * The split between the first two is the whole shape of the trainer, so it is
+ * made in the top bar rather than inside a screen. **PRACTICE** is a champion:
+ * her lane, her kit in pieces, and every number both are built from. **THE
+ * LAB** is not a champion at all — it is thirteen benches measuring how fast
+ * your hands are actually right, which is the layer underneath every champion
+ * anyone will ever add. The lab spent a release as the third tab of the
+ * champion screen and read, from there, as one more thing about Vayne.
  */
-type Route = 'practice' | 'progress' | 'settings' | 'patch';
+type Route = 'practice' | 'lab' | 'progress' | 'settings' | 'patch';
 
 /** The top bar, in order. Setup and the patch notes live in the corner. */
 const NAV: { route: Route; label: string }[] = [
   { route: 'practice', label: 'PRACTICE' },
+  { route: 'lab', label: 'THE LAB' },
   { route: 'progress', label: 'PROGRESS' },
 ];
 
@@ -129,6 +139,9 @@ export function App() {
     audio.sfxVolume = profile.settings.sfxVolume;
     audio.musicVolume = profile.settings.musicVolume;
     audio.muted = profile.settings.muted;
+    // The buzzer, the refusal and the failure tone. Everything else — every
+    // confirmation, every telegraph, the whole arena — is untouched.
+    audio.negativeSfx = profile.settings.negativeFeedback === true;
     audio.applyVolumes();
   }, [profile.settings]);
 
@@ -545,6 +558,7 @@ export function App() {
             {route === 'practice' && (
               <Practice profile={profile} settings={profile.settings} onPlay={startRun} />
             )}
+            {route === 'lab' && <Lab profile={profile} onPlay={startRun} />}
             {route === 'progress' && (
               <Progress
                 profile={profile}

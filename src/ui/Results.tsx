@@ -496,8 +496,9 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
 
               {report.apm.infinite.unlockedTo !== null ? (
                 <div className="ra-unlock">
-                  You stood on it, so it is yours to play. <b>Level {report.apm.infinite.unlockedTo}</b> is
-                  now open on the ladder — no star, because holding a rung is not beating one.
+                  You stood on it, so the ladder has walked up to it. <b>Level{' '}
+                  {report.apm.infinite.unlockedTo}</b> is where the bench will open from now on — and
+                  it carries no star, because holding a rung is not beating one.
                 </div>
               ) : (
                 <div className="ra-unlock quiet">
@@ -572,10 +573,10 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
 
               {report.apm.unlockedTo !== null ? (
                 <div className="ra-unlock">
-                  {report.apm.skipped ? 'Taken outright.' : 'Cleared.'} <b>Level {report.apm.unlockedTo}</b> is
-                  now open
-                  {report.apm.skipped && ' — two rungs at once, because this one had nothing left to teach you'}
-                  .
+                  {report.apm.skipped ? 'Taken outright.' : 'Cleared.'} The bench opens on{' '}
+                  <b>level {report.apm.unlockedTo}</b> next
+                  {report.apm.skipped && ' — two rungs up, because this one had nothing left to teach you'}
+                  . Every other rung is still one click away, as it always was.
                 </div>
               ) : (
                 <div className="ra-unlock quiet">

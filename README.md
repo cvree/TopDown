@@ -7,12 +7,14 @@ It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
 drawn on the ground where the thing it is about actually is.
 
-The menu is four sections behind one rail. The first is **THE LANE**: the first
-ten minutes of a game of League, at League's own numbers, against an enemy laner
-farming and trading on the other side of the wave. You pick the opponent and the
-length; everything else is the game. The second is **PRACTICE** — the parts of
-that lane, rehearsed one at a time — one distance, one champion and four pieces
-of her, one opponent — each with two ways to play it:
+The client is two places to play and one place to read about it. **PRACTICE**
+is the champion, in three sections behind one rail. The first is **THE LANE**:
+the first ten minutes of a game of League, at League's own numbers, against an
+enemy laner farming and trading on the other side of the wave. You pick the
+opponent and the length; everything else is the game. The second is
+**PRACTICE** — the parts of that lane, rehearsed one at a time — one distance,
+one champion and four pieces of her, one opponent — each with two ways to play
+it:
 
 - **PLAY** — one minute. The same minute every time, so a score means something
   next to the one before it.
@@ -20,16 +22,23 @@ of her, one opponent — each with two ways to play it:
   when you have made that mode's own mistake three times. The result is how
   long you lasted.
 
-The third is **THE LAB**, which is not the champion at all: thirteen benches of
-drifting pads, ten rungs each, measuring correct commands a minute and nothing
-else. The fourth is **THE CODEX** — every figure both champions are built from,
+The third is **THE CODEX** — every figure both champions are built from,
 printed, so a claim about transfer is one you can check.
+
+**THE LAB** is the other section in the top bar, and it is not a champion at
+all: thirteen benches of drifting pads, ten levels each, measuring correct
+commands a minute and nothing else. It is separate because it is the layer
+underneath every champion there will ever be. Every level of every bench is
+open from the first run — the ladder suggests and never gates — and a level is
+one speed, held for the whole minute, so two scores at level six are two scores
+of the same thing. The board in the corner, which is the lab's second task,
+joins at level four.
 
 That is the whole menu. There is no daily plan to opt into, no calibration to
 sit through and no course to unlock — the ladder places you from your first
-three runs, and every mode puts you behind the same champion, because the
-quarter of a second at the end of a tumble is not a thing you can practise in
-the abstract. The roster in Settings is a silhouette and nothing else: not one
+three runs, and every mode with a champion in it puts you behind the same one,
+because the quarter of a second at the end of a tumble is not a thing you can
+practise in the abstract. The roster in Settings is a silhouette and nothing else: not one
 number in the simulation moves behind any of the eight bodies on it.
 
 Behind it is a ranked mechanical skill system driven by measured performance
@@ -815,19 +824,22 @@ gameplay state directly.
 
 ## The client
 
-Four screens: **Practice**, **Progress**, setup, and the patch notes. The last
-two live in the corner of the top bar, which leaves a navigation bar with two
-words in it.
+Five screens: **Practice**, **The Lab**, **Progress**, setup, and the patch
+notes. The last two live in the corner of the top bar, which leaves a
+navigation bar with three words in it — and the first two of those are the
+shape of the whole trainer: a champion, and the bench underneath every
+champion.
 
 ### Practice
 
-The menu is the whole of the first screen, and it is four sections behind one
+The menu is the whole of the first screen, and it is three sections behind one
 sticky rail rather than one column two thousand pixels long. Every tab prints
 how much is inside it and how far through it you are — five opponents and the
-lanes you have played, six modes and how many are on the board, thirteen benches
-and the stars you hold — so the shape of the client is readable before you open
-any of it. The rail walks under the arrow keys, and the tab you were last on
-survives a run.
+lanes you have played, six modes and how many are on the board — so the shape
+of the screen is readable before you open any of it. The rail walks under the
+arrow keys, and the tab you were last on survives a run. Every section on it is
+the champion; the bench moved out to its own screen, because as a fourth tab
+here it read as one more thing about Vayne.
 
 **THE LANE** is one card: five opponents in a row under the question they
 answer, and three lengths under theirs. The record it prints is per opponent,
@@ -842,11 +854,6 @@ keys — the ones you do not get are shown greyed rather than hidden, so the car
 read as slices of one champion — and two buttons, PLAY and SURVIVE, each with
 the record it is asking you to beat printed under it.
 
-**THE LAB** is the thirteen benches, split into ONE THING AT A TIME and TWO AT
-ONCE, which is the split that tells you what to play next. Every bench prints
-what it counts and what makes it hard, the rung it is set to, the ten-mark
-ladder that rung sits on, and the ∞ that plays it with no rung at all.
-
 **THE CODEX** is the reading: both kits in numbers behind one switch — the
 roll's distance and how long it takes, the bolt count and what the third one
 does, Flash's range and what it crosses, Condemn's cast time, knockback and both
@@ -859,6 +866,29 @@ champion owes you the figures it is claiming it with.
 There is nothing else on it. No plan to accept, no course to unlock, no
 calibration to pass first: your rank arrives from your first three runs, and
 until then the chip in the corner says UNRANKED rather than inventing a number.
+
+### The Lab
+
+The thirteen benches, split into ONE THING AT A TIME and TWO AT ONCE, which is
+the split that tells you what to play next. Every bench prints what it counts
+and what makes it hard, the level it is set to, the ten-mark ladder that level
+sits on — marked with the rungs you have starred and with where the board joins
+— and the ∞ that plays it with no level at all.
+
+Three rules hold across all thirteen, and they are the reason it is worth its
+own screen:
+
+- **Every level is open.** All ten rungs of all thirteen benches are playable
+  from your first run. The ladder still remembers — each rung keeps its own
+  record, and a clear moves the suggestion up — but it is a suggestion, because
+  the only person who knows which minute is worth your next minute is you.
+- **A level is one speed.** The rung sets every window, every spacing and every
+  clock, and holds them there for the whole minute. Nothing accelerates because
+  the run is going well: what your form moves is the reward — the chain, the
+  tier, the multiplier — not the floor.
+- **The board joins at level four.** The two-lane dodge in the corner is a
+  second task, and a second task is worth adding only to a first one you can
+  already do. Below level four the corner is empty.
 
 ### Progress
 

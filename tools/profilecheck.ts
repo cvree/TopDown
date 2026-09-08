@@ -346,16 +346,17 @@ line('\n=== Every screen that reads a profile draws it, on every profile ===');
 // different set of callbacks it never calls here.
 const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
   const noop = () => undefined;
-  const [{ Practice, SECTION_IDS }, { Progress }] =
+  const [{ Practice, SECTION_IDS }, { Lab }, { Progress }] =
     await Promise.all([
       import('../src/ui/Practice'),
+      import('../src/ui/Lab'),
       import('../src/ui/Progress'),
     ]);
   return [
-    // Every tab, not only the one a fresh mount opens on. The lab's cards read
-    // further into a stored profile than anything else in the client, and they
-    // are only rendered while their own section is open — so a check that drew
-    // the default tab would be checking the least of the screen.
+    // Every tab, not only the one a fresh mount opens on. Each section reads a
+    // different corner of a stored profile and is only rendered while its own
+    // tab is open — so a check that drew the default tab would be checking the
+    // least of the screen.
     ...SECTION_IDS.map(
       (id): [string, (p: Profile) => unknown] => [
         `PRACTICE · ${id.toUpperCase()}`,
@@ -368,6 +369,10 @@ const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
           }),
       ],
     ),
+    // The lab is its own screen now, and its cards still read further into a
+    // saved record than anything else in the client: thirteen modes, ten level
+    // records each, and an infinite ledger under every one of them.
+    ['THE LAB', (profile) => createElement(Lab as any, { profile, onPlay: noop })],
     ['PROGRESS', (profile) => createElement(Progress as any, { profile, onRename: noop, onReset: noop, onPlay: noop })],
   ];
 };

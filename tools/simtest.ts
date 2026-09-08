@@ -8,7 +8,7 @@
 import { GameLoop, SIM_DT } from '../src/engine/loop';
 import { Session, type TumbleAim, type ViewProjection } from '../src/engine/session';
 import { createDrill, arenaFor } from '../src/drills';
-import { APM_DRILL_IDS, MAP_KEYS, type LabSolution } from '../src/drills/apm';
+import { APM_DRILL_IDS, MAP_KEYS, MAP_MIN_LEVEL, type LabSolution } from '../src/drills/apm';
 import { WASD_DRILL_IDS } from '../src/drills/wasd';
 import { DRILLS, WASD_SEQUENCE, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
@@ -2980,6 +2980,40 @@ line('\n=== THE LAB: nothing on the bench stands still ===');
   }
 }
 
+line('\n=== THE LAB: the pace of a rung does not move under the player ===');
+{
+  // The property the ladder rests on: a level is a *place*. Two runs at level
+  // six have to be two runs at the same difficulty, or the number that comes
+  // out of them cannot be compared with the number that came out last time.
+  //
+  // It used to be false. The bench read the player's own flow and ran faster
+  // the better the run was going, which meant a strong start bought a harder
+  // finish and the reward for building a chain was a floor that was harder to
+  // hold it on. So the same bench is played twice at the same rung by two
+  // players who could not be more different — one who answers everything and
+  // one who never touches a key — and the pads have to travel the same
+  // distance for both of them.
+  // Two benches deal a target, take it away when it is answered and deal
+  // another one somewhere else. Travel here is measured by matching each disc
+  // to its nearest disc in the previous pass, so a re-deal reads as one long
+  // jump — which makes the figure a count of how much the player *cleared*
+  // rather than of how fast the field ran. They are exempt from the
+  // comparison and not from the rule: their motion reads the rung in exactly
+  // the same one place as everybody else's.
+  const REDEALS: string[] = ['apmField', 'apmHandoff'];
+  for (const id of APM_DRILL_IDS) {
+    if (REDEALS.includes(id)) continue;
+    const played = runDrill(id as DrillId, 'lab', 0.55, 4242);
+    const still = runDrill(id as DrillId, 'idle', 0.55, 4242);
+    if (played.travel.samples === 0 || still.travel.samples === 0) continue;
+    const a = played.travel.moved / played.travel.samples;
+    const b = still.travel.moved / still.travel.samples;
+    const drift = Math.abs(a - b) / Math.max(a, b);
+    line(`  ${id.padEnd(13)} played ${a.toFixed(1)}u vs idle ${b.toFixed(1)}u a quarter-second — ${Math.round(drift * 100)}% apart`);
+    expect(`${id} runs at the same speed however well it is going`, drift < 0.2, `${Math.round(drift * 100)}% apart`);
+  }
+}
+
 line('\n=== THE LAB: the infinite run finds the level you belong on ===');
 {
   // The claim the whole mode rests on: play well and the floor comes up, play
@@ -3058,9 +3092,18 @@ line('\n=== THE LAB: the board in the corner is a second task, in every mode ===
   // Every mode runs the two-lane dodge on the minimap, every mode counts it,
   // and a player who never looks at it loses the run they were winning.
   for (const id of APM_DRILL_IDS) {
-    const played = runDrill(id as DrillId, 'lab', 0.4);
+    const played = runDrill(id as DrillId, 'lab', levelDifficulty(MAP_MIN_LEVEL));
     const asked = played.out.keyMetrics.find((k) => k.id === 'mapClean');
     expect(`${id} runs the board`, asked !== undefined, asked ? 'yes' : 'no board');
+  }
+
+  // And not before its rung. The bottom of every ladder is the bench and
+  // nothing else: a second screen is a second question, and it is only worth
+  // asking of somebody who can already answer the first one.
+  for (const id of APM_DRILL_IDS) {
+    const under = runDrill(id as DrillId, 'lab', levelDifficulty(MAP_MIN_LEVEL - 1));
+    const asked = under.out.keyMetrics.find((k) => k.id === 'mapClean');
+    expect(`${id} runs no board below level ${MAP_MIN_LEVEL}`, asked === undefined, asked ? 'board ran' : 'no board');
   }
 
   const taken = (r: ReturnType<typeof runDrill>) => r.out.keyMetrics.find((k) => k.id === 'mapTaken')?.value ?? 0;

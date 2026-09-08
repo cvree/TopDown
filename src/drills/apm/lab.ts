@@ -6,8 +6,9 @@ import type { DrillPaint } from '../../engine/paint';
 import type { AbilityView } from '../../engine/session';
 import type { Actor, Vec2 } from '../../engine/types';
 import type { KeyMetric } from '../../progression/profile';
+import { difficultyLevel } from '../../progression/apmladder';
 import { ApmDrill, KeyCooldowns } from './engine';
-import { MAP_KEYS, MapDodge } from './map';
+import { MAP_KEYS, MAP_MIN_LEVEL, MapDodge } from './map';
 import { PadMotion, type Drift } from './motion';
 
 /**
@@ -37,13 +38,16 @@ import { PadMotion, type Drift } from './motion';
  * *Nothing stands still.* Every pad a mode builds is handed to the motion
  * field the moment it is built, so a bench is a formation of moving circles
  * rather than a diagram, and the field swings wider and runs faster with the
- * rung and with your own flow. Two hands are being measured on this floor and
- * the eyes were being let off entirely; they are not any more.
+ * rung — and only with the rung. Two hands are being measured on this floor
+ * and the eyes were being let off entirely; they are not any more.
  *
- * And one thing that is not on this floor at all: the board in the corner. The
- * minimap runs a two-lane dodge for the whole of every mode, on the two
- * summoner keys, and it is wired in here so that no mode ever has to know it
- * exists. See `map.ts` for what it asks and why.
+ * And one thing that is not on this floor at all: the board in the corner. On
+ * level four and above, the minimap runs a two-lane dodge for the whole of
+ * every mode, on the two summoner keys, and it is wired in here so that no
+ * mode ever has to know it exists. Below level four there is no board at all —
+ * the bottom of the ladder is for learning what a bench asks, and a second
+ * screen asking a second question is the wrong first lesson. See `map.ts` for
+ * what it asks and why.
  */
 
 /** Which shape your hand is in to reach a key. */
@@ -120,8 +124,26 @@ export abstract class LabDrill extends ApmDrill {
   protected keys = new KeyCooldowns();
   /** The field that keeps every pad in the mode travelling. */
   protected motion!: PadMotion;
-  /** The board in the bottom-right corner. Every mode runs one. */
+  /**
+   * The board in the bottom-right corner. Every mode runs one — from level
+   * four up.
+   */
   protected map!: MapDodge;
+
+  /**
+   * Whether the board is running.
+   *
+   * The lowest three rungs of every bench are a single question: what does
+   * this mode want from my hands. Divided attention is a second question, and
+   * a player who cannot yet answer the first one is not learning to look at
+   * the map — they are losing a chain to something they never had the
+   * attention to spare for.
+   *
+   * It latches on rather than tracking the floor both ways, because INFINITE
+   * moves the rung continuously and a board that appeared and vanished every
+   * time the tide crossed four would be worse than either answer.
+   */
+  private mapOn = false;
 
   /** Set by a mode that needs a driveable body rather than a bench. */
   protected mobile(): boolean {
@@ -170,6 +192,7 @@ export abstract class LabDrill extends ApmDrill {
       p.hidden = true;
     }
     this.motion = new PadMotion(this.s.world.bounds, this.s.rng);
+    this.mapOn = this.rung >= MAP_MIN_LEVEL;
     this.map = new MapDodge(
       this.s,
       {
@@ -204,6 +227,22 @@ export abstract class LabDrill extends ApmDrill {
   protected get mapFocus(): Vec2 {
     const { w, h } = this.s.world.bounds;
     return { x: w * 0.78, y: h * 0.82 };
+  }
+
+  /**
+   * The rung being played, continuously.
+   *
+   * The tide's level while the floor is moving, and the level the menu opened
+   * otherwise. Read back out of the difficulty rather than passed down,
+   * because the difficulty is the one number every run shape agrees on.
+   */
+  protected get rung(): number {
+    return this.levelNow() ?? difficultyLevel(this.s.config.difficulty);
+  }
+
+  /** Whether the board in the corner is part of this run. */
+  protected get mapRunning(): boolean {
+    return this.mapOn;
   }
 
   /**
@@ -289,17 +328,19 @@ export abstract class LabDrill extends ApmDrill {
   /**
    * How fast the field runs and how far it swings.
    *
-   * Both read the rung and your own flow, so the floor is nearly still for
-   * somebody opening level one and genuinely hard to read for somebody
-   * transcendent on level ten — and it settles the moment a chain breaks,
-   * which is the same self-pacing every other part of the engine uses.
+   * Both read the rung and only the rung: the floor is nearly still for
+   * somebody opening level one and genuinely hard to read on level ten, and it
+   * is the *same* floor for the whole of a run either way. It used to speed up
+   * with the player's own flow, which meant a bench that got harder to read
+   * precisely as the run got worth protecting — the reward for a good chain
+   * was a worse bench, and no two runs at a level were the same level.
    */
   protected motionSpeed(): number {
-    return 0.5 + this.d * 1.05 + this.heat * 0.55;
+    return 0.5 + this.d * 1.4;
   }
 
   protected motionSpread(): number {
-    return clamp(0.18 + this.d * 0.66 + this.heat * 0.28, 0, 1);
+    return clamp(0.18 + this.d * 0.8, 0, 1);
   }
 
   // ------------------------------------------------------------- feedback
@@ -315,6 +356,18 @@ export abstract class LabDrill extends ApmDrill {
     this.keys.set(slot, PRESS_CD);
   }
 
+  /**
+   * A bench press is a keystroke, not a spell.
+   *
+   * The session shoves the camera along every cast, which is right in a mode
+   * where a cast is an event and wrong here, where there are five or six of
+   * them a second for a whole minute. Kept just above nothing so the press
+   * still has a body to it.
+   */
+  castKick(): number {
+    return 0.2;
+  }
+
   abilities(): AbilityView[] {
     const active = new Set(this.s.config.abilities);
     const want = new Set(this.expected());
@@ -325,7 +378,10 @@ export abstract class LabDrill extends ApmDrill {
       name: MAP_KEYS.includes(slot) ? 'MAP' : this.slotName(slot),
       cd: clamp(this.keys.get(slot) / PRESS_CD, 0, 1),
       highlight: want.has(slot),
-      locked: !active.has(slot),
+      // Below level four the board is not running, so its two keys are not
+      // part of this run and the bar says so rather than naming a screen that
+      // is not there.
+      locked: !active.has(slot) || (MAP_KEYS.includes(slot) && !this.mapOn),
     }));
   }
 
@@ -346,7 +402,14 @@ export abstract class LabDrill extends ApmDrill {
     // The bench moves after the mode has had its frame, so a pad dealt this
     // tick is drawn where it was dealt and starts travelling on the next one.
     this.motion.step(dt, { speed: this.motionSpeed(), spread: this.motionSpread() });
-    this.map.update(dt);
+    // INFINITE can climb into the board's half of the ladder mid-run. It is
+    // announced when it does, because a second screen that simply turns up is
+    // a second screen nobody looks at.
+    if (!this.mapOn && this.rung >= MAP_MIN_LEVEL) {
+      this.mapOn = true;
+      this.s.setBanner('THE MAP IS LIVE', 1.6);
+    }
+    if (this.mapOn) this.map.update(dt);
   }
 
   /**
@@ -362,7 +425,10 @@ export abstract class LabDrill extends ApmDrill {
     // more fingers, not two more spells.
     if (MAP_KEYS.includes(slot)) {
       this.press(slot);
-      this.map.press(slot);
+      // With no board running they are two keys with nothing behind them,
+      // which is exactly what a stray is: counted, and worth nothing.
+      if (this.mapOn) this.map.press(slot);
+      else this.stray(at);
       return;
     }
     this.onKey(slot, at);
@@ -379,13 +445,24 @@ export abstract class LabDrill extends ApmDrill {
    */
   solution(): LabSolution {
     const base = this.modeSolution();
-    const dodge = this.map?.solution();
+    const dodge = this.mapOn ? this.map?.solution() : null;
     if (!dodge) return base;
     return { keys: [dodge], dir: base.dir ?? null };
   }
 
   mapBoard(): MapBoard | null {
-    return this.map?.board() ?? null;
+    return this.mapOn ? this.map?.board() ?? null : null;
+  }
+
+  /**
+   * The corner is empty, so the client should not draw a minimap into it.
+   *
+   * A bench has no terrain and no units, so the map of the place you are
+   * standing in — which is what the minimap is everywhere else — would be an
+   * empty box with a hidden dot in it.
+   */
+  mapHidden(): boolean {
+    return !this.mapOn;
   }
 
   protected extraMetrics(): KeyMetric[] {

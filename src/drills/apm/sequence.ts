@@ -17,9 +17,9 @@ const ALL_SLOTS: AbilitySlot[] = ['q', 'w', 'e', 'r'];
  *
  * The ability row rolls across a drifting bench and only the front key is
  * legal. Answer it and the queue advances; answer anything else and the chain
- * is gone. The window shrinks as the chain grows, so the mode converges on the
- * fastest cadence you can actually hold rather than the fastest one you can
- * reach for a second and a half.
+ * is gone. The window is set by the rung and held there for the whole run, so
+ * a level is a cadence you are either holding or not — rather than a cadence
+ * that ran away from you precisely because you were holding it.
  *
  * The queue — rather than a single prompt — is the whole design. It puts your
  * eyes two keys ahead of your fingers and keeps them there, which is the habit

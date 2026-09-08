@@ -2,18 +2,6 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { PRACTICE_MODES, RUN_MODE_LIST, type RunMode } from '../drills/modes';
-import {
-  APM_LEVELS,
-  APM_MODES,
-  levelDifficulty,
-  levelStars,
-  recommendedLevel,
-  starsOn,
-  type ApmLevelRecord,
-  type ApmMode,
-  type ApmModeKind,
-} from '../progression/apm';
-import type { ApmDrillId } from '../drills/apm';
 import { LANE_LENGTHS, LANE_TIERS, type LaneTier } from '../progression/lane';
 import { CAITLYN_STATS, caitlynCd } from '../engine/caitlyn';
 import { FLASH_LEAGUE_CD, FLASH_PRACTICE_CD, FLASH_RANGE } from '../engine/summoners';
@@ -35,10 +23,10 @@ interface Props {
    * Which section to open on, overriding the one the player was last reading.
    *
    * Nothing in the client passes it. The headless profile check does, so that
-   * a hostile stored profile is still drawn through all four sections rather
-   * than only the one a fresh mount happens to open on — a lab card reads
-   * further into a saved record than anything else on the screen, and it is
-   * only rendered while its tab is open.
+   * a hostile stored profile is still drawn through all three sections rather
+   * than only the one a fresh mount happens to open on — every one of them
+   * reads a different corner of a saved record, and each is only rendered
+   * while its own tab is open.
    */
   initialSection?: SectionId;
 }
@@ -74,7 +62,7 @@ const bindingsOf = (settings: AppSettings | undefined): Bindings => {
 };
 
 // ===========================================================================
-// THE FOUR SECTIONS
+// THE THREE SECTIONS
 // ===========================================================================
 
 /**
@@ -88,21 +76,26 @@ const bindingsOf = (settings: AppSettings | undefined): Bindings => {
  * of the screen you read rather than click, sat directly between the champion
  * and the lab like a wall.
  *
- * Four sections, then, and the division is by what you are there to do:
+ * Three sections now, and every one of them is the champion:
  *
  *  - **THE LANE** is the game. One card, one decision, and it is first because
  *    everything else on the screen exists to make it go better.
  *  - **PRACTICE** is the champion in pieces: six modes, grouped by how much of
  *    her they hand you, from a body with no abilities to a whole opponent.
- *  - **THE LAB** is not the champion at all. Thirteen benches, ten rungs each,
- *    measuring one number.
  *  - **THE CODEX** is the reading: every figure both champions are built from,
  *    so a claim the trainer makes about transfer is one you can check.
  *
- * The tab rail is sticky, so the four are one keystroke apart from anywhere on
+ * The fourth used to be the lab, and the lab is not this screen's business.
+ * Everything here is a champion — her lane, her kit, her numbers — and a bench
+ * with no champion on it was being read as one more thing about Vayne when it
+ * is the layer underneath every champion there will ever be. It is a section
+ * of the client now, next to this one in the top bar, and this screen is
+ * exactly the three things that are about the woman in the title.
+ *
+ * The tab rail is sticky, so the three are one keystroke apart from anywhere on
  * any of them, and the section you are in is never more than a glance away.
  */
-type SectionId = 'lane' | 'practice' | 'lab' | 'codex';
+type SectionId = 'lane' | 'practice' | 'codex';
 
 interface SectionMeta {
   id: SectionId;
@@ -117,7 +110,7 @@ interface SectionMeta {
 /**
  * The tab the player was last on.
  *
- * Module-level rather than stored on the profile: which of four sections you
+ * Module-level rather than stored on the profile: which of three sections you
  * are reading is session state, not a preference worth writing to disk — but
  * it does have to survive the screen being unmounted, which it is every time a
  * run starts. Coming back from a bench in the lab and landing on the lane is
@@ -128,11 +121,10 @@ let lastSection: SectionId = 'lane';
 const SECTIONS: SectionMeta[] = [
   { id: 'lane', no: '01', label: 'THE LANE', sub: 'the whole job', accent: '#ffd166' },
   { id: 'practice', no: '02', label: 'PRACTICE', sub: 'one part at a time', accent: '#c86bff' },
-  { id: 'lab', no: '03', label: 'THE LAB', sub: 'hands, measured', accent: '#7ceaff' },
-  { id: 'codex', no: '04', label: 'THE CODEX', sub: 'every number', accent: '#e0b05c' },
+  { id: 'codex', no: '03', label: 'THE CODEX', sub: 'every number', accent: '#e0b05c' },
 ];
 
-/** The four, in order — for anything that has to walk all of them. */
+/** The three, in order — for anything that has to walk all of them. */
 export const SECTION_IDS: SectionId[] = SECTIONS.map((s) => s.id);
 
 /**
@@ -169,7 +161,7 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
   };
 
   // A tab is a page, so it starts at the top of itself. Without this, opening
-  // THE CODEX from halfway down the lab drops you halfway down the codex.
+  // THE CODEX from halfway down PRACTICE drops you halfway down the codex.
   //
   // The second half is for the narrow layout, where the rail scrolls sideways
   // rather than fitting: the tab you just opened has to be the one you can
@@ -195,7 +187,6 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
   const counts = useMemo(() => {
     const lanes = LANE_TIERS.reduce((n, t) => n + (profile.lane?.tiers?.[t.id]?.runs ?? 0), 0);
     const played = PRACTICE_MODES.filter((id) => profile.bests[id] || profile.survive[id]).length;
-    const stars = APM_MODES.reduce((n, m) => n + starsOn(profile.apm, m.id), 0);
     return {
       lane: {
         count: `${LANE_TIERS.length} OPPONENTS`,
@@ -204,10 +195,6 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
       practice: {
         count: `${PRACTICE_MODES.length} MODES`,
         note: played > 0 ? `${played}/${PRACTICE_MODES.length} on the board` : 'nothing on the board',
-      },
-      lab: {
-        count: `${APM_MODES.length} BENCHES`,
-        note: `${stars}/${APM_MODES.length * APM_LEVELS * 3} stars`,
       },
       codex: { count: '2 CHAMPIONS', note: 'both kits, in full' },
     } as Record<SectionId, { count: string; note: string }>;
@@ -239,10 +226,10 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
           <div className="eyebrow">Night Hunter · practice</div>
           <h1 className="display pr-h1">VAYNE</h1>
           <p className="dim pr-lead">
-            One champion, four ways in. <b>THE LANE</b> is the game itself; <b>PRACTICE</b> is that
-            game in pieces, rehearsed until each piece is automatic; <b>THE LAB</b> is the bench
-            underneath both of them, where the only thing measured is how fast your hands are
-            actually right; and <b>THE CODEX</b> is every number the other three are built from.
+            One champion, three ways in. <b>THE LANE</b> is the game itself; <b>PRACTICE</b> is
+            that game in pieces, rehearsed until each piece is automatic; and <b>THE CODEX</b> is
+            every number the other two are built from. The bench underneath all of it — hands,
+            measured, with no champion in the way — is <b>THE LAB</b>, in the top bar.
           </p>
         </header>
 
@@ -303,7 +290,6 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
           {section === 'practice' && (
             <PracticePanel profile={profile} bound={bound} onPlay={onPlay} />
           )}
-          {section === 'lab' && <LabPanel profile={profile} onPlay={onPlay} />}
           {section === 'codex' && <CodexPanel />}
         </div>
       </div>
@@ -674,281 +660,7 @@ function ModeCard({
 }
 
 // ===========================================================================
-// 03 — THE LAB
-// ===========================================================================
-
-/**
- * THE LAB.
- *
- * The other two activity tabs are the champion. This is the bench: no
- * champion, nothing to kill, and a floor of drifting pads that only ever asks
- * how many correct commands a minute your hands issue. It is third because it
- * is the least like the game and the most like a gym, and it is here at all
- * because a rate you have never measured is a rate you cannot train.
- *
- * It asks one question the champion modes never do, and it is the reason the
- * ladder exists: which rung. Ten levels a mode, each one a record of its own,
- * and the section opens every mode on the lowest rung you have not cleared —
- * a suggestion, not a gate, because the whole activity is choosing a level and
- * holding it until it is easy.
- *
- * The thirteen are split by the shape of the demand rather than by theme,
- * because that is the split that tells you what to play next: an isolated
- * bench asks one thing of one pair of hands, and a combined bench runs two
- * demands at once and is worth playing only once the isolated version of each
- * has stopped being interesting.
- */
-const LAB_GROUPS: { kind: ApmModeKind; label: string; note: string }[] = [
-  {
-    kind: 'isolated',
-    label: 'ONE THING AT A TIME',
-    note: 'a single demand, of a single pair of hands',
-  },
-  {
-    kind: 'combined',
-    label: 'TWO AT ONCE',
-    note: 'two demands running together — worth it once the isolated ones are easy',
-  },
-];
-
-function LabPanel({ profile, onPlay }: { profile: Profile; onPlay: PlayFn }) {
-  // Which rung each mode is showing. Empty means "whatever the ladder
-  // suggests", so a mode the player has not touched this session always opens
-  // on the rung they have not beaten rather than on the one they last looked at.
-  const [picked, setPicked] = useState<Partial<Record<ApmDrillId, number>>>({});
-
-  const step = (m: ApmMode, level: number, by: number, unlocked: number) => {
-    audio.play('uiTab');
-    setPicked((prev) => ({ ...prev, [m.id]: Math.max(1, Math.min(level + by, unlocked)) }));
-  };
-
-  return (
-    <>
-      <p className="dim pr-lead pr-panel-lead">
-        Thirteen benches over one engine. Every one counts the same thing — commands that
-        were <i>correct</i>, per minute — and every one refuses to count an input that meant
-        nothing, so mashing produces the highest raw rate in the client and the lowest score.
-        Chain your actions and the multiplier climbs through five tiers; break it and it is
-        gone.
-      </p>
-      <p className="dim pr-lead pr-panel-lead">
-        Two things are true of all thirteen. <b>The pads move</b>, further and faster the
-        higher the level and the hotter your own run, so your eyes are working for the whole
-        minute rather than the first ten seconds of it. And <b>the minimap is a second
-        task</b>: a bad orb falls slowly down one of two lanes, your summoner keys are which
-        lane you stand in, and an orb that lands on you costs the whole flow tier your hands
-        just spent a minute building — which is exactly what a gank you did not look up for
-        costs.
-      </p>
-
-      <div className="pr-legend">
-        <span className="pr-legend-item" style={{ ['--c' as string]: '#58e0ff' }}>
-          <b>PLAY</b>
-          <i>One minute at the rung on the card. Clearing it opens the next; clearing it outright opens two.</i>
-        </span>
-        <span className="pr-legend-item" style={{ ['--c' as string]: '#c58bff' }}>
-          <b>∞ INFINITE</b>
-          <i>No clock and no rung — the floor rises while you win and falls while you drown. Right-click any bench.</i>
-        </span>
-      </div>
-
-      {LAB_GROUPS.map((g) => {
-        const modes = APM_MODES.filter((m) => m.kind === g.kind);
-        if (modes.length === 0) return null;
-        return (
-          <div className="pr-group" key={g.kind}>
-            <GroupHead label={g.label} note={g.note} count={`${modes.length} BENCHES`} />
-            <div className="pr-lab-grid">
-              {modes.map((m) => {
-                const rec = profile.apm.modes[m.id];
-                const want = picked[m.id] ?? recommendedLevel(profile.apm, m.id);
-                const level = Math.max(1, Math.min(want, rec.unlocked));
-                return (
-                  <LabBench
-                    key={m.id}
-                    mode={m}
-                    level={level}
-                    unlocked={rec.unlocked}
-                    lv={rec.levels[level - 1]}
-                    // Defensive, like everything else this screen reads out of
-                    // a stored profile: a menu that throws on a half-written
-                    // record is a player who cannot reach the screen that
-                    // would fix it.
-                    infRuns={rec.infinite?.runs ?? 0}
-                    infHeld={rec.infinite?.bestHeld ?? 0}
-                    onStep={(by) => step(m, level, by, rec.unlocked)}
-                    onPlay={onPlay}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-
-      <p className="set-note">
-        A level is a place you go back to, beat, and leave behind. Clearing one opens the
-        next; clearing it outright opens two, so a rung you are plainly past does not have to
-        be ground. <b>PLAY</b> is not adaptive — the number on the rung is the difficulty the
-        bench will be played at, and it scales the pads, the windows and the orbs together.
-      </p>
-      <p className="set-note">
-        <b>Right-click any bench</b> — or take the <b>∞</b> under it — for the one run in this
-        client that has no rung at all. <b>INFINITE</b> opens on the level the card is showing
-        and then lets the floor go: it comes up while you are winning and down while you are
-        drowning — about a rung every seven seconds at full tilt, and half again as fast
-        coming back down — until it finds the level at which you are just holding on. There is no clock, so it ends when you say so on the pause screen. The
-        rung it settles at is the score, and it is also the answer to the only question this
-        section has ever asked you — which level should I be practising. Holding one opens it
-        on the ladder above; it never awards a star, because a star is for beating a rung and
-        this is for standing on one.
-      </p>
-    </>
-  );
-}
-
-function LabBench({
-  mode,
-  level,
-  unlocked,
-  lv,
-  infRuns,
-  infHeld,
-  onStep,
-  onPlay,
-}: {
-  mode: ApmMode;
-  level: number;
-  unlocked: number;
-  lv: ApmLevelRecord;
-  infRuns: number;
-  infHeld: number;
-  onStep: (by: number) => void;
-  onPlay: PlayFn;
-}) {
-  const meta = DRILLS[mode.id];
-  const stars = levelStars(lv);
-  // The infinite run opens on whatever rung the card is showing and then stops
-  // caring about it. It is on the right mouse button because it is the same
-  // activity as PLAY with one thing removed — the choice of level — and a
-  // second full-size button would suggest it is a second mode rather than the
-  // same bench with the floor let loose. The chip under it is the same gesture
-  // for anyone whose pointer, browser or hands do not have a right click.
-  const goInfinite = () => {
-    audio.play('uiClick');
-    onPlay(mode.id, 'infinite', { difficulty: levelDifficulty(level), level });
-  };
-
-  return (
-    <article
-      className="pr-lab-mode"
-      style={{ ['--c' as string]: meta.accent }}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        goInfinite();
-      }}
-    >
-      <header className="pr-lab-head">
-        <b className="pr-lab-name">{meta.name}</b>
-        <span className="pr-lab-kind mono">{mode.kind === 'isolated' ? 'ONE THING' : 'TWO AT ONCE'}</span>
-      </header>
-      <div className="pr-lab-tag">{meta.tagline}</div>
-      <p className="pr-lab-brief">{meta.brief}</p>
-
-      {/* What the bench counts, and what makes it hard once you know. Two
-          lines the lab has always had in its data and never printed, and they
-          are the only thing that tells thirteen benches apart at a glance. */}
-      <dl className="pr-lab-facts">
-        <div>
-          <dt>Counts</dt>
-          <dd>{mode.counts}</dd>
-        </div>
-        <div>
-          <dt>Pressure</dt>
-          <dd>{mode.pressure}</dd>
-        </div>
-      </dl>
-
-      <div className="pr-lab-level">
-        <button
-          className="pr-lab-step"
-          disabled={level <= 1}
-          onMouseEnter={() => audio.play('uiHover')}
-          onClick={() => onStep(-1)}
-          aria-label={`${meta.name}: a level down`}
-        >
-          ◀
-        </button>
-        <span className="mono">
-          LEVEL {level} / {APM_LEVELS}
-        </span>
-        <button
-          className="pr-lab-step"
-          disabled={level >= unlocked}
-          onMouseEnter={() => audio.play('uiHover')}
-          onClick={() => onStep(1)}
-          aria-label={`${meta.name}: a level up`}
-        >
-          ▶
-        </button>
-        <i className="pr-lab-stars">
-          {[1, 2, 3].map((n) => (
-            <b key={n} className={n <= stars ? 'on' : ''}>
-              ★
-            </b>
-          ))}
-        </i>
-      </div>
-
-      {/* The ladder, as ten marks. Which rungs are open, which one you are
-          standing on, and how far the ten actually go — the one thing the
-          arrows alone could never show. */}
-      <div className="pr-lab-rungs" aria-hidden>
-        {Array.from({ length: APM_LEVELS }, (_, i) => i + 1).map((n) => (
-          <span
-            key={n}
-            className={`pr-rung${n <= unlocked ? ' open' : ''}${n === level ? ' here' : ''}`}
-          />
-        ))}
-      </div>
-
-      <button
-        className="pr-go pr-go-play"
-        onMouseEnter={() => audio.play('uiHover')}
-        onClick={() => {
-          audio.play('uiClick');
-          onPlay(mode.id, 'play', { difficulty: levelDifficulty(level), level });
-        }}
-      >
-        <span className="pr-go-label">PLAY</span>
-        <span className="pr-go-sub">par {mode.par} APM</span>
-        <span className="pr-go-best mono">
-          {lv.best > 0 ? `best ${Math.round(lv.best * 100)}%` : 'no run on this rung'}
-        </span>
-      </button>
-      <button
-        className="pr-lab-inf"
-        onMouseEnter={() => audio.play('uiHover')}
-        onClick={goInfinite}
-        title={`${meta.name}: an infinite run, opening on level ${level}. Right-click the card for the same thing.`}
-      >
-        <span className="pr-inf-mark" aria-hidden>
-          ∞
-        </span>
-        <span className="pr-inf-label">
-          INFINITE
-          <i>right-click</i>
-        </span>
-        <span className="pr-inf-best mono">
-          {infRuns > 0 ? `held ${infHeld.toFixed(1)}` : 'finds your level'}
-        </span>
-      </button>
-    </article>
-  );
-}
-
-// ===========================================================================
-// 04 — THE CODEX
+// 03 — THE CODEX
 // ===========================================================================
 
 /**

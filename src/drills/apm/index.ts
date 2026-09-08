@@ -72,6 +72,6 @@ export const createApmDrill = (id: DrillId, session: Session): Drill | null => {
 };
 
 export { APM_TARGET_APM, FLOW_TIERS } from './engine';
-export { MAP_KEYS } from './map';
+export { MAP_KEYS, MAP_MIN_LEVEL } from './map';
 export { LabDrill } from './lab';
 export type { LabSolution } from './lab';
