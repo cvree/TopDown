@@ -197,7 +197,18 @@ const VAYNE_SLOT_NAMES: Partial<Record<AbilitySlot, string>> = {
   e: 'condemn',
   r: 'final hour',
   d: 'ward',
+  f: 'flash',
 };
+
+/**
+ * The groups played from behind a champion, and so the ones whose hint row is
+ * the kit rather than the generic ability line.
+ *
+ * The duels and the Sheriff joined the champion path the moment they started
+ * handing you the whole of it: a mode with Condemn in it that prints "abilities"
+ * over four unnamed keys is a mode whose ability row is decoration.
+ */
+const KIT_GROUPS = new Set(['VAYNE', 'CAITLYN', 'COMBAT']);
 
 /**
  * The hint row for this run.
@@ -256,7 +267,7 @@ const hintsFor = (settings: AppSettings, drill: DrillId): Hint[] => {
       { id: 'pause', key: 'ESC', label: 'pause · settings' },
     ];
   }
-  if (meta.group !== 'VAYNE') return base.filter((h) => h.key !== shortCodeLabel(UNBOUND));
+  if (!KIT_GROUPS.has(meta.group)) return base.filter((h) => h.key !== shortCodeLabel(UNBOUND));
   // Silver Bolts is a passive counter rather than a key, so it never appears.
   const kit = meta.abilities
     .filter((slot) => slot !== 'w' && VAYNE_SLOT_NAMES[slot])

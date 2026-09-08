@@ -8,6 +8,7 @@ import type { HudField, Session } from '../engine/session';
 import type { Actor, Vec2, Wall } from '../engine/types';
 import type { WorldEvent } from '../engine/world';
 import { band, count, pct, type DrillOutcome } from './base';
+import { FIGHT_RANKS } from '../engine/vayne';
 import { VayneDrill } from './vaynebase';
 
 /** How long she is off the floor after a takedown. */
@@ -64,11 +65,23 @@ export class CaitlynDodgeDrill extends VayneDrill {
   private herHpLast = 0;
 
   constructor(s: Session) {
-    // Q and the trinket, and nothing else. A mode about reading somebody
-    // else's kit cannot also be a mode about executing four buttons of your
-    // own — the tumble is here because it is the movement tool the dodge is
-    // actually made with, and the ward is here because it is on every bar.
-    super(s, { tumble: true, bolts: false, condemn: false, finalHour: false, ranks: { q: 3 } });
+    // The whole champion, against the whole champion.
+    //
+    // This mode used to hand you Q and the trinket and nothing else, on the
+    // argument that a mode about reading somebody else's kit cannot also be a
+    // mode about executing four buttons of your own. That argument is wrong in
+    // the one place it matters: the answers to Caitlyn *are* the rest of the
+    // kit. The Peacemaker is dodged with your feet and your tumble, but a net
+    // thrown at you is answered by a Condemn, the trade you have to win to
+    // kill her is won with Silver Bolts, and the only thing in the game that
+    // makes standing inside 650 range survivable is Final Hour. A player given
+    // one button against four learns to run away; a player given four learns
+    // the matchup, which is the thing this mode is named after.
+    //
+    // Mid-game ranks, so it is the same Vayne the duels and Night Hunter
+    // field — the champion should not change shape between the modes that
+    // claim to be teaching her.
+    super(s, { tumble: true, bolts: true, condemn: true, finalHour: true, ranks: FIGHT_RANKS });
     this.sheriff = new CaitlynKit(s);
   }
 
@@ -395,6 +408,7 @@ export class CaitlynDodgeDrill extends VayneDrill {
     if (st.headshots > 2) hurt.push(`${st.headshots} headshots taken. Every sixth attack she lands is worth two, so time spent in her range is not free.`);
     if (pressure < 0.2) hurt.push('You dodged and did nothing. She has to die, and the only way to kill her is to be inside her range on purpose.');
     this.handsNotes(helped, hurt);
+    this.summonerNotes(helped, hurt);
 
     const advice =
       this.handsAdvice() ??

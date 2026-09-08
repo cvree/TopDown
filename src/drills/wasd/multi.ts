@@ -106,6 +106,7 @@ export class WasdMultiDrill extends WasdDrill {
   // ------------------------------------------------------------ abilities
 
   onAbility(slot: AbilitySlot, at: Vec2): void {
+    if (this.summoner(slot, at)) return;
     const p = this.player;
     if (!p) return;
     if (slot === 'q') {

@@ -500,6 +500,7 @@ export class EzrealDrill extends Drill {
   }
 
   onAbility(slot: AbilitySlot, at: Vec2): void {
+    if (this.summoner(slot, at)) return;
     this.kit.cast(slot, at);
   }
 

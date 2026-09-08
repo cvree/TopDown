@@ -289,6 +289,7 @@ export class VayneHuntDrill extends VayneDrill {
     if (fog && this.s.visionUptime < 0.45) hurt.push('You spent most of the fight with no eyes on it. Unlock the camera and put it where they are, not where you are.');
     if (st.finalHours === 0) hurt.push('Final Hour never came out. It is a fight-winning window, not an emergency button.');
     this.handsNotes(helped, hurt);
+    this.summonerNotes(helped, hurt);
 
     const advice =
       this.handsAdvice() ??

@@ -13,7 +13,8 @@ import {
 import type { ApmDrillId } from '../drills/apm';
 import { LANE_LENGTHS, LANE_TIERS, type LaneTier } from '../progression/lane';
 import { CAITLYN_STATS, caitlynCd } from '../engine/caitlyn';
-import { VAYNE_STATS, tumbleCdAt, condemnCdAt, condemnPracticeCdAt } from '../engine/vayne';
+import { FLASH_LEAGUE_CD, FLASH_PRACTICE_CD, FLASH_RANGE } from '../engine/summoners';
+import { VAYNE_STATS, tumbleCdAt, tumblePracticeCdAt, condemnCdAt, condemnPracticeCdAt } from '../engine/vayne';
 import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from '../engine/input';
 import type { AppSettings, Profile } from '../progression/profile';
 import './practice.css';
@@ -352,7 +353,7 @@ function KitReference() {
     {
       slot: 'Q',
       name: 'TUMBLE',
-      body: `A ${VAYNE_STATS.tumbleRange} unit roll that takes ${VAYNE_STATS.tumbleTime}s, during which she cannot shoot. Cancels the backswing for free and throws the attack away if you take it in the windup. Cooldown ${tumbleCdAt(1)}s at one point, ${tumbleCdAt(5)}s maxed, halved inside Final Hour.`,
+      body: `A ${VAYNE_STATS.tumbleRange} unit roll that takes ${VAYNE_STATS.tumbleTime}s, during which she cannot shoot. Cancels the backswing for free and throws the attack away if you take it in the windup. League's cooldown is ${tumbleCdAt(1)}s at one point falling to ${tumbleCdAt(5)}s maxed, halved inside Final Hour; a practice run guarantees one roughly every ${VAYNE_STATS.tumblePracticeFloor}s, so a single point comes back in ${tumblePracticeCdAt(1)}s and anything already faster than the floor is left exactly where League leaves it.`,
     },
     {
       slot: 'W',
@@ -362,7 +363,7 @@ function KitReference() {
     {
       slot: 'E',
       name: 'CONDEMN',
-      body: `${VAYNE_STATS.condemnRange} range, ${VAYNE_STATS.condemnCast}s of cast time standing still, then a ${VAYNE_STATS.condemnPush} unit knockback. Terrain at the end of it is ${VAYNE_STATS.condemnStun}s of stun and a second helping of damage; open ground is nothing. League's cooldown is ${condemnCdAt(1)}s falling to ${condemnCdAt(5)}s; every mode here charges ${Math.round(VAYNE_STATS.condemnPracticeShare * 100)}% of that — ${condemnPracticeCdAt(1)}s to ${condemnPracticeCdAt(5)}s — because it is meant to be practised.`,
+      body: `${VAYNE_STATS.condemnRange} range, ${VAYNE_STATS.condemnCast}s of cast time standing still, then a ${VAYNE_STATS.condemnPush} unit knockback. Terrain at the end of it is ${VAYNE_STATS.condemnStun}s of stun and a second helping of damage; open ground is nothing. League's cooldown is ${condemnCdAt(1)}s falling to ${condemnCdAt(5)}s; every mode here charges ${Math.round(VAYNE_STATS.condemnPracticeShare * 100)}% of that — ${condemnPracticeCdAt(1)}s to ${condemnPracticeCdAt(5)}s — because the thing worth rehearsing is not the cast, it is the roll that puts the wall behind them and the cast that follows it, and two cooldowns have to be up at once for that to happen at all.`,
     },
     {
       slot: 'R',
@@ -372,7 +373,12 @@ function KitReference() {
     {
       slot: 'D',
       name: 'WARD',
-      body: `The one thing on the bar that is not hers. Thrown up to ${VAYNE_STATS.wardRange} units, it lights ${VAYNE_STATS.wardSight} around itself for ${VAYNE_STATS.wardLife}s, ${VAYNE_STATS.wardMax} at a time, and comes back every ${VAYNE_STATS.wardCd}s. Both of those are far shorter than League's, because holding a piece of the map for two minutes is a macro skill and spending vision on the next ten seconds is a habit — and the habit is the part a sixty second rep can build. Night Hunter is the mode with a fog for it to lift.`,
+      body: `Thrown up to ${VAYNE_STATS.wardRange} units, and — as in League — thrown *over* terrain rather than stopped by it, because the eye you want is nearly always in the place you cannot walk to. It lights ${VAYNE_STATS.wardSight} around itself for ${VAYNE_STATS.wardLife}s, ${VAYNE_STATS.wardMax} at a time, and comes back every ${VAYNE_STATS.wardCd}s. Both of those are far shorter than League's, because holding a piece of the map for two minutes is a macro skill and spending vision on the next ten seconds is a habit — and the habit is the part a sixty second rep can build. Night Hunter is the mode with a fog for it to lift.`,
+    },
+    {
+      slot: 'F',
+      name: 'FLASH',
+      body: `The other thing on the bar that is not hers, and the one button every champion in the game shares. ${FLASH_RANGE} units toward the cursor, instantly, straight over terrain — a wall stops you standing inside it and does not stop you crossing it. It costs the attack you were already winding up, and it goes on ${FLASH_PRACTICE_CD}s rather than League's ${FLASH_LEAGUE_CD}: five minutes is a decision about the next five minutes of a game, and what a rep can teach is the gesture underneath it — which wall is thin enough, and pressing it at all rather than dying with it up.`,
     },
     {
       slot: 'P',
@@ -401,9 +407,15 @@ function KitReference() {
         while the cooldown is long enough that spending it in the wrong place costs something.
         Condemn hands you a maxed E, {condemnCdAt(5)} seconds in League, because a mode about
         a positional ability has to give you enough casts to have positioned for. Night Hunter
-        hands you the mid-game champion with all of it at once. Condemn is also the one
-        cooldown deliberately shortened everywhere — {Math.round(VAYNE_STATS.condemnPracticeShare * 100)}% of
-        League's, so a minute is eight or ten attempts at the wall rather than three.
+        hands you the mid-game champion with all of it at once, and so — now — do the duels
+        and the Sheriff: a fight against somebody with four buttons is not a fight you can
+        learn with one. Two cooldowns are deliberately shortened, and both for the same
+        reason. Condemn is charged at {Math.round(VAYNE_STATS.condemnPracticeShare * 100)}% of
+        League's everywhere, and Tumble is floored at one every {VAYNE_STATS.tumblePracticeFloor} seconds
+        wherever League's own figure is slower than that — so a minute contains a dozen
+        attempts at rolling to the side of somebody the wall is behind and pinning them to
+        it, rather than two. A rank already faster than the floor is untouched, because a
+        champion nothing can catch is not a champion worth practising against.
       </p>
     </section>
   );

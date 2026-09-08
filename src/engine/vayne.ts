@@ -165,6 +165,48 @@ export const VAYNE_STATS = {
   /** League: 6 / 5 / 4 / 3 / 2 seconds. */
   tumbleCdByRank: [6, 5, 4, 3, 2],
   /**
+   * How much of that a *practice* run actually charges.
+   *
+   * The same argument Condemn's share below makes, applied to the button the
+   * whole champion is built around, and it took longer to accept because the
+   * tumble drill is a rhythm drill and a rhythm has to have gaps in it.
+   *
+   * What settled it is that the gap the rhythm needs is the *attack cycle*,
+   * not the cooldown. The lesson is "spend it in the backswing" — and at six
+   * seconds a rank-one Vayne gets ten chances a minute to spend one, of which
+   * she is standing in a fight for maybe half. That is not a rhythm, it is a
+   * wait with a gesture at the end of it. Worse, it makes the *combination*
+   * unteachable: rolling to the far side of somebody so the wall is behind
+   * them and then condemning them into it is two cooldowns that have to be up
+   * at the same time, and at League's figures that coincidence happens about
+   * twice a minute.
+   *
+   * So a rep charges this share — with a floor under it, and the floor is the
+   * more important half of the rule. What the trainer is promising is a tumble
+   * roughly every three seconds, which is enough attempts to learn a gesture
+   * on. It is *not* promising the fastest Vayne who has ever existed: a
+   * champion who rolls three hundred units every second and a half cannot be
+   * caught by anything in this client, and a mode you can pass by running away
+   * is not a mode. So a rank whose own cooldown is already inside the floor is
+   * left exactly where League leaves it, and only the starved end moves:
+   *
+   *     rank 1   6s -> 3.7s      rank 4   3s -> 3s   (untouched)
+   *     rank 2   5s -> 3.1s      rank 5   2s -> 2s   (untouched)
+   *     rank 3   4s -> 3.0s
+   *
+   * Which lands the change exactly where the complaint was. The isolated
+   * drills — the ones that hand you one or two points and ask you to rehearse
+   * a single gesture, a tumble into a wall angle among them — are the ranks
+   * that move. The fighting modes field the mid-game champion, whose Q is
+   * already up every three seconds, and they are the same champion they were.
+   *
+   * The lane — the one mode long enough for the real thing — charges League's
+   * figure in full at every rank.
+   */
+  tumblePracticeShare: 0.62,
+  /** No practice tumble comes back faster than this, in seconds. */
+  tumblePracticeFloor: 3,
+  /**
    * How long the roll itself takes, in seconds.
    *
    * This is the single most important number in the champion and the one the
@@ -205,14 +247,20 @@ export const VAYNE_STATS = {
    * mechanic you never learn, and the whole claim this client makes is that a
    * rep is cheap and repeatable.
    *
-   * So every mode charges this share of the real figure — a little under half,
-   * which turns a minute into eight or ten real attempts at the same question
-   * without making the ability free. The rank table above still decides the
-   * shape (a maxed E is still meaningfully faster than a single point), and
-   * the practice screen prints both numbers rather than quietly showing the
-   * trainer's and calling it League's.
+   * So every mode charges this share of the real figure, which turns a minute
+   * into a dozen real attempts at the same question without making the ability
+   * free. It used to be 45%, and the number came down because the thing the
+   * mode is actually for is the *pair*: a tumble that puts the wall behind
+   * them followed by the condemn that pins them to it. Two abilities that both
+   * have to be up is a much rarer event than either of them being up, so a
+   * share that gave Condemn eight casts a minute gave the combination two.
+   *
+   * The rank table above still decides the shape (a maxed E is still
+   * meaningfully faster than a single point), and the practice screen prints
+   * both numbers rather than quietly showing the trainer's and calling it
+   * League's.
    */
-  condemnPracticeShare: 0.45,
+  condemnPracticeShare: 0.3,
   /**
    * League: Condemn has a 0.25s cast time, and Vayne is rooted for it. It is
    * why a condemn thrown at a diver already on top of you is not free.
@@ -265,7 +313,6 @@ export const VAYNE_STATS = {
   wardMax: 2,
 } as const;
 
-/** Tumble's cooldown at a given rank, in seconds. */
 /**
  * Vayne's stat block, for the one mode that plays her from level one.
  *
@@ -370,7 +417,24 @@ export const VAYNE_SKILL_ORDER: (keyof VayneRanks)[] = [
   'q', 'w', 'e', 'q', 'q', 'r', 'q', 'w', 'q', 'w', 'r', 'w', 'w', 'e', 'e', 'r', 'e', 'e',
 ];
 
+/** Tumble's cooldown at a given rank in League, in seconds. */
 export const tumbleCdAt = (r: number): number => rank(VAYNE_STATS.tumbleCdByRank, r);
+
+/**
+ * Tumble's cooldown as every practice mode actually charges it.
+ *
+ * Same relationship as Condemn's below: `tumbleCdAt` is League's and is what
+ * the practice screen quotes alongside it, and this is the figure the kit, the
+ * HUD and the indicator all run on.
+ */
+export const tumblePracticeCdAt = (r: number): number => {
+  const league = tumbleCdAt(r);
+  const shortened = Math.round(league * VAYNE_STATS.tumblePracticeShare * 10) / 10;
+  // Never slower than League's, and never faster than the floor: a rank that
+  // is already quick enough to practise on is left alone entirely.
+  return Math.min(league, Math.max(VAYNE_STATS.tumblePracticeFloor, shortened));
+};
+
 /** Condemn's cooldown at a given rank in League, in seconds. */
 export const condemnCdAt = (r: number): number => rank(VAYNE_STATS.condemnCdByRank, r);
 
@@ -396,6 +460,14 @@ export interface VayneStats {
   /** Tumbles taken while the attack was off cooldown and a target was in range. */
   tumblesGreedy: number;
   /** Tumbles whose direction closed the gap on the nearest live threat. */
+  /**
+   * Tumbles taken with the attack up and nothing standing in her range.
+   *
+   * Not a mistake and not a rhythm: a cooldown spent on travel. It is counted
+   * so that the rhythm read is a fraction of the tumbles that *had* a rhythm
+   * to be measured against.
+   */
+  tumblesIdle: number;
   tumblesInward: number;
   /** Tumbles cut short by terrain — a dash spent on a wall. */
   tumblesBlocked: number;
@@ -467,6 +539,7 @@ const emptyStats = (): VayneStats => ({
   tumblesClean: 0,
   tumblesWasted: 0,
   tumblesGreedy: 0,
+  tumblesIdle: 0,
   tumblesInward: 0,
   tumblesBlocked: 0,
   tumblesToSafety: 0,
@@ -530,7 +603,7 @@ export class VayneKit {
   private trail: { t: number; pos: Vec2 }[] = [];
   private trailAccum = 0;
   /** Attack cycle phase at the moment Q was pressed, for the rhythm read. */
-  lastTumbleQuality: 'clean' | 'wasted' | 'greedy' | null = null;
+  lastTumbleQuality: 'clean' | 'wasted' | 'greedy' | 'idle' | null = null;
   lastTumbleAt = -99;
   lastCondemnAt = -99;
   lastWallStunAt = -99;
@@ -802,8 +875,6 @@ export class VayneKit {
     const to = { x: from.x + dir.x * reach.distance, y: from.y + dir.y * reach.distance };
 
     const wasWindup = p.phase === 'windup';
-    const target = this.s.world.byId(p.targetId);
-    const inRange = !!target && target.alive && dist(p.pos, target.pos) - target.radius <= p.attack.range;
     /**
      * Whether this tumble costs an attack.
      *
@@ -818,6 +889,16 @@ export class VayneKit {
     // Read before the dash moves her: "which way did that go" is a question
     // about where she was standing when the key went down.
     const threat = this.nearestThreat();
+    /**
+     * Was there anything to shoot at all.
+     *
+     * Read off the nearest enemy rather than off `targetId`, and that is the
+     * whole point of it: a player who has not issued an attack order has no
+     * target, and reading the order would have said "nothing was in range" for
+     * somebody standing on top of a diver. The question the rhythm is asking is
+     * about the floor, not about the click.
+     */
+    const reachable = !!threat && dist(p.pos, threat.pos) - threat.radius <= p.attack.range;
 
     // The roll. Real distance over real time, at League's speed — which is
     // what makes the timing question a timing question: for a quarter of a
@@ -835,10 +916,29 @@ export class VayneKit {
       this.stats.tumblesWasted++;
       this.lastTumbleQuality = 'wasted';
       this.s.micro('TUMBLED THE WINDUP', from, PALETTE.danger);
-    } else if (attackUp && inRange) {
+    } else if (attackUp && reachable) {
       this.stats.tumblesGreedy++;
       this.lastTumbleQuality = 'greedy';
       this.s.micro('ATTACK WAS UP', from, PALETTE.textDim);
+    } else if (attackUp) {
+      /**
+       * The attack was up and there was nothing in range to spend it on.
+       *
+       * This used to be counted *clean*, and that was the largest lie in the
+       * champion's scoring. "Clean" is a statement about the attack cycle —
+       * the tumble was free because a shot was already committed or already
+       * coming back — and a player who has not attacked in the last ten
+       * seconds does not have an attack cycle. The consequence was exact and
+       * embarrassing: a run that never fired a single shot and rolled on
+       * cooldown scored a *perfect* tumble rhythm, because every one of its
+       * tumbles fell through to the else.
+       *
+       * It is not a mistake, so it costs no strike and is not called out on
+       * the floor — rolling toward a fight is how you get to one. It is
+       * simply not rhythm, and it does not count as any.
+       */
+      this.stats.tumblesIdle++;
+      this.lastTumbleQuality = 'idle';
     } else {
       this.stats.tumblesClean++;
       this.lastTumbleQuality = 'clean';
@@ -1046,12 +1146,24 @@ export class VayneKit {
    * is why it is the ability people never learn: at the moment you spend it,
    * spending it feels like nothing happened.
    *
-   * Two rules make it a decision rather than a reflex. It lands where the
-   * throw actually reaches — terrain stops it, so a ward flung at the far side
-   * of a wall lands in front of the wall and lights the wrong ground, exactly
-   * as it does in League. And it is placed at the *cursor*, never at her feet,
-   * so warding is a thing you aim at a piece of the map, not a button you hold
-   * down while standing somewhere.
+   * Two rules make it a decision rather than a reflex.
+   *
+   * The first is that it is **thrown, and a throw goes over things**. This is
+   * the rule the trainer used to have backwards: a ward flung at the far side
+   * of a wall was stopped by the wall and landed in front of it, which is not
+   * what League does and, worse, deleted the single most valuable warding
+   * habit there is. Warding *over* terrain is most of what warding is — the
+   * eye you want is nearly always in the place you cannot walk to, and every
+   * ward that matters in a real game is thrown across a wall from the safe
+   * side of it. So the arc clears terrain entirely; the only thing the wall
+   * still decides is that a ward cannot come to rest inside one, so a throw
+   * aimed at the middle of a block settles against its nearest face.
+   *
+   * The second is that it is placed at the *cursor*, never at her feet, so
+   * warding is a thing you aim at a piece of the map rather than a button you
+   * hold down while standing somewhere. Six hundred units is the whole reach,
+   * as in League, and that limit is the decision: it is short enough that
+   * getting the eye where you want it usually means walking somewhere first.
    */
   private ward(at: Vec2): VayneCastResult {
     if (!this.loadout.ward) return 'locked';
@@ -1064,8 +1176,10 @@ export class VayneKit {
     const d = Math.hypot(dx, dy);
     const dir = d < 1 ? { x: Math.cos(p.facing), y: Math.sin(p.facing) } : { x: dx / d, y: dy / d };
     const throwTo = Math.min(d, VAYNE_STATS.wardRange);
-    const reach = this.s.world.terrainAlong(p.pos, dir, throwTo, WARD_RADIUS);
-    const pos = { x: p.pos.x + dir.x * reach.distance, y: p.pos.y + dir.y * reach.distance };
+    const pos = this.s.world.clearOfTerrain(
+      { x: p.pos.x + dir.x * throwTo, y: p.pos.y + dir.y * throwTo },
+      WARD_RADIUS,
+    );
 
     const trinket = this.trinket;
     const ward = this.s.world.placeWard('player', pos, VAYNE_STATS.wardSight, trinket.life, trinket.max);
@@ -1190,9 +1304,9 @@ export class VayneKit {
     });
   }
 
-  /** Tumble's full cooldown right now: rank, halved inside Final Hour. */
+  /** Tumble's full cooldown right now: rank, the rep's share, halved in Final Hour. */
   get tumbleCdTotal(): number {
-    const base = tumbleCdAt(this.ranks.q);
+    const base = this.loadout.leagueCooldowns ? tumbleCdAt(this.ranks.q) : tumblePracticeCdAt(this.ranks.q);
     return this.inFinalHour ? base * VAYNE_STATS.finalHourTumbleCdShare : base;
   }
 
@@ -1373,11 +1487,17 @@ export class VayneKit {
       const d = Math.hypot(dx, dy);
       if (d > 1) {
         const dir = { x: dx / d, y: dy / d };
-        const reach = this.s.world.terrainAlong(p.pos, dir, Math.min(d, VAYNE_STATS.wardRange), WARD_RADIUS);
+        const throwTo = Math.min(d, VAYNE_STATS.wardRange);
+        // The throw clears terrain, so the preview has to as well — a marker
+        // that stopped at the wall would be promising the wrong landing.
+        const landing = this.s.world.clearOfTerrain(
+          { x: p.pos.x + dir.x * throwTo, y: p.pos.y + dir.y * throwTo },
+          WARD_RADIUS,
+        );
         out.markers.push({
           kind: 'cross',
-          x: p.pos.x + dir.x * reach.distance,
-          y: p.pos.y + dir.y * reach.distance,
+          x: landing.x,
+          y: landing.y,
           radius: 16,
           color: WARD_COLOR,
           alpha: 0.3 + 0.12 * Math.sin(t * 6),
@@ -1408,9 +1528,18 @@ export class VayneKit {
   }
 }
 
-/** Fraction of tumbles that were taken in a free window, 0..1. */
-export const tumbleRhythm = (st: VayneStats): number =>
-  st.tumbles > 0 ? st.tumblesClean / st.tumbles : 0;
+/**
+ * Fraction of tumbles that were taken in a free window, 0..1.
+ *
+ * Measured against the tumbles that had a window to be taken in — the ones
+ * spent travelling, with nothing in range and no attack cycle running, are
+ * neither right nor wrong and are not part of the question. A run that never
+ * had one of those windows has no rhythm rather than a perfect one.
+ */
+export const tumbleRhythm = (st: VayneStats): number => {
+  const judged = st.tumbles - st.tumblesIdle;
+  return judged > 0 ? st.tumblesClean / judged : 0;
+};
 
 /** Bolt procs against the most that could have been earned from those hits. */
 export const boltEfficiency = (st: VayneStats): number => {

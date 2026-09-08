@@ -19,9 +19,13 @@ import type { Build, HeadKind, WeaponKind } from '../gfx/champions';
  *    earned on one champion comparable with a rating earned on another — the
  *    ladder measures your hands, and your hands do not change when your cape
  *    does.
- *  - The Vayne path is the one exception, and it overrides in the other
- *    direction: those drills are about a specific champion with specific
- *    numbers, so they always spawn her whatever the roster says.
+ *  - The modes that field a *named* champion are the exception, and they
+ *    override in the other direction: the Vayne path, the Sheriff and the
+ *    duels are about specific champions with specific numbers and a specific
+ *    kit on the bar, so they spawn her whatever the roster says. A silhouette
+ *    you picked doing Condemn's animation would be the client telling you a
+ *    smaller lie than a body that does not match the buttons under your
+ *    fingers, but it would still be one.
  *
  * The look fields are exactly the ones `ChampionRig` builds a body out of.
  * Each hero has to be readable as a shape before it is readable as a colour,

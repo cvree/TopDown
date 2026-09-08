@@ -111,6 +111,7 @@ export abstract class VayneDrill extends Drill {
   }
 
   onAbility(slot: AbilitySlot, at: Vec2): void {
+    if (this.summoner(slot, at)) return;
     this.kit.cast(slot, at);
   }
 
@@ -221,6 +222,32 @@ export abstract class VayneDrill extends Drill {
     }
     if (st.tumblesBlocked > 1) {
       hurt.push(`${st.tumblesBlocked} tumbles ran out of room — a wall or the arena edge ate the distance.`);
+    }
+  }
+
+  /**
+   * The summoner, on the results screen, in the only two forms worth printing.
+   *
+   * A spell you never pressed is the single most common thing to get wrong
+   * with Flash and the hardest to notice, because nothing happens when you get
+   * it wrong — you simply die with it up, and the run says nothing about it.
+   * So a death with the summoner still charged is called out by name, and a
+   * blink that actually crossed terrain is credited, because that is the one
+   * you had to have looked at the map to find.
+   */
+  protected summonerNotes(helped: string[], hurt: string[]): void {
+    if (!this.s.config.abilities.includes('f')) return;
+    const flash = this.s.flash;
+    const survived = this.s.world.player?.alive ?? false;
+    if (flash.castsOverWalls > 0) {
+      helped.push(
+        `${flash.castsOverWalls} flash${flash.castsOverWalls === 1 ? '' : 'es'} taken over terrain rather than round it.`,
+      );
+    }
+    if (!survived && flash.casts === 0) {
+      hurt.push('You died with Flash up. It is back every five seconds here — there is no version of this run where holding it was the right call.');
+    } else if (flash.casts === 0 && this.s.elapsed > 25) {
+      hurt.push('Flash never came out. At this cooldown it is a movement tool, not an emergency button — spend it to take a fight, not only to leave one.');
     }
   }
 

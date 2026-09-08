@@ -88,6 +88,7 @@ export class CombosDrill extends Drill {
   }
 
   onAbility(slot: AbilitySlot, at: Vec2): void {
+    if (this.summoner(slot, at)) return;
     if (slot === 'd' || slot === 'f') return;
     const s = slot as Slot;
     if (this.idleCd > 0) return;

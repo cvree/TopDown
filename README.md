@@ -139,11 +139,12 @@ and one multiplication is exact where two systems would be theatre.
 | Mode | Keys | Measures | The habit it builds |
 | --- | --- | --- | --- |
 | **Range** | — | Units between where you fired and where your edge actually was | Knowing where your reach ends when nothing is drawing it |
-| **Tumble** | Q D | Tumble rhythm, windups thrown away, where the roll put you | Q in the backswing — Vayne's whole movement game |
-| **Silver Bolts** | Q W D | Bolt efficiency, stacks dropped | Finishing the third hit instead of switching at two |
-| **Condemn** | Q E D | Wall stun rate, angles you made rather than found | Standing on the right side of the wall *before* the fight |
-| **Night Hunter** | Q W E R D | Kit execution, vision held and wards placed, against a floor that refills | Playing Vayne rather than an ADC who owns her abilities — in the dark |
-| **Sheriff** | Q D | Peacemaker dodge rate, traps stepped in, ultimates broken on terrain | Dodging a champion rather than a pattern — and doing it while still trading |
+| **Tumble** | Q D F | Tumble rhythm, windups thrown away, where the roll put you | Q in the backswing — Vayne's whole movement game |
+| **Silver Bolts** | Q W D F | Bolt efficiency, stacks dropped | Finishing the third hit instead of switching at two |
+| **Condemn** | Q E D F | Wall stun rate, angles you made rather than found | Standing on the right side of the wall *before* the fight |
+| **Night Hunter** | Q W E R D F | Kit execution, vision held and wards placed, against a floor that refills | Playing Vayne rather than an ADC who owns her abilities — in the dark |
+| **Sheriff** | Q W E R D F | Peacemaker dodge rate, traps stepped in, ultimates broken on terrain | Reading a whole champion while spending a whole champion |
+| **1 v 1 / 1 v 2 / 1 v 3** | Q W E R D F | Combat score, health kept, orbwalk efficiency, target priority | Everything at once, with everything: kiting and spacing while a kit is being spent |
 
 **LAST HIT** still exists underneath the lane and is unchanged: a ninety second
 drill about one gesture, with health totals scaled so that a caster is a
@@ -151,20 +152,41 @@ one-attack last hit off a turret shot. Its smaller numbers are the right
 numbers for a mode about the gesture; the lane keeps League's. Both are built
 on one wave engine with two rulesets rather than one set of compromises.
 
-D is the trinket, and it is on every mode because it is not part of the
-champion: it is not levelled, it is not hers, and in a real game it is on the
-same key at level one as at eighteen. A ward throws 600 units, lights 1100
-around itself for eight seconds and comes back every twelve, two out at a time.
-Both clocks are far shorter than League's on purpose — holding a piece of the
-map for two minutes is a macro skill, and what a sixty second rep can build is
-the habit of spending vision on the ground the next ten seconds happen on.
-Night Hunter is the mode with a fog for it to lift, and it counts them.
+**D and F are the summoners**, and they are on every mode that fields a
+champion because neither of them is part of one: not levelled, not hers, and on
+the same key at level one as at eighteen.
 
-Condemn is the one cooldown deliberately shortened everywhere: every mode
-charges 45% of League's figure, so a maxed E is 5.4 seconds rather than twelve
-and Night Hunter's single point is nine rather than twenty. Rank still shapes
-it, and the practice screen prints both numbers — three casts a run is not a
-number of attempts anybody learns a positional ability from.
+D is the trinket. A ward throws 600 units, *over* terrain rather than into it —
+which is both League and the whole point of the item, since the eye you want is
+nearly always on ground you cannot walk to. What a wall still decides is that
+nothing comes to rest inside one, so a throw aimed at the middle of a block
+settles against its nearest face. It lights 1100 around itself for eight
+seconds and comes back every twelve, two out at a time. Both clocks are far
+shorter than League's on purpose — holding a piece of the map for two minutes
+is a macro skill, and what a sixty second rep can build is the habit of
+spending vision on the ground the next ten seconds happen on. Night Hunter is
+the mode with a fog for it to lift, and it counts them.
+
+F is Flash: 400 units toward the cursor, instantly, straight through terrain,
+and it costs the attack you were already winding up. It comes back every five
+seconds rather than League's three hundred, and the reason is the same one the
+rest of this section keeps making. Five minutes of cooldown is a decision about
+the next five minutes of a game, which is macro; the gesture underneath it —
+which wall is thin enough, and pressing it at all rather than dying with it up
+— is a mechanic, and a mechanic needs a dozen attempts a minute rather than
+one. The lane is the exception and keeps F for the recall, because a ten minute
+mode's most important decision is backing.
+
+Two of Vayne's own cooldowns are shortened, and both for the same reason: the
+thing worth rehearsing is the *pair*. Rolling to the side of somebody the wall
+is behind and then pinning them to it needs two abilities up at once, which is
+a far rarer event than either of them being up. So Condemn charges 30% of
+League's figure everywhere — a maxed E is 3.6 seconds rather than twelve — and
+Tumble is floored at one roughly every three seconds wherever League's own
+figure is slower than that, which takes a single point from six seconds to 3.7
+and leaves the mid-game champion the fighting modes field exactly where League
+leaves her. Rank still shapes both, and the practice screen prints League's
+number next to the trainer's.
 
 ### The Sheriff
 
@@ -172,7 +194,11 @@ Everything above this line measures what your hands did. **SHERIFF** measures
 what you did about somebody else's, which is a different skill and the one
 half of a lane that no amount of solo practice reaches.
 
-It puts a Caitlyn on the other side of the floor with her whole kit. She is
+It puts a Caitlyn on the other side of the floor with her whole kit, and hands
+you the whole of yours to answer her with — the net is answered by a Condemn,
+the trade you have to win to kill her is won with Silver Bolts, and the only
+thing that makes standing inside 650 range survivable is Final Hour. A player
+given one button against four learns to run away. She is
 modelled the way the champion path is modelled — League's ranges, League's
 cast times, League's trap that deals no damage — because a mode about reading
 an opponent is worth nothing if the opponent is an approximation. The matchup
@@ -596,7 +622,7 @@ Two schemes, chosen in Settings. The default is League's.
 | Right click | Move · right click a unit to attack it |
 | `A` + left click | Attack-move (a bare left click also works) |
 | `Q` `W` `E` `R` | Abilities (drills that use them) |
-| `D` `F` | Summoners — blink in the arenas |
+| `D` `F` | Summoners — the trinket and Flash |
 | `S` | Stop |
 | `Space` | Centre the camera on your champion — and check your attack range |
 | `Y` | Toggle camera lock. Unlocked, the camera stays where you leave it |
@@ -801,7 +827,8 @@ one champion — and two buttons, PLAY and SURVIVE, each with the record it is
 asking you to beat printed under it.
 
 Under the cards is the kit in numbers: the roll's distance and how long it
-takes, the bolt count and what the third one does, Condemn's cast time,
+takes, the bolt count and what the third one does, Flash's range and what it
+crosses, Condemn's cast time,
 knockback and both of its cooldowns — League's and the practice one — the
 trinket, Final Hour, and the passive. It also says which Vayne each mode
 hands you and why — one point in Q where the rhythm is the lesson, a maxed E
@@ -845,6 +872,7 @@ project shipped continuously before it started numbering itself.
 ```
 src/engine/     simulation: world, combat, AI, metrics, audio, input, paint
 src/engine/vayne.ts   the champion kit: tumble, bolts, condemn, final hour, passive, trinket
+src/engine/summoners.ts  Flash: the one button on the bar that belongs to no champion
 src/drills/modes.ts   PLAY and SURVIVE, and which drills the menu offers
 src/drills/vayne*.ts  the four modes; each owns its rules and its scoring
 src/drills/     the wider mechanics catalogue the ratings were built on. Still

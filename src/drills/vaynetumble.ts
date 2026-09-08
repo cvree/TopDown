@@ -263,6 +263,7 @@ export class VayneTumbleDrill extends VayneDrill {
     if (usage < 0.4) hurt.push('You sat on the tumble. It is a six-second cooldown, not an escape button.');
     if (windowUse < 0.35 && this.windowsOffered > 6) hurt.push('The backswing prompt came up and went unused most of the time.');
     this.handsNotes(helped, hurt);
+    this.summonerNotes(helped, hurt);
 
     const advice =
       this.handsAdvice() ??

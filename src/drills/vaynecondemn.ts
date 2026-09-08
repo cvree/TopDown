@@ -295,6 +295,7 @@ export class VayneCondemnDrill extends VayneDrill {
     if (this.wastedPresses > 2) hurt.push(`${this.wastedPresses} condemns aimed at nobody.`);
     if (engagement < 0.35) hurt.push('You were not attacking between condemns. The knockback buys time to do damage with; it is not the damage.');
     this.handsNotes(helped, hurt);
+    this.summonerNotes(helped, hurt);
 
     const advice =
       this.handsAdvice() ??

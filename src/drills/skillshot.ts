@@ -284,6 +284,7 @@ export class SkillshotDrill extends Drill {
   }
 
   onAbility(slot: AbilitySlot, at: Vec2): void {
+    if (this.summoner(slot, at)) return;
     if (slot === 'd' || slot === 'f') return;
     const s = slot as Slot;
     if (this.cooldowns[s] > 0) return;

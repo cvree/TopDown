@@ -357,6 +357,9 @@ export abstract class LabDrill extends ApmDrill {
    * thirteen places.
    */
   onAbility(slot: AbilitySlot, at: Vec2): void {
+    // No summoner here, deliberately: the lab has no arena to flash across
+    // and it uses both summoner keys as pads. D and F on this bench are two
+    // more fingers, not two more spells.
     if (MAP_KEYS.includes(slot)) {
       this.press(slot);
       this.map.press(slot);

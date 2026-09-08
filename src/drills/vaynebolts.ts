@@ -257,6 +257,7 @@ export class VayneBoltsDrill extends VayneDrill {
     if (efficiency < 0.6 && st.attacksLanded > 12) hurt.push('Your hits are spread across targets — most of them are doing nothing.');
     if (priorityShare < 0.4 && this.procsTotal > 3) hurt.push('You proc, but rarely on the target you were asked to kill.');
     this.handsNotes(helped, hurt);
+    this.summonerNotes(helped, hurt);
 
     const advice =
       this.handsAdvice() ??

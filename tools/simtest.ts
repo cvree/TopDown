@@ -36,7 +36,8 @@ import { XP_THRESHOLDS, levelFromXp } from '../src/engine/levels';
 import { LANE_TIERS, laneTierOf } from '../src/progression/lane';
 import { laneTuning } from '../src/engine/lanebot';
 import type { VayneKit } from '../src/engine/vayne';
-import { VAYNE_STATS, condemnCdAt, condemnPracticeCdAt } from '../src/engine/vayne';
+import { VAYNE_STATS, condemnCdAt, condemnPracticeCdAt, tumbleCdAt, tumblePracticeCdAt, tumbleRhythm } from '../src/engine/vayne';
+import { FLASH_PRACTICE_CD, FLASH_RANGE } from '../src/engine/summoners';
 import { EZREAL_STATS, type EzrealKit } from '../src/engine/ezreal';
 import { CAITLYN_STATS, caitlynAtLevel, type CaitlynKit } from '../src/engine/caitlyn';
 import { EZREAL_DRILL_IDS, ezrealStage, type EzrealDrillId } from '../src/drills/ezreal';
@@ -3915,15 +3916,140 @@ line('\n=== VISION: wards are eyes a champion leaves behind ===');
     world.wards.map((w) => w.pos.x).join(),
   );
 
-  // Terrain stops a throw. A ward flung at the far side of a wall lands in
-  // front of it and lights the wrong ground, which is League and is the
-  // mistake the mode is trying to make visible.
+  // A throw goes over a wall, which is most of what warding is: the eye you
+  // want is nearly always on ground you cannot walk to. What terrain still
+  // decides is that nothing comes to rest inside it.
   {
     const w2 = new World({ w: 2000, h: 1400 }, new Rng(2));
     w2.walls = [{ x: 1000, y: 700, w: 80, h: 900 }];
-    const reach = w2.terrainAlong({ x: 700, y: 700 }, { x: 1, y: 0 }, 600, 10);
-    expect('a ward throw is stopped by terrain', reach.hit && reach.distance < 300, `${reach.distance.toFixed(0)}u`);
+    const across = w2.clearOfTerrain({ x: 1250, y: 700 }, 10);
+    expect(
+      'a ward clears a wall between it and the thrower',
+      across.x > 1040 && Math.abs(across.x - 1250) < 1,
+      `landed at ${across.x.toFixed(0)}`,
+    );
+    // Aimed at the middle of the block it settles against the nearest face
+    // rather than inside it — the flash that "did not go anywhere" went
+    // exactly as far as it was allowed to.
+    const inside = w2.clearOfTerrain({ x: 1010, y: 700 }, 10);
+    expect('and never comes to rest inside one', Math.abs(inside.x - 1000) >= 40 + 10 - 1e-6, `landed at ${inside.x.toFixed(0)}`);
   }
+}
+
+line('\n=== FLASH: four hundred units, over anything ===');
+{
+  // The summoner is the one button on the bar that belongs to no champion, so
+  // it is asserted against the spell rather than against a kit.
+  const session = new Session(
+    { duration: 60, arena: { w: 2000, h: 1400 }, seed: 8, difficulty: 0.4, abilities: ['f'] },
+    new FakeInput() as unknown as InputSystem,
+    fakeRenderer,
+  );
+  session.world.walls = [{ x: 1000, y: 700, w: 80, h: 900 }];
+  const p = session.world.spawnPlayer({ x: 800, y: 700 });
+
+  // Straight at the wall: a body cannot walk there, and the blink can.
+  const walk = session.world.terrainAlong(p.pos, { x: 1, y: 0 }, FLASH_RANGE, p.radius);
+  expect('the wall stops a body walking at it', walk.hit && walk.distance < 200, `${walk.distance.toFixed(0)}u`);
+  expect('the flash goes', session.flash.cast({ x: 1400, y: 700 }) === 'cast', 'it was refused');
+  expect('and it lands on the far side', p.pos.x > 1040, `x ${p.pos.x.toFixed(0)}`);
+  expect('never further than League lets it', p.pos.x <= 800 + FLASH_RANGE + 1, `x ${p.pos.x.toFixed(0)}`);
+  expect('and it counts the crossing', session.flash.castsOverWalls === 1, `${session.flash.castsOverWalls}`);
+
+  // A resource, not a movement key: the second press inside the cooldown is
+  // refused, and the bar says so rather than the champion quietly not moving.
+  const held = { ...p.pos };
+  expect('a second flash inside the cooldown is refused', session.flash.cast({ x: 100, y: 700 }) === 'refused', 'it fired twice');
+  expect('and the body has not moved', p.pos.x === held.x && p.pos.y === held.y, `${p.pos.x},${p.pos.y}`);
+  expect('the cooldown is the practice figure', Math.abs(session.flash.total - FLASH_PRACTICE_CD) < 1e-6, `${session.flash.total}s`);
+  session.flash.update(FLASH_PRACTICE_CD);
+  expect('and it comes back', session.flash.ready, `${session.flash.cd.toFixed(2)}s left`);
+
+  // Aimed at the middle of a wall it goes as far as it is allowed to and no
+  // further — it does not put you inside the rock, and it does not refuse.
+  session.world.place(p, 800, 700);
+  expect('a flash into the block still resolves', session.flash.cast({ x: 1000, y: 700 }) === 'cast', 'it was refused');
+  const insideBlock = Math.abs(p.pos.x - 1000) <= 40 + p.radius - 0.5;
+  expect('and never leaves you standing in it', !insideBlock, `x ${p.pos.x.toFixed(0)}`);
+
+  // A committed windup is committed. Blinking out of one is the same mistake
+  // as tumbling out of one, and it costs the same shot.
+  const dummy = session.world.spawnActor({ pos: { x: p.pos.x + 200, y: 700 }, team: 'enemy', maxHp: 4000 });
+  session.world.issueAttackHere(p, dummy.id);
+  for (let i = 0; i < 400 && p.phase !== 'windup'; i++) session.world.step(SIM_DT);
+  session.flash.cd = 0;
+  session.world.clearEvents();
+  session.flash.cast({ x: p.pos.x, y: 100 });
+  expect('a flash out of the windup throws the attack away', p.phase !== 'windup', p.phase);
+  expect(
+    'and the world is told the shot was cancelled',
+    session.world.events.some((e) => e.type === 'attackCancel' && e.actorId === p.id),
+    session.world.events.map((e) => e.type).join(),
+  );
+}
+
+line('\n=== FLASH: the modes that carry it, carry it on the same key ===');
+{
+  // Every fighting mode hands you the summoner, on F, unlocked and ready. The
+  // lane is the one exception and says so: its F is a recall, because a ten
+  // minute mode's most important decision is backing.
+  for (const id of ['vayneTumble', 'vayneBolts', 'vayneCondemn', 'vayneHunt', 'caitlynDodge', 'duel1v1', 'duel1v2', 'duel1v3', 'ezFight'] as DrillId[]) {
+    expect(`${id} carries Flash`, DRILLS[id].abilities.includes('f'), DRILLS[id].abilities.join());
+    const r = runDrill(id, 'idle', 0.3);
+    const bar = r.drill.abilities().find((a) => a.slot === 'f');
+    expect(`${id} shows it on the bar`, bar?.name === 'FLASH' && !bar.locked, JSON.stringify(bar));
+  }
+  const lane = runDrill('lanePhase', 'idle', 0.3);
+  const laneF = lane.drill.abilities().find((a) => a.slot === 'f');
+  expect('the lane keeps F for the recall', laneF?.name?.startsWith('RECALL') === true, JSON.stringify(laneF));
+}
+
+line('\n=== The whole kit, in every mode with a champion on the other end ===');
+{
+  // The claim: a fight against somebody with four buttons is not a fight you
+  // can learn with one. Every mode where the opponent is a champion hands you
+  // the whole of yours.
+  for (const id of ['duel1v1', 'duel1v2', 'duel1v3', 'caitlynDodge', 'vayneHunt'] as DrillId[]) {
+    const r = runDrill(id, 'idle', 0.3);
+    const kit = kitOf(r.drill);
+    expect(`${id} fields the whole champion`, !!kit && kit.loadout.tumble && kit.loadout.bolts && kit.loadout.condemn && kit.loadout.finalHour, JSON.stringify(kit?.loadout));
+    for (const slot of ['q', 'w', 'e', 'r', 'd', 'f'] as const) {
+      const bar = r.drill.abilities().find((a) => a.slot === slot);
+      expect(`${id} has ${slot.toUpperCase()} unlocked`, bar?.locked === false, JSON.stringify(bar));
+    }
+  }
+}
+
+line('\n=== VAYNE: a roll you get to practise ===');
+{
+  // The promise: a practice tumble is never slower than League's and never
+  // faster than the floor, so the starved ranks move and the quick ones do
+  // not. A champion nothing can catch is not one worth practising against.
+  for (const r of [1, 2, 3, 4, 5]) {
+    const league = tumbleCdAt(r);
+    const practice = tumblePracticeCdAt(r);
+    line(`  rank ${r}: ${practice}s  (League ${league}s)`);
+    expect(`rank ${r} is never slower than League's`, practice <= league + 1e-9, `${practice}s vs ${league}s`);
+    expect(
+      `rank ${r} is never faster than the floor`,
+      practice >= Math.min(league, VAYNE_STATS.tumblePracticeFloor) - 1e-9,
+      `${practice}s`,
+    );
+  }
+  expect(
+    'the starved end actually moves',
+    tumblePracticeCdAt(1) < tumbleCdAt(1) - 1.5,
+    `${tumblePracticeCdAt(1)}s vs ${tumbleCdAt(1)}s`,
+  );
+  expect('and the mid-game champion is left alone', tumblePracticeCdAt(4) === tumbleCdAt(4), `${tumblePracticeCdAt(4)}s`);
+
+  // A tumble taken with the attack up and nothing in range is not rhythm. The
+  // run that proves it is the one that never fires a shot: it used to score a
+  // perfect tumble rhythm by rolling on cooldown at an empty floor.
+  const r = runDrill('vayneHunt', 'apmChaos', 0.4, 31337);
+  const kit = kitOf(r.drill);
+  const st = kit?.stats;
+  expect('a run that never lands an attack has no rhythm to show for it', !!st && (st.attacksLanded > 0 || tumbleRhythm(st) < 0.35), `${st?.attacksLanded} attacks, rhythm ${st ? tumbleRhythm(st).toFixed(2) : '?'}`);
 }
 
 line('\n=== VAYNE: the trinket, and a condemn that comes back ===');

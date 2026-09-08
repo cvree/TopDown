@@ -3,6 +3,7 @@ import type { MapBoard } from './mapboard';
 import { SURVIVE_RAMP, SURVIVE_RAMP_RANGE, SURVIVE_STRIKES, type RunMode } from '../drills/modes';
 import { FxSystem } from './fx';
 import { DEFAULT_HERO, type HeroId } from './heroes';
+import { FLASH_PRACTICE_CD, FlashSpell } from './summoners';
 import { defaultsFor, type AbilitySlot, type Bindings, type InputSystem, type MovementScheme } from './input';
 import { clamp, dist } from './math';
 import { MetricsRecorder } from './metrics';
@@ -157,6 +158,15 @@ export interface SessionConfig {
   /** Where a dash points under WASD. Meaningless under the click scheme. */
   tumbleAim?: TumbleAim;
   /**
+   * What Flash costs this run, in seconds. Defaults to the practice figure.
+   *
+   * A number rather than a flag because there is only one interesting thing to
+   * say about a summoner spell in a trainer, and it is how often you get to
+   * press it. A mode long enough to model a real game can hand the lane
+   * League's three hundred seconds through this and change nothing else.
+   */
+  flashCd?: number;
+  /**
    * The body the player wears. Purely a silhouette: the simulation reads it
    * nowhere, which is what keeps a score set behind one champion comparable
    * with a score set behind another.
@@ -257,7 +267,22 @@ export class Session {
     this.rng = new Rng(config.seed);
     this.world = new World(config.arena, this.rng);
     this.world.playerHero = config.hero ?? DEFAULT_HERO;
+    this.flash = new FlashSpell(this, config.flashCd ?? FLASH_PRACTICE_CD);
   }
+
+  /**
+   * Flash, owned by the run rather than by any champion.
+   *
+   * It sits here, above every kit and every drill, because that is what it is:
+   * the one button on the bar that does not belong to the champion you happen
+   * to be playing. Vayne's Flash and Ezreal's Flash are not two similar
+   * abilities, they are one summoner spell, and the only way to keep them from
+   * quietly drifting apart is for there to be exactly one of it.
+   *
+   * Whether a given mode hands it to you is still the mode's decision, and it
+   * is made in one place — the `f` slot in the drill's catalogue entry.
+   */
+  readonly flash: FlashSpell;
 
   attachDrill(d: DrillBase): void {
     this.drill = d;
@@ -447,6 +472,7 @@ export class Session {
     if (this.rangeCheckT > 0) this.rangeCheckT = Math.max(0, this.rangeCheckT - dt);
     const player = this.world.player;
 
+    this.flash.update(dt);
     this.drill?.update(dt);
     this.world.step(dt);
 
@@ -1071,7 +1097,25 @@ export abstract class DrillBase {
   onClick(_pos: Vec2, _kind: 'move' | 'attackMove'): boolean {
     return false;
   }
-  onAbility(_slot: AbilitySlot, _at: Vec2): void {}
+  onAbility(slot: AbilitySlot, at: Vec2): void {
+    this.summoner(slot, at);
+  }
+
+  /**
+   * The slot the *run* answers for rather than the drill.
+   *
+   * Every drill that overrides `onAbility` calls this first and returns if it
+   * comes back true, which is what makes Flash behave identically in nineteen
+   * modes without nineteen copies of it. A drill that genuinely wants the key
+   * for something else — the lane, whose F is a recall — simply does not call
+   * it, and its own `abilities()` says so on the bar.
+   */
+  protected summoner(slot: AbilitySlot, at: Vec2): boolean {
+    if (slot !== 'f') return false;
+    if (!this.s.config.abilities.includes('f')) return false;
+    this.s.flash.cast(at);
+    return true;
+  }
   hudFields(): HudField[] {
     return [];
   }
@@ -1094,13 +1138,12 @@ export abstract class DrillBase {
    */
   abilities(): AbilityView[] {
     const active = new Set(this.s.config.abilities);
-    return ABILITY_BAR.map((slot) => ({
-      slot,
-      name: '',
-      cd: 0,
-      highlight: false,
-      locked: !active.has(slot),
-    }));
+    return ABILITY_BAR.map((slot) => {
+      const view: AbilityView = { slot, name: '', cd: 0, highlight: false, locked: !active.has(slot) };
+      // The summoner is drawn by whoever owns it, which is the run. A drill
+      // that has taken the slot for itself overrides this on the way back up.
+      return slot === 'f' && active.has('f') ? this.s.flash.view(view) : view;
+    });
   }
   liveScore(): number {
     return Math.round(this.s.score);

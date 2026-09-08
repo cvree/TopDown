@@ -758,35 +758,61 @@ export class World {
   private confine(a: Actor): void {
     a.pos.x = clamp(a.pos.x, a.radius, this.bounds.w - a.radius);
     a.pos.y = clamp(a.pos.y, a.radius, this.bounds.h - a.radius);
-    if (this.walls.length) this.resolveWalls(a);
+    if (this.walls.length) this.pushOutOfWalls(a.pos, a.radius);
   }
 
-  /** Pushes a circle out of any wall it is standing in. */
-  private resolveWalls(a: Actor): void {
+  /**
+   * The nearest point to `p` that a circle of `radius` is allowed to occupy:
+   * inside the arena, and outside every wall.
+   *
+   * The confinement pass is the obvious caller, but it is not the only one.
+   * Anything that *arrives* somewhere without walking there — a flash over a
+   * wall, a ward thrown across one — has the same question to answer and no
+   * body to ask it with, and answering it twice in two places is how the two
+   * answers drift apart.
+   */
+  clearOfTerrain(p: Vec2, radius: number): Vec2 {
+    const out = {
+      x: clamp(p.x, radius, Math.max(radius, this.bounds.w - radius)),
+      y: clamp(p.y, radius, Math.max(radius, this.bounds.h - radius)),
+    };
+    if (this.walls.length) this.pushOutOfWalls(out, radius);
+    return out;
+  }
+
+  /**
+   * Pushes a point out of any wall it is inside, in place.
+   *
+   * In place, and not returning anything, because the confinement pass runs it
+   * for every body on the floor at two hundred and forty hertz — a point
+   * allocated there is a garbage collection in the middle of somebody's
+   * reaction time.
+   */
+  private pushOutOfWalls(out: Vec2, radius: number): void {
     for (const wall of this.walls) {
       const hw = wall.w / 2;
       const hh = wall.h / 2;
-      const nx = clamp(a.pos.x, wall.x - hw, wall.x + hw);
-      const ny = clamp(a.pos.y, wall.y - hh, wall.y + hh);
-      const dx = a.pos.x - nx;
-      const dy = a.pos.y - ny;
+      const nx = clamp(out.x, wall.x - hw, wall.x + hw);
+      const ny = clamp(out.y, wall.y - hh, wall.y + hh);
+      const dx = out.x - nx;
+      const dy = out.y - ny;
       const d2 = dx * dx + dy * dy;
-      if (d2 > a.radius * a.radius) continue;
+      if (d2 > radius * radius) continue;
       if (d2 > 1e-6) {
         const d = Math.sqrt(d2);
-        a.pos.x = nx + (dx / d) * a.radius;
-        a.pos.y = ny + (dy / d) * a.radius;
+        out.x = nx + (dx / d) * radius;
+        out.y = ny + (dy / d) * radius;
       } else {
         // Dead centre: leave by the nearest face.
-        const left = a.pos.x - (wall.x - hw);
-        const right = wall.x + hw - a.pos.x;
-        const up = a.pos.y - (wall.y - hh);
-        const down = wall.y + hh - a.pos.y;
+        const left = out.x - (wall.x - hw);
+        const right = wall.x + hw - out.x;
+        const up = out.y - (wall.y - hh);
+        const down = wall.y + hh - out.y;
         const min = Math.min(left, right, up, down);
-        if (min === left) a.pos.x = wall.x - hw - a.radius;
-        else if (min === right) a.pos.x = wall.x + hw + a.radius;
-        else if (min === up) a.pos.y = wall.y - hh - a.radius;
-        else a.pos.y = wall.y + hh + a.radius;
+        if (min === left) out.x = wall.x - hw - radius;
+        else if (min === right) out.x = wall.x + hw + radius;
+        else if (min === up) out.y = wall.y - hh - radius;
+        else out.y = wall.y + hh + radius;
       }
     }
   }

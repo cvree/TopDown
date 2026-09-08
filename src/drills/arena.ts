@@ -1,40 +1,56 @@
-import { audio } from '../engine/audio';
 import { ARCHETYPES } from '../engine/archetypes';
-import { clamp, dist, norm } from '../engine/math';
+import { clamp, dist } from '../engine/math';
 import { derive } from '../engine/metrics';
 import { PALETTE } from '../engine/palette';
 import type { DrillPaint } from '../engine/paint';
-import type { AbilitySlot } from '../engine/input';
-import type { AbilityView, HudField } from '../engine/session';
-import type { ArchetypeId, Vec2 } from '../engine/types';
+import type { HudField } from '../engine/session';
+import type { ArchetypeId, Wall } from '../engine/types';
+import { FIGHT_RANKS } from '../engine/vayne';
 import type { WorldEvent } from '../engine/world';
-import { Drill, band, count, pct, secs, type DrillOutcome } from './base';
+import { band, count, pct, secs, type DrillOutcome } from './base';
+import { VayneDrill } from './vaynebase';
 
 const HARD_CAP = 150;
-const BLINK_CD = 20;
-const BLINK_RANGE = 375;
 
 /**
- * 1v1 / 1v2 / 1v3 — everything at once.
+ * 1v1 / 1v2 / 1v3 — everything at once, with everything.
  *
  * No farming, no walking across a map. Enemies that move, attack, cast, dodge,
- * chase, retreat and respect their cooldowns. You get one summoner (blink) and
- * your autos, and the run ends the moment it is decided either way.
+ * chase, retreat and respect their cooldowns, and the run ends the moment it is
+ * decided either way.
+ *
+ * What you bring to it is now the whole champion, and that is a deliberate
+ * reversal. The arena used to hand you your autos and a generic blink, on the
+ * theory that a fight stripped of abilities is a purer test of the mechanics
+ * the other drills teach. It is — and it is also a test of a game nobody
+ * plays. Every fight a League player has ever been in was fought with four
+ * buttons and two summoners, and the skill the arena is supposed to be the
+ * final exam for is not *orbwalking*, it is orbwalking **while** spending a
+ * kit: knowing which of your cooldowns answers the thing walking at you, and
+ * having the hands to press it without dropping the attack rhythm underneath.
+ *
+ * So the duel fields Vayne at her mid-game ranks, the trinket, and Flash. The
+ * floor has terrain on it for the same reason — a Condemn with nothing behind
+ * the target is half an ability, and a duel with nothing to fight around is
+ * half a duel.
  */
-export class ArenaDrill extends Drill {
-  private blinkCd = 0;
+export class ArenaDrill extends VayneDrill {
   private killed = 0;
   private startedWith = 1;
   private focusChanges = 0;
   private lastFocus = -1;
 
   constructor(s: import('../engine/session').Session, private readonly count_: 1 | 2 | 3) {
-    super(s);
+    // The mid-game champion, exactly as Night Hunter fields her: Q maxed, a
+    // point in each of W, E and R. This is the Vayne a duel is actually played
+    // on, and the ranks are the mode's answer to "which Vayne is this".
+    super(s, { tumble: true, bolts: true, condemn: true, finalHour: true, ranks: FIGHT_RANKS });
   }
 
   setup(): void {
     const { w, h } = this.s.world.bounds;
-    const player = this.s.world.spawnPlayer({ x: w / 2, y: h * 0.78 });
+    this.placeCover();
+    const player = this.spawnVayne({ x: w / 2, y: h * 0.78 });
     // Three enemies focusing one target will end a 760-health run in eight
     // seconds, which teaches nothing. The extra health buys enough fight to
     // practise priority and dodging; the enemies stay individually lethal.
@@ -60,12 +76,47 @@ export class ArenaDrill extends Drill {
 
     // Outnumbered fights shorten each enemy rather than making the fight a
     // slog — the lesson is survival and priority, not endurance.
-    const hpScale = this.count_ === 1 ? 1 : this.count_ === 2 ? 0.6 : 0.46;
+    //
+    // The figures went up by half when the duel started handing you the whole
+    // champion, and they had to. They were chosen for a player with her autos
+    // and a blink, and against a Vayne with Silver Bolts, an empowered tumble
+    // and a Condemn that pins people to walls they are simply the wrong size:
+    // a 1v2 that used to take forty-five seconds ended in seventeen, which is
+    // not a duel, it is a burst window. What is being kept constant here is
+    // the *length of the fight*, because the length is what the mode is for —
+    // priority, spacing and dodging are things you do for a minute, not things
+    // you do once.
+    const forKit = 1.45;
+    const hpScale = (this.count_ === 1 ? 1 : this.count_ === 2 ? 0.6 : 0.46) * forKit;
     picks.forEach((id, i) => {
       const spread = (i - (picks.length - 1) / 2) * 300;
       const a = this.spawnEnemy(id, { x: w / 2 + spread, y: h * 0.2 }, { hpScale });
       this.s.fx.ring(a.pos.x, a.pos.y, 10, 160, 0.7, ARCHETYPES[id].color, 3, 'shock');
     });
+  }
+
+  /**
+   * Terrain, arranged around the fight rather than across it.
+   *
+   * Two side pillars and one island in the middle, all of them inside the
+   * band of floor between the two spawn rows — so nothing ever arrives inside
+   * a wall, and every one of them is reachable from either end.
+   *
+   * The shape is chosen so that a wall is *somewhere* rather than everywhere.
+   * A ring of cover would make every Condemn a wall stun and teach nothing; a
+   * bare floor makes the ability a knockback and teaches nothing either. Three
+   * blocks means the good place to take a fight exists, is about a third of
+   * the arena, and has to be walked to before the fight arrives — which is the
+   * whole of Condemn as a positional ability.
+   */
+  private placeCover(): void {
+    const { w, h } = this.s.world.bounds;
+    const walls: Wall[] = [
+      { x: w * 0.24, y: h * 0.5, w: 72, h: h * 0.3 },
+      { x: w * 0.76, y: h * 0.5, w: 72, h: h * 0.3 },
+      { x: w * 0.5, y: h * 0.5, w: w * 0.2, h: 72 },
+    ];
+    this.s.world.walls = walls;
   }
 
   onStart(): void {
@@ -74,8 +125,8 @@ export class ArenaDrill extends Drill {
   }
 
   update(dt: number): void {
+    super.update(dt);
     this.updateBrains(dt);
-    if (this.blinkCd > 0) this.blinkCd -= dt;
 
     const player = this.s.world.player;
     if (player && player.targetId !== this.lastFocus && player.targetId != null) {
@@ -92,36 +143,8 @@ export class ArenaDrill extends Drill {
     }
   }
 
-  onAbility(slot: AbilitySlot, at: Vec2): void {
-    if (slot !== 'd' || this.blinkCd > 0) return;
-    const p = this.s.world.player;
-    if (!p) return;
-    const d = Math.min(BLINK_RANGE, dist(p.pos, at));
-    const dir = norm(at.x - p.pos.x, at.y - p.pos.y);
-    const from = { ...p.pos };
-    p.pos.x = clamp(p.pos.x + dir.x * d, p.radius, this.s.world.bounds.w - p.radius);
-    p.pos.y = clamp(p.pos.y + dir.y * d, p.radius, this.s.world.bounds.h - p.radius);
-    p.prev.x = p.pos.x;
-    p.prev.y = p.pos.y;
-    p.order = null;
-    this.blinkCd = BLINK_CD;
-    audio.play('dodge');
-    this.s.fx.ring(from.x, from.y, 6, 110, 0.4, PALETTE.accent, 3, 'shock');
-    this.s.fx.ring(p.pos.x, p.pos.y, 90, 12, 0.35, PALETTE.playerCore, 3, 'shock');
-    this.s.fx.trace([from, { ...p.pos }], PALETTE.accent, 0.5, 6);
-    this.s.fx.burst(p.pos.x, p.pos.y, 16, { color: PALETTE.accent, speed: 300, life: 0.4, size: 2.4 });
-  }
-
-  abilities(): AbilityView[] {
-    // The blink is the only thing on the bar in a duel, so it gets a live
-    // cooldown sweep. A summoner you cannot see the timer on is a summoner you
-    // hold forever.
-    return super.abilities().map((a) =>
-      a.slot === 'd' ? { ...a, name: 'BLINK', cd: clamp(this.blinkCd / BLINK_CD, 0, 1), locked: false } : a,
-    );
-  }
-
   onEvents(events: readonly WorldEvent[]): void {
+    super.onEvents(events);
     for (const e of events) {
       if (e.type === 'death' && e.byPlayer) {
         this.killed++;
@@ -133,6 +156,7 @@ export class ArenaDrill extends Drill {
   }
 
   paint(out: DrillPaint, t: number): void {
+    super.paint(out, t);
     const p = this.s.world.player;
     if (!p) return;
     // Only the ranges that currently threaten you are drawn. Every enemy's
@@ -157,14 +181,10 @@ export class ArenaDrill extends Drill {
 
   hudFields(): HudField[] {
     const d = derive(this.s.metrics.m);
-    return [
+    const fields: HudField[] = [
       { label: 'ENEMIES', value: `${this.s.world.enemies().length}`, tone: 'neutral' },
-      {
-        label: 'BLINK',
-        value: this.blinkCd > 0 ? `${this.blinkCd.toFixed(0)}s` : 'READY',
-        bar: 1 - clamp(this.blinkCd / BLINK_CD, 0, 1),
-        tone: this.blinkCd > 0 ? 'warn' : 'good',
-      },
+      this.tumbleField(),
+      this.boltField(),
       {
         label: 'ORBWALK',
         value: `${Math.round(d.orbwalkEfficiency * 100)}%`,
@@ -172,6 +192,9 @@ export class ArenaDrill extends Drill {
         tone: d.orbwalkEfficiency > 0.7 ? 'good' : 'warn',
       },
     ];
+    const trigger = this.triggerField();
+    if (trigger) fields.push(trigger);
+    return fields;
   }
 
   liveScore(): number {
@@ -229,6 +252,8 @@ export class ArenaDrill extends Drill {
     if (d.attackLatency > 240) hurt.push(`Your attacks went out ${Math.round(d.attackLatency)}ms late under pressure — that is a fifth of your damage.`);
     if (m.hazardExposure > 1.2) hurt.push(`${m.hazardExposure.toFixed(1)}s standing inside telegraphed ground.`);
     if (d.hpRetained < 0.4 && won) hurt.push('You won, but at close to full health cost.');
+    this.handsNotes(helped, hurt);
+    this.summonerNotes(helped, hurt);
 
     const advice = !m.survived
       ? this.startedWith > 1

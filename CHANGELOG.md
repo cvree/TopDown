@@ -6,10 +6,36 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.9.0**.
+Currently shipping **v2.10.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.10.0 — THE WHOLE KIT
+
+*2026-09-08*
+
+Every mode with a champion on the other end now hands you all of yours, Flash included, and a ward finally goes over the wall you threw it at.
+
+### Added
+
+- FLASH, on F, in every mode that fields a champion. Four hundred units toward the cursor, instantly, straight through terrain — a wall stops you standing inside it and does not stop you crossing it, so "is that wall thin enough" is a question with an answer again. Taken in the attack windup it throws the shot away, exactly as a tumble does; taken in the backswing it is free.
+- It comes back every five seconds rather than League’s three hundred, and that is a deliberate statement about what a rep can teach. Five minutes of cooldown is a decision about the next five minutes of a game, which is a macro skill; the gesture underneath it — which wall to cross, and pressing it at all instead of dying with it up — is a mechanic, and a mechanic needs a dozen attempts a minute rather than one.
+- It is owned by the run rather than by any champion, so Vayne’s Flash and Ezreal’s Flash are not two similar abilities that can drift apart — they are the same object. The results screen credits every blink that actually crossed terrain, and says so by name when you died with it still charged.
+- Terrain in the duels. Two pillars and an island, inside the band of floor between the two spawn rows, so there is somewhere to fight around, somewhere to flash across, and somewhere to pin a diver against.
+
+### Changed
+
+- The duels field the whole champion. 1v1, 1v2 and 1v3 used to hand you your autos and a generic blink, on the theory that a fight stripped of abilities is a purer test of the mechanics the other drills teach. It is — and it is a test of a game nobody plays. Every fight anybody has ever had in League was fought with four buttons and two summoners, so the arena now fields the mid-game Vayne: tumble, Silver Bolts, Condemn, Final Hour, the trinket and Flash.
+- The Sheriff does too. A mode about reading somebody else’s four buttons cannot be a mode where you own one of your own: the net is answered by a Condemn, the trade you have to win to kill her is won with Silver Bolts, and the only thing that makes standing inside her range survivable is Final Hour. A player given one button against four learns to run away; a player given four learns the matchup.
+- Duel enemies carry half again as much health, because the fight length is what the mode is for. A 1v2 that used to take forty-five seconds was ending in seventeen once the kit arrived, and priority and spacing are things you do for a minute rather than things you do once.
+- Condemn is charged at 30% of League’s cooldown rather than 45%. The thing worth rehearsing was never the cast on its own — it is the roll that puts the wall behind them and the cast that follows it, and two cooldowns have to be up at the same time for that to happen at all. At the old share it happened about twice a minute.
+- Tumble is floored at one roughly every three seconds wherever League’s own figure is slower than that: a single point comes back in 3.7s instead of 6, two points in 3.1s instead of 5. A rank already faster than the floor — the mid-game champion the fighting modes field — is left exactly where League leaves it, because a champion nothing in the client can catch is not one worth practising against.
+- A trinket ward is thrown over terrain rather than stopped by it, which is both what League does and the entire point of the item: the eye you want is nearly always on ground you cannot walk to, and every ward that matters in a real game is thrown across a wall from the safe side of it. What terrain still decides is that a ward cannot come to rest inside one, so a throw aimed at the middle of a block settles against its nearest face.
+
+### Fixed
+
+- A tumble taken with the attack up and nothing in range no longer counts as a clean one. "Clean" is a statement about the attack cycle, and a run that has not fired a shot in ten seconds does not have one — so a player who never attacked and rolled on cooldown was being scored with a perfect tumble rhythm. Those rolls are now counted separately and are neither right nor wrong: they are travel, and the rhythm is measured against the tumbles that had a rhythm to be measured against.
 
 ## v2.9.0 — THE TIDE
 
