@@ -64,6 +64,15 @@ gesture. So the wait happens behind a title card instead of in front of you,
 and the swell that carries you into the client is the first sound the app is
 allowed to make.
 
+The title card is six of them, one cast at random per launch and never the
+same one twice running, over an identity that never moves. The bar under it
+measures the arena reporting real milestones rather than a timer, keeps
+creeping when one of them takes longer than expected, and is drawn by handing
+the compositor a target a second ahead — so it carries on moving through the
+main-thread stalls that building an arena causes, which is the one moment a
+frozen bar reads as a crash. Press anything while it is still loading and the
+client opens the instant it is ready, without asking again.
+
 Nothing is downloaded at runtime. The stone, the rock, the turf, the champions
 and every effect are generated in code at load time, so the whole trainer still
 fits in a single HTML file.

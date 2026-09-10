@@ -51,16 +51,30 @@ const figureSpec = (i: number, hero: HeroId): RigSpec => {
   return { ...look, height: f.radius * 5.4, radius: f.radius, ringColor: f.ring };
 };
 
+/**
+ * What the backdrop has finished, in the order it finishes it.
+ *
+ * The cold open's loading bar is driven by these rather than by a timer:
+ * `scene` when the terrain, sky and shaders exist, `rigs` when the champions
+ * have been built, `frame` when the first frame is actually on the glass. A
+ * bar measuring real milestones is a bar that cannot be caught lying, and one
+ * that can say *which* piece of a slow machine's startup is the slow piece.
+ */
+export type ArenaStage = 'scene' | 'rigs' | 'frame';
+
 export function ArenaBackdrop({
   enabled = true,
   hero = DEFAULT_HERO,
-  onReady,
+  onStage,
 }: {
   enabled?: boolean;
   /** The champion standing front and centre. */
   hero?: HeroId;
-  /** Fires once the arena has actually put a frame on screen. */
-  onReady?: () => void;
+  /**
+   * Fires as each piece of the arena lands. Always reaches `frame`, even when
+   * there is no arena to build — whoever is gating on us must never hang.
+   */
+  onStage?: (stage: ArenaStage) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   // A context the browser has taken back cannot be drawn to, and a canvas that
@@ -68,8 +82,8 @@ export function ArenaBackdrop({
   // client. When it happens we stop, say so, and fall back to the painted
   // background the low-effects setting already uses.
   const [lost, setLost] = useState(false);
-  const readyRef = useRef(onReady);
-  readyRef.current = onReady;
+  const stageRef = useRef(onStage);
+  stageRef.current = onStage;
   // The live scene, so changing champion can swap one body rather than tear
   // down and regenerate the terrain, the shaders and the sky behind the menus.
   const liveRef = useRef<{ scene: RiftScene; rigs: ChampionRig[] } | null>(null);
@@ -80,19 +94,32 @@ export function ArenaBackdrop({
     const canvas = ref.current;
     if (!canvas || !enabled) {
       // No arena to wait for; whoever is gating on us should not hang.
-      readyRef.current?.();
+      stageRef.current?.('frame');
       return;
     }
 
-    let scene: RiftScene;
-    try {
-      scene = new RiftScene(canvas, BOUNDS, '#c8aa6e', 3);
-    } catch {
-      // No WebGL: the menus still work, they just get a flat background.
-      readyRef.current?.();
-      setLost(true);
-      return;
-    }
+    /*
+     * The build is staged across frames rather than done in one go.
+     *
+     * Constructing the scene and building three champions is several hundred
+     * milliseconds of solid main-thread work on a modest machine, and it used
+     * to happen in a single task the instant this mounted — which is to say,
+     * on top of the cold open's opening beat. The title card would be struck,
+     * freeze, and then finish. Split into three tasks with a frame between
+     * them, the same work costs the same time and the screen in front of it
+     * keeps painting; and each piece announces itself as it lands, which is
+     * what the loading bar is actually measuring.
+     */
+    let cancelled = false;
+    let scene: RiftScene | null = null;
+    let rigs: ChampionRig[] = [];
+    let raf = 0;
+    let ro: ResizeObserver | null = null;
+    let onPointer: ((e: PointerEvent) => void) | null = null;
+
+    const give = (s: ArenaStage) => {
+      if (!cancelled) stageRef.current?.(s);
+    };
 
     // Losing the context is not an error the player caused and not one they
     // can do anything about, so it is handled rather than reported: the loop
@@ -102,152 +129,204 @@ export function ArenaBackdrop({
       setLost(true);
       // Whoever is gating on the arena must not wait for a frame that can no
       // longer be drawn.
-      readyRef.current?.();
+      give('frame');
     };
     canvas.addEventListener('webglcontextlost', onContextLost);
-    // A backdrop must never cost the front end its responsiveness — but it is
-    // also the first thing anyone sees, so it keeps the post chain. Medium
-    // quality buys bloom on the braziers and the grade pass's vignette and
-    // grain, which is most of what separates "a render" from "a shot"; the
-    // frame cap and the render scale pay for them.
-    scene.renderScale = 0.8;
-    scene.setQuality('medium');
 
-    let rigs: ChampionRig[];
-    try {
-      rigs = FIGURES.map((f, i) => {
-        const rig = new ChampionRig(figureSpec(i, heroRef.current));
-        rig.setPosition(f.x, f.y);
-        scene.world.add(rig.group);
-        return rig;
-      });
-    } catch {
-      // Anything that goes wrong building the staged figures costs us the
-      // backdrop and nothing else. It must never cost the player the client:
-      // this runs during a commit, so an exception escaping here would take
-      // the whole tree down and leave them on a black page.
-      scene.dispose();
-      canvas.removeEventListener('webglcontextlost', onContextLost);
-      readyRef.current?.();
-      setLost(true);
-      return;
-    }
-    liveRef.current = { scene, rigs };
-
-    const resize = () => {
-      const r = canvas.getBoundingClientRect();
-      scene.resize(Math.max(1, r.width), Math.max(1, r.height));
-    };
-    resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(canvas);
-
-    const cam = scene.rig.camera;
-    // A lower, slower camera than gameplay: from here you can see the terraces,
-    // the braziers and the sky, which is the whole point of a hero shot.
-    // A long lens from close in. A wide lens at distance is a map view; a
-    // narrow one at eye level is a portrait, and the menu wants a portrait.
-    cam.fov = 34;
-    cam.updateProjectionMatrix();
-    // Menus get a warmer, brighter print than gameplay — nothing here has to
-    // stay legible under a health bar, so it can be lit for the look.
-    scene.renderer.toneMappingExposure = 1.34;
-
-    // The client's own parallax. The camera leans a few dozen units toward
-    // the pointer, which is the cheapest way to make a still menu feel like
-    // it is standing in a place rather than printed on one.
-    const lean = { x: 0, y: 0, tx: 0, ty: 0 };
-    const aim = new THREE.Vector3();
-    const fwd = new THREE.Vector3();
-    const right = new THREE.Vector3();
-    const UP = new THREE.Vector3(0, 1, 0);
-    const onPointer = (e: PointerEvent) => {
-      lean.tx = (e.clientX / Math.max(1, window.innerWidth)) * 2 - 1;
-      lean.ty = (e.clientY / Math.max(1, window.innerHeight)) * 2 - 1;
-    };
-    window.addEventListener('pointermove', onPointer);
-
-    let raf = 0;
-    let announced = false;
-    let last = performance.now();
-    let t = 0;
-    let acc = 0;
-    const FRAME = 1 / 24;
-
-    const tick = () => {
-      raf = requestAnimationFrame(tick);
-      const now = performance.now();
-      const dt = Math.min(0.1, (now - last) / 1000);
-      last = now;
-      if (document.hidden || scene.renderer.getContext().isContextLost()) return;
-      acc += dt;
-      if (acc < FRAME) return;
-      const step = acc;
-      acc = 0;
-      t += step;
-
-      const cx = BOUNDS.w / 2;
-      const cz = BOUNDS.h / 2;
-      const a = -0.5 + Math.sin(t * 0.021) * 0.42;
-      // A slow dolly in and out under a shallow arc. A full orbit reads as a
-      // turntable; an arc that never completes reads as a camera operator.
-      const radius = 900 + Math.sin(t * 0.061) * 130;
-      lean.x += (lean.tx - lean.x) * Math.min(1, step * 1.6);
-      lean.y += (lean.ty - lean.y) * Math.min(1, step * 1.6);
-      // High enough to see the terraces and the horizon, low enough that the
-      // champions still have a silhouette against the sky.
-      cam.position.set(
-        cx + Math.sin(a) * radius + lean.x * 90,
-        455 + Math.sin(t * 0.047) * 60 - lean.y * 50,
-        cz + Math.cos(a) * radius,
-      );
-      // Aimed at chest height on the front champion rather than at the floor,
-      // so the horizon sits high and the figures stand against the terraces.
-      aim.set(cx + lean.x * 30, 165, cz - 90);
-      // Then slid along the camera's own right vector, which parks the group
-      // in the right third of the frame — the third the client leaves empty.
-      // Doing it in camera space rather than world space keeps the framing
-      // identical all the way through the arc.
-      fwd.copy(aim).sub(cam.position).normalize();
-      right.crossVectors(fwd, UP).normalize();
-      aim.addScaledVector(right, -215);
-      cam.lookAt(aim);
-      cam.updateMatrixWorld();
-
-      rigs.forEach((rig, i) => {
-        const cyc = (t * 0.55 + i * 1.9) % 6;
-        rig.update(step, {
-          speed: 0,
-          facing: Math.atan2(cz - FIGURES[i].y, cx - FIGURES[i].x) + Math.sin(t * 0.3 + i) * 0.35,
-          phase: cyc < 0.5 ? 'windup' : cyc < 1.0 ? 'backswing' : 'idle',
-          phaseT: cyc < 0.5 ? cyc / 0.5 : cyc < 1.0 ? (cyc - 0.5) / 0.5 : 0,
-          time: t + i * 3,
-          hitFlash: 0,
-          death: 0,
-          cast: 0,
-          hp01: 1,
-          hovered: false,
-          rooted: false,
-        });
+    /*
+     * A painted frame of air between the heavy pieces.
+     *
+     * `requestAnimationFrame` alone is not enough and is the trap here: its
+     * callback runs *before* the frame is painted, and the microtask that
+     * resumes an `await` on it runs immediately after that callback — still
+     * before paint. Yielding that way hands the thread back for no time at
+     * all, and the title card behind us stays unpainted while the arena is
+     * built on top of it. A timeout scheduled from inside the callback is a
+     * fresh task, which the browser will not run until it has finished the
+     * frame, so this actually waits for pixels.
+     *
+     * In a hidden tab there are no frames at all, so the build simply waits
+     * for the tab to come back rather than spending a phone's battery on a
+     * menu nobody is looking at.
+     */
+    const breathe = () =>
+      new Promise<void>((resolve) => {
+        if (document.hidden) window.setTimeout(resolve, 0);
+        else requestAnimationFrame(() => window.setTimeout(resolve, 0));
       });
 
-      scene.render(step, { hurt: 0, flash: 0, flashColor: '#ffffff', energy: 0, dim: 0 });
+    const build = async () => {
+      // Two frames before we take the main thread at all: the cold open gets
+      // to paint its ignition and strike its crest on an idle machine.
+      await breathe();
+      await breathe();
+      if (cancelled) return;
 
-      if (!announced) {
-        announced = true;
-        readyRef.current?.();
+      try {
+        scene = new RiftScene(canvas, BOUNDS, '#c8aa6e', 3);
+      } catch {
+        // No WebGL: the menus still work, they just get a flat background.
+        give('frame');
+        setLost(true);
+        return;
       }
+      if (cancelled) return;
+      const sc = scene;
+      // A backdrop must never cost the front end its responsiveness — but it
+      // is also the first thing anyone sees, so it keeps the post chain.
+      // Medium quality buys bloom on the braziers and the grade pass's
+      // vignette and grain, which is most of what separates "a render" from
+      // "a shot"; the frame cap and the render scale pay for them.
+      sc.renderScale = 0.8;
+      sc.setQuality('medium');
+      give('scene');
+
+      await breathe();
+      if (cancelled) return;
+
+      try {
+        rigs = FIGURES.map((f, i) => {
+          const rig = new ChampionRig(figureSpec(i, heroRef.current));
+          rig.setPosition(f.x, f.y);
+          sc.world.add(rig.group);
+          return rig;
+        });
+      } catch {
+        // Anything that goes wrong building the staged figures costs us the
+        // backdrop and nothing else. It must never cost the player the
+        // client: leaving them on a black page over a decorative menu
+        // background would be the worst trade in the product.
+        give('frame');
+        setLost(true);
+        return;
+      }
+      if (cancelled) return;
+      liveRef.current = { scene: sc, rigs };
+      give('rigs');
+
+      await breathe();
+      if (cancelled) return;
+
+      const resize = () => {
+        const r = canvas.getBoundingClientRect();
+        sc.resize(Math.max(1, r.width), Math.max(1, r.height));
+      };
+      resize();
+      ro = new ResizeObserver(resize);
+      ro.observe(canvas);
+
+      const cam = sc.rig.camera;
+      // A lower, slower camera than gameplay: from here you can see the
+      // terraces, the braziers and the sky, which is the whole point of a
+      // hero shot. A long lens from close in. A wide lens at distance is a
+      // map view; a narrow one at eye level is a portrait, and the menu
+      // wants a portrait.
+      cam.fov = 34;
+      cam.updateProjectionMatrix();
+      // Menus get a warmer, brighter print than gameplay — nothing here has
+      // to stay legible under a health bar, so it can be lit for the look.
+      sc.renderer.toneMappingExposure = 1.34;
+
+      // The client's own parallax. The camera leans a few dozen units toward
+      // the pointer, which is the cheapest way to make a still menu feel like
+      // it is standing in a place rather than printed on one.
+      const lean = { x: 0, y: 0, tx: 0, ty: 0 };
+      const aim = new THREE.Vector3();
+      const fwd = new THREE.Vector3();
+      const right = new THREE.Vector3();
+      const UP = new THREE.Vector3(0, 1, 0);
+      onPointer = (e: PointerEvent) => {
+        lean.tx = (e.clientX / Math.max(1, window.innerWidth)) * 2 - 1;
+        lean.ty = (e.clientY / Math.max(1, window.innerHeight)) * 2 - 1;
+      };
+      window.addEventListener('pointermove', onPointer);
+
+      let announced = false;
+      let last = performance.now();
+      let t = 0;
+      let acc = 0;
+      const FRAME = 1 / 24;
+
+      const tick = () => {
+        raf = requestAnimationFrame(tick);
+        const now = performance.now();
+        const dt = Math.min(0.1, (now - last) / 1000);
+        last = now;
+        if (document.hidden || sc.renderer.getContext().isContextLost()) return;
+        acc += dt;
+        if (acc < FRAME) return;
+        const step = acc;
+        acc = 0;
+        t += step;
+
+        const cx = BOUNDS.w / 2;
+        const cz = BOUNDS.h / 2;
+        const a = -0.5 + Math.sin(t * 0.021) * 0.42;
+        // A slow dolly in and out under a shallow arc. A full orbit reads as
+        // a turntable; an arc that never completes reads as a camera
+        // operator.
+        const radius = 900 + Math.sin(t * 0.061) * 130;
+        lean.x += (lean.tx - lean.x) * Math.min(1, step * 1.6);
+        lean.y += (lean.ty - lean.y) * Math.min(1, step * 1.6);
+        // High enough to see the terraces and the horizon, low enough that
+        // the champions still have a silhouette against the sky.
+        cam.position.set(
+          cx + Math.sin(a) * radius + lean.x * 90,
+          455 + Math.sin(t * 0.047) * 60 - lean.y * 50,
+          cz + Math.cos(a) * radius,
+        );
+        // Aimed at chest height on the front champion rather than at the
+        // floor, so the horizon sits high and the figures stand against the
+        // terraces.
+        aim.set(cx + lean.x * 30, 165, cz - 90);
+        // Then slid along the camera's own right vector, which parks the
+        // group in the right third of the frame — the third the client
+        // leaves empty. Doing it in camera space rather than world space
+        // keeps the framing identical all the way through the arc.
+        fwd.copy(aim).sub(cam.position).normalize();
+        right.crossVectors(fwd, UP).normalize();
+        aim.addScaledVector(right, -215);
+        cam.lookAt(aim);
+        cam.updateMatrixWorld();
+
+        rigs.forEach((rig, i) => {
+          const cyc = (t * 0.55 + i * 1.9) % 6;
+          rig.update(step, {
+            speed: 0,
+            facing: Math.atan2(cz - FIGURES[i].y, cx - FIGURES[i].x) + Math.sin(t * 0.3 + i) * 0.35,
+            phase: cyc < 0.5 ? 'windup' : cyc < 1.0 ? 'backswing' : 'idle',
+            phaseT: cyc < 0.5 ? cyc / 0.5 : cyc < 1.0 ? (cyc - 0.5) / 0.5 : 0,
+            time: t + i * 3,
+            hitFlash: 0,
+            death: 0,
+            cast: 0,
+            hp01: 1,
+            hovered: false,
+            rooted: false,
+          });
+        });
+
+        sc.render(step, { hurt: 0, flash: 0, flashColor: '#ffffff', energy: 0, dim: 0 });
+
+        if (!announced) {
+          announced = true;
+          give('frame');
+        }
+      };
+      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
+
+    void build();
 
     return () => {
+      cancelled = true;
       cancelAnimationFrame(raf);
-      window.removeEventListener('pointermove', onPointer);
+      if (onPointer) window.removeEventListener('pointermove', onPointer);
       canvas.removeEventListener('webglcontextlost', onContextLost);
-      ro.disconnect();
+      ro?.disconnect();
       liveRef.current = null;
       for (const rig of rigs) rig.dispose();
-      scene.dispose();
+      scene?.dispose();
     };
   }, [enabled]);
 

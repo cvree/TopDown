@@ -6,10 +6,37 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.15.0**.
+Currently shipping **v2.16.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.16.0 — SIX WAYS IN
+
+*2026-09-10*
+
+The cold open is six title sequences instead of one, the loading bar is measuring real work instead of a timer, and neither of them can leave you looking at a screen that has stopped moving.
+
+### Added
+
+- Six cold opens, one cast at random every launch — FORGE, NIGHTFALL, TIDEGLASS, RELIC, STORMFRONT and FIRSTLIGHT. Each has its own weather in the frame, its own light behind the crest, its own way of striking the wordmark and its own way of leaving, and each names the same four pieces of work in its own words. The crest, the gold and APEX under it never move. The show you drew is printed in the top right, and you never draw the same one twice in a row.
+- A manifest down the left of the loading screen: the four things being built, ticked off as they land, each stamped with the time it actually took. Three of the four are real signals from the arena rather than a script, so it also tells you *which* part of a slow start was the slow part.
+- One useful sentence to read while you wait, drawn from a pool of sixteen. All of them are about playing this trainer rather than flavour — kiting, last-hitting, where a cancelled attack stops costing you damage.
+- Pressing anything during the load now arms the entry instead of doing nothing: the client opens the moment it is ready, without asking you to press a second key. The screen says ENTRY ARMED when it has heard you.
+- The arena comes up behind the crest as the gate opens. It is the real one, already rendered — the terrain, the braziers and your champion — so the last thing the title card does is show you what is behind it.
+
+### Changed
+
+- The loading bar measures the arena instead of the clock. It eases toward whichever piece of real work is outstanding, keeps creeping when one of them takes longer than expected, and only crosses the line when a frame genuinely exists. It cannot go backwards, it cannot reach a hundred on a machine that has not drawn anything, and it no longer parks at 88% waiting.
+- A full bar is never left standing at the door either: the ceremony the cold open owes you — the crest finishing, the manifest ticking — is now part of what the bar is measuring, so on a fast machine it arrives exactly as the gate opens rather than two seconds early.
+- The title sequence plays on time on a slow machine. Its beats used to be timers, and a timer waiting behind half a second of shader compilation does not run late, it collapses — three beats in one frame, four seconds in, after a black screen. They are handed to the browser as animations now, and nothing about them needs the thread that is busy building the arena.
+- The arena is built in three pieces with a painted frame between them instead of all at once, so the cold open in front of it keeps moving while it happens.
+- The type no longer holds up the first paint. A font server that is slow, or unreachable, used to mean a black page for as long as the browser was willing to wait for it — before the loading screen that would have explained the wait had drawn at all.
+
+### Fixed
+
+- The crest no longer disappears at the exact moment the gate opens and the screen asks to be looked at.
+- Asking for reduced motion gets the whole title card at once rather than the same sequence played at speed.
 
 ## v2.15.0 — ONE BUTTON, BOTH ORDERS
 

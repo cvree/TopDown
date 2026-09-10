@@ -8,7 +8,31 @@
     <title>APEX · Mechanics Trainer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Cinzel:wght@500;600;700;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    <!--
+      The type, loaded without blocking the first paint.
+
+      A plain <link rel="stylesheet"> here is render-blocking: nothing at all
+      is drawn until the font CDN answers, so on a slow connection — or one
+      where fonts.googleapis.com is simply unreachable — the cold open is a
+      black page for as long as the browser is prepared to wait for it. That
+      is the one failure this product cannot afford, because it happens
+      before the loading screen that would have explained it.
+
+      Loaded as a preload and promoted to a stylesheet on arrival, the title
+      card paints immediately in the fallback stacks (Georgia for the display
+      face, system-ui for the rest — both declared in global.css) and swaps
+      to the real type when it lands. `display=swap` already told the browser
+      not to hide text while it waits; this tells it not to hide the page.
+    -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Cinzel:wght@500;600;700;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Cinzel:wght@500;600;700;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    </noscript>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L29 26 H3 Z' fill='none' stroke='%23c8aa6e' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M16 11 L22 22 H10 Z' fill='%23c8aa6e'/%3E%3C/svg%3E" />
   </head>
   <body>

@@ -22,8 +22,9 @@ import { clamp } from '../engine/math';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
 import { PATCH_NOTES, VERSION } from '../patchnotes/notes';
 import type { SkillAxis } from '../progression/skills';
-import { ArenaBackdrop } from './components/ArenaBackdrop';
+import { ArenaBackdrop, type ArenaStage } from './components/ArenaBackdrop';
 import { Boot } from './Boot';
+import { MILESTONES, type Milestone } from './boot/variants';
 import { Crest } from './components/Crest';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
 import { GameView } from './GameView';
@@ -121,10 +122,18 @@ export function App() {
     driver: { axis: SkillAxis; delta: number } | null;
     headline: { label: string; value: string } | null;
   } | null>(null);
-  // The cold open. `booted` gates the client; `arenaReady` is the real signal
-  // the boot screen is waiting on — the arena's first rendered frame.
+  // The cold open. `booted` gates the client; `arenaStage` is what the boot
+  // screen's loading bar is actually measuring — the arena reporting each
+  // piece of itself as it lands, ending with its first rendered frame.
   const [booted, setBooted] = useState(false);
-  const [arenaReady, setArenaReady] = useState(false);
+  const [arenaStage, setArenaStage] = useState<Milestone>('boot');
+  // Milestones only ever go forwards. The backdrop can bail out at any point
+  // and jump straight to `frame`, and a late `scene` from a torn-down build
+  // must never walk the bar backwards.
+  const onArenaStage = useCallback((s: ArenaStage) => {
+    setArenaStage((prev) => (MILESTONES.indexOf(s) > MILESTONES.indexOf(prev) ? s : prev));
+  }, []);
+  const enterClient = useCallback(() => setBooted(true), []);
   /**
    * The walkthrough. Null is "not showing"; the two live values are the only
    * two reasons it is ever on screen — a first run, or the "?" in the top bar.
@@ -528,9 +537,9 @@ export function App() {
       <ArenaBackdrop
         enabled={!profile.settings.lowFx}
         hero={profile.settings.hero}
-        onReady={() => setArenaReady(true)}
+        onStage={onArenaStage}
       />
-      {!booted && <Boot ready={arenaReady} onEnter={() => setBooted(true)} />}
+      {!booted && <Boot stage={arenaStage} onEnter={enterClient} />}
       {booted && tour && (
         <Welcome
           key={tour}

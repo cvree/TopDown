@@ -16,6 +16,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { isDrillId, type DrillId } from '../src/drills/catalog';
+import { BootClock } from '../src/ui/boot/clock';
+import { MILESTONES, SHOWS, castBoot } from '../src/ui/boot/variants';
 import { isErrorCode } from '../src/progression/errors';
 import { applyRun, loadProfile, newProfile, saveProfile, type Profile, type RunResult } from '../src/progression/profile';
 import { LANE_TIERS } from '../src/progression/lane';
@@ -202,6 +204,165 @@ const section = (title: string, body: () => void): void => {
 };
 
 /* ------------------------------------------------------------ the checks */
+
+/* --------------------------------------------------------- the cold open */
+
+/*
+ * The loading bar is the first thing anybody ever sees this product do, and
+ * the only screen every single player sees every single time. Two failures
+ * matter more than anything else it could get wrong: sitting still, which
+ * reads as a hang, and claiming to be finished when it is not, which reads
+ * as a lie the moment the client comes up half-built. Both are properties of
+ * a pure model, so both are checked here rather than by looking at it.
+ */
+section('The loading bar cannot stall, cannot lie, and cannot go backwards', () => {
+  /** Run a clock for `secs` at a jittery frame rate, sampling every tick. */
+  const run = (secs: number, marks: [number, (typeof MILESTONES)[number]][] = [], step = 0.016) => {
+    const clock = new BootClock(0, 2.5);
+    const samples: { t: number; p: number; pct: number; done: boolean }[] = [];
+    let pending = marks.slice();
+    for (let t = 0; t <= secs; t += step) {
+      const now = t * 1000;
+      pending = pending.filter(([at, m]) => (t >= at ? (clock.mark(m, now), false) : true));
+      const r = clock.tick(now);
+      samples.push({ t, p: r.p, pct: r.pct, done: r.done });
+    }
+    return { clock, samples };
+  };
+
+  const everything: [number, (typeof MILESTONES)[number]][] = [
+    [0.4, 'scene'],
+    [0.8, 'rigs'],
+    [1.1, 'frame'],
+  ];
+
+  const quick = run(4, everything);
+  expect(
+    'a fast machine still gets the ceremony',
+    quick.samples.find((s) => s.pct === 100)!.t >= 2.4,
+    'the bar filled before the floor was served',
+  );
+  expect('a fast machine reaches a hundred', quick.samples[quick.samples.length - 1].pct === 100, 'it never arrived');
+  {
+    // The other half of the same promise: a full bar must not then wait. On a
+    // machine with everything already in memory the ceremony is the only
+    // thing left to serve, and the bar has to arrive with it, not before it.
+    const full = quick.samples.find((s) => s.pct === 100)!.t;
+    const open = quick.samples.find((s) => s.done)!.t;
+    expect('a full bar is never left standing at the door', open - full < 0.35, `it sat at 100% for ${(open - full).toFixed(2)}s`);
+  }
+
+  // Monotonicity, on every shape of load there is.
+  for (const [what, marks] of [
+    ['everything arrives', everything],
+    ['nothing ever arrives', [] as [number, (typeof MILESTONES)[number]][]],
+    ['the terrain lands and nothing else does', [[0.5, 'scene']] as [number, (typeof MILESTONES)[number]][]],
+  ] as const) {
+    const { samples } = run(12, marks.slice() as [number, (typeof MILESTONES)[number]][]);
+    const back = samples.find((s, i) => i > 0 && s.p < samples[i - 1].p - 1e-9);
+    expect(`the bar never goes backwards when ${what}`, back === undefined, `it fell at ${back?.t.toFixed(2)}s`);
+  }
+
+  // The stall test: a machine that reports nothing at all for twelve seconds
+  // must still have a bar that is visibly moving the whole way through it.
+  {
+    const { samples } = run(12);
+    let worst = 0;
+    let worstAt = 0;
+    for (let i = 0; i < samples.length; i++) {
+      const j = samples.findIndex((s, k) => k > i && s.pct > samples[i].pct);
+      const gap = j < 0 ? samples[samples.length - 1].t - samples[i].t : samples[j].t - samples[i].t;
+      if (gap > worst) {
+        worst = gap;
+        worstAt = samples[i].t;
+      }
+    }
+    expect(
+      'a bar waiting on a silent machine never rests for a second',
+      worst < 1,
+      `it sat on one number for ${worst.toFixed(2)}s at ${worstAt.toFixed(1)}s`,
+    );
+  }
+
+  // Honesty: the hundredth percent belongs to a frame that exists.
+  {
+    const { samples } = run(30);
+    expect('a bar with no first frame never claims to be finished', samples.every((s) => s.pct <= 99), 'it hit 100 on nothing');
+    const last = samples[samples.length - 1];
+    expect('and it does not pretend it is nearly there either', last.p < 0.93, `it reached ${last.p.toFixed(3)}`);
+  }
+
+  // The main thread disappearing for half a second is the normal case on the
+  // machines this screen exists for: the model is a function of elapsed time,
+  // so it must come back where it would have been, not where it left off.
+  {
+    const smooth = new BootClock(0, 2.5);
+    const stalled = new BootClock(0, 2.5);
+    for (let t = 0; t <= 3; t += 0.016) smooth.tick(t * 1000);
+    for (const t of [0, 0.4, 1.7, 2.2, 3]) stalled.tick(t * 1000);
+    const drift = Math.abs(smooth.read(3000).p - stalled.read(3000).p);
+    expect('a stalled main thread costs the bar nothing', drift < 0.02, `it drifted ${(drift * 100).toFixed(1)}%`);
+  }
+
+  // Giving up is the promise that no machine can hold anybody here forever.
+  {
+    const clock = new BootClock(0, 2.5);
+    for (let t = 0; t <= 9; t += 0.05) clock.tick(t * 1000);
+    clock.giveUp(9000);
+    for (let t = 9; t <= 11; t += 0.05) clock.tick(t * 1000);
+    expect('giving up lets the player in', clock.read(11000).done, 'the gate never opened');
+  }
+
+  // A first frame proves the terrain and the champions exist, said or not.
+  {
+    const clock = new BootClock(0, 2.5);
+    clock.mark('frame', 500);
+    expect('a first frame implies everything before it', clock.marks.every((m) => m !== null), 'a milestone was left outstanding');
+  }
+
+  // The value handed to the compositor is where the bar is going, never
+  // somewhere it has already been.
+  {
+    const clock = new BootClock(0, 2.5);
+    let ok = true;
+    for (let t = 0; t <= 8; t += 0.05) {
+      const r = clock.tick(t * 1000);
+      const ahead = clock.projected(t * 1000, 0.9);
+      if (ahead < r.p - 1e-9 || ahead > 1) ok = false;
+    }
+    expect('the bar is always aimed forwards and never past the end', ok, 'a projection was behind or over');
+  }
+});
+
+section('The cold open is never quite the same screen twice', () => {
+  expect('every show names every piece of work', SHOWS.every((s) => s.phases.length === MILESTONES.length), 'a show is short a phase');
+  expect('every show is identifiable', new Set(SHOWS.map((s) => s.id)).size === SHOWS.length, 'two shows share an id');
+
+  // The whole point of remembering the last show is that a random pick from
+  // six repeats one load in six, which is exactly often enough for somebody
+  // to decide it is not random at all.
+  store.delete('apex.boot.last');
+  let repeats = 0;
+  let previous = '';
+  const seen = new Set<string>();
+  for (let i = 0; i < 400; i++) {
+    const cast = castBoot(Math.random);
+    if (cast.show.id === previous) repeats++;
+    previous = cast.show.id;
+    seen.add(`${cast.show.id}/${cast.exit}`);
+  }
+  expect('no show ever runs twice in a row', repeats === 0, `${repeats} loads repeated`);
+  expect('every show gets cast', seen.size >= SHOWS.length, `${seen.size} combinations in 400 loads`);
+  expect('and every door gets used', seen.size >= SHOWS.length * 3, `only ${seen.size} of 18 combinations appeared`);
+
+  // Deterministic given its randomness, so a bad cast can always be replayed.
+  store.delete('apex.boot.last');
+  const a = castBoot(() => 0.5);
+  store.delete('apex.boot.last');
+  const b = castBoot(() => 0.5);
+  expect('a cast is reproducible from its randomness', a.show.id === b.show.id && a.epigraph === b.epigraph, 'two identical draws differed');
+  expect('the pacing always leaves before the ceiling', a.pacing.loadAt + a.pacing.minShow < a.pacing.maxWait, 'the floor outlasts the ceiling');
+});
 
 section('A profile from a build whose catalogue has moved on still loads', () => {
   const p = load(legacyProfile());
