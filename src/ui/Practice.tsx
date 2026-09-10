@@ -8,6 +8,7 @@ import { FLASH_LEAGUE_CD, FLASH_PRACTICE_CD, FLASH_RANGE } from '../engine/summo
 import { VAYNE_STATS, tumbleCdAt, tumblePracticeCdAt, condemnCdAt, condemnPracticeCdAt } from '../engine/vayne';
 import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from '../engine/input';
 import type { AppSettings, Profile } from '../progression/profile';
+import { Explainer } from './components/Explainer';
 import './practice.css';
 
 interface Props {
@@ -226,14 +227,7 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
           <div className="eyebrow">Play as · Vayne</div>
           <h1 className="display pr-h1">VAYNE</h1>
           <p className="dim pr-lead">
-            One champion, three tabs. <b>THE LANE</b> is a real game of League — farm minions
-            while somebody tries to stop you. <b>PRACTICE</b> breaks that into small pieces you
-            can rehearse one at a time. <b>THE NUMBERS</b> is the reference: exactly what every
-            ability does, if you want to check.
-          </p>
-          <p className="dim pr-lead">
-            Want something shorter and simpler? <b>TRAIN</b> in the top bar is one-minute drills
-            with no champion at all.
+            One champion, three tabs — the lane, the pieces of it, the numbers behind them.
           </p>
         </header>
 
@@ -335,12 +329,21 @@ function LanePanel({
 }) {
   return (
     <>
-      <p className="dim pr-lead pr-panel-lead">
-        This is the actual game: minions walk in, you kill the ones about to die for gold, and
-        somebody on the other side is doing the same and trying to stop you. Pick who you are up
-        against and how long you want to play. Everything in <b>PRACTICE</b> is one piece of this
-        on its own; here you find out whether it held up.
-      </p>
+      <Explainer title="HOW THIS SCREEN WORKS">
+        <p className="dim pr-lead pr-panel-lead">
+          One champion, three tabs. <b>THE LANE</b> is a real game of League — farm minions while
+          somebody tries to stop you. <b>PRACTICE</b> breaks that into small pieces you can
+          rehearse one at a time. <b>THE NUMBERS</b> is the reference: exactly what every ability
+          does, if you want to check. Want something shorter? <b>TRAIN</b> in the top bar is
+          one-minute drills with no champion at all.
+        </p>
+        <p className="dim pr-lead pr-panel-lead">
+          This is the actual game: minions walk in, you kill the ones about to die for gold, and
+          somebody on the other side is doing the same and trying to stop you. Pick who you are up
+          against and how long you want to play. Everything in <b>PRACTICE</b> is one piece of this
+          on its own; here you find out whether it held up.
+        </p>
+      </Explainer>
       <GroupHead label="THE MATCH" note="pick an opponent, pick a length" count="1 MODE" />
       <LaneCard profile={profile} bound={bound} onPlay={onPlay} />
     </>
@@ -543,12 +546,18 @@ function PracticePanel({
 
   return (
     <>
-      <p className="dim pr-lead pr-panel-lead">
-        Six modes, each one a single piece of a lane taken out and rehearsed on its own. Every one
-        of them has two buttons. <b>PLAY</b> is one minute, always the same, so you can compare
-        today's score to yesterday's. <b>SURVIVE</b> has no clock — it gets harder the longer you
-        last and ends on your third mistake.
-      </p>
+      <Explainer title="HOW THESE MODES WORK">
+        <p className="dim pr-lead pr-panel-lead">
+          Six modes, each one a single piece of a lane taken out and rehearsed on its own. Every
+          one of them has two buttons. <b>PLAY</b> is one minute, always the same, so you can
+          compare today's score to yesterday's. <b>SURVIVE</b> has no clock — it gets harder the
+          longer you last and ends on your third mistake.
+        </p>
+        <p className="set-note">
+          Every number behind these six — cooldowns, ranges, how long you have to dodge — is
+          printed in <b>THE NUMBERS</b>, so you can check any of it against the real game.
+        </p>
+      </Explainer>
 
       <div className="pr-legend">
         {RUN_MODE_LIST.map((m) => (
@@ -573,11 +582,6 @@ function PracticePanel({
           </div>
         </div>
       ))}
-
-      <p className="set-note">
-        Every number behind these six — cooldowns, ranges, how long you have to dodge — is printed
-        in <b>THE NUMBERS</b>, so you can check any of it against the real game.
-      </p>
     </>
   );
 }

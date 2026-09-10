@@ -36,6 +36,54 @@
   opacity: 1;
 }
 
+/* -------------------------------------------------------------- embers
+
+   A slow rise of light through the frame, on for exactly the stretch the
+   player is looking at a still image and nothing else. */
+.boot-embers {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 2.4s var(--ease);
+}
+.boot-strike .boot-embers,
+.boot-load .boot-embers,
+.boot-gate .boot-embers {
+  opacity: 1;
+}
+.boot-enter .boot-embers {
+  opacity: 0;
+}
+.boot-ember {
+  position: absolute;
+  bottom: -4%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff3d8 0%, rgba(200, 170, 110, 0.75) 45%, transparent 75%);
+  box-shadow: 0 0 6px rgba(200, 170, 110, 0.6);
+  opacity: 0;
+  animation-name: emberRise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes emberRise {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(var(--drift, 0px), -104vh);
+    opacity: 0;
+  }
+}
+
 .boot-core {
   position: relative;
   display: flex;
@@ -56,6 +104,20 @@
 }
 .boot-crest.in {
   animation: strike 1.15s var(--ease-in-out) both;
+}
+/* Once the gate opens, the crest breathes — the one cue, besides the words
+   underneath it, that the client is not still loading and is waiting on you. */
+.boot-gate .boot-crest {
+  animation: crestPulse 2.4s var(--ease-in-out) infinite;
+}
+@keyframes crestPulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(200, 170, 110, 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 20px rgba(200, 170, 110, 0.55));
+  }
 }
 
 .crest .c-frame,
@@ -185,6 +247,24 @@
   background: linear-gradient(90deg, rgba(120, 90, 40, 0.9), var(--gold) 70%, var(--gold-hot));
   box-shadow: 0 0 14px rgba(200, 170, 110, 0.7);
   transition: transform 0.12s linear;
+}
+/* A glint sweeping the full track, blended so it only reads over the filled
+   portion — the unfilled track sits on near-black and stays untouched. */
+.boot-bar-glint {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -35%;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+  mix-blend-mode: screen;
+  animation: barGlint 2.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes barGlint {
+  to {
+    transform: translateX(385%);
+  }
 }
 .boot-pct {
   font-size: 10px;

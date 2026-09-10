@@ -23,6 +23,7 @@ import {
 } from '../drills/apm';
 import type { ApmDrillId } from '../drills/apm';
 import type { Profile } from '../progression/profile';
+import { Explainer } from './components/Explainer';
 import './practice.css';
 import './lab.css';
 
@@ -101,12 +102,7 @@ export function Lab({ profile, onPlay }: Props) {
           <div className="eyebrow">Train · one minute at a time</div>
           <h1 className="display pr-h1 lab-h1">THE LAB</h1>
           <p className="dim pr-lead">
-            Squares light up. You press the key on them. That is the whole thing.
-          </p>
-          <p className="dim pr-lead">
-            Each run lasts one minute and counts the presses you got <i>right</i> — a wrong key
-            or a wasted one scores nothing, so hammering the keyboard gives you the worst score
-            here, not the best. Get several right in a row and they start counting for more.
+            Squares light up. Hit the right key — misses and mashing score nothing.
           </p>
           <div className="lab-tally mono">
             <span>
@@ -188,27 +184,48 @@ function LabPanel({
 }) {
   return (
     <>
-      <p className="dim pr-lead pr-panel-lead">
-        <b>Pick a level and it stays there for the whole minute.</b> It never speeds up because
-        you are doing well, so two runs at level 6 are two runs at the same thing and the scores
-        can be compared. Every card opens on the lowest level you have not beaten yet — the
-        arrows move it, and nothing is ever locked.
-      </p>
-      <p className="dim pr-lead pr-panel-lead">
-        <b>Higher levels do two things.</b> The squares move further and faster, and you get more
-        keys to answer with — level 1 is two fingers, and by <b>level {KEYS_COMPLETE_AT}</b> the
-        whole keyboard is in play.
-      </p>
+      <Explainer title="HOW THE LAB WORKS">
+        <p className="dim pr-lead pr-panel-lead">
+          Each run lasts one minute and counts the presses you got <i>right</i> — a wrong key or
+          a wasted one scores nothing, so hammering the keyboard gives you the worst score here,
+          not the best. Get several right in a row and they start counting for more.
+        </p>
+        <p className="dim pr-lead pr-panel-lead">
+          <b>Pick a level and it stays there for the whole minute.</b> It never speeds up because
+          you are doing well, so two runs at level 6 are two runs at the same thing and the scores
+          can be compared. Every card opens on the lowest level you have not beaten yet — the
+          arrows move it, and nothing is ever locked.
+        </p>
+        <p className="dim pr-lead pr-panel-lead">
+          <b>Higher levels do two things.</b> The squares move further and faster, and you get
+          more keys to answer with — level 1 is two fingers, and by{' '}
+          <b>level {KEYS_COMPLETE_AT}</b> the whole keyboard is in play.
+        </p>
 
-      <KeyLadder />
+        <KeyLadder />
 
-      <p className="dim pr-lead pr-panel-lead">
-        Two of those levels add something new to look at. From <b>level {MAP_MIN_LEVEL}</b> a
-        small map appears in the corner: something drops down one of two lanes, and your D and F
-        keys say which lane you stand in. Ignore it and you lose your streak — same as being
-        ganked because you never looked. From <b>level {ORDER_AT.move}</b> a strip along the
-        bottom asks for mouse commands too: <b>move</b>, <b>attack-move</b> and <b>stop</b>.
-      </p>
+        <p className="dim pr-lead pr-panel-lead">
+          Two of those levels add something new to look at. From <b>level {MAP_MIN_LEVEL}</b> a
+          small map appears in the corner: something drops down one of two lanes, and your D and F
+          keys say which lane you stand in. Ignore it and you lose your streak — same as being
+          ganked because you never looked. From <b>level {ORDER_AT.move}</b> a strip along the
+          bottom asks for mouse commands too: <b>move</b>, <b>attack-move</b> and <b>stop</b>.
+        </p>
+
+        <p className="set-note">
+          <b>Nothing here is locked.</b> All ten levels of all thirteen drills are playable from
+          your very first minute — the only person who knows which one is worth your time is you.
+          What it does instead is <b>remember</b>: every level keeps its own record, so a bad run
+          on level 7 can never take away your best on level 6.
+        </p>
+        <p className="set-note">
+          <b>Stuck on which level to play?</b> Take an <b>∞ ENDLESS</b> run. It starts where the
+          card is set, gets harder while you are winning and easier while you are drowning, and
+          settles on the level you can just about hold. That number is the answer. It has no
+          clock — end it whenever you like from the pause screen — and it never awards a star,
+          because stars are for beating a level rather than standing on one.
+        </p>
+      </Explainer>
 
       <div className="pr-legend">
         <span className="pr-legend-item" style={{ ['--c' as string]: '#58e0ff' }}>
@@ -260,20 +277,6 @@ function LabPanel({
           </div>
         );
       })}
-
-      <p className="set-note">
-        <b>Nothing here is locked.</b> All ten levels of all thirteen drills are playable from
-        your very first minute — the only person who knows which one is worth your time is you.
-        What it does instead is <b>remember</b>: every level keeps its own record, so a
-        bad run on level 7 can never take away your best on level 6.
-      </p>
-      <p className="set-note">
-        <b>Stuck on which level to play?</b> Take an <b>∞ ENDLESS</b> run. It starts where the
-        card is set, gets harder while you are winning and easier while you are drowning, and
-        settles on the level you can just about hold. That number is the answer. It has no clock
-        — end it whenever you like from the pause screen — and it never awards a star, because
-        stars are for beating a level rather than standing on one.
-      </p>
     </>
   );
 }

@@ -229,6 +229,62 @@
   margin-top: -4px;
 }
 
+/* --------------------------------------------------------------- explainer
+
+   The reading, closed by default. A returning player already knows how the
+   screen works; a new one is one click away from the same paragraphs this
+   used to print in full every time. */
+.pr-explain {
+  margin: 2px 0 18px;
+}
+.pr-explain-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 3px;
+  border: 0;
+  background: none;
+  font-family: var(--ui);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color 0.16s ease;
+}
+.pr-explain-toggle:hover,
+.pr-explain-toggle:focus-visible {
+  color: var(--gold);
+}
+.pr-explain-chevron {
+  display: inline-block;
+  font-size: 9px;
+  color: var(--text-4);
+  transition: transform 0.22s var(--ease), color 0.16s ease;
+}
+.pr-explain.open .pr-explain-chevron {
+  transform: rotate(90deg);
+  color: var(--gold);
+}
+.pr-explain-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s var(--ease);
+}
+.pr-explain-inner {
+  overflow: hidden;
+}
+.pr-explain.open .pr-explain-panel {
+  grid-template-rows: 1fr;
+}
+.pr-explain .pr-panel-lead,
+.pr-explain .set-note {
+  padding-top: 12px;
+}
+.pr-explain .lab-keyladder {
+  margin-top: 12px;
+}
+
 /* ------------------------------------------------------------- group heads
 
    One rule per group of activities: what it is, how many are in it, and the

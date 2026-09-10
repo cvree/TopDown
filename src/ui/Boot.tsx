@@ -35,6 +35,19 @@ const PHASES = [
   'WARMING THE RIFT',
 ];
 
+// A handful of embers drifting up through the frame — the one thing that
+// keeps a nine-second wait on a static gold mark from reading as frozen.
+// Positions and timing are randomised once per mount; there is exactly one
+// boot screen alive at a time, so that is the only render that matters.
+const EMBERS = Array.from({ length: 16 }, (_, i) => ({
+  key: i,
+  left: `${(i / 16) * 100 + (Math.random() * 5 - 2.5)}%`,
+  size: 2 + Math.random() * 3,
+  delay: `${(Math.random() * -14).toFixed(2)}s`,
+  duration: `${(9 + Math.random() * 6).toFixed(2)}s`,
+  drift: `${Math.round(Math.random() * 60 - 30)}px`,
+}));
+
 interface Props {
   /** True once the arena behind the client has rendered its first frame. */
   ready: boolean;
@@ -125,6 +138,22 @@ export function Boot({ ready, onEnter }: Props) {
   return (
     <div className={`boot boot-${stage}`} role="presentation">
       <div className="boot-vignette" />
+      <div className="boot-embers" aria-hidden>
+        {EMBERS.map((e) => (
+          <span
+            key={e.key}
+            className="boot-ember"
+            style={{
+              left: e.left,
+              width: e.size,
+              height: e.size,
+              animationDelay: e.delay,
+              animationDuration: e.duration,
+              ['--drift' as string]: e.drift,
+            }}
+          />
+        ))}
+      </div>
 
       <div className="boot-core">
         <div className={`boot-crest${struck ? ' in' : ''}`}>
@@ -156,6 +185,7 @@ export function Boot({ ready, onEnter }: Props) {
             <div className="boot-phase mono">{PHASES[phase]}</div>
             <div className="boot-bar">
               <span style={{ transform: `scaleX(${progress})` }} />
+              <i className="boot-bar-glint" aria-hidden />
             </div>
             <div className="boot-pct mono">{String(Math.floor(progress * 100)).padStart(3, '0')}%</div>
           </>
