@@ -24,7 +24,7 @@ export const AXIS_LABEL: Record<SkillAxis, string> = {
   targeting: 'Targeting',
   combat: 'Combat',
   lastHitting: 'Last Hitting',
-  tempo: 'APM',
+  tempo: 'Hand speed',
 };
 
 /** Short forms, for places where the label has to fit a fixed slot. */
@@ -38,20 +38,20 @@ export const AXIS_SHORT: Record<SkillAxis, string> = {
   targeting: 'TARGETING',
   combat: 'COMBAT',
   lastHitting: 'FARMING',
-  tempo: 'APM',
+  tempo: 'SPEED',
 };
 
 export const AXIS_BLURB: Record<SkillAxis, string> = {
   movement: 'Path efficiency, click precision and how little distance you waste.',
-  aim: 'How fast and how accurately you put a command on the right point.',
-  skillshot: 'Landing a telegraphed or travel-time ability on a target trying not to be hit.',
-  dodging: 'Reading telegraphs and skillshots, and not being where they land.',
-  kiting: 'Attack, move, attack. Orbwalk efficiency and cancelled attacks.',
+  aim: 'How fast and how accurately you click where you meant to.',
+  skillshot: 'Landing an aimed ability on somebody who is trying not to be hit.',
+  dodging: 'Seeing what is coming, and not being where it lands.',
+  kiting: 'Attack, move, attack — without ever cancelling your own shot.',
   spacing: 'Holding the edge of your range instead of drifting into theirs.',
   targeting: 'Switching to the right target, and how quickly you commit.',
   combat: 'Everything at once, under pressure, against something fighting back.',
   lastHitting: 'Timing a killing blow on a moving health bar.',
-  tempo: 'Actions per minute that mean something — hand speed with nothing wasted.',
+  tempo: 'How many useful things your hands do a minute, with nothing wasted.',
 };
 
 /** Which drill trains which axis, and how strongly (weights sum per drill). */

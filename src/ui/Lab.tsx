@@ -42,61 +42,37 @@ type PlayFn = Props['onPlay'];
 // ===========================================================================
 
 /**
- * THE LAB — a section of the client rather than a tab inside another one.
+ * THE LAB — thirteen drills for your hands, and nothing else.
  *
- * PRACTICE is a champion: her lane, her kit, the numbers both are built from.
- * This is not a champion at all. It is a bench — no champion, nothing to kill,
- * and a floor of drifting pads that only ever asks how many correct commands a
- * minute your hands issue — and it spent a release as the third tab of the
- * champion screen, where it read as one more thing about Vayne. It is not one
- * more thing about Vayne. It is the layer underneath every champion anybody
- * will ever add, which is exactly why it is worth training on its own terms,
- * and it now sits beside PRACTICE in the top bar rather than inside it.
+ * PLAY is the champion: her lane, her kit, the numbers behind both. This is
+ * the layer under every champion — a floor of squares that light up, and one
+ * question: how many of them did you answer correctly in a minute.
  *
- * It asks one question the champion modes never do, and it is the reason the
- * ladder exists: which rung. Ten levels a mode, each one a record of its own —
- * and **all ten of them are open to everybody from the first run**. Nothing on
- * this screen is earned, unlocked or gated. The section *suggests* the lowest
- * rung you have not cleared, because that is nearly always the useful answer;
- * it does not enforce it, because the whole activity is choosing a level and
- * holding it until it is easy, and a player who wants to look at level ten on
- * day one should be allowed to look at level ten on day one.
+ * Two rules run the whole section, and they are the only two anybody needs.
  *
- * Three things are true of every rung of every bench.
+ * **Every level is open.** Ten levels a drill, none of them locked, ever. The
+ * level a card opens on is a suggestion — the lowest one you have not beaten
+ * — and the arrows move it. A player who wants to see level ten on day one
+ * should be allowed to see level ten on day one.
  *
- * **The pace is fixed.** A level is a place. The bench runs at the speed the
- * rung says and holds it for the whole minute, so two runs at level six are
- * two runs at the same difficulty and the number that comes out of them means
- * something next to the other one. What your form moves is the reward — the
- * chain, the tier, the multiplier — not the floor. The way to do better is to
- * be faster, cleaner and more precise at the same unchanging thing.
+ * **A level is a fixed speed and a fixed set of keys.** It does not speed up
+ * because the run is going well, so two scores at level six are two scores of
+ * the same thing. Level one is two keys; every level after it hands over one
+ * more piece of the keyboard until, by level seven, all of it is in play.
  *
- * **The rung is a roster as well as a pace.** Level one is two fingers. Every
- * rung after it hands over one more piece of your layout — the third and
- * fourth abilities, then the summoner bank and the board that owns it, then
- * the three orders that are not abilities at all — so that by the top of the
- * ladder every command the bench can grade is being asked for at once.
- *
- * **The map arrives at four.** The board in the corner is a second task, and a
- * second task is worth adding only to a first one you can already do. Levels
- * one to three are the bench and nothing else.
- *
- * The thirteen are split by the shape of the demand rather than by theme,
- * because that is the split that tells you what to play next: an isolated
- * bench asks one thing of one pair of hands, and a combined bench runs two
- * demands at once and is worth playing only once the isolated version of each
- * has stopped being interesting.
+ * The thirteen split by how much they ask at once, because that is the split
+ * that tells you what to play next: one task, or two running together.
  */
 const LAB_GROUPS: { kind: ApmModeKind; label: string; note: string }[] = [
   {
     kind: 'isolated',
     label: 'ONE THING AT A TIME',
-    note: 'a single demand, of a single pair of hands',
+    note: 'start here — one job, nothing else on screen',
   },
   {
     kind: 'combined',
     label: 'TWO AT ONCE',
-    note: 'two demands running together — worth it once the isolated ones are easy',
+    note: 'two jobs running together. Worth it once the ones above feel easy',
   },
 ];
 
@@ -122,21 +98,22 @@ export function Lab({ profile, onPlay }: Props) {
     <div className="scroll">
       <div className="wrap practice lab-screen fade-up">
         <header className="pr-head">
-          <div className="eyebrow">Mechanics · the bench</div>
+          <div className="eyebrow">Train · one minute at a time</div>
           <h1 className="display pr-h1 lab-h1">THE LAB</h1>
           <p className="dim pr-lead">
-            No champion, nothing to kill, and nowhere to be. Thirteen benches over one engine,
-            every one of them counting the same thing — commands that were <i>correct</i>, per
-            minute — and every one refusing to count an input that meant nothing, so mashing
-            produces the highest raw rate in the client and the lowest score. Chain your actions
-            and the multiplier climbs through five tiers; break it and it is gone.
+            Squares light up. You press the key on them. That is the whole thing.
+          </p>
+          <p className="dim pr-lead">
+            Each run lasts one minute and counts the presses you got <i>right</i> — a wrong key
+            or a wasted one scores nothing, so hammering the keyboard gives you the worst score
+            here, not the best. Get several right in a row and they start counting for more.
           </p>
           <div className="lab-tally mono">
             <span>
-              <b>{APM_MODES.length}</b> BENCHES
+              <b>{APM_MODES.length}</b> DRILLS
             </span>
             <span>
-              <b>{APM_LEVELS}</b> LEVELS EACH · ALL OPEN
+              <b>{APM_LEVELS}</b> LEVELS EACH · NOTHING LOCKED
             </span>
             <span>
               <b>{stars}</b>/{APM_MODES.length * APM_LEVELS * 3} STARS
@@ -178,7 +155,7 @@ function KeyLadder() {
   return (
     <div className="lab-keyladder">
       <div className="lab-kl-head mono">
-        WHAT EACH RUNG PUTS IN YOUR HANDS · <b>all ten open to everybody</b>
+        WHAT EACH LEVEL ADDS · <b>every one of them playable right now</b>
       </div>
       <ol className="lab-kl-rungs">
         {Array.from({ length: APM_LEVELS }, (_, i) => i + 1).map((n) => {
@@ -186,9 +163,9 @@ function KeyLadder() {
           return (
             <li key={n} className={`lab-kl-rung${adds ? ' gains' : ''}`}>
               <b className="mono">{n}</b>
-              <span>{adds || 'the whole roster, faster'}</span>
+              <span>{adds || 'the same keys, faster'}</span>
               <i className="mono">
-                {keysAtLevel(n).length + ordersAtLevel(n).length} COMMANDS
+                {keysAtLevel(n).length + ordersAtLevel(n).length} KEYS
               </i>
             </li>
           );
@@ -212,48 +189,39 @@ function LabPanel({
   return (
     <>
       <p className="dim pr-lead pr-panel-lead">
-        <b>Every level is open, and every level is a fixed speed.</b> Pick a rung and the bench
-        runs at that rung for the whole minute — it does not accelerate because the run is going
-        well, so two scores at the same level are two scores of the same thing. The rung the card
-        opens on is a suggestion: the lowest one you have not cleared yet.
+        <b>Pick a level and it stays there for the whole minute.</b> It never speeds up because
+        you are doing well, so two runs at level 6 are two runs at the same thing and the scores
+        can be compared. Every card opens on the lowest level you have not beaten yet — the
+        arrows move it, and nothing is ever locked.
       </p>
       <p className="dim pr-lead pr-panel-lead">
-        <b>The pads move</b>, further and faster the higher the level, so your eyes are working
-        for the whole minute rather than the first ten seconds of it. And <b>a level is a roster
-        as well as a speed</b>: rung one is two fingers, and every rung after it hands over one
-        more piece of your layout, so that by <b>level {KEYS_COMPLETE_AT}</b> every command this
-        bench can grade is being asked for and the last three rungs are all of it at once.
+        <b>Higher levels do two things.</b> The squares move further and faster, and you get more
+        keys to answer with — level 1 is two fingers, and by <b>level {KEYS_COMPLETE_AT}</b> the
+        whole keyboard is in play.
       </p>
 
       <KeyLadder />
 
       <p className="dim pr-lead pr-panel-lead">
-        Two of those rungs add a whole second instrument. From <b>level {MAP_MIN_LEVEL}</b>{' '}
-        <b>the minimap is a second task</b>: a bad orb falls slowly down one of two lanes, your
-        summoner keys are which lane you stand in, and an orb that lands on you costs the whole
-        flow tier your hands just spent a minute building — which is exactly what a gank you did
-        not look up for costs. From <b>level {ORDER_AT.move}</b> a strip along the bottom starts
-        asking for <b>the orders</b> — move, attack-move, stop. They are not abilities, they go to
-        the champion rather than to a cooldown, and answering with the wrong one of the three is a
-        fumble rather than a miss: a right-click where you meant to attack-move is not a slow
-        command, it is a different one.
+        Two of those levels add something new to look at. From <b>level {MAP_MIN_LEVEL}</b> a
+        small map appears in the corner: something drops down one of two lanes, and your D and F
+        keys say which lane you stand in. Ignore it and you lose your streak — same as being
+        ganked because you never looked. From <b>level {ORDER_AT.move}</b> a strip along the
+        bottom asks for mouse commands too: <b>move</b>, <b>attack-move</b> and <b>stop</b>.
       </p>
 
       <div className="pr-legend">
         <span className="pr-legend-item" style={{ ['--c' as string]: '#58e0ff' }}>
           <b>PLAY</b>
-          <i>One minute at the rung on the card, at a speed that never changes under you.</i>
+          <i>One minute at the level shown. The normal way to play — start here.</i>
         </span>
         <span className="pr-legend-item" style={{ ['--c' as string]: '#ff8a3d' }}>
           <b>▲ SURGE</b>
-          <i>
-            One minute, and your chain drives the floor — hold one and the bench climbs above your
-            rung and the colours climb with it.
-          </i>
+          <i>One minute, but a good streak makes it harder. How far can you push before you drop it?</i>
         </span>
         <span className="pr-legend-item" style={{ ['--c' as string]: '#c58bff' }}>
-          <b>∞ INFINITE</b>
-          <i>No clock and no rung — the floor rises while you win and falls while you drown. Right-click any bench.</i>
+          <b>∞ ENDLESS</b>
+          <i>No clock. It gets harder while you win and easier while you lose, until it finds your level.</i>
         </span>
       </div>
 
@@ -262,7 +230,7 @@ function LabPanel({
         if (modes.length === 0) return null;
         return (
           <div className="pr-group" key={g.kind}>
-            <GroupHead label={g.label} note={g.note} count={`${modes.length} BENCHES`} />
+            <GroupHead label={g.label} note={g.note} count={`${modes.length} DRILLS`} />
             <div className="pr-lab-grid">
               {modes.map((m) => {
                 const rec = profile.apm.modes[m.id];
@@ -294,40 +262,17 @@ function LabPanel({
       })}
 
       <p className="set-note">
-        A level is a place you go back to, beat, and leave behind. Nothing on this screen is
-        locked, earned or unlocked: <b>all ten rungs of all thirteen benches are playable by
-        everybody from their first run</b>, because the only person who knows which one is worth
-        your next minute is you. What the ladder still does is <b>remember</b> — every rung keeps
-        its own record, and your best on level 6 cannot be taken away by a bad run on level 7.
+        <b>Nothing here is locked.</b> All ten levels of all thirteen drills are playable from
+        your very first minute — the only person who knows which one is worth your time is you.
+        What it does instead is <b>remember</b>: every level keeps its own record, so a
+        bad run on level 7 can never take away your best on level 6.
       </p>
       <p className="set-note">
-        <b>PLAY is not adaptive.</b> The number on the rung is the difficulty the bench will be
-        played at, it scales the pads, the windows and the orbs together, and it stays where it
-        is for the whole minute — and so do the colours, which used to climb with your streak and
-        made a good run look like a different bench. The floor used to speed up as a run went
-        well, which meant a good start was paid for with a harder finish and no two runs at a
-        level were the same level. Here your form moves the chain, the tier and the multiplier
-        and nothing else, so the only ways to score better are the three that ought to be:{' '}
-        <b>faster, cleaner, more precise</b>, at a thing that does not change under you.
-      </p>
-      <p className="set-note">
-        <b>SURGE is where that used to live, and it is a mode now.</b> Same bench, same rung, same
-        minute — except that your chain is wired to the floor. Hold one and the pads run away from
-        you, the windows close and the whole console repaints through the five flow colours; break
-        it and everything settles back onto the rung you chose. It writes its own record rather
-        than the rung's, because a run whose difficulty you moved yourself is not a rep of that
-        rung. It is the answer to "how hard can I make this before I drop it".
-      </p>
-      <p className="set-note">
-        <b>Right-click any bench</b> — or take the <b>∞</b> under it — for the one run in this
-        client that has no rung at all. <b>INFINITE</b> opens on the level the card is showing
-        and then lets the floor go: it comes up while you are winning and down while you are
-        drowning — about a rung every seven seconds at full tilt, and half again as fast coming
-        back down — until it finds the level at which you are just holding on. There is no clock,
-        so it ends when you say so on the pause screen. The rung it settles at is the score, and
-        it is also the answer to the only question this section has ever asked you — which level
-        should I be practising. It never awards a star, because a star is for beating a rung and
-        this is for standing on one.
+        <b>Stuck on which level to play?</b> Take an <b>∞ ENDLESS</b> run. It starts where the
+        card is set, gets harder while you are winning and easier while you are drowning, and
+        settles on the level you can just about hold. That number is the answer. It has no clock
+        — end it whenever you like from the pause screen — and it never awards a star, because
+        stars are for beating a level rather than standing on one.
       </p>
     </>
   );
@@ -387,21 +332,20 @@ function LabBench({
     >
       <header className="pr-lab-head">
         <b className="pr-lab-name">{meta.name}</b>
-        <span className="pr-lab-kind mono">{mode.kind === 'isolated' ? 'ONE THING' : 'TWO AT ONCE'}</span>
+        <span className="pr-lab-kind mono">{mode.kind === 'isolated' ? 'ONE JOB' : 'TWO JOBS'}</span>
       </header>
       <div className="pr-lab-tag">{meta.tagline}</div>
       <p className="pr-lab-brief">{meta.brief}</p>
 
-      {/* What the bench counts, and what makes it hard once you know. Two
-          lines the lab has always had in its data and never printed, and they
-          are the only thing that tells thirteen benches apart at a glance. */}
+      {/* Two lines, and they are the only thing that tells thirteen drills
+          apart at a glance: what you do, and why it is hard. */}
       <dl className="pr-lab-facts">
         <div>
-          <dt>Counts</dt>
+          <dt>You do</dt>
           <dd>{mode.counts}</dd>
         </div>
         <div>
-          <dt>Pressure</dt>
+          <dt>Hard bit</dt>
           <dd>{mode.pressure}</dd>
         </div>
       </dl>
@@ -412,7 +356,7 @@ function LabBench({
           disabled={level <= 1}
           onMouseEnter={() => audio.play('uiHover')}
           onClick={() => onStep(-1)}
-          aria-label={`${meta.name}: a level down`}
+          aria-label={`${meta.name}: one level easier`}
         >
           ◀
         </button>
@@ -424,7 +368,7 @@ function LabBench({
           disabled={level >= APM_LEVELS}
           onMouseEnter={() => audio.play('uiHover')}
           onClick={() => onStep(1)}
-          aria-label={`${meta.name}: a level up`}
+          aria-label={`${meta.name}: one level harder`}
         >
           ▶
         </button>
@@ -462,11 +406,11 @@ function LabBench({
       >
         <span className="pr-go-label">PLAY</span>
         <span className="pr-go-sub">
-          par {mode.par} APM · {keysAtLevel(level).length + ordersAtLevel(level).length} commands ·{' '}
-          {level >= MAP_MIN_LEVEL ? 'with the map' : 'bench only'}
+          1 min · {keysAtLevel(level).length + ordersAtLevel(level).length} keys ·{' '}
+          {level >= MAP_MIN_LEVEL ? 'with the corner map' : 'no corner map'}
         </span>
         <span className="pr-go-best mono">
-          {lv.best > 0 ? `best ${Math.round(lv.best * 100)}%` : 'no run on this rung'}
+          {lv.best > 0 ? `best ${Math.round(lv.best * 100)}%` : 'not played yet'}
         </span>
       </button>
       <div className="pr-lab-alts">
@@ -474,17 +418,17 @@ function LabBench({
           className="pr-lab-surge"
           onMouseEnter={() => audio.play('uiHover')}
           onClick={goSurge}
-          title={`${meta.name}: a surge run at level ${level}. One minute, and your chain drives the floor.`}
+          title={`${meta.name}: a SURGE run at level ${level}. One minute, and a good streak makes it harder.`}
         >
           <span className="pr-inf-mark" aria-hidden>
             ▲
           </span>
           <span className="pr-inf-label">
             SURGE
-            <i>1 min · the streak drives it</i>
+            <i>1 min</i>
           </span>
           <span className="pr-inf-best mono">
-            {surgeRuns > 0 ? `+${surgeBest.toFixed(1)} rungs` : 'chain moves the floor'}
+            {surgeRuns > 0 ? `+${surgeBest.toFixed(1)} levels` : 'streaks raise it'}
           </span>
         </button>
       </div>
@@ -492,17 +436,17 @@ function LabBench({
         className="pr-lab-inf"
         onMouseEnter={() => audio.play('uiHover')}
         onClick={goInfinite}
-        title={`${meta.name}: an infinite run, opening on level ${level}. Right-click the card for the same thing.`}
+        title={`${meta.name}: an endless run, starting at level ${level}. Right-click the card for the same thing.`}
       >
         <span className="pr-inf-mark" aria-hidden>
           ∞
         </span>
         <span className="pr-inf-label">
-          INFINITE
-          <i>right-click</i>
+          ENDLESS
+          <i>no clock</i>
         </span>
         <span className="pr-inf-best mono">
-          {infRuns > 0 ? `held ${infHeld.toFixed(1)}` : 'finds your level'}
+          {infRuns > 0 ? `held level ${infHeld.toFixed(1)}` : 'finds your level'}
         </span>
       </button>
     </article>

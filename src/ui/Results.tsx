@@ -7,7 +7,7 @@ import { formatMetric, type ProgressReport, type RunResult } from '../progressio
 import { percentileForRating, rankFromRating } from '../progression/ranks';
 import { expectedRating } from '../progression/rating';
 import { AXIS_LABEL } from '../progression/skills';
-import { APM_LEVELS, CLEAR_AT, levelDifficulty } from '../progression/apm';
+import { APM_LEVELS, CLEAR_AT } from '../progression/apm';
 import { laneTierOf } from '../progression/lane';
 import { VAYNE_STAGES } from '../progression/vayne';
 import { WASD_MODULES } from '../progression/wasd';
@@ -479,7 +479,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
                   <div className="ra-num display">{report.apm.infinite.peak.toFixed(1)}</div>
                   <span className={report.apm.infinite.peakRecord ? 'good mono' : 'faint mono'}>
                     {report.apm.infinite.peakRecord
-                      ? 'HIGHEST FLOOR YET'
+                      ? 'HIGHEST LEVEL YET'
                       : `fell to ${report.apm.infinite.low.toFixed(1)}`}
                   </span>
                 </div>
@@ -496,13 +496,13 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
 
               {report.apm.infinite.unlockedTo !== null ? (
                 <div className="ra-unlock">
-                  You stood on it, so the ladder has walked up to it. <b>Level{' '}
-                  {report.apm.infinite.unlockedTo}</b> is where the bench will open from now on — and
-                  it carries no star, because holding a rung is not beating one.
+                  You held it, so <b>level {report.apm.infinite.unlockedTo}</b> is where this
+                  drill will open from now on. No star for it — stars are for beating a level, and
+                  this was standing on one.
                 </div>
               ) : (
                 <div className="ra-unlock quiet">
-                  {`The floor settled at ${report.apm.infinite.held.toFixed(1)}. That is the rung to play for score: the hardest one you can still hold clean.`}
+                  {`It settled at level ${report.apm.infinite.held.toFixed(1)}. That is the one to play for a score — the hardest one you can still keep clean.`}
                 </div>
               )}
             </div>
@@ -520,7 +520,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
                     +{report.apm.surge.peak.toFixed(1)}
                   </div>
                   <div className="ra-best mono">
-                    RUNGS YOUR CHAIN ADDED
+                    LEVELS YOUR STREAK ADDED
                     {report.apm.surge.peakRecord ? (
                       <i className="good"> · BEST EVER</i>
                     ) : (
@@ -532,10 +532,10 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
                 </div>
 
                 <div className="ra-rate">
-                  <span className="eyebrow">Best chain</span>
+                  <span className="eyebrow">Longest streak</span>
                   <div className="ra-num display">{report.apm.surge.chain}</div>
                   <span className={report.apm.surge.scoreRecord ? 'good mono' : 'faint mono'}>
-                    {report.apm.surge.scoreRecord ? 'SCORE RECORD IN SURGE' : 'the chain is the difficulty here'}
+                    {report.apm.surge.scoreRecord ? 'SCORE RECORD IN SURGE' : 'your streak sets the difficulty'}
                   </span>
                 </div>
 
@@ -547,9 +547,9 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
               </div>
 
               <div className="ra-unlock quiet">
-                A surge run writes its own record and never the rung's: the floor moved, so this
-                was not a rep of level {report.apm.surge.opened}. Play that rung in PLAY, where it
-                cannot move, to put it on the board.
+SURGE keeps its own record. The difficulty moved while you played, so this does
+                not count as a run at level {report.apm.surge.opened} — play that level in PLAY,
+                where it holds still, to put a score on the board.
               </div>
             </div>
           </div>
@@ -558,13 +558,12 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
         {report.apm && !report.apm.infinite && !report.apm.surge && (
           <div className={`res-apm ${stage >= 3 ? 'in' : ''}`}>
             <div className="panel pad">
-              <div className="panel-title">The APM ladder</div>
+              <div className="panel-title">Your level</div>
               <div className="ra-grid">
                 <div className="ra-level">
                   <span className="eyebrow">
-                    Level {report.apm.level} / {APM_LEVELS} · difficulty{' '}
-                    {Math.round(levelDifficulty(report.apm.level) * 100)}
-                    {report.apm.endurance && ' · endurance'}
+                    Level {report.apm.level} of {APM_LEVELS}
+                    {report.apm.endurance && ' · endurance run'}
                   </span>
                   <div className="ra-stars">
                     {[1, 2, 3].map((n) => (
@@ -591,9 +590,9 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
                   <span className="eyebrow">Correct actions / min</span>
                   <div className="ra-num display">{Math.round(report.apm.apm)}</div>
                   {report.apm.apmRecord ? (
-                    <span className="good mono">RATE RECORD ON THIS RUNG</span>
+                    <span className="good mono">RATE RECORD ON THIS LEVEL</span>
                   ) : (
-                    <span className="faint mono">rung best {Math.round(report.apm.bestApm)}</span>
+                    <span className="faint mono">best here {Math.round(report.apm.bestApm)}</span>
                   )}
                 </div>
 
@@ -619,16 +618,16 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
 
               {report.apm.unlockedTo !== null ? (
                 <div className="ra-unlock">
-                  {report.apm.skipped ? 'Taken outright.' : 'Cleared.'} The bench opens on{' '}
+                  {report.apm.skipped ? 'Beaten outright.' : 'Beaten.'} This drill opens on{' '}
                   <b>level {report.apm.unlockedTo}</b> next
-                  {report.apm.skipped && ' — two rungs up, because this one had nothing left to teach you'}
-                  . Every other rung is still one click away, as it always was.
+                  {report.apm.skipped && ' — two levels up, because this one had nothing left to teach you'}
+                  . Every other level is still one click away.
                 </div>
               ) : (
                 <div className="ra-unlock quiet">
                   {report.apm.cleared
-                    ? `Level ${report.apm.level} stays cleared. The ladder suggests level ${report.apm.nextLevel} next.`
-                    : `${Math.round((CLEAR_AT - result.performance) * 100)} points short of clearing level ${report.apm.level}.`}
+                    ? `Level ${report.apm.level} is still beaten. Try level ${report.apm.nextLevel} next.`
+                    : `${Math.round((CLEAR_AT - result.performance) * 100)} points short of beating level ${report.apm.level}.`}
                 </div>
               )}
             </div>

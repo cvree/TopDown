@@ -85,80 +85,80 @@ const MODE_TABLE: Omit<ApmMode, 'par' | 'order'>[] = [
   {
     id: 'apmPulse',
     kind: 'isolated',
-    counts: 'A key, on the pad that is lit.',
-    pressure: 'Nothing but cadence — except that the light repeats, so a hand on autopilot answers the wrong pad.',
+    counts: 'Press the key on whichever square is lit.',
+    pressure: 'Sometimes the light does not move. Answer on autopilot and you get it wrong.',
   },
   {
     id: 'apmSequence',
     kind: 'isolated',
-    counts: 'The front key of a rolling queue.',
-    pressure: 'No mouse at all, and the queue never empties: the window is the rung, and it is narrow.',
+    counts: 'Press the key at the front of the queue.',
+    pressure: 'The queue never empties and you cannot skip ahead. Keyboard only.',
   },
   {
     id: 'apmChord',
     kind: 'isolated',
-    counts: 'A pair of keys, landed together.',
-    pressure: 'Graded on the gap between your two fingers, down to under fifty milliseconds.',
+    counts: 'Press two keys at the same moment.',
+    pressure: 'Scored on the gap between your two fingers — eventually under a twentieth of a second.',
   },
   {
     id: 'apmGate',
     kind: 'isolated',
-    counts: 'A key on a live pad — and the stillness on a barred one.',
-    pressure: 'Half the prompts are asking you not to press, and pressing them costs the chain.',
+    counts: 'Answer the open squares. Leave the crossed-out ones alone.',
+    pressure: 'Half of them are asking you NOT to press. Stopping yourself is slower than reacting.',
   },
   {
     id: 'apmBuffer',
     kind: 'isolated',
-    counts: 'One key, inside the last fraction of a second before a window opens.',
-    pressure: 'Early is eaten, late is only reacting. The clock is visible and slightly irregular.',
+    counts: 'Press just before the shutter opens, not after.',
+    pressure: 'Too early is ignored, too late is only reacting. You can see the clock; it wobbles.',
   },
   {
     id: 'apmCancel',
     kind: 'isolated',
-    counts: 'A start, and the cut that follows it.',
-    pressure: 'The second press only means anything relative to the first, and its window closes to a tenth of a second.',
+    counts: 'Start the bar, then cut it off at the right moment.',
+    pressure: 'The window for the second press shrinks to a tenth of a second.',
   },
   {
     id: 'apmVector',
     kind: 'isolated',
-    counts: 'A movement command, in the called direction.',
-    pressure: 'Nothing to dodge and nowhere to be — only how fast a decision becomes a heading.',
+    counts: 'Move in the direction the arrow points.',
+    pressure: 'Nothing to dodge and nowhere to be. Just how fast you turn a decision into a direction.',
   },
   {
     id: 'apmField',
     kind: 'isolated',
-    counts: 'A click inside a pad.',
-    pressure: 'Graded in units from the centre, and the pads are smaller the higher the rung.',
+    counts: 'Click inside the square.',
+    pressure: 'Scored on how close to the middle you land. The squares shrink as levels go up.',
   },
   {
     id: 'apmHandoff',
     kind: 'combined',
-    counts: 'A click, then a key, then a click.',
-    pressure: 'Never twice with the same hand, and the seam between them is the measurement.',
+    counts: 'Click, then key, then click. Alternate hands, always.',
+    pressure: 'Never twice with the same hand. The handover is what is being measured.',
   },
   {
     id: 'apmSplit',
     kind: 'combined',
-    counts: 'The centre queue, and the lane keys the corner of the screen is asking for.',
-    pressure: 'The board runs at double rate behind a queue that never stops, and neither is allowed to wait for the other.',
+    counts: 'The key queue in the middle, and the map in the corner.',
+    pressure: 'Both run at once and neither waits for the other. This is minimap awareness.',
   },
   {
     id: 'apmUpkeep',
     kind: 'combined',
-    counts: 'A wheel spent inside its grace period.',
-    pressure: 'Self-paced: nothing prompts you, four clocks run at rates that do not divide, and one of them is locked.',
+    counts: 'Spend each dial as soon as it fills up.',
+    pressure: 'Nothing tells you when. Four dials, four different speeds, and one you must not touch.',
   },
   {
     id: 'apmSwitch',
     kind: 'combined',
-    counts: 'A key or a click, in whichever bank was called.',
-    pressure: 'The prompt keeps changing hand shape, and the mode prints what that costs you.',
+    counts: 'Answer with whichever group of keys is being asked for.',
+    pressure: 'Your hand keeps having to move somewhere else. The drill prints what that costs.',
   },
   {
     id: 'apmSustain',
     kind: 'combined',
-    counts: 'A key, on a beat that never stops getting faster.',
-    pressure: 'Drop two beats inside one step and the run ends where your hands actually end.',
+    counts: 'Keep up with a beat that speeds up every twelve seconds.',
+    pressure: 'Miss two in a row and it ends. This finds the fastest rate you can actually hold.',
   },
 ];
 
@@ -471,25 +471,32 @@ export const nextApmTitle = (mastery: number): ApmTitle | null =>
   APM_TITLES.find((t) => t.at > mastery) ?? null;
 
 /**
- * Opens the ladder at a rung that matches the player who already calibrated.
+ * Opens the ladder at a chosen level.
  *
- * Placement measures a general mechanical rating, and a player who placed at
- * A Refined-class player has already demonstrated the thing levels 1–3 exist to teach. They
- * still *own* those levels — nothing is skipped or awarded — they simply do
- * not have to walk up to the interesting part one run at a time.
+ * Nothing is skipped and nothing is awarded — every level of every drill is
+ * playable from the first minute either way. All this moves is the level a
+ * card *opens* on, so somebody who already has the hands for it does not have
+ * to click past six easy minutes to reach the part that is worth their time.
  */
-export const seedApmLadder = (p: ApmProgress, overallRating: number): number => {
-  // 3600 is the top of the rank ladder; six of ten rungs is as far as a
-  // placement is allowed to speak for you.
-  const open = clamp(1 + Math.round((overallRating / 3600) * 6), 1, 6);
+export const openApmLadderAt = (p: ApmProgress, level: number): number => {
+  const open = clamp(Math.round(level), 1, APM_LEVELS);
   for (const id of APM_DRILL_IDS) {
     p.modes[id].unlocked = Math.max(p.modes[id].unlocked, open);
     p.modes[id].lastLevel = Math.max(p.modes[id].lastLevel, open);
   }
   p.seeded = true;
-  p.seededTo = open;
+  p.seededTo = Math.max(p.seededTo, open);
   return open;
 };
+
+/**
+ * The same thing, driven by a rating rather than by a chosen level.
+ *
+ * 3600 is the top of the rank ladder; six of ten levels is as far as a
+ * placement is allowed to speak for you.
+ */
+export const seedApmLadder = (p: ApmProgress, overallRating: number): number =>
+  openApmLadderAt(p, 1 + Math.round((overallRating / 3600) * 6));
 
 // -------------------------------------------------------------------- runs
 

@@ -74,30 +74,30 @@ export const RUN_MODES: Record<RunMode, ModeMeta> = {
     id: 'play',
     label: 'PLAY',
     tagline: '1 minute',
-    blurb: 'One minute, scored. The same length every time, so the numbers mean something.',
+    blurb: 'One minute, scored. Always the same length, so you can compare runs.',
     accent: '#58e0ff',
   },
   survive: {
     id: 'survive',
     label: 'SURVIVE',
     tagline: 'until you die',
-    blurb: `No clock. It ramps until it beats you — three mistakes or one death and it is over.`,
+    blurb: `No clock. It gets harder until it beats you — three mistakes, or one death, and it ends.`,
     accent: '#ff5fa8',
   },
   infinite: {
     id: 'infinite',
-    label: 'INFINITE',
+    label: 'ENDLESS',
     tagline: 'until you stop',
     blurb:
-      'No clock and no rung. The level rises while you are winning and falls while you are not, and where it settles is the score.',
+      'No clock. It gets harder while you are winning and easier while you are not, and the level it settles on is your score.',
     accent: '#c58bff',
   },
   surge: {
     id: 'surge',
     label: 'SURGE',
-    tagline: 'the streak drives it',
+    tagline: 'streaks raise it',
     blurb:
-      'One minute, and the bench answers to your chain: hold one and the floor climbs above your rung and the colours climb with it; break it and it settles back.',
+      'One minute, and your streak drives the difficulty: keep one going and it climbs above the level you picked; drop it and it settles back.',
     accent: '#ff8a3d',
   },
 };

@@ -6,10 +6,33 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.13.0**.
+Currently shipping **v2.14.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.14.0 — IN PLAIN ENGLISH
+
+*2026-09-10*
+
+Every screen now says what it means in words somebody who has never opened this before already knows — no benches, no rungs, no floors, no rosters — and a first run opens with a walkthrough that asks three questions, measures your hands for twenty seconds, and starts you on the level those hands are actually ready for.
+
+### Added
+
+- THE WALKTHROUGH, the first thing a new profile ever sees. Three plain questions — what to call you, how you want to move, how much League you have played — a one-screen tour of the three things in the top bar, and then a twenty-second test: twelve squares light up somewhere on a field, each with a key on it, and you press it. It is the whole trainer in miniature, played on the same four keys your profile is actually bound to.
+- A starting level you did not have to guess at. The test reads the median of your correct answers, docks the result if your accuracy was poor — because a fast hand on the wrong key is not ready for a faster floor — and opens every drill in the client on the level it lands on. Nothing is locked either way; it only moves where the arrows start.
+- A "?" in the top bar that replays the walkthrough at any time, and a Skip on every step of it that costs you nothing.
+
+### Changed
+
+- The vocabulary, everywhere a player can read it. A bench is a drill, a rung is a level, the floor is the difficulty, a chain is a streak, a roster is the keys you have been given, and INFINITE is ENDLESS. The lab’s opening paragraph is now two sentences long instead of five, and the four paragraphs of small print under the drills are two.
+- The top bar reads PLAY, TRAIN and PROGRESS. The old labels named the screens after what they are made of rather than what you do on them, and PRACTICE was both a tab in the bar and a tab inside the screen it opened.
+- PROGRESS speaks English: an overall score rather than an AMR, skill by skill rather than axis detail, "how well it holds up" rather than pressure retention, and "ready for a real game?" rather than transfer readiness.
+- Every drill in the lab now prints what you do and what the hard bit is, in a sentence each, instead of what it counts and what the pressure is.
+
+### Fixed
+
+- Headings on the walkthrough no longer animate a blur, which on a software rasteriser could leave the title of a step permanently invisible.
 
 ## v2.13.0 — A LEVEL IS A PLACE
 

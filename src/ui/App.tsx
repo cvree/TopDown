@@ -17,7 +17,7 @@ import {
   type RunResult,
 } from '../progression/profile';
 import { LANE_TIERS, laneTierOf } from '../progression/lane';
-import { APM_LEVELS, levelDifficulty } from '../progression/apm';
+import { APM_LEVELS, levelDifficulty, openApmLadderAt } from '../progression/apm';
 import { clamp } from '../engine/math';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
 import { PATCH_NOTES, VERSION } from '../patchnotes/notes';
@@ -36,6 +36,7 @@ import { RankEmblem } from './components/RankEmblem';
 import { RankUp } from './RankUp';
 import { Results } from './Results';
 import { Settings } from './Settings';
+import { Welcome, type WelcomeResult } from './Welcome';
 import '../styles/global.css';
 import './app.css';
 
@@ -58,10 +59,10 @@ import './app.css';
 type Route = 'practice' | 'lab' | 'progress' | 'settings' | 'patch';
 
 /** The top bar, in order. Setup and the patch notes live in the corner. */
-const NAV: { route: Route; label: string }[] = [
-  { route: 'practice', label: 'PRACTICE' },
-  { route: 'lab', label: 'THE LAB' },
-  { route: 'progress', label: 'PROGRESS' },
+const NAV: { route: Route; label: string; hint: string }[] = [
+  { route: 'practice', label: 'PLAY', hint: 'Lane against somebody, or rehearse one piece of the champion' },
+  { route: 'lab', label: 'TRAIN', hint: 'One-minute drills for your hands' },
+  { route: 'progress', label: 'PROGRESS', hint: 'Your scores, and whether they are going up' },
 ];
 
 /** One run: a mode of a mode. */
@@ -124,6 +125,15 @@ export function App() {
   // the boot screen is waiting on — the arena's first rendered frame.
   const [booted, setBooted] = useState(false);
   const [arenaReady, setArenaReady] = useState(false);
+  /**
+   * The walkthrough. Null is "not showing"; the two live values are the only
+   * two reasons it is ever on screen — a first run, or the "?" in the top bar.
+   *
+   * A first run opens it automatically the moment the client is entered, so
+   * the very first thing anybody ever sees is six plain questions rather than
+   * a grid of thirteen cards written in a vocabulary they have not been given.
+   */
+  const [tour, setTour] = useState<'first' | 'replay' | null>(null);
   const saveTimer = useRef(0);
 
   // Persist, but never on the frame a run ends — writes are debounced so a
@@ -144,6 +154,12 @@ export function App() {
     audio.negativeSfx = profile.settings.negativeFeedback === true;
     audio.applyVolumes();
   }, [profile.settings]);
+
+  // Opened once, on the frame the client is entered, and never again — the
+  // profile is marked the moment it is dismissed either way.
+  useEffect(() => {
+    if (booted && !profile.onboarded) setTour('first');
+  }, [booted, profile.onboarded]);
 
   const inGame = flow !== null && !results;
 
@@ -167,7 +183,7 @@ export function App() {
   // Inside a run GameView owns Escape (it has a session to pause first), so
   // this only listens while there is no run on screen.
   useEffect(() => {
-    if (!booted || flow) return;
+    if (!booted || flow || tour) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Escape' || e.defaultPrevented) return;
       const el = document.activeElement;
@@ -184,7 +200,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [booted, flow, route]);
+  }, [booted, flow, route, tour]);
 
   // -------------------------------------------------------------- back guard
   //
@@ -390,10 +406,43 @@ export function App() {
     setProfile((p) => (p.seenVersion === VERSION ? p : { ...p, seenVersion: VERSION }));
   }, []);
 
+  /**
+   * What the walkthrough hands back.
+   *
+   * Three things, and each of them is an ordinary setting somebody could have
+   * reached themselves: their name, the way they move, and the level every
+   * drill card opens on. Nothing here is a gate and nothing is awarded — the
+   * measured level only moves where the arrows start.
+   */
+  const finishTour = useCallback((r: WelcomeResult) => {
+    setProfile((p) => {
+      const next: Profile = {
+        ...p,
+        name: r.name,
+        onboarded: true,
+        settings: { ...p.settings, movementScheme: r.scheme },
+        apm: { ...p.apm, modes: { ...p.apm.modes } },
+      };
+      openApmLadderAt(next.apm, r.level);
+      return next;
+    });
+    setTour(null);
+    setRoute('lab');
+  }, []);
+
+  const skipTour = useCallback(() => {
+    setProfile((p) => (p.onboarded ? p : { ...p, onboarded: true }));
+    setTour(null);
+    audio.play('uiBack');
+  }, []);
+
   const doReset = useCallback(() => {
     resetProfile();
     setProfile(newProfile());
     setRoute('practice');
+    // A wiped profile has never been onboarded, so the walkthrough is the
+    // right first screen again — the same one a new player gets.
+    setTour('first');
   }, []);
 
   const rank = rankFromRating(profile.overall);
@@ -422,7 +471,7 @@ export function App() {
             flow.drill === 'lanePhase'
               ? `LANE PHASE · ${laneTierOf(difficulty).label}`
               : flow.mode === 'infinite'
-                ? `${DRILLS[flow.drill].name} · INFINITE · opened on level ${flow.level ?? 1}`
+                ? `${DRILLS[flow.drill].name} · ENDLESS · started at level ${flow.level ?? 1}`
                 : flow.mode === 'surge'
                   ? `${DRILLS[flow.drill].name} · SURGE · from level ${flow.level ?? 1}`
                   : `${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`
@@ -450,9 +499,9 @@ export function App() {
                     ].label
                   }`
                 : flow.mode === 'infinite'
-                  ? `Play level ${clamp(Math.round(flow.heldLevel ?? flow.level ?? 1), 1, APM_LEVELS)} for score`
+                  ? `Play level ${clamp(Math.round(flow.heldLevel ?? flow.level ?? 1), 1, APM_LEVELS)} for a score`
                   : flow.mode === 'surge'
-                    ? `Play level ${clamp(Math.round(flow.level ?? 1), 1, APM_LEVELS)} with the floor nailed down`
+                    ? `Play level ${clamp(Math.round(flow.level ?? 1), 1, APM_LEVELS)} at a fixed speed`
                     : `Try ${RUN_MODES[flow.mode === 'play' ? 'survive' : 'play'].label}`
             }
           />
@@ -482,6 +531,16 @@ export function App() {
         onReady={() => setArenaReady(true)}
       />
       {!booted && <Boot ready={arenaReady} onEnter={() => setBooted(true)} />}
+      {booted && tour && (
+        <Welcome
+          key={tour}
+          name={profile.name}
+          scheme={profile.settings.movementScheme}
+          replay={tour === 'replay'}
+          onDone={finishTour}
+          onSkip={skipTour}
+        />
+      )}
       {booted && (
         <div className="shell">
           <header className="topbar">
@@ -496,6 +555,7 @@ export function App() {
                 <button
                   key={n.route}
                   className={route === n.route ? 'on' : ''}
+                  title={n.hint}
                   onMouseEnter={() => audio.play('uiHover')}
                   onClick={() => {
                     audio.unlock();
@@ -511,6 +571,20 @@ export function App() {
             <div className="topbar-right">
               {/* Setup: always reachable, never a nav tab — it is a thing you
                   do once and then forget about. */}
+              {/* The walkthrough, on a button, forever. A tour you can only
+                  ever see once is a tour nobody trusts themselves to skip. */}
+              <button
+                className="help-chip"
+                title="How this works — the walkthrough again"
+                aria-label="Show me around"
+                onMouseEnter={() => audio.play('uiHover')}
+                onClick={() => {
+                  audio.play('uiTab');
+                  setTour('replay');
+                }}
+              >
+                ?
+              </button>
               <button
                 className={`gear-chip${route === 'settings' ? ' on' : ''}`}
                 title="Controls, audio and video — Esc"

@@ -41,6 +41,38 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.14.0',
+    name: 'IN PLAIN ENGLISH',
+    date: '2026-09-10',
+    headline:
+      'Every screen now says what it means in words somebody who has never opened this before already knows \u2014 no benches, no rungs, no floors, no rosters \u2014 and a first run opens with a walkthrough that asks three questions, measures your hands for twenty seconds, and starts you on the level those hands are actually ready for.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'THE WALKTHROUGH, the first thing a new profile ever sees. Three plain questions \u2014 what to call you, how you want to move, how much League you have played \u2014 a one-screen tour of the three things in the top bar, and then a twenty-second test: twelve squares light up somewhere on a field, each with a key on it, and you press it. It is the whole trainer in miniature, played on the same four keys your profile is actually bound to.',
+          'A starting level you did not have to guess at. The test reads the median of your correct answers, docks the result if your accuracy was poor \u2014 because a fast hand on the wrong key is not ready for a faster floor \u2014 and opens every drill in the client on the level it lands on. Nothing is locked either way; it only moves where the arrows start.',
+          'A "?" in the top bar that replays the walkthrough at any time, and a Skip on every step of it that costs you nothing.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'The vocabulary, everywhere a player can read it. A bench is a drill, a rung is a level, the floor is the difficulty, a chain is a streak, a roster is the keys you have been given, and INFINITE is ENDLESS. The lab\u2019s opening paragraph is now two sentences long instead of five, and the four paragraphs of small print under the drills are two.',
+          'The top bar reads PLAY, TRAIN and PROGRESS. The old labels named the screens after what they are made of rather than what you do on them, and PRACTICE was both a tab in the bar and a tab inside the screen it opened.',
+          'PROGRESS speaks English: an overall score rather than an AMR, skill by skill rather than axis detail, "how well it holds up" rather than pressure retention, and "ready for a real game?" rather than transfer readiness.',
+          'Every drill in the lab now prints what you do and what the hard bit is, in a sentence each, instead of what it counts and what the pressure is.',
+        ],
+      },
+      {
+        tag: 'fixed',
+        items: [
+          'Headings on the walkthrough no longer animate a blur, which on a software rasteriser could leave the title of a step permanently invisible.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.13.0',
     name: 'A LEVEL IS A PLACE',
     date: '2026-09-08',

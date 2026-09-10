@@ -316,3 +316,29 @@
     letter-spacing: 0.14em;
   }
 }
+
+/* The walkthrough, on a button. A circle rather than a labelled chip because
+   it is the one control on the bar that never changes state and never needs
+   reading — everybody already knows what a "?" in a corner does. */
+.help-chip {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 1px solid rgba(120, 90, 40, 0.45);
+  border-radius: 50%;
+  background: rgba(4, 10, 18, 0.55);
+  color: var(--text-2);
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  transition: color 0.16s, border-color 0.16s, background 0.16s, box-shadow 0.16s;
+}
+.help-chip:hover {
+  color: var(--gold-hot);
+  border-color: var(--gold);
+  background: rgba(200, 170, 110, 0.1);
+  box-shadow: 0 0 20px -6px rgba(200, 170, 110, 0.8);
+}

@@ -136,14 +136,14 @@ export const benchPair = (level: number): AbilitySlot[] => {
   return [row[0], row[row.length - 1]];
 };
 
-/** What a rung adds that the one below it did not have. Empty when nothing. */
+/** What a level adds that the one below it did not have. Empty when nothing. */
 export const rungAdds = (level: number): string => {
   const n = rung(level);
-  if (n === 1) return 'Q · W — the near bank';
+  if (n === 1) return 'Two keys: Q and W';
   const gained = rowAtLevel(n).filter((s) => !rowAtLevel(n - 1).includes(s));
-  if (gained.length > 0) return `${gained.map((s) => s.toUpperCase()).join(' · ')} — one more finger`;
-  if (n === MAP_MIN_LEVEL) return 'D · F — the summoner bank, and the board in the corner';
+  if (gained.length > 0) return `${gained.map((s) => s.toUpperCase()).join(' and ')} — one more finger`;
+  if (n === MAP_MIN_LEVEL) return 'D and F, plus the little map in the corner';
   const order = LAB_ORDERS.find((o) => ORDER_AT[o] === n);
-  if (order) return `${ORDER_LABEL[order]} — an order, not a key on the bench`;
+  if (order) return `${ORDER_LABEL[order]} — a mouse command, not a key`;
   return '';
 };

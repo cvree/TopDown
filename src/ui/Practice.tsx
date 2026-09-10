@@ -3,7 +3,7 @@ import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { PRACTICE_MODES, RUN_MODE_LIST, type RunMode } from '../drills/modes';
 import { LANE_LENGTHS, LANE_TIERS, type LaneTier } from '../progression/lane';
-import { CAITLYN_STATS, caitlynCd } from '../engine/caitlyn';
+import { CAITLYN_STATS } from '../engine/caitlyn';
 import { FLASH_LEAGUE_CD, FLASH_PRACTICE_CD, FLASH_RANGE } from '../engine/summoners';
 import { VAYNE_STATS, tumbleCdAt, tumblePracticeCdAt, condemnCdAt, condemnPracticeCdAt } from '../engine/vayne';
 import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from '../engine/input';
@@ -119,9 +119,9 @@ interface SectionMeta {
 let lastSection: SectionId = 'lane';
 
 const SECTIONS: SectionMeta[] = [
-  { id: 'lane', no: '01', label: 'THE LANE', sub: 'the whole job', accent: '#ffd166' },
-  { id: 'practice', no: '02', label: 'PRACTICE', sub: 'one part at a time', accent: '#c86bff' },
-  { id: 'codex', no: '03', label: 'THE CODEX', sub: 'every number', accent: '#e0b05c' },
+  { id: 'lane', no: '01', label: 'THE LANE', sub: 'play a real lane', accent: '#ffd166' },
+  { id: 'practice', no: '02', label: 'PRACTICE', sub: 'one skill at a time', accent: '#c86bff' },
+  { id: 'codex', no: '03', label: 'THE NUMBERS', sub: 'what everything does', accent: '#e0b05c' },
 ];
 
 /** The three, in order — for anything that has to walk all of them. */
@@ -194,9 +194,9 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
       },
       practice: {
         count: `${PRACTICE_MODES.length} MODES`,
-        note: played > 0 ? `${played}/${PRACTICE_MODES.length} on the board` : 'nothing on the board',
+        note: played > 0 ? `${played}/${PRACTICE_MODES.length} tried` : 'none tried yet',
       },
-      codex: { count: '2 CHAMPIONS', note: 'both kits, in full' },
+      codex: { count: '2 CHAMPIONS', note: 'every ability, explained' },
     } as Record<SectionId, { count: string; note: string }>;
   }, [profile]);
 
@@ -223,13 +223,17 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
     <div className="scroll">
       <div className="wrap practice fade-up">
         <header className="pr-head">
-          <div className="eyebrow">Night Hunter · practice</div>
+          <div className="eyebrow">Play as · Vayne</div>
           <h1 className="display pr-h1">VAYNE</h1>
           <p className="dim pr-lead">
-            One champion, three ways in. <b>THE LANE</b> is the game itself; <b>PRACTICE</b> is
-            that game in pieces, rehearsed until each piece is automatic; and <b>THE CODEX</b> is
-            every number the other two are built from. The bench underneath all of it — hands,
-            measured, with no champion in the way — is <b>THE LAB</b>, in the top bar.
+            One champion, three tabs. <b>THE LANE</b> is a real game of League — farm minions
+            while somebody tries to stop you. <b>PRACTICE</b> breaks that into small pieces you
+            can rehearse one at a time. <b>THE NUMBERS</b> is the reference: exactly what every
+            ability does, if you want to check.
+          </p>
+          <p className="dim pr-lead">
+            Want something shorter and simpler? <b>TRAIN</b> in the top bar is one-minute drills
+            with no champion at all.
           </p>
         </header>
 
@@ -332,13 +336,12 @@ function LanePanel({
   return (
     <>
       <p className="dim pr-lead pr-panel-lead">
-        <b>LANE PHASE</b> is the game: League's wave clock, League's minions, League's turret, and
-        somebody on the other side farming, trading and counting lethal. Pick who they are and how
-        long a lane, and the mode does the rest. Everything in <b>PRACTICE</b> is one part of this,
-        rehearsed on its own until it is automatic — and this is where you find out whether any of
-        it survived contact with somebody trying to stop you.
+        This is the actual game: minions walk in, you kill the ones about to die for gold, and
+        somebody on the other side is doing the same and trying to stop you. Pick who you are up
+        against and how long you want to play. Everything in <b>PRACTICE</b> is one piece of this
+        on its own; here you find out whether it held up.
       </p>
-      <GroupHead label="THE MATCH" note="five opponents, three lengths" count="1 MODE" />
+      <GroupHead label="THE MATCH" note="pick an opponent, pick a length" count="1 MODE" />
       <LaneCard profile={profile} bound={bound} onPlay={onPlay} />
     </>
   );
@@ -382,7 +385,7 @@ function LaneCard({
     <section className="pr-card panel pr-lane" style={{ ['--c' as string]: tier.accent }}>
       <div className="pr-card-head">
         <div>
-          <div className="eyebrow">the whole job, end to end</div>
+          <div className="eyebrow">a real game of League</div>
           <h2 className="display pr-name">{meta.name}</h2>
           <div className="pr-tag">{meta.tagline}</div>
         </div>
@@ -406,12 +409,12 @@ function LaneCard({
 
       <p className="pr-brief">{meta.brief}</p>
       <p className="pr-transfers">
-        <span className="eyebrow">In game</span>
+        <span className="eyebrow">Why it matters</span>
         {meta.transfers}
       </p>
 
       <div className="pr-field">
-        <span className="pr-field-label">Who is on the other side</span>
+        <span className="pr-field-label">Who are you up against?</span>
         <div className="pr-lane-tiers">
           {LANE_TIERS.map((t) => {
             const rec = profile.lane?.tiers?.[t.id];
@@ -437,7 +440,7 @@ function LaneCard({
       </div>
 
       <div className="pr-field">
-        <span className="pr-field-label">How long a lane</span>
+        <span className="pr-field-label">How long do you want to play?</span>
         <div className="pr-buttons pr-lane-lengths">
           {LANE_LENGTHS.map((len) => (
             <button
@@ -458,16 +461,11 @@ function LaneCard({
       </div>
 
       <p className="set-note">
-        The lane opens at 1:05 with the first wave walking in, and every wave after it
-        arrives thirty seconds apart with a cannon on every third — League's clock,
-        untouched. Minions are League's: 477 health on a melee, 296 on a caster, 900 on a
-        cannon, and 21, 14 and 60 gold. Your turret hits for 152 and ramps forty per cent a
-        shot into a champion. You both start at level one on base statistics, take a point
-        every time the wave pays for one, and regenerate at League's rate — which is to say
-        hardly at all, so <b>{shortCodeLabel(bound.f.primary)}</b> to recall is a real decision and
-        not a convenience. There
-        is no shop, so gold is the scoreboard rather than a purchase, and no jungler, so
-        nobody is walking out of the river.
+        Everything here is League's own: the same minions, the same health, the same gold, the
+        same wave every thirty seconds, the same turret. You both start at level one and level up
+        as the wave pays for it. There is no shop — gold is just the scoreboard — and no jungler,
+        so nobody is coming out of the river. Health does not come back on its own, so{' '}
+        <b>{shortCodeLabel(bound.f.primary)}</b> to go home is a real decision.
       </p>
     </section>
   );
@@ -498,25 +496,25 @@ const PRACTICE_GROUPS: { id: string; label: string; note: string; members: Drill
   {
     id: 'foundation',
     label: 'FOUNDATION',
-    note: 'no abilities at all — the distance everything else assumes',
+    note: 'no abilities — just learning how far you can reach',
     members: ['rangecheck'],
   },
   {
     id: 'kit',
     label: 'THE KIT',
-    note: 'one ability at a time, until the cooldown is a rhythm',
+    note: 'one ability at a time, until it stops needing thought',
     members: ['vayneTumble', 'vayneBolts', 'vayneCondemn'],
   },
   {
     id: 'champion',
     label: 'THE WHOLE CHAMPION',
-    note: 'all four buttons at once, in the dark',
+    note: 'all four abilities at once, in the dark',
     members: ['vayneHunt'],
   },
   {
     id: 'versus',
     label: 'AGAINST SOMEBODY',
-    note: 'the only mode that is not about your hands',
+    note: 'somebody is shooting back — this one is about reading them',
     members: ['caitlynDodge'],
   },
 ];
@@ -538,7 +536,7 @@ function PracticePanel({
     {
       id: 'more',
       label: 'MORE',
-      note: 'newer modes, not yet sorted into the four above',
+      note: 'newer modes, not yet filed with the rest',
       members: PRACTICE_MODES.filter((id) => !claimed.has(id)),
     },
   ].filter((g) => g.members.length > 0);
@@ -546,10 +544,10 @@ function PracticePanel({
   return (
     <>
       <p className="dim pr-lead pr-panel-lead">
-        Six modes, and each one is a single part of a lane taken out and rehearsed on its own.
-        They come in two lengths. <b>PLAY</b> is a minute — the same minute every time, so the
-        score means something next to the last one. <b>SURVIVE</b> has no clock: it gets harder
-        the longer you last and ends when you die or make the mode's own mistake three times.
+        Six modes, each one a single piece of a lane taken out and rehearsed on its own. Every one
+        of them has two buttons. <b>PLAY</b> is one minute, always the same, so you can compare
+        today's score to yesterday's. <b>SURVIVE</b> has no clock — it gets harder the longer you
+        last and ends on your third mistake.
       </p>
 
       <div className="pr-legend">
@@ -577,10 +575,8 @@ function PracticePanel({
       ))}
 
       <p className="set-note">
-        Every figure these six are built from — her cooldowns, her ranges, the Sheriff's cast
-        times and the windows you are expected to beat — is printed in <b>THE CODEX</b>, because
-        the only way to know whether the transfer is real is to be able to check it against the
-        game.
+        Every number behind these six — cooldowns, ranges, how long you have to dodge — is printed
+        in <b>THE NUMBERS</b>, so you can check any of it against the real game.
       </p>
     </>
   );
@@ -624,7 +620,7 @@ function ModeCard({
 
       <p className="pr-brief">{meta.brief}</p>
       <p className="pr-transfers">
-        <span className="eyebrow">In game</span>
+        <span className="eyebrow">Why it matters</span>
         {meta.transfers}
       </p>
 
@@ -676,8 +672,8 @@ function ModeCard({
 type CodexId = 'vayne' | 'sheriff';
 
 const CODEX: { id: CodexId; label: string; sub: string; accent: string }[] = [
-  { id: 'vayne', label: 'VAYNE', sub: 'the champion you play', accent: '#c86bff' },
-  { id: 'sheriff', label: 'THE SHERIFF', sub: 'the champion you beat', accent: '#ffb02e' },
+  { id: 'vayne', label: 'VAYNE', sub: 'the one you play', accent: '#c86bff' },
+  { id: 'sheriff', label: 'CAITLYN', sub: 'the one shooting at you', accent: '#ffb02e' },
 ];
 
 function CodexPanel() {
@@ -687,9 +683,8 @@ function CodexPanel() {
   return (
     <>
       <p className="dim pr-lead pr-panel-lead">
-        Every figure both champions are built from, printed. A trainer that claims to feel like
-        the champion owes the player the numbers it is claiming it with — and a window you are
-        expected to beat has to be a number you can check.
+        Reference only — nothing to click. If a drill expects you to dodge something in under a
+        second, this is where you can look up exactly how long you had.
       </p>
 
       <div className="pr-seg" role="tablist" aria-label="Which kit">
@@ -769,7 +764,7 @@ function KitReference() {
 
   return (
     <section className="panel pad pr-kit">
-      <div className="panel-title">The kit, in numbers</div>
+      <div className="panel-title">Vayne's abilities, in full</div>
       <div className="pr-kit-rows">
         {rows.map((r) => (
           <div className="pr-kit-row" key={r.slot}>
@@ -780,22 +775,10 @@ function KitReference() {
         ))}
       </div>
       <p className="set-note">
-        Where League’s own answer depends on items, levels or runes — her health pool, her
-        attack speed, her damage — the figure here stands for one specific Vayne rather than an
-        average of every Vayne. Which one is a choice each mode makes and states: Tumble hands
-        you a single point in Q, {tumbleCdAt(1)} seconds, because the rhythm is only a rhythm
-        while the cooldown is long enough that spending it in the wrong place costs something.
-        Condemn hands you a maxed E, {condemnCdAt(5)} seconds in League, because a mode about
-        a positional ability has to give you enough casts to have positioned for. Night Hunter
-        hands you the mid-game champion with all of it at once, and so — now — do the duels
-        and the Sheriff: a fight against somebody with four buttons is not a fight you can
-        learn with one. Two cooldowns are deliberately shortened, and both for the same
-        reason. Condemn is charged at {Math.round(VAYNE_STATS.condemnPracticeShare * 100)}% of
-        League's everywhere, and Tumble is floored at one every {VAYNE_STATS.tumblePracticeFloor} seconds
-        wherever League's own figure is slower than that — so a minute contains a dozen
-        attempts at rolling to the side of somebody the wall is behind and pinning them to
-        it, rather than two. A rank already faster than the floor is untouched, because a
-        champion nothing can catch is not a champion worth practising against.
+        Two cooldowns here are shorter than League's, and both on purpose. Condemn is charged at{' '}
+        {Math.round(VAYNE_STATS.condemnPracticeShare * 100)}% and Tumble never takes longer than{' '}
+        {VAYNE_STATS.tumblePracticeFloor} seconds — so a minute gives you a dozen attempts at the
+        thing worth practising rather than two. Everything else is League's exactly.
       </p>
     </section>
   );
@@ -842,7 +825,7 @@ function SheriffReference() {
 
   return (
     <section className="panel pad pr-kit" style={{ ['--c' as string]: '#ffb02e' }}>
-      <div className="panel-title">The Sheriff, in numbers</div>
+      <div className="panel-title">What Caitlyn throws at you</div>
       <div className="pr-kit-rows">
         {rows.map((r) => (
           <div className="pr-kit-row" key={r.slot}>
@@ -853,16 +836,10 @@ function SheriffReference() {
         ))}
       </div>
       <p className="set-note">
-        Her cooldowns are League's, and then every one of them is charged at{' '}
-        {Math.round(CAITLYN_STATS.practiceShare * 100)}% of it — so the Peacemaker comes back
-        every {caitlynCd(CAITLYN_STATS.qCd)}s rather than every {CAITLYN_STATS.qCd}, a trap
-        every {caitlynCd(CAITLYN_STATS.wCd)}s, and the ultimate twice a minute rather than
-        never. That is the same decision Condemn gets in her own table, made for the same
-        reason and pointed the other way: a minute against her real cooldowns is six dodges,
-        and nobody has ever learned a read six repetitions at a time. Her health, her movement
-        speed and every range on this list are untouched, and her basic attack is the one
-        number bent downwards — a Sheriff who kills you with autos is a Sheriff who is testing
-        your spacing rather than your dodging, and there is already a mode for that.
+        Her cooldowns are League's, charged at {Math.round(CAITLYN_STATS.practiceShare * 100)}% —
+        so she throws things at you often enough to actually practise dodging them. Her ranges,
+        her health and her movement speed are untouched. Her basic attack hits softer than
+        League's, because this mode is testing your dodging rather than your spacing.
       </p>
     </section>
   );

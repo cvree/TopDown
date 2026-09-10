@@ -110,11 +110,11 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
                 </h1>
               )}
               <div className="eyebrow" style={{ marginTop: 10 }}>
-                APEX mechanical rating
+                Your overall score
               </div>
               <div className="prof-rank display">{profile.placed ? rank.label : 'UNRANKED'}</div>
               <div className="prof-stats mono">
-                <span>{Math.round(profile.overall)} AMR</span>
+                <span>{Math.round(profile.overall)} points</span>
                 <span>peak {Math.round(profile.peakOverall)}</span>
                 {profile.placed && <span>top {topPct < 0.01 ? '<1' : Math.round(topPct * 100)}%</span>}
               </div>
@@ -123,11 +123,11 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
 
           {/* The 30-day band: the single most-asked question on this page. */}
           <div className="thirty">
-            <div className="panel-title">30-day change</div>
+            <div className="panel-title">Change over the last 30 days</div>
             {gain ? (
               <div className="th-grid">
                 <div>
-                  <span className="eyebrow">Overall AMR</span>
+                  <span className="eyebrow">Overall score</span>
                   <b className={gain.delta >= 0 ? 'good' : 'bad'}>
                     {gain.delta >= 0 ? '+' : ''}
                     {Math.round(gain.delta)}
@@ -141,7 +141,7 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
                   <b className="good">
                     {gains[0] ? `${gains[0].label} +${Math.round(gains[0].delta)}` : '—'}
                   </b>
-                  <i className="faint">the fastest-moving axis you have</i>
+                  <i className="faint">your fastest-improving skill</i>
                 </div>
                 <div>
                   <span className="eyebrow">Needs attention</span>
@@ -157,7 +157,7 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
                         ? 'gone backwards this month'
                         : slowest.delta < 25
                           ? 'barely moved in a month'
-                          : 'your slowest-moving axis'}
+                          : 'your slowest-improving skill'}
                   </i>
                 </div>
               </div>
@@ -165,8 +165,8 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
               <div className="empty">
                 <b>NOT ENOUGH DAYS</b>
                 <p>
-                  A 30-day change needs a reading from thirty days ago. Keep training and this fills in on its
-                  own — nothing here is estimated.
+                  This needs a score from thirty days ago to compare against. Keep playing and it
+                  fills in by itself — nothing here is guessed.
                 </p>
               </div>
             )}
@@ -194,14 +194,14 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
         {/* ------------------------------------------------- shape & axes */}
         <section className="prof-mid">
           <div className="panel pad radar-panel">
-            <div className="panel-title">Skill profile</div>
+            <div className="panel-title">Your shape</div>
             <div className="radar-wrap">
               <SkillRadar ratings={profile.ratings} samples={profile.samples} size={342} />
             </div>
           </div>
 
           <div className="panel pad axes-panel">
-            <div className="panel-title">Axis detail</div>
+            <div className="panel-title">Skill by skill</div>
             <div className="axis-list">
               {SKILL_AXES.map((axis) => {
                 const rated = profile.samples[axis] > 0;
@@ -231,7 +231,7 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
               })}
             </div>
             <div className="axis-legend faint">
-              The vertical mark on each bar is your overall rating — anything left of it is holding you back.
+              The vertical mark on each bar is your overall score. Anything to the left of it is holding you back.
             </div>
           </div>
         </section>
@@ -239,11 +239,11 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
         {/* ----------------------------------------------------- pressure */}
         <section className="prof-pressure">
           <div className="panel pad">
-            <div className="panel-title">Pressure retention</div>
+            <div className="panel-title">How well it holds up</div>
             <p className="pp-lead dim">
-              The same mechanic, measured on a bench and then measured again with something fighting back.
-              Retention is the second divided by the first — it is the difference between knowing a mechanic
-              and owning it.
+              The same skill measured twice: once on its own, and again with somebody fighting back.
+              The percentage on the right is how much of it survives. That gap is the difference
+              between knowing a thing and actually owning it.
             </p>
             {retention.length ? (
               <div className="pp-list">
@@ -261,8 +261,8 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
                       className={`pp-ret mono ${r.retention >= 0.9 ? 'good' : r.retention >= 0.78 ? 'warn' : 'bad'}`}
                       title={
                         r.retention >= 1
-                          ? 'Better under pressure than on the bench — rare, and worth knowing.'
-                          : 'How much of the isolated number survives an opponent.'
+                          ? 'Better under pressure than on your own — rare, and worth knowing.'
+                          : 'How much of the practice number survives an opponent.'
                       }
                     >
                       {Math.round(r.retention * 100)}%
@@ -294,7 +294,7 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
 
           <div className="panel pad">
             <div className="panel-title">
-              Transfer readiness{focusAxis ? ` · ${AXIS_LABEL[focusAxis]}` : ''}
+              Ready for a real game?{focusAxis ? ` · ${AXIS_LABEL[focusAxis]}` : ''}
             </div>
             {ladder.length ? (
               <div className="tr-list">
@@ -302,13 +302,13 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
                   <TransferStage key={row.stage} row={row} />
                 ))}
                 <p className="tr-foot faint">
-                  Each stage is your best three runs in that context. Mastered at 82.
+                  Each row is your best three runs of that kind. 82 counts as mastered.
                 </p>
               </div>
             ) : (
               <div className="empty">
                 <b>NOT ENOUGH DATA</b>
-                <p>Train one axis across isolated, applied and live drills to build its transfer ladder.</p>
+                <p>Play one skill on its own, then in a mode with pressure, then against a real opponent — this fills in as you do.</p>
               </div>
             )}
           </div>
@@ -446,7 +446,7 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
                   <th>Length</th>
                   <th>Runs</th>
                   <th>Weakest run</th>
-                  <th>AMR</th>
+                  <th>SCORE</th>
                 </tr>
               </thead>
               <tbody>
@@ -538,7 +538,7 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
             <span className="faint mono">{Math.round(profile.vayne.mastery)} mastery</span>
           </div>
           <div className="panel pad">
-            <span className="eyebrow">The lab</span>
+            <span className="eyebrow">Hand speed</span>
             <b className="display" style={{ color: '#b8f4ee' }}>
               {apmTitleFor(profile.apm.peak).name}
             </b>
@@ -548,7 +548,7 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
             </span>
           </div>
           <div className="panel pad">
-            <span className="eyebrow">Training volume</span>
+            <span className="eyebrow">Time put in</span>
             <b className="display">{profile.totalRuns}</b>
             <span className="faint mono">runs · {formatDuration(profile.totalSeconds)}</span>
           </div>

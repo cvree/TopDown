@@ -267,7 +267,7 @@ const hintsFor = (settings: AppSettings, drill: DrillId, level: number): Hint[] 
       // line here is the one that puts the cursor on a pad.
       ...keep(scheme === 'wasd' ? ['move', 'attack'] : ['move']),
       ...(bench.length
-        ? [{ id: 'bench', key: bench.map((slot) => abilityKeyLabel(settings, drill, slot)).join(' '), label: 'the bench' }]
+        ? [{ id: 'bench', key: bench.map((slot) => abilityKeyLabel(settings, drill, slot)).join(' '), label: 'your keys' }]
         : []),
       ...(lanes ? [{ id: 'lanes', key: lanes, label: 'lanes · dodge the map' }] : []),
       ...orders.map((o) => ({
@@ -997,7 +997,7 @@ export function GameView({
           <span className="hud-chain-n num" data-chain-n>
             2
           </span>
-          <span className="hud-chain-label">CLEAN CHAIN</span>
+          <span className="hud-chain-label">IN A ROW</span>
         </div>
 
         {/* Six slots rather than five. Five was every mode until the lane,
@@ -1143,7 +1143,7 @@ export function GameView({
             <h2>{meta.name}</h2>
             <p className="dim" style={{ maxWidth: 400, margin: '0 0 22px' }}>
               {infinite
-                ? 'No clock, so this is where the run ends. End it and it is scored at the level the floor settled on; exit and it is thrown away.'
+                ? 'There is no clock on this one, so this is where you end it. End & score keeps the level you settled on; Exit throws the run away.'
                 : meta.brief}
             </p>
             <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
