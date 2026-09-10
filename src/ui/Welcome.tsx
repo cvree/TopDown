@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
-import { resolveBindings, shortCodeLabel } from '../engine/input';
+import { MOVE_ACTIONS, UNBOUND, resolveBindings, shortCodeLabel, type ActionId } from '../engine/input';
 import { APM_LEVELS } from '../progression/apm';
 import { Crest } from './components/Crest';
 import './welcome.css';
@@ -105,16 +105,29 @@ export function Welcome({ name: name0, scheme: scheme0, replay, onDone, onSkip }
     go(n.id);
   }, [step, go]);
 
-  // The four ability keys as this player will actually meet them. Under the
+  // The ability keys as this player will actually meet them. Under the
   // keyboard scheme they are not Q W E R, and a walkthrough that taught the
-  // wrong four letters would be worse than no walkthrough.
+  // wrong letters would be worse than no walkthrough.
+  //
+  // Only the ones on the keyboard, though. The test is answered by a keydown
+  // and a prompt waits forever for its own key, so a slot that ships on a
+  // mouse button — Q does under WASD — would be a light nobody can put out.
+  // Movement tops the list back up if too few abilities are left, because a
+  // test with one key on it measures a metronome rather than a hand.
   const keys = useMemo(() => {
     const b = resolveBindings(scheme, undefined);
-    return (['q', 'w', 'e', 'r'] as const).map((slot) => ({
-      slot,
-      code: b[slot].primary,
-      label: shortCodeLabel(b[slot].primary),
-    }));
+    const pressable = (code: string) => code !== UNBOUND && !code.startsWith('Mouse');
+    const of = (slots: readonly ActionId[]) =>
+      slots
+        .map((slot) => ({ slot, code: b[slot].primary, label: shortCodeLabel(b[slot].primary) }))
+        .filter((k) => pressable(k.code));
+    const abilities = of(['q', 'w', 'e', 'r']);
+    if (abilities.length >= 3) return abilities;
+    const seen = new Set(abilities.map((k) => k.code));
+    const spare = of(scheme === 'wasd' ? MOVE_ACTIONS : ['stop', 'attackMove']).filter(
+      (k) => !seen.has(k.code),
+    );
+    return [...abilities, ...spare].slice(0, 4);
   }, [scheme]);
 
   const verdict = useMemo(() => readHands(shots, PLAYED.find((p) => p.id === played)!.bias), [shots, played]);

@@ -97,21 +97,34 @@ export const DEFAULT_BINDINGS: Bindings = {
  * The WASD defaults.
  *
  * W, A, S and D are spoken for, so everything that lived on them moves one
- * seat over and keeps its shape: the ability row stays a row your fingers can
- * find (Q E R F), the summoners drop to the digits above them, and stop —
- * which nobody presses mid-orbwalk — goes to X. Every one of them is
- * rebindable, and the click defaults are untouched, so switching schemes is
- * reversible without losing a layout you had already tuned.
+ * seat over and keeps its shape. The layout is the one a player coming from a
+ * shooter or an ARPG builds for themselves within ten minutes of finding this
+ * screen, so it is what the scheme now ships with:
+ *
+ *  - The mouse holds the two orders it is good at. Q — the dash, the blink,
+ *    the thing you fire *at* something — goes on right click, where the thumb
+ *    of every twin-stick habit already is.
+ *  - E and Shift take the two abilities you press while moving, and R stays
+ *    on R because an ultimate is the one key you want to have to reach for.
+ *  - The summoners drop to the digits above the movement keys, and stop —
+ *    which nobody presses mid-orbwalk — goes to X.
+ *  - Left click is both orders at once: the move / attack-target order and
+ *    the attack-move. Under this scheme those are the same order — the mouse
+ *    cannot walk you anywhere, it only chooses what you shoot — so one button
+ *    honestly answers to both rows, and both rows say so.
+ *
+ * Every one of them is rebindable, and the click defaults are untouched, so
+ * switching schemes is reversible without losing a layout you had tuned.
  */
 export const WASD_BINDINGS: Bindings = {
   ...DEFAULT_BINDINGS,
-  move: { primary: 'Mouse2' },
-  attackMove: { primary: 'ShiftLeft', secondary: 'Mouse0' },
+  move: { primary: 'Mouse0' },
+  attackMove: { primary: UNBOUND, secondary: 'Mouse0' },
   stop: { primary: 'KeyX' },
-  q: { primary: 'KeyQ' },
+  q: { primary: 'Mouse2' },
   w: { primary: 'KeyE' },
-  e: { primary: 'KeyR' },
-  r: { primary: 'KeyF' },
+  e: { primary: 'ShiftLeft' },
+  r: { primary: 'KeyR' },
   d: { primary: 'Digit1' },
   f: { primary: 'Digit2' },
   centerCamera: { primary: 'Space' },
@@ -192,6 +205,41 @@ export const WASD_ACTIONS: ActionId[] = [
 export const actionsFor = (scheme: MovementScheme): ActionId[] =>
   scheme === 'wasd' ? WASD_ACTIONS : CLICK_ACTIONS;
 
+/**
+ * The one pair of actions allowed to answer to the same button.
+ *
+ * "One key belongs to one action" is the rule the rest of this file is built
+ * on, and it is right about the keyboard: two things on one key means one of
+ * them is silently dead. The two mouse orders are the exception, and they are
+ * an exception for a reason rather than as a favour.
+ *
+ * Under WASD they are not two orders at all. The mouse cannot walk you
+ * anywhere — a click only ever chooses what you shoot — so "move / attack
+ * target" and "attack-move" reach the world as the identical attack stance,
+ * and forcing a player to spend two of their three mouse buttons on them is
+ * asking for a button back in exchange for nothing.
+ *
+ * Under click-to-move they stay distinct, and the modifier is what tells them
+ * apart: a shared button with the attack-move modifier held is an attack-move,
+ * and the same button on its own is the move / attack-target order underneath.
+ * So the sharing costs nothing there either — it just means a player who wants
+ * League's A-click on one button can have it.
+ */
+export const SHARED_ORDER_ACTIONS: readonly ActionId[] = ['move', 'attackMove'];
+
+/**
+ * Whether two actions may hold `code` at the same time.
+ *
+ * Only the mouse orders, and only on a mouse button: sharing a *key* between
+ * them would put both on one press with no modifier free to separate them,
+ * which is the dead-binding problem this rule exists to prevent.
+ */
+export const mayShareCode = (a: ActionId, b: ActionId, code: string): boolean =>
+  a !== b &&
+  code.startsWith('Mouse') &&
+  SHARED_ORDER_ACTIONS.includes(a) &&
+  SHARED_ORDER_ACTIONS.includes(b);
+
 /** Every code a binding occupies, ignoring the unbound slot. */
 const codesOf = (b: Binding | undefined): string[] => {
   if (!b) return [];
@@ -260,10 +308,15 @@ export const findConflicts = (bindings: Bindings, actions: ActionId[]): Map<Acti
     }
   }
   const out = new Map<ActionId, ActionId[]>();
-  for (const list of byCode.values()) {
+  for (const [code, list] of byCode) {
     if (list.length < 2) continue;
     for (const a of list) {
-      const others = list.filter((o) => o !== a);
+      // A pair that is allowed to share the button is not a collision, so it
+      // must not raise one — the two mouse orders on one click is a layout,
+      // not a mistake, and warning about it would make the shipped WASD
+      // defaults arrive pre-broken.
+      const others = list.filter((o) => o !== a && !mayShareCode(a, o, code));
+      if (others.length === 0) continue;
       const prev = out.get(a) ?? [];
       out.set(a, [...new Set([...prev, ...others])]);
     }
@@ -556,15 +609,21 @@ export class InputSystem {
       }
     }
 
-    if (this.matches('move', code)) {
-      this.queue.push({ kind: 'move', x, y, t });
-      return;
-    }
     // Attack-move: the modifier key is held and the confirm button is pressed.
+    //
+    // This is asked before the move order rather than after it, because one
+    // button is allowed to carry both. When it does, the modifier is the only
+    // thing that can tell the two orders apart, so it has to be read first —
+    // checking the move order first would make the modifier unreachable and
+    // quietly cost a shared button its attack-move.
     const amBind = this.opts.bindings.attackMove;
     const modHeld = amBind.primary !== UNBOUND && this.held.has(amBind.primary);
     if (code === (amBind.secondary ?? 'Mouse0') && modHeld) {
       this.queue.push({ kind: 'attackMove', x, y, t });
+      return;
+    }
+    if (this.matches('move', code)) {
+      this.queue.push({ kind: 'move', x, y, t });
       return;
     }
     // Bare left click also issues an attack-move: the trainer is about
