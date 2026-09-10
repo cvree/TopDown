@@ -11,6 +11,7 @@ import {
   codeLabel,
   defaultsFor,
   findConflicts,
+  mayShareCode,
   resolveBindings,
   sanitizeOverrides,
   type ActionId,
@@ -179,8 +180,8 @@ const SECTIONS: Section[] = [
             value: 'wasd',
             name: 'WASD',
             sub: 'Direct control',
-            body: 'The left hand steers, the mouse only ever targets. Release the keys to attack — holding a direction through the windup throws the attack away, exactly as a click does.',
-            keys: ['W', 'A', 'S', 'D', 'Q', 'E', 'R', 'F'],
+            body: 'The left hand steers, the mouse only ever targets. Left click both attacks and names a target; release the keys to attack — holding a direction through the windup throws the attack away, exactly as a click does.',
+            keys: ['W', 'A', 'S', 'D', 'LMB', 'RMB', 'E', 'SHIFT'],
           },
         ],
       },
@@ -810,6 +811,12 @@ function Roster({
  *    so one of the two is simply dead, silently, and the player is left
  *    pressing a key that does nothing. Taking a key therefore takes it: the
  *    action that had it is left unbound and named out loud.
+ *  - **Except the two mouse orders, which may share a button.** Move / attack
+ *    target and attack-move are the one pair with somewhere to put the second
+ *    of them: the attack-move modifier separates them under click-to-move,
+ *    and under WASD they are the same order anyway, because a click there
+ *    cannot walk you — it only chooses what you shoot. So left click carries
+ *    both, neither is dead, and the WASD defaults ship that way.
  *  - **Unbound is a real state.** It has to be, once keys can be taken. It is
  *    also the only honest thing to show for an action you deliberately cleared.
  *  - **Nothing is a one-way door.** Every row restores its own default, every
@@ -867,6 +874,9 @@ function Bindings({
       if (code !== UNBOUND) {
         for (const other of l.actions) {
           if (other === action) continue;
+          // The two mouse orders are allowed to sit on one button, so taking
+          // that button for one of them does not take it from the other.
+          if (mayShareCode(action, other, code)) continue;
           const b = l.bindings[other];
           const hitsPrimary = b.primary === code;
           const hitsSecondary = b.secondary === code;
@@ -1055,10 +1065,12 @@ function Bindings({
         <kbd className="kbd">Esc</kbd> always pauses a run and opens this screen, whatever <b>Pause</b> is
         bound to — a rebind can never lock you inside a drill. Attack-move fires on the confirm button
         while the modifier is held, and a bare left click also issues one, so you can train the habit
-        without being punished for forgetting the modifier.{' '}
+        without being punished for forgetting the modifier. <b>Move / Attack target</b> and{' '}
+        <b>Attack-move</b> are allowed to share one mouse button; every other row takes a key from
+        whoever had it.{' '}
         {wasd
-          ? 'Under WASD an attack order never walks you anywhere — it only chooses what you shoot, and the four movement keys always win a key they share.'
-          : 'Instant reset only ever answers to its own binding: the ultimate key is the ultimate key, in every mode, including the ones that never light it.'}
+          ? 'Under WASD an attack order never walks you anywhere — it only chooses what you shoot, so both mouse orders ship on left click and mean the same thing, and the four movement keys always win a key they share.'
+          : 'Sharing a button under click-to-move means the modifier decides: held is an attack-move, bare is the move order. Instant reset only ever answers to its own binding — the ultimate key is the ultimate key, in every mode, including the ones that never light it.'}
       </p>
     </div>
   );

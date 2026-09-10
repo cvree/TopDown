@@ -41,6 +41,35 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.15.0',
+    name: 'ONE BUTTON, BOTH ORDERS',
+    date: '2026-09-10',
+    headline:
+      'WASD ships the layout people were rebuilding by hand \u2014 Q on right click, the rest of the kit under the left hand \u2014 and left click now carries the move / attack-target order and the attack-move at the same time, because under the keys those are the same order.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'Move / Attack target and Attack-move may share one mouse button. Every other row still takes a key from whoever had it \u2014 two actions on one key means one of them is silently dead \u2014 but these two have somewhere to put the second of them: under click-to-move the attack-move modifier tells them apart, and under WASD they reach the champion as the identical attack stance, because a click there cannot walk you anywhere. Binding one no longer unbinds the other, and the screen no longer calls it a clash.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'The WASD scheme ships a new default layout. Q is on right click, W is on E, E is on Shift, the ultimate stays on R, the summoners are on 1 and 2, stop is on X, and left click is both mouse orders at once. It is the layout players were building for themselves within ten minutes of finding the bindings list, and it no longer costs a rebind to get there.',
+          'Picking WASD in SETUP or in the walkthrough writes that layout. Rebinds you had already saved are yours and are left alone, and the click-to-move defaults have not moved a key \u2014 switching schemes still never damages a layout you have tuned.',
+          'An attack-move with the modifier held is now read before the move order rather than after it, so a button carrying both orders can still issue the explicit one.',
+        ],
+      },
+      {
+        tag: 'fixed',
+        items: [
+          'The walkthrough\u2019s twenty-second hand test only ever prompts keys you can press. It is answered by a keystroke and a prompt waits for its own key, so an ability that ships on a mouse button \u2014 Q now does under WASD \u2014 would have left a light on screen that nothing could put out.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.14.0',
     name: 'IN PLAIN ENGLISH',
     date: '2026-09-10',

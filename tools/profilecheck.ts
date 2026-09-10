@@ -20,6 +20,7 @@ import { isErrorCode } from '../src/progression/errors';
 import { applyRun, loadProfile, newProfile, saveProfile, type Profile, type RunResult } from '../src/progression/profile';
 import { LANE_TIERS } from '../src/progression/lane';
 import { MetricsRecorder, derive } from '../src/engine/metrics';
+import { CLICK_ACTIONS, WASD_ACTIONS, findConflicts, mayShareCode, resolveBindings } from '../src/engine/input';
 import { buildPlan, axisReadings, lastSession, recentImprovements } from '../src/progression/plan';
 import {
   errorRollup,
@@ -253,6 +254,30 @@ section('The range indicator setting means what the profile meant by it', () => 
   const nonsense = legacyProfile();
   (nonsense.settings as Record<string, unknown>).rangeDisplay = 'sometimes';
   expect('and nonsense is not a choice', load(nonsense).settings.rangeDisplay === 'check', String(load(nonsense).settings.rangeDisplay));
+});
+
+section('The WASD scheme ships the layout it promises', () => {
+  const b = resolveBindings('wasd', {});
+  expect('the left hand keeps W A S D', b.moveUp.primary === 'KeyW' && b.moveLeft.primary === 'KeyA' && b.moveDown.primary === 'KeyS' && b.moveRight.primary === 'KeyD', JSON.stringify([b.moveUp, b.moveLeft, b.moveDown, b.moveRight]));
+  expect('Q is on right click', b.q.primary === 'Mouse2', b.q.primary);
+  expect('W and E are on E and Shift', b.w.primary === 'KeyE' && b.e.primary === 'ShiftLeft', `${b.w.primary}/${b.e.primary}`);
+  expect('the ultimate stays on R', b.r.primary === 'KeyR', b.r.primary);
+  expect('the summoners are on the digits', b.d.primary === 'Digit1' && b.f.primary === 'Digit2', `${b.d.primary}/${b.f.primary}`);
+  expect('stop is out of the way, on X', b.stop.primary === 'KeyX', b.stop.primary);
+  expect('both mouse orders are on left click', b.move.primary === 'Mouse0' && b.attackMove.secondary === 'Mouse0', `${b.move.primary}/${b.attackMove.secondary}`);
+  expect('and that is not reported as a clash', findConflicts(b, WASD_ACTIONS).size === 0, [...findConflicts(b, WASD_ACTIONS).keys()].join(', '));
+  expect('a fresh profile stores no WASD rebinds', Object.keys(newProfile().settings.wasdBindings).length === 0, JSON.stringify(newProfile().settings.wasdBindings));
+  expect('the click scheme is untouched', resolveBindings('click', {}).q.primary === 'KeyQ' && resolveBindings('click', {}).move.primary === 'Mouse2', 'the click defaults moved');
+});
+
+section('One button may carry both mouse orders, and nothing else may double up', () => {
+  const shared = resolveBindings('wasd', { move: { primary: 'Mouse0' } });
+  expect('move and attack-move on one button is a layout, not a clash', findConflicts(shared, WASD_ACTIONS).size === 0, [...findConflicts(shared, WASD_ACTIONS).keys()].join(', '));
+  const stolen = resolveBindings('wasd', { stop: { primary: 'Mouse0' } });
+  expect('a third action on that button still clashes', findConflicts(stolen, WASD_ACTIONS).size > 0, 'the clash went unreported');
+  const keyed = resolveBindings('click', { move: { primary: 'KeyA' } });
+  expect('sharing a key rather than a button is still a clash', findConflicts(keyed, CLICK_ACTIONS).size > 0, 'the clash went unreported');
+  expect('the pair is only ever move and attack-move', mayShareCode('move', 'attackMove', 'Mouse0') && !mayShareCode('move', 'q', 'Mouse0') && !mayShareCode('move', 'attackMove', 'KeyA'), 'the exception is wider than it should be');
 });
 
 section('A saved profile survives the round trip unchanged', () => {
