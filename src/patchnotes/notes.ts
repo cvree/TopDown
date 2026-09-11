@@ -41,6 +41,38 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.17.0',
+    name: 'SHOW ME THE MODE',
+    date: '2026-09-11',
+    headline:
+      'PLAY opens on PRACTICE instead of THE LANE, and every mode on it now shows you what it looks like: rest on a card for a moment and it plays you a short loop of itself.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'Every mode has a clip. Rest on a card and a ring fills in the corner; hold it and the card plays a short, looping picture of the mode itself — the range circle and which side of it you are on, shoot-roll-shoot on the beat, two quiet hits and the third one that is not, a target going backwards into a wall, the whole kit in the dark, and somebody else’s cast bar with the step out of it happening before the shot leaves. THE LANE gets one too, as a wide strip: a turret at one end, somebody pacing at the other, a wave meeting in the middle and one minion taken for gold.',
+          'The clips are drawn rather than recorded, so they are exactly as sharp as the text beside them on any display and at any zoom, and they cost nothing until you look at one — only the card under the cursor is ever moving.',
+          'Nothing jumps when a clip starts. The still frame on a card is the same picture the clip opens on, and leaving dissolves the moving frame back onto it rather than cutting.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'PLAY opens on PRACTICE. THE LANE is the game, and it is also ten minutes against somebody better than you — opening on it asked a player to be ready before the client had taught them anything. The pieces come first now, the lane they add up to second.',
+          'THE NUMBERS is called CHARACTER.',
+          'The six modes are a gallery instead of a column of essays. Each one is a picture with its name on it, one line of what it asks, and two buttons — the rest is one click away under WHY THIS ONE. Nothing that was on a card has left it; it is simply not all unfolded at once, so three fit across a screen where two used to.',
+          'Three groups instead of four. THE WHOLE CHAMPION and AGAINST SOMEBODY were one mode each, and as headings they cost a full row of the screen apiece; they are ALL OF IT now, and the whole champion fits on one screen.',
+        ],
+      },
+      {
+        tag: 'fixed',
+        items: [
+          'Asking for reduced motion, or turning low effects on, leaves every card on its still frame — the picture still does its job.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.16.0',
     name: 'SIX WAYS IN',
     date: '2026-09-10',

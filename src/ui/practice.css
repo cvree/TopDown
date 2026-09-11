@@ -478,9 +478,15 @@
   display: grid;
   /* auto-FILL rather than auto-fit: a group with one mode in it should get a
      card the same width as every other card on the screen, not a card
-     stretched across the page because it is alone in its row. */
-  grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
-  gap: 20px;
+     stretched across the page because it is alone in its row.
+
+     430px used to be the floor, which put two modes on a row and six modes on
+     a screen and a half. A tile that leads with a picture and folds its prose
+     away needs 320, so the same six fit on one screen with the groups still
+     legible between them — the whole champion visible without scrolling,
+     which is the only reason to group her at all. */
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
   margin-bottom: 4px;
 }
 
@@ -1012,4 +1018,396 @@
   font-size: 9.5px;
   letter-spacing: 0.1em;
   color: var(--text-3);
+}
+
+/* ===========================================================================
+   THE MODE TILE
+
+   A card that leads with a moving picture and folds its prose away behind it.
+   The old card printed a header row, a brief, a transfer note and two tall
+   buttons — everything true, all of it unfolded at once, three hundred pixels
+   tall and two to a row. This is the same content in a shape a player can scan:
+   the clip is the object, the name sits on it, and the reading is one click
+   under the fold.
+   ======================================================================== */
+
+.pr-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  border-top: 2px solid var(--c);
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--c) 14%, transparent), transparent 64%),
+    linear-gradient(180deg, rgba(10, 16, 28, 0.78), rgba(4, 9, 18, 0.72));
+  box-shadow: 0 0 0 0 transparent, 0 -1px 22px -6px color-mix(in srgb, var(--c) 55%, transparent);
+  transition: transform 0.2s var(--ease), box-shadow 0.24s var(--ease);
+}
+.pr-tile:hover,
+.pr-tile:focus-within {
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 30px -12px color-mix(in srgb, var(--c) 95%, transparent),
+    0 -1px 34px -4px color-mix(in srgb, var(--c) 75%, transparent),
+    0 28px 64px -32px rgba(0, 0, 0, 0.95);
+}
+
+/* --------------------------------------------------------------- the clip */
+
+.pr-tile-media {
+  position: relative;
+  /* The clip's own shape. Everything inside it is painted to fit, so this is
+     free to be whatever reads best on a card — and 16:9 is what a player has
+     been trained by every other client to read as footage. */
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in srgb, var(--c) 26%, transparent);
+}
+/* The title sits ON the picture. That is a whole header row of height back,
+   and it reads as a title card rather than a form label. */
+.pr-tile-title {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 10px;
+  /* Above the scrim below, which is a generated box and therefore paints over
+     every real child of the media unless the real children say otherwise. */
+  z-index: 2;
+  pointer-events: none;
+  /* Legible over any frame of any clip, without a slab of flat black: the
+     gradient below it does the lifting. */
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9), 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+.pr-tile-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(2, 5, 11, 0.28) 0%, transparent 34%, rgba(2, 5, 11, 0.86) 100%);
+}
+.pr-tile-title .pr-name {
+  font-size: 23px;
+  line-height: 1.05;
+}
+.pr-tile-title .pr-tag {
+  margin-top: 3px;
+  color: var(--text-2);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+}
+/* The kit goes to the top corner of the picture, out of the title's way. */
+.pr-tile-media .pr-keys {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+}
+.pr-tile-media .pr-keys i {
+  min-width: 21px;
+  height: 21px;
+  font-size: 10px;
+  backdrop-filter: blur(6px);
+  background: rgba(3, 8, 16, 0.62);
+}
+
+/* --------------------------------------------------------------- the copy */
+
+.pr-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 13px 15px 14px;
+  flex: 1;
+}
+.pr-tile-body .pr-brief {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+  /* Two lines, and the rest is under WHY THIS ONE. A tile whose height
+     depends on how long its brief happens to be is a row of ragged tiles. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* The fold. Same disclosure the screen's own explainer uses, at card scale —
+   nothing that was on the card has left it, it is simply not all open. */
+.pr-why {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: var(--ui);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  transition: color 0.15s ease;
+}
+.pr-why:hover,
+.pr-why:focus-visible {
+  color: var(--c);
+}
+.pr-why-chevron {
+  display: inline-block;
+  font-size: 9px;
+  transition: transform 0.2s var(--ease);
+}
+.pr-tile.open .pr-why-chevron {
+  transform: rotate(90deg);
+}
+.pr-tile.open .pr-why {
+  color: var(--c);
+}
+.pr-why-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.26s var(--ease);
+}
+.pr-tile.open .pr-why-panel {
+  grid-template-rows: 1fr;
+}
+.pr-why-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+.pr-why-panel .pr-transfers {
+  font-size: 12px;
+  line-height: 1.55;
+  padding: 2px 0 4px;
+  border-left: 2px solid color-mix(in srgb, var(--c) 45%, transparent);
+  padding-left: 10px;
+}
+
+/* Half the height they were: two words and the record they are asking you to
+   beat, which is all a button at the bottom of a picture needs to say. */
+.pr-tile .pr-buttons {
+  gap: 8px;
+  padding-top: 2px;
+}
+.pr-tile .pr-go {
+  padding: 9px 12px 8px;
+  gap: 1px;
+}
+.pr-tile .pr-go-label {
+  font-size: 15px;
+}
+.pr-tile .pr-go-best {
+  margin-top: 2px;
+  font-size: 9.5px;
+}
+
+/* One more chip on the legend, saying the thing the clips will not say for
+   themselves: that they are there, and how to get one to play. */
+.pr-legend-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 13px;
+  border: 1px dashed rgba(120, 90, 40, 0.3);
+  background: rgba(255, 255, 255, 0.012);
+}
+.pr-legend-hint b {
+  font-family: var(--ui);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--text-3);
+}
+.pr-legend-hint i {
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+/* The lane's own clip, above its head. Wider than a tile's because the card
+   it sits on is the full width of the column. */
+.pr-lane-media {
+  position: relative;
+  /* A lane is a strip, so the lane's clip is one: fitted to its height, with
+     the extra width spent on more lane rather than on a bigger champion. The
+     painter is told how much it got (see `bleed` in previews.ts) and puts the
+     turret at one end of it and the enemy at the other. */
+  height: 172px;
+  margin: -22px -22px 4px;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in srgb, var(--c) 26%, transparent);
+}
+
+@media (max-width: 640px) {
+  .pr-lane-media {
+    height: 132px;
+  }
+}
+
+/* ===========================================================================
+   THE PREVIEW ITSELF
+
+   Chrome around the canvas: the ring that fills while a clip is arming, the
+   loop position, and the caption. All of it DOM rather than painted, because
+   text belongs on the text layer where it is subpixel-rendered and readable
+   by anything that reads screens.
+   ======================================================================== */
+
+.pv {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #03060c;
+}
+.pv-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* The backing store is already at devicePixelRatio, so the browser must not
+     be given the chance to resample it. */
+  image-rendering: auto;
+}
+/* A one-pixel accent edge along the top of the frame, which is what makes the
+   clip read as part of the card rather than a hole cut in it. */
+.pv-edge {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 12%, transparent);
+  background: radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--c) 10%, transparent), transparent 70%);
+  opacity: 0.9;
+}
+
+/* ------------------------------------------------------------ the hold ring
+
+   Fills over the same 480ms the component waits. It is the answer to "why has
+   nothing happened", and it turns the wait into something to aim at rather
+   than something to endure. */
+.pv-hold {
+  position: absolute;
+  z-index: 2;
+  right: 10px;
+  bottom: 10px;
+  width: 26px;
+  height: 26px;
+  opacity: 0;
+  transform: scale(0.82);
+  transition: opacity 0.18s ease, transform 0.22s var(--ease);
+  pointer-events: none;
+  filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.8));
+}
+.pv:hover .pv-hold,
+.pv.is-arming .pv-hold {
+  opacity: 1;
+  transform: scale(1);
+}
+.pv.is-live .pv-hold {
+  opacity: 0;
+  transform: scale(1.25);
+}
+.pv-hold-track {
+  fill: rgba(3, 8, 16, 0.6);
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1.6;
+}
+.pv-hold-fill {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  /* 2πr for r=9, to a tenth of a pixel. */
+  stroke-dasharray: 56.5;
+  stroke-dashoffset: 56.5;
+  transform: rotate(-90deg);
+  transform-origin: 12px 12px;
+}
+.pv.is-arming .pv-hold-fill {
+  /* Linear, and exactly as long as the timer — `--hold` is set from the same
+     constant the timer uses. A ring that eased would be telling the player the
+     wait is a different length than it is. */
+  animation: pv-arm var(--hold, 480ms) linear forwards;
+}
+@keyframes pv-arm {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.pv-hold-play {
+  fill: rgba(255, 255, 255, 0.9);
+  opacity: 0.75;
+}
+.pv.is-arming .pv-hold-play {
+  opacity: 1;
+}
+
+/* ------------------------------------------------------- loop position, cap */
+
+.pv-bar {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  transform: scaleX(var(--p, 0));
+  transform-origin: left;
+  background: linear-gradient(90deg, transparent, var(--c));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.pv.is-live .pv-bar {
+  opacity: 0.85;
+}
+
+.pv-cap {
+  position: absolute;
+  z-index: 2;
+  left: 12px;
+  top: 10px;
+  /* The keycap row owns the other top corner — about 110px of it — so the
+     caption stops short of it and trims rather than running underneath. */
+  max-width: calc(100% - 140px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--c) 70%, #ffffff);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95);
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity 0.24s ease, transform 0.28s var(--ease);
+  pointer-events: none;
+}
+.pv.is-live .pv-cap {
+  opacity: 0.85;
+  transform: none;
+}
+
+/* A player who has asked the system for less motion gets the still frame and
+   the caption, permanently — the picture still does its job. */
+@media (prefers-reduced-motion: reduce) {
+  .pv-hold,
+  .pv-bar {
+    display: none;
+  }
+  .pv-cap {
+    opacity: 0.7;
+    transform: none;
+  }
+  .pr-tile {
+    transition: none;
+  }
+  .pr-tile:hover,
+  .pr-tile:focus-within {
+    transform: none;
+  }
 }

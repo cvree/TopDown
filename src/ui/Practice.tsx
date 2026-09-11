@@ -9,6 +9,7 @@ import { VAYNE_STATS, tumbleCdAt, tumblePracticeCdAt, condemnCdAt, condemnPracti
 import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from '../engine/input';
 import type { AppSettings, Profile } from '../progression/profile';
 import { Explainer } from './components/Explainer';
+import { ModePreview } from './components/ModePreview';
 import './practice.css';
 
 interface Props {
@@ -79,11 +80,15 @@ const bindingsOf = (settings: AppSettings | undefined): Bindings => {
  *
  * Three sections now, and every one of them is the champion:
  *
- *  - **THE LANE** is the game. One card, one decision, and it is first because
- *    everything else on the screen exists to make it go better.
  *  - **PRACTICE** is the champion in pieces: six modes, grouped by how much of
- *    her they hand you, from a body with no abilities to a whole opponent.
- *  - **THE CODEX** is the reading: every figure both champions are built from,
+ *    her they hand you, from a body with no abilities to a whole opponent. It
+ *    is first because it is where a player can actually start. THE LANE is the
+ *    game and it is also ten minutes against somebody who is better than you;
+ *    opening on it asked a player to be ready before the client had taught
+ *    them anything. A menu should open on the thing you can do now.
+ *  - **THE LANE** is the game, and everything in PRACTICE exists to make it go
+ *    better — so it is second, where it reads as what the pieces add up to.
+ *  - **CHARACTER** is the reading: every figure both champions are built from,
  *    so a claim the trainer makes about transfer is one you can check.
  *
  * The fourth used to be the lab, and the lab is not this screen's business.
@@ -117,12 +122,12 @@ interface SectionMeta {
  * run starts. Coming back from a bench in the lab and landing on the lane is
  * the client forgetting what you were doing.
  */
-let lastSection: SectionId = 'lane';
+let lastSection: SectionId = 'practice';
 
 const SECTIONS: SectionMeta[] = [
-  { id: 'lane', no: '01', label: 'THE LANE', sub: 'play a real lane', accent: '#ffd166' },
-  { id: 'practice', no: '02', label: 'PRACTICE', sub: 'one skill at a time', accent: '#c86bff' },
-  { id: 'codex', no: '03', label: 'THE NUMBERS', sub: 'what everything does', accent: '#e0b05c' },
+  { id: 'practice', no: '01', label: 'PRACTICE', sub: 'one skill at a time', accent: '#c86bff' },
+  { id: 'lane', no: '02', label: 'THE LANE', sub: 'play a real lane', accent: '#ffd166' },
+  { id: 'codex', no: '03', label: 'CHARACTER', sub: 'what everything does', accent: '#e0b05c' },
 ];
 
 /** The three, in order — for anything that has to walk all of them. */
@@ -227,7 +232,8 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
           <div className="eyebrow">Play as · Vayne</div>
           <h1 className="display pr-h1">VAYNE</h1>
           <p className="dim pr-lead">
-            One champion, three tabs — the lane, the pieces of it, the numbers behind them.
+            One champion, three tabs — the pieces of her, the lane they add up to, and every
+            number behind both.
           </p>
         </header>
 
@@ -284,9 +290,11 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
           aria-labelledby={`pr-tab-${section}`}
           style={{ ['--c' as string]: active.accent }}
         >
-          {section === 'lane' && <LanePanel profile={profile} bound={bound} onPlay={onPlay} />}
+          {section === 'lane' && (
+            <LanePanel profile={profile} settings={settings} bound={bound} onPlay={onPlay} />
+          )}
           {section === 'practice' && (
-            <PracticePanel profile={profile} bound={bound} onPlay={onPlay} />
+            <PracticePanel profile={profile} settings={settings} bound={bound} onPlay={onPlay} />
           )}
           {section === 'codex' && <CodexPanel />}
         </div>
@@ -320,23 +328,18 @@ function GroupHead({ label, note, count }: { label: string; note: string; count?
 
 function LanePanel({
   profile,
+  settings,
   bound,
   onPlay,
 }: {
   profile: Profile;
+  settings: AppSettings;
   bound: Bindings;
   onPlay: PlayFn;
 }) {
   return (
     <>
-      <Explainer title="HOW THIS SCREEN WORKS">
-        <p className="dim pr-lead pr-panel-lead">
-          One champion, three tabs. <b>THE LANE</b> is a real game of League — farm minions while
-          somebody tries to stop you. <b>PRACTICE</b> breaks that into small pieces you can
-          rehearse one at a time. <b>THE NUMBERS</b> is the reference: exactly what every ability
-          does, if you want to check. Want something shorter? <b>TRAIN</b> in the top bar is
-          one-minute drills with no champion at all.
-        </p>
+      <Explainer title="HOW THE LANE WORKS">
         <p className="dim pr-lead pr-panel-lead">
           This is the actual game: minions walk in, you kill the ones about to die for gold, and
           somebody on the other side is doing the same and trying to stop you. Pick who you are up
@@ -345,7 +348,7 @@ function LanePanel({
         </p>
       </Explainer>
       <GroupHead label="THE MATCH" note="pick an opponent, pick a length" count="1 MODE" />
-      <LaneCard profile={profile} bound={bound} onPlay={onPlay} />
+      <LaneCard profile={profile} settings={settings} bound={bound} onPlay={onPlay} />
     </>
   );
 }
@@ -373,19 +376,34 @@ function LanePanel({
  */
 function LaneCard({
   profile,
+  settings,
   bound,
   onPlay,
 }: {
   profile: Profile;
+  settings: AppSettings;
   bound: Bindings;
   onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number }) => void;
 }) {
   const meta = DRILLS.lanePhase;
   const [tier, setTier] = useState<LaneTier>(LANE_TIERS[1]);
+  const card = useRef<HTMLElement>(null);
   const record = profile.lane?.tiers?.[tier.id];
 
   return (
-    <section className="pr-card panel pr-lane" style={{ ['--c' as string]: tier.accent }}>
+    <section ref={card} className="pr-card panel pr-lane" style={{ ['--c' as string]: tier.accent }}>
+      {/* The lane gets a clip for the same reason every mode does — and it
+          takes the opponent's colour, so resting on the card after picking a
+          harder one shows you the lane you actually chose. */}
+      <div className="pr-lane-media">
+        <ModePreview
+          id="lanePhase"
+          accent={tier.accent}
+          host={card}
+          still={settings.lowFx}
+          label={`a real lane against ${tier.label.toLowerCase()}`}
+        />
+      </div>
       <div className="pr-card-head">
         <div>
           <div className="eyebrow">a real game of League</div>
@@ -488,8 +506,15 @@ function LaneCard({
  *     under it already assumes you know how far you reach.
  *  2. **THE KIT** is one ability at a time, which is the only way a cooldown
  *     ever becomes a rhythm rather than a decision.
- *  3. **THE WHOLE CHAMPION** hands all of it back at once.
- *  4. **AGAINST SOMEBODY** is the half of a lane that is not about your hands.
+ *  3. **ALL OF IT** is the whole champion handed back at once, and then handed
+ *     back with somebody shooting at you.
+ *
+ * That third group used to be two — THE WHOLE CHAMPION and AGAINST SOMEBODY,
+ * one mode each. The distinction is real and it is in the note, but as
+ * *headings* they cost two full rows of the screen to carry one tile apiece,
+ * which is how six modes came to need five rows. Six modes, three groups,
+ * three rows: the whole champion visible at once, which is the only reason to
+ * group her.
  *
  * Anything added to `PRACTICE_MODES` that no group claims still appears, under
  * a group of its own — a mode that exists and is not on the menu is a worse
@@ -509,25 +534,21 @@ const PRACTICE_GROUPS: { id: string; label: string; note: string; members: Drill
     members: ['vayneTumble', 'vayneBolts', 'vayneCondemn'],
   },
   {
-    id: 'champion',
-    label: 'THE WHOLE CHAMPION',
-    note: 'all four abilities at once, in the dark',
-    members: ['vayneHunt'],
-  },
-  {
-    id: 'versus',
-    label: 'AGAINST SOMEBODY',
-    note: 'somebody is shooting back — this one is about reading them',
-    members: ['caitlynDodge'],
+    id: 'whole',
+    label: 'ALL OF IT',
+    note: 'the four abilities at once — then with somebody shooting back',
+    members: ['vayneHunt', 'caitlynDodge'],
   },
 ];
 
 function PracticePanel({
   profile,
+  settings,
   bound,
   onPlay,
 }: {
   profile: Profile;
+  settings: AppSettings;
   bound: Bindings;
   onPlay: PlayFn;
 }) {
@@ -546,16 +567,23 @@ function PracticePanel({
 
   return (
     <>
-      <Explainer title="HOW THESE MODES WORK">
+      <Explainer title="HOW THIS SCREEN WORKS">
         <p className="dim pr-lead pr-panel-lead">
-          Six modes, each one a single piece of a lane taken out and rehearsed on its own. Every
-          one of them has two buttons. <b>PLAY</b> is one minute, always the same, so you can
+          One champion, three tabs. <b>PRACTICE</b> — this one — is six modes, each a single piece
+          of a lane taken out and rehearsed on its own. <b>THE LANE</b> is all six at once: a real
+          game of League, farming minions while somebody tries to stop you. <b>CHARACTER</b> is the
+          reference behind both. Want something shorter? <b>TRAIN</b> in the top bar is one-minute
+          drills with no champion at all.
+        </p>
+        <p className="dim pr-lead pr-panel-lead">
+          Every mode has two buttons. <b>PLAY</b> is one minute, always the same, so you can
           compare today's score to yesterday's. <b>SURVIVE</b> has no clock — it gets harder the
-          longer you last and ends on your third mistake.
+          longer you last and ends on your third mistake. Rest on a card for a moment and it plays
+          you the mode.
         </p>
         <p className="set-note">
           Every number behind these six — cooldowns, ranges, how long you have to dodge — is
-          printed in <b>THE NUMBERS</b>, so you can check any of it against the real game.
+          printed in <b>CHARACTER</b>, so you can check any of it against the real game.
         </p>
       </Explainer>
 
@@ -566,6 +594,10 @@ function PracticePanel({
             <i>{m.blurb}</i>
           </span>
         ))}
+        <span className="pr-legend-hint">
+          <b>HOVER A CARD</b>
+          <i>hold a second and it plays</i>
+        </span>
       </div>
 
       {groups.map((g) => (
@@ -577,7 +609,14 @@ function PracticePanel({
           />
           <div className="pr-modes">
             {g.members.map((id) => (
-              <ModeCard key={id} id={id} profile={profile} bound={bound} onPlay={onPlay} />
+              <ModeCard
+                key={id}
+                id={id}
+                profile={profile}
+                settings={settings}
+                bound={bound}
+                onPlay={onPlay}
+              />
             ))}
           </div>
         </div>
@@ -586,14 +625,45 @@ function PracticePanel({
   );
 }
 
+/**
+ * ONE MODE, ON ONE TILE.
+ *
+ * This used to be a page of a card: a name, a tagline, a row of keycaps, a
+ * paragraph of brief, a paragraph of why it matters and two large buttons —
+ * about three hundred pixels tall, two to a row, which put six modes on a
+ * screen and a half of solid prose. Nothing in that was wrong and all of it
+ * was in the wrong order, because it answered *what is this mode about* four
+ * times over before it answered the question a player standing at a menu is
+ * actually asking, which is **what does it look like**.
+ *
+ * So the tile leads with the clip and the copy folds up behind it:
+ *
+ *  - **The picture is the top two thirds.** A loop of the mode itself, still
+ *    until you rest on it (see {@link ModePreview}). The name and the tagline
+ *    sit *on* it rather than above it, which is a whole header row's worth of
+ *    height reclaimed and reads as a title card rather than a form field.
+ *  - **One line of brief.** Two at most, clamped. The full brief and the
+ *    transfer note are one click away under WHY THIS ONE — everything that
+ *    was on the card is still on the card, it is simply not all unfolded at
+ *    once.
+ *  - **The buttons are a footer.** PLAY and SURVIVE, half the height they
+ *    were, with the record they beat printed on them.
+ *
+ * The tile lands at roughly two thirds of the old height and narrow enough
+ * for three to a row, so the six modes are one screen with no scrolling and
+ * the whole champion is visible at once — which was the point of grouping
+ * them in the first place.
+ */
 function ModeCard({
   id,
   profile,
+  settings,
   bound,
   onPlay,
 }: {
   id: DrillId;
   profile: Profile;
+  settings: AppSettings;
   bound: Bindings;
   onPlay: (id: DrillId, mode: RunMode) => void;
 }) {
@@ -601,11 +671,22 @@ function ModeCard({
   const best = profile.bests[id];
   const survived = profile.survive[id];
   const uses = new Set<AbilitySlot>(meta.abilities);
+  const [open, setOpen] = useState(false);
+  // The clip watches the whole card rather than just its picture — resting
+  // anywhere on a tile is looking at that mode — and it watches the element
+  // itself, so a cursor moving across the screen never re-renders a card.
+  const card = useRef<HTMLElement>(null);
 
   return (
-    <section className="pr-card panel" style={{ ['--c' as string]: meta.accent }}>
-      <div className="pr-card-head">
-        <div>
+    <section
+      ref={card}
+      className={`pr-tile panel${open ? ' open' : ''}`}
+      style={{ ['--c' as string]: meta.accent }}
+      onMouseEnter={() => audio.play('uiHover')}
+    >
+      <div className="pr-tile-media">
+        <ModePreview id={id} accent={meta.accent} host={card} still={settings.lowFx} />
+        <div className="pr-tile-title">
           <h2 className="display pr-name">{meta.name}</h2>
           <div className="pr-tag">{meta.tagline}</div>
         </div>
@@ -622,38 +703,55 @@ function ModeCard({
         )}
       </div>
 
-      <p className="pr-brief">{meta.brief}</p>
-      <p className="pr-transfers">
-        <span className="eyebrow">Why it matters</span>
-        {meta.transfers}
-      </p>
+      <div className="pr-tile-body">
+        <p className="pr-brief">{meta.brief}</p>
+        <button
+          type="button"
+          className="pr-why"
+          aria-expanded={open}
+          onMouseEnter={() => audio.play('uiHover')}
+          onClick={() => {
+            audio.play('uiTab');
+            setOpen((o) => !o);
+          }}
+        >
+          <span className="pr-why-chevron" aria-hidden>
+            ▸
+          </span>
+          why this one
+        </button>
+        <div className="pr-why-panel">
+          <div className="pr-why-inner">
+            <p className="pr-transfers">{meta.transfers}</p>
+          </div>
+        </div>
 
-      <div className="pr-buttons">
-        {RUN_MODE_LIST.map((m) => {
-          const record =
-            m.id === 'play'
-              ? best
-                ? `best ${best.score.toLocaleString()}`
-                : 'no score yet'
-              : survived
-                ? `best ${clock(survived.seconds)}`
-                : 'never survived';
-          return (
-            <button
-              key={m.id}
-              className={`pr-go pr-go-${m.id}`}
-              onMouseEnter={() => audio.play('uiHover')}
-              onClick={() => {
-                audio.play('uiClick');
-                onPlay(id, m.id);
-              }}
-            >
-              <span className="pr-go-label">{m.label}</span>
-              <span className="pr-go-sub">{m.tagline}</span>
-              <span className="pr-go-best mono">{record}</span>
-            </button>
-          );
-        })}
+        <div className="pr-buttons">
+          {RUN_MODE_LIST.map((m) => {
+            const record =
+              m.id === 'play'
+                ? best
+                  ? `best ${best.score.toLocaleString()}`
+                  : 'no score yet'
+                : survived
+                  ? `best ${clock(survived.seconds)}`
+                  : 'never survived';
+            return (
+              <button
+                key={m.id}
+                className={`pr-go pr-go-${m.id}`}
+                onMouseEnter={() => audio.play('uiHover')}
+                onClick={() => {
+                  audio.play('uiClick');
+                  onPlay(id, m.id);
+                }}
+              >
+                <span className="pr-go-label">{m.label}</span>
+                <span className="pr-go-best mono">{record}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
