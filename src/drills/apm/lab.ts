@@ -7,6 +7,7 @@ import type { AbilityView } from '../../engine/session';
 import type { Actor, Vec2 } from '../../engine/types';
 import type { KeyMetric } from '../../progression/profile';
 import { difficultyLevel } from '../../progression/apmladder';
+import { pct } from '../base';
 import { ApmDrill, KeyCooldowns } from './engine';
 import { benchPair, benchSlots, mapAtLevel, ORDER_LABEL, type LabOrder } from './keyladder';
 import { MAP_KEYS, MapDodge } from './map';
@@ -116,6 +117,15 @@ export interface LabSolution {
   /** True when doing nothing is the correct play right now. */
   wait?: boolean;
   /**
+   * Where the cursor has to be for `keys` to count.
+   *
+   * The bench does not take a key on its own — see `AIM_SLACK` below — so a
+   * solution that names keys and does not say where to point them is only half
+   * an answer. Null means this mode is not asking the mouse for anything right
+   * now, which is the honest answer for the one mode with no pads in it.
+   */
+  aim?: Vec2 | null;
+  /**
    * An order the strip along the bottom wants — a command to the champion
    * rather than a key on the console, so it is its own field and not a key.
    */
@@ -150,6 +160,10 @@ export abstract class LabDrill extends ApmDrill {
   protected map!: MapDodge;
   /** The strip along the bottom. Every mode runs one — from level five up. */
   protected orderLine!: OrderLine;
+
+  /** Presses that were pointed at the pad that wanted them, and presses that were not. */
+  private onPad = 0;
+  private offPad = 0;
 
   /**
    * The keys this bench is actually asking for at this rung.
@@ -205,6 +219,70 @@ export abstract class LabDrill extends ApmDrill {
    */
   protected mapPressure(): number {
     return 1;
+  }
+
+  /**
+   * THE PADS THE CURSOR MAY BE RESTING ON RIGHT NOW.
+   *
+   * The bench used to be a keyboard test with circles drawn on it. The circles
+   * were where the prompt *was*, and they were nothing else: a player could
+   * put the mouse in a corner, never move it again, and answer thirteen modes
+   * at full rate for a minute. That is not a trainer, it is a typing exercise
+   * with a lightshow — and it trains the one habit the whole client exists to
+   * break, which is producing inputs without aiming them.
+   *
+   * So a pad has to be *pointed at* to be answered. A mode lists the pads that
+   * are live this instant and the base class does the rest: a key the bench is
+   * asking for, pressed with the cursor somewhere else, is an input that meant
+   * nothing — counted, worth nothing, and told so by name.
+   *
+   * Three things it deliberately is not.
+   *
+   * It is not a second reaction test. `AIM_SLACK` is generous and every pad on
+   * every bench is large; what is being asked is that the hand that is not
+   * busy goes where the eyes already are, which is free once it is a habit and
+   * impossible to fake.
+   *
+   * It is not applied to a key the mode did not ask for. Press the wrong key
+   * and the mode answers for it — WRONG PAD, BAIT, NOTHING TO CUT — because a
+   * wrong key is a different mistake from a wrong aim and the run's own
+   * coaching has to be able to tell them apart.
+   *
+   * And it is not a rule about the *chain*. An off-pad press is a stray: it
+   * dents a streak and never ends one, which is the same verdict the engine
+   * gives every other input that was real and bought nothing.
+   *
+   * An empty list means this mode is not asking the mouse for anything —
+   * VECTOR, whose whole answer is a heading and which has no pads at all.
+   */
+  protected aimPads(): readonly Pad[] {
+    return [];
+  }
+
+  /** Whether the bench is asking for this key at this instant. */
+  private wantsKey(slot: AbilitySlot): boolean {
+    const s = this.modeSolution();
+    return !s.wait && (s.keys?.includes(slot) ?? false);
+  }
+
+  /** The live pad the cursor is inside, or null. */
+  protected aimedPad(at: Vec2 = this.s.cursorWorld): Pad | null {
+    for (const pad of this.aimPads()) {
+      if (Math.hypot(at.x - pad.pos.x, at.y - pad.pos.y) <= pad.radius + AIM_SLACK) return pad;
+    }
+    return null;
+  }
+
+  /**
+   * Whether a press of this key, made from here, is pointed at anything.
+   *
+   * True whenever the mode is not asking for the key — the mode owns that
+   * mistake — and true whenever the mode has no pads to point at.
+   */
+  private aimed(slot: AbilitySlot, at: Vec2): boolean {
+    if (this.aimPads().length === 0) return true;
+    if (!this.wantsKey(slot)) return true;
+    return this.aimedPad(at) !== null;
   }
 
   setup(): void {
@@ -521,6 +599,22 @@ export abstract class LabDrill extends ApmDrill {
       else this.stray(at);
       return;
     }
+    // The right key, from nowhere in particular. The bench does not take it —
+    // see `aimPads` — and it says which of the two things went wrong, because
+    // "nothing happened" is the one response that teaches a player to press
+    // harder rather than to point.
+    if (!this.aimed(slot, at)) {
+      this.press(slot);
+      this.offPad++;
+      const want = this.aimPads()[0];
+      // The spray lands on the pad that wanted the press rather than under the
+      // cursor: the correction is *go there*, and the feedback should be
+      // where the player has to go.
+      this.s.micro('CURSOR OFF THE PAD', want?.pos ?? at, PALETTE.warn);
+      this.stray(want?.pos ?? at);
+      return;
+    }
+    this.onPad++;
     this.onKey(slot, at);
   }
 
@@ -541,10 +635,14 @@ export abstract class LabDrill extends ApmDrill {
     // itself the instant it expires and an order does not. Under both of them
     // a heading is left in place — a movement command is a state rather than
     // an input, and dropping it would be a different mistake.
+    // The board's two keys are on the board, not on the bench, so a dodge
+    // carries no aim: the cursor is not what answers the corner.
     if (dodge) return { keys: [dodge], dir: base.dir ?? null };
     const order = this.orderLine?.solution() ?? null;
     if (order) return { order, dir: base.dir ?? null };
-    return base;
+    // Where to point for the keys the mode just named. A bench answers for its
+    // own pads; the rule lives in one place and so does the answer to it.
+    return { ...base, aim: base.aim ?? this.aimPads()[0]?.pos ?? null };
   }
 
   mapBoard(): MapBoard | null {
@@ -563,17 +661,50 @@ export abstract class LabDrill extends ApmDrill {
   }
 
   protected extraMetrics(): KeyMetric[] {
-    return [...(this.map?.metrics() ?? []), ...(this.orderLine?.metrics() ?? [])];
+    const aimed = this.onPad + this.offPad;
+    return [
+      // Every bench that has pads prints this, and only the ones that have
+      // pads: a movement mode has nothing to be on and a zero there would read
+      // as a failure rather than as an absence.
+      ...(aimed > 0
+        ? [pct('onpad', 'PRESSES ON THE PAD', this.onPad / aimed)]
+        : []),
+      ...(this.map?.metrics() ?? []),
+      ...(this.orderLine?.metrics() ?? []),
+    ];
   }
 
   protected extraNotes(): { helped: string[]; hurt: string[] } {
     const map = this.map?.notes() ?? { helped: [], hurt: [] };
     const orders = this.orderLine?.notes() ?? { helped: [], hurt: [] };
-    return { helped: [...map.helped, ...orders.helped], hurt: [...map.hurt, ...orders.hurt] };
+    const aimed = this.onPad + this.offPad;
+    const share = aimed > 0 ? this.onPad / aimed : 1;
+    return {
+      helped: [
+        ...(aimed > 24 && share >= 0.98
+          ? ['Your cursor was on the pad for every press. That is the hand this section is for.']
+          : []),
+        ...map.helped,
+        ...orders.helped,
+      ],
+      hurt: [
+        ...(share < 0.85 && this.offPad > 3
+          ? [`${this.offPad} presses went in with the cursor somewhere else.`]
+          : []),
+        ...map.hurt,
+        ...orders.hurt,
+      ],
+    };
   }
 
   protected extraAdvice(): string | null {
-    // The corner first, because it is the more expensive of the two mistakes.
+    const aimed = this.onPad + this.offPad;
+    // First, because it is the mistake that makes every other number on the
+    // screen a lie: a rate produced without aiming is not a rate.
+    if (aimed > 0 && this.offPad > 3 && this.onPad / aimed < 0.85) {
+      return 'Take the cursor with you. A key only counts while the pointer is on the pad asking for it — leading with the mouse is the habit, and it is the one that transfers.';
+    }
+    // The corner next, because it is the more expensive of the two that are left.
     return this.map?.advice() ?? this.orderLine?.advice() ?? null;
   }
 
@@ -620,10 +751,82 @@ export abstract class LabDrill extends ApmDrill {
 
   // -------------------------------------------------------------- drawing
 
-  /** The bench, and then the strip under it. */
+  /** The bench, the aim on it, and then the strip under it. */
   paint(out: DrillPaint, t: number): void {
     super.paint(out, t);
+    this.paintAim(out, t);
     this.orderLine?.paint(out);
+  }
+
+  /**
+   * Where the cursor is, and whether it is anywhere useful.
+   *
+   * A rule the player can only find out about by breaking it is a bug wearing
+   * a rule's clothes, so the state is on the floor at all times: a live pad
+   * wears a second ring inside its edge, that ring closes and lights when the
+   * pointer is inside it, and a pointer that is *not* on anything gets a line
+   * drawn to the pad that wants it. Nobody should ever have to read a menu to
+   * find out why a press did nothing.
+   */
+  private paintAim(out: DrillPaint, t: number): void {
+    const pads = this.aimPads();
+    if (pads.length === 0) return;
+    const cur = this.s.cursorWorld;
+    const on = this.aimedPad(cur);
+    for (const pad of pads) {
+      const live = pad === on;
+      out.markers.push({
+        kind: 'ring',
+        x: pad.pos.x,
+        y: pad.pos.y,
+        radius: pad.radius - 7,
+        color: live ? this.promptColor : PALETTE.textDim,
+        alpha: live ? 0.55 + Math.sin(t * 6) * 0.12 : 0.3,
+        width: live ? 2.4 : 1.4,
+        // Dashed while it is asking, solid once it has what it asked for: the
+        // closing of the ring is the confirmation, and it needs no words.
+        dash: live ? 0 : 10,
+        spin: live ? 0 : 0.5,
+        rise: 0.55,
+      });
+    }
+    if (on) {
+      out.markers.push({
+        kind: 'ring',
+        x: cur.x,
+        y: cur.y,
+        radius: 16,
+        color: this.promptColor,
+        alpha: 0.5,
+        width: 1.6,
+        rise: 1.2,
+      });
+      return;
+    }
+    // Off every pad: the shortest way back, drawn. It is faint on purpose —
+    // a player who is already leading with the mouse never sees it.
+    const want = pads[0];
+    out.markers.push({
+      kind: 'line',
+      x: cur.x,
+      y: cur.y,
+      x2: want.pos.x,
+      y2: want.pos.y,
+      halfWidth: 1.4,
+      color: PALETTE.warn,
+      alpha: 0.3,
+      rise: 1.1,
+    });
+    out.markers.push({
+      kind: 'cross',
+      x: cur.x,
+      y: cur.y,
+      radius: 11,
+      color: PALETTE.warn,
+      alpha: 0.7,
+      width: 2,
+      rise: 1.2,
+    });
   }
 
   /** Draws one pad: a lit face, an edge, a countdown and what it wants. */
@@ -723,5 +926,17 @@ export abstract class LabDrill extends ApmDrill {
 
 /** How long a pressed key stays lit. Purely feedback; it gates nothing. */
 const PRESS_CD = 0.26;
+
+/**
+ * How far outside a pad still counts as pointing at it.
+ *
+ * The same fourteen units `padAt` has always allowed a click, because a key
+ * press aimed at a pad and a click aimed at a pad are the same gesture and it
+ * would be indefensible for one of them to be stricter. The whole rule is
+ * about *leading with the mouse*, not about pixels: a hand that arrived is a
+ * hand that arrived, and shaving the last few units off a sixty-unit circle
+ * would only be measuring a mouse sensor.
+ */
+const AIM_SLACK = 14;
 
 export { mean, median } from './stats';

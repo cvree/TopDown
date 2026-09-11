@@ -817,12 +817,6 @@
   transform: translateY(-2px);
   box-shadow: 0 0 24px -12px color-mix(in srgb, var(--c) 90%, transparent);
 }
-.pr-lab-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
 .pr-lab-name {
   font-family: var(--display);
   font-size: 19px;

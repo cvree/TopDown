@@ -296,6 +296,21 @@ export class ApmHandoffDrill extends LabDrill {
     return this.turn === 'click' ? { click: this.clickPad?.pos ?? null } : { keys: [this.keySlot] };
   }
 
+  /**
+   * The key pad, on the turns that want a key.
+   *
+   * The handover this mode measures is the one between the two *hands*, and
+   * that is unchanged: the mouse still has nowhere to be until the key turn
+   * arrives. What the rule adds is that the idle hand cannot idle in a corner
+   * — it travels to the pad while the other hand presses it, which is the
+   * shape a real handover has and the shape a corner-parked mouse never does.
+   */
+  protected aimPads(): readonly Pad[] {
+    if (this.turn !== 'key') return [];
+    const pad = this.keyPads[this.keySlots.indexOf(this.keySlot)];
+    return pad ? [pad] : [];
+  }
+
   protected slotName(slot: AbilitySlot): string {
     return this.turn === 'key' && slot === this.keySlot ? 'NOW' : '';
   }
@@ -462,6 +477,19 @@ export class ApmSplitDrill extends LabDrill {
   protected modeSolution(): LabSolution {
     // The centre only. The board outranks it and is folded in above this.
     return { keys: [this.queue[0]] };
+  }
+
+  /**
+   * The centre pad the queue is asking for.
+   *
+   * The corner is not on this list and must not be: the board is answered with
+   * two keys and is watched rather than pointed at, so demanding the cursor
+   * there would turn a mode about *dividing* attention into one about
+   * abandoning half of it.
+   */
+  protected aimPads(): readonly Pad[] {
+    const pad = this.pads[this.keySlots.indexOf(this.queue[0])];
+    return pad ? [pad] : [];
   }
 
   protected slotName(slot: AbilitySlot): string {

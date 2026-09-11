@@ -41,6 +41,33 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.18.0',
+    name: 'POINT AT IT FIRST',
+    date: '2026-09-11',
+    headline:
+      'THE LAB shows you what every one of its thirteen benches looks like, it will not take a key unless your cursor is on the square asking for it, and it checks your keyboard can answer a level before it lets you start one.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'Every bench in THE LAB has a clip. Thirteen names that were thirteen abstractions — CANCEL, UPKEEP, SWITCH — are now pictures: the light that repeats, the queue that never empties, two keys landing eleven milliseconds apart, the square with a cross on it that wants nothing at all, the shutter you press before it opens, the bar cut short, four dials filling at four speeds with one of them locked, and a beat that speeds up until it is taken away from you. Rest on a card and it plays.',
+          'THE LAB checks your keyboard before it starts a run. The levels here are made of keys — the ladder hands over one more piece of your keyboard every rung — so if a key you need is unbound, or two things are sharing one button, the section says which row on the controls screen to go and look at, which level it stops you at, and gives you a button that takes you there.',
+          'Your run now prints PRESSES ON THE PAD: how often your cursor was on the square you were answering. If it is low, the advice at the end of the run says so before it says anything else, because a rate produced without aiming is not a rate.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'A key in THE LAB only counts while your cursor is on the square asking for it. The squares used to be where the prompt was and nothing else, which meant you could leave the mouse in a corner and answer all thirteen benches at full speed with one hand — an input trainer that pays for that is teaching the one habit the rest of this client exists to break. The square you have to be on wears a second ring inside its edge; it closes and lights when you are on it, and when you are not, a line is drawn from your cursor to the square that wants you.',
+          'The tolerance is the same fourteen units a click has always had, and being on the square is the whole of it — there is no second reaction test hiding in here. A press made from somewhere else is a wasted input: it dents a streak, it never ends one, and it is named on screen rather than silently doing nothing.',
+          'CHORD asks for either square of its pair, and keeps asking for both after the first key lands. A pair being judged on a twentieth of a second cannot also be asked to move one cursor between two places.',
+          'SEQUENCE is no longer keyboard-only. A queue you can clear without looking anywhere is a queue you clear from memory, and the square the front key lives on is exactly where your eyes should already be.',
+          'The cheat sheet in a lab run says "your keys · point first" rather than "your keys".',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.17.0',
     name: 'SHOW ME THE MODE',
     date: '2026-09-11',

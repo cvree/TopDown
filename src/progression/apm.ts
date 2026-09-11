@@ -68,9 +68,11 @@ export interface ApmMode {
  * demands at once and are worth playing only once the isolated version of
  * each has stopped being interesting — which is the order the list is in.
  *
- * Three things are true of every rung of every one of them and are therefore
- * written down in none of them. The pads travel, further and faster the higher
- * the level. From level four up the minimap runs its two-lane dodge on the
+ * Four things are true of every rung of every one of them and are therefore
+ * written down in none of them. **A key is only taken while the cursor is on
+ * the pad asking for it** — the bench is two hands, and a mouse parked in a
+ * corner is one hand pretending to be two. The pads travel, further and faster
+ * the higher the level. From level four up the minimap runs its two-lane dodge on the
  * summoner keys for the whole run, and from level five the strip along the
  * bottom starts asking for the orders. And the rung is a *roster* as well as a
  * pace — level one is two fingers, and by the top of the ladder every command
@@ -92,7 +94,7 @@ const MODE_TABLE: Omit<ApmMode, 'par' | 'order'>[] = [
     id: 'apmSequence',
     kind: 'isolated',
     counts: 'Press the key at the front of the queue.',
-    pressure: 'The queue never empties and you cannot skip ahead. Keyboard only.',
+    pressure: 'The queue never empties and you cannot skip ahead. Take the cursor to each pad with you.',
   },
   {
     id: 'apmChord',

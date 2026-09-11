@@ -652,7 +652,14 @@ export function App() {
             {route === 'practice' && (
               <Practice profile={profile} settings={profile.settings} onPlay={startRun} />
             )}
-            {route === 'lab' && <Lab profile={profile} onPlay={startRun} />}
+            {route === 'lab' && (
+              <Lab
+                profile={profile}
+                settings={profile.settings}
+                onPlay={startRun}
+                onFixControls={() => setRoute('settings')}
+              />
+            )}
             {route === 'progress' && (
               <Progress
                 profile={profile}

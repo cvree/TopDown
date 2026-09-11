@@ -449,10 +449,16 @@ section('A saved profile survives the round trip unchanged', () => {
 });
 
 section('Everything the home screen asks a profile, on every profile', () => {
+  const broken = newProfile();
+  broken.settings = { ...broken.settings, bindings: { r: { primary: '' }, stop: { primary: '' } } };
   const cases: [string, Profile][] = [
     ['a new profile', newProfile()],
     ['a profile from an older catalogue', load(legacyProfile())],
     ['a profile that is wrong in every way', load(hostileProfile())],
+    // The screen that has to draw a warning rather than a card. It reads the
+    // same stored settings every other screen does, and the warning is the
+    // part most likely to be reaching into something that is not there.
+    ['a profile missing bindings the lab needs', broken],
   ];
   const reads: [string, (p: Profile) => unknown][] = [
     ['buildPlan', buildPlan],
@@ -558,12 +564,105 @@ const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
     // The lab is its own screen now, and its cards still read further into a
     // saved record than anything else in the client: thirteen modes, ten level
     // records each, and an infinite ledger under every one of them.
-    ['THE LAB', (profile) => createElement(Lab as any, { profile, onPlay: noop })],
+    [
+      'THE LAB',
+      (profile) =>
+        createElement(Lab as any, {
+          profile,
+          settings: profile.settings,
+          onPlay: noop,
+          onFixControls: noop,
+        }),
+    ],
     ['PROGRESS', (profile) => createElement(Progress as any, { profile, onRename: noop, onReset: noop, onPlay: noop })],
   ];
 };
 
+/* ------------------------------------------- the lab's own binding check */
+
+/**
+ * The lab is the one section whose levels are made of keys, so it is the one
+ * section a missing binding can silently break: the bench lights a pad, waits
+ * out the window, and scores the run as though the player were slow.
+ *
+ * These check the thing the screen promises — that it works out which rung a
+ * layout stops being able to answer, and that it is right about a layout that
+ * is perfectly fine.
+ */
+const bindChecks = async (): Promise<void> => {
+  const { checkLabBinds, playableTo, labActions } = await import('../src/drills/apm/binds');
+  const { APM_LEVELS } = await import('../src/progression/apmladder');
+
+  line('\n=== THE LAB: a layout that cannot answer the ladder is caught first ===');
+
+  const clean = resolveBindings('click', undefined);
+  expect(
+    'the shipped click layout plays every rung',
+    playableTo(clean, 'click', APM_LEVELS) === APM_LEVELS,
+    `stops at ${playableTo(clean, 'click', APM_LEVELS)}`,
+  );
+  const wasd = resolveBindings('wasd', undefined);
+  // The WASD defaults ship with attack-move's primary deliberately empty and a
+  // mouse button in its secondary. An action with a button on it is bound, and
+  // a check that looked only at the primary would report the shipped layout as
+  // broken on level six.
+  expect(
+    'the shipped WASD layout plays every rung',
+    playableTo(wasd, 'wasd', APM_LEVELS) === APM_LEVELS,
+    `stops at ${playableTo(wasd, 'wasd', APM_LEVELS)}`,
+  );
+
+  // R unbound: the ability row completes on rung three, so three is the first
+  // rung that cannot be answered and two is the last that can.
+  const noR = { ...clean, r: { primary: '' } };
+  const report = checkLabBinds(noR, 3, 'click');
+  expect('a key taken off the keyboard is found', !report.ok, 'no fault raised');
+  expect(
+    'and it is named, with the rung it costs',
+    report.faults.length === 1 && report.faults[0].action === 'r' && report.faults[0].kind === 'unbound',
+    JSON.stringify(report.faults),
+  );
+  expect(
+    'the rungs below it still play',
+    checkLabBinds(noR, 2, 'click').ok && playableTo(noR, 'click', APM_LEVELS) === 2,
+    `stops at ${playableTo(noR, 'click', APM_LEVELS)}`,
+  );
+
+  // Two actions on one button: one of them can never arrive, and a bench that
+  // grades both is scoring a key that cannot be pressed. The stop order is put
+  // on the camera-lock key rather than on a bench key, so exactly one side of
+  // the clash is something the lab asks for — a clash between two keys the lab
+  // *does* use shuts the ladder from whichever of them arrives first, which is
+  // correct and would not be testing the arithmetic here.
+  const clash = { ...clean, stop: { primary: clean.cameraLock.primary } };
+  const clashed = checkLabBinds(clash, 7, 'click');
+  expect(
+    'a key two actions share is found',
+    !clashed.ok && clashed.faults.some((f) => f.kind === 'clash'),
+    JSON.stringify(clashed.faults),
+  );
+  expect(
+    'and the rungs before the order arrives are untouched',
+    playableTo(clash, 'click', APM_LEVELS) === 6,
+    `stops at ${playableTo(clash, 'click', APM_LEVELS)}`,
+  );
+
+  // Whatever else changes about the ladder, the list the check reads has to
+  // stay the list the run actually asks for.
+  expect(
+    'level one asks for two keys and the pause key',
+    labActions(1).length === 3,
+    labActions(1).join(','),
+  );
+  expect(
+    'the top of the ladder asks for everything the bench can grade',
+    labActions(APM_LEVELS).length === 10,
+    labActions(APM_LEVELS).join(','),
+  );
+};
+
 const main = async (): Promise<void> => {
+  await bindChecks();
   const list = await screens();
   const cases: [string, Profile][] = [
     ['a new profile', newProfile()],

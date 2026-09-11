@@ -106,6 +106,20 @@ export class ApmSequenceDrill extends LabDrill {
     return { keys: [this.queue[0]] };
   }
 
+  /**
+   * The pad at the front of the queue.
+   *
+   * This mode used to advertise itself as keyboard-only, and that was the
+   * clearest case in the section for why the bench now wants the mouse too: a
+   * queue you can clear without looking anywhere is a queue you can clear from
+   * muscle memory, and the pad the front key lives on is exactly where the
+   * eyes should already be.
+   */
+  protected aimPads(): readonly Pad[] {
+    const pad = this.pads[this.slotsHere.indexOf(this.queue[0])];
+    return pad ? [pad] : [];
+  }
+
   protected slotName(slot: AbilitySlot): string {
     return this.queue[0] === slot ? 'NEXT' : '';
   }
@@ -283,6 +297,22 @@ export class ApmSwitchDrill extends LabDrill {
       label,
     });
     this.next();
+  }
+
+  /**
+   * The pad the prompt is on, whichever bank that is.
+   *
+   * Including the mouse pad, where the answer was already a click: the cost
+   * this mode prints is the cost of *going somewhere*, and it would be a
+   * strange mode about hand travel that let one of its three destinations be
+   * answered from where you were standing.
+   */
+  protected aimPads(): readonly Pad[] {
+    const p = this.prompt;
+    if (p.bank === 'mouse') return [this.mousePad];
+    const pads = p.bank === 'near' ? this.nearPads : this.farPads;
+    const pad = pads.find((x) => x.slot === p.slot);
+    return pad ? [pad] : [];
   }
 
   protected onKey(slot: AbilitySlot): void {

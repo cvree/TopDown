@@ -123,6 +123,7 @@ type Policy =
   | 'lab'
   | 'labWasd'
   | 'labBlind'
+  | 'labParked'
   /* --- the WASD academy. Every one of these drives the keys, not the mouse --- */
   | 'acadMove'
   | 'acadIndep'
@@ -1521,7 +1522,8 @@ const runDrill = (
           // ---------------------------------------------------------- the lab
           case 'lab':
           case 'labWasd':
-          case 'labBlind': {
+          case 'labBlind':
+          case 'labParked': {
             // Thirteen modes, one policy. Every lab drill can say what a
             // perfect player would do at this instant, including the modes
             // where that is "nothing", so the harness does not need thirteen
@@ -1574,9 +1576,25 @@ const runDrill = (
                   : sol.keys;
               if (!keys.length) break;
               lastLabInput = t;
+              // Where the bench wants the cursor for those keys. A lab key is
+              // only taken while the pointer is on the pad asking for it, so a
+              // harness that pressed from wherever the champion happened to be
+              // standing would report thirteen playable modes as unplayable —
+              // and, worse, would be scoring a player nobody could be.
+              // `labParked` is the player this section used to be free money
+              // for: every key correct, every key on time, and a mouse left in
+              // the corner of the screen since the run began. It is the
+              // control for the aim rule, and it must not be able to score.
+              const aim = policy === 'labParked' ? { x: 60, y: 60 } : sol.aim ?? null;
+              const ax = aim ? Math.max(40, Math.min(bounds.w - 40, aim.x)) : p.pos.x;
+              const ay = aim ? Math.max(40, Math.min(bounds.h - 40, aim.y)) : p.pos.y;
+              if (aim) {
+                input.cursor = { x: ax, y: ay };
+                session.cursorWorld = { x: ax, y: ay };
+              }
               // A chord goes in one step, which is exactly what it is asking a
               // pair of fingers for.
-              for (const k of keys) input.push({ kind: 'ability', slot: k, x: p.pos.x, y: p.pos.y, t: t * 1000 });
+              for (const k of keys) input.push({ kind: 'ability', slot: k, x: ax, y: ay, t: t * 1000 });
               break;
             }
             if (sol.click) {
@@ -2983,6 +3001,47 @@ line('\n=== THE LAB: every mode pays for correct play and nothing else ===');
     expect(`${id} rewards playing it`, good.out.performance > 0.4, pct(good.out.performance));
     expect(`${id} cannot be passed by doing nothing`, idle.out.performance < 0.3, pct(idle.out.performance));
     expect(`${id} counts actions per minute`, apm > 30, `${Math.round(apm)} APM`);
+  }
+}
+
+line('\n=== THE LAB: a key is not an answer until it is pointed at something ===');
+{
+  // The bench was a keyboard test with circles drawn on it: the circles were
+  // where the prompt was and nothing else, so a player could park the mouse in
+  // a corner and answer thirteen modes at full rate. This is that player. Every
+  // key correct, every key on time, and the pointer never moved — and on every
+  // mode with pads in it, that has to be worth a fraction of playing properly.
+  //
+  // The two modes without pads are excluded by name rather than by a threshold,
+  // because they are not exceptions to the rule: FIELD is answered with the
+  // mouse already, and VECTOR is answered with a heading and has nothing on the
+  // floor to point at.
+  const NO_PADS: DrillId[] = ['apmField', 'apmVector'];
+  for (const id of APM_DRILL_IDS) {
+    const drill = id as DrillId;
+    const played = runDrill(drill, 'lab', 0.35);
+    const parked = runDrill(drill, 'labParked', 0.35);
+    const share = (r: typeof played) =>
+      r.out.keyMetrics.find((k) => k.id === 'onpad')?.value ?? -1;
+    const onPad = (r: typeof played) => (share(r) < 0 ? 'no pads' : `on-pad ${pct(share(r))}`);
+    line(
+      `  ${id.padEnd(13)} played ${pct(played.out.performance)} (${onPad(played)})` +
+        `   parked ${pct(parked.out.performance)} (${onPad(parked)})`,
+    );
+    if (NO_PADS.includes(drill)) {
+      expect(`${id} asks the mouse for nothing it has no pad for`, share(played) < 0, `${share(played)}`);
+      continue;
+    }
+    expect(
+      `${id} pays a pointed press`,
+      share(played) > 0.9,
+      `${pct(share(played))} of presses on the pad`,
+    );
+    expect(
+      `${id} does not pay a parked mouse`,
+      parked.out.performance < played.out.performance * 0.6,
+      `parked ${pct(parked.out.performance)} vs played ${pct(played.out.performance)}`,
+    );
   }
 }
 

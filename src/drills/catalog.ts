@@ -515,7 +515,7 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     id: 'apmSequence',
     name: 'SEQUENCE',
     tagline: 'A queue of keys, in order',
-    brief: 'Keys roll across the screen in a line and only the one at the front counts. Keyboard only — no mouse.',
+    brief: 'Keys roll across the screen in a line and only the one at the front counts. Point at the pad, then take it.',
     transfers: 'A long combo coming out in the right order without you thinking about it.',
     group: 'APM',
     axes: { tempo: 0.7, targeting: 0.3 },

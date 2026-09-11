@@ -160,6 +160,21 @@ export class ApmUpkeepDrill extends LabDrill {
     this.reset(w);
   }
 
+  /**
+   * Every dial that is up, oldest first.
+   *
+   * All of them rather than only the most urgent, because this mode's whole
+   * subject is that nothing tells you which one to take: naming one would be
+   * the reminder the mode is built to withhold. The locked dial is not on the
+   * list — the correct thing to do about it is to be somewhere else.
+   */
+  protected aimPads(): readonly Pad[] {
+    return this.wheels
+      .filter((w) => !w.locked && w.readyAt >= 0)
+      .sort((a, b) => a.readyAt - b.readyAt)
+      .map((w) => w.pad);
+  }
+
   protected modeSolution(): LabSolution {
     const ready = this.wheels.filter((w) => !w.locked && w.readyAt >= 0);
     if (!ready.length) return { wait: true };

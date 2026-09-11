@@ -117,3 +117,201 @@
 .lab-kl-rung.gains b {
   color: #7ceaff;
 }
+
+/* ==========================================================================
+   THE CLIP ON A BENCH
+
+   Thirteen benches whose names are thirteen abstractions. The champion screen
+   solved this two versions ago — every mode carries a still of itself and the
+   loop it was cut from — and the lab needed it more than the champion screen
+   did: nobody has to be told what DODGE looks like, and everybody has to be
+   told what UPKEEP looks like.
+
+   The frame is a little shorter than the champion tile's 16:9. A bench card
+   is narrow and already carries two facts, a ladder and three buttons, so the
+   picture takes the width it needs and no more height than it has to.
+   ========================================================================== */
+.pr-lab-media {
+  position: relative;
+  aspect-ratio: 16 / 8;
+  width: calc(100% + 30px);
+  margin: -14px -15px 3px;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in srgb, var(--c) 26%, transparent);
+}
+/* The name sits ON the picture, which is a whole header row of height back and
+   reads as a title card rather than as a form label. */
+.pr-lab-title {
+  position: absolute;
+  z-index: 2;
+  inset: auto 11px 8px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: none;
+}
+.pr-lab-title .pr-lab-name {
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+}
+.pr-lab-title .pr-lab-kind {
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+/* The floor of the picture darkens so the title has something to sit on, and
+   the top stays clear because that is where every clip puts its own caption. */
+.pr-lab-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(2, 5, 11, 0.22) 0%, transparent 38%, rgba(2, 5, 11, 0.88) 100%);
+}
+/* A bench card carries no keycap row in the corner of its picture, so the
+   clip's own caption is free to use the width the champion tile had to leave. */
+.pr-lab-media .pv-cap {
+  max-width: calc(100% - 24px);
+}
+
+/* ==========================================================================
+   WHEN THE KEYBOARD CANNOT ANSWER THE LADDER
+
+   The lab's levels are made of keys, so a missing binding is not a preference
+   here — it is a rung that cannot be played and a bench that would score the
+   player as slow for it. Both warnings are therefore loud, specific, and say
+   what to press rather than only what is wrong: a warning a player cannot act
+   on is a warning that trains them to ignore warnings.
+   ========================================================================== */
+.lab-binds {
+  margin: 0 0 18px;
+  padding: 14px 16px 12px;
+  border: 1px solid color-mix(in srgb, var(--warn) 44%, transparent);
+  border-left: 3px solid var(--warn);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--warn) 11%, transparent), transparent 58%),
+    rgba(8, 13, 24, 0.7);
+}
+.lab-binds-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.lab-binds-head b {
+  flex: 1;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--warn);
+}
+.lab-binds-fix,
+.pr-lab-blocked button {
+  flex: 0 0 auto;
+  padding: 7px 14px;
+  border: 1px solid var(--warn);
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #ffe7c8;
+  cursor: pointer;
+  transition: background 0.15s var(--ease);
+}
+.lab-binds-fix:hover,
+.pr-lab-blocked button:hover {
+  background: color-mix(in srgb, var(--warn) 32%, transparent);
+}
+.lab-binds-lead {
+  margin: 8px 0 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+.lab-binds-list {
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--stroke);
+}
+.lab-bind-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--stroke);
+  font-size: 12px;
+  color: var(--text-2);
+}
+/* The key, or the word where the key should have been. Unbound is the louder
+   of the two states because it is the one nothing on the keyboard can answer. */
+.lab-bind-row > b {
+  flex: 0 0 84px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-align: center;
+  padding: 3px 0;
+  border: 1px solid var(--stroke);
+  color: var(--text-3);
+}
+.lab-bind-row.unbound > b {
+  border-color: color-mix(in srgb, var(--danger) 60%, transparent);
+  color: var(--danger);
+}
+.lab-bind-row.clash > b {
+  border-color: color-mix(in srgb, var(--warn) 60%, transparent);
+  color: var(--warn);
+}
+.lab-bind-row span b {
+  color: var(--text-1);
+}
+.lab-bind-row i {
+  font-style: normal;
+  color: var(--text-3);
+}
+.lab-bind-from {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  opacity: 0.75;
+}
+
+/* ---------------------------------------------------------- on the card
+
+   A card whose rung cannot be answered stops being a start button and becomes
+   the reason why, directly above the button it is stopping. It keeps its arrows
+   — the fix that costs nothing is to drop a level, and the card says so. */
+.pr-lab-mode.unplayable {
+  border-top-color: var(--warn);
+}
+.pr-lab-mode.unplayable .pr-go,
+.pr-lab-mode.unplayable .pr-lab-surge,
+.pr-lab-mode.unplayable .pr-lab-inf {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(0.7);
+}
+.pr-lab-blocked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 10px 11px;
+  border: 1px solid color-mix(in srgb, var(--warn) 46%, transparent);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+}
+.pr-lab-blocked > b {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: var(--warn);
+}
+.pr-lab-blocked > span {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.pr-lab-blocked > i {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--text-3);
+}

@@ -38,6 +38,16 @@ import type { DrillId } from '../../drills/catalog';
 export const STAGE_W = 320;
 export const STAGE_H = 180;
 
+/**
+ * The bottom of a clip belongs to the card, not to the painter.
+ *
+ * Both the cards that carry these put their own name and their own kind label
+ * across the foot of the picture, over a gradient. A painter that draws inside
+ * this band is drawing underneath somebody else's text, so nothing below it
+ * ever carries information — the floor may run there, a pad may not.
+ */
+const TITLE_BAND = STAGE_H - 26;
+
 export interface PreviewFrame {
   ctx: CanvasRenderingContext2D;
   /** Seconds into the loop. Always `0 <= t < length`. */
@@ -918,6 +928,1032 @@ const lanePhase: PreviewScene = {
  * Partial on purpose: a mode with no clip draws its accent and its name and is
  * a perfectly good card. Nothing in the menu may depend on a picture existing.
  */
+
+// ===========================================================================
+// THE LAB
+// ===========================================================================
+
+/**
+ * THIRTEEN BENCHES, EACH IN THREE SECONDS.
+ *
+ * The lab is the one section of the client whose cards could not be read. A
+ * champion mode has a name you already know the shape of — *dodge*, *last
+ * hit*, *lane* — and a bench does not: CANCEL, UPKEEP and SWITCH are thirteen
+ * abstractions on a floor of circles, and no amount of copy makes "spend each
+ * dial as soon as it fills up" into a picture. So the benches get the same
+ * treatment the champion modes got, and it matters more here.
+ *
+ * Every clip below is built out of the same four things the bench itself is
+ * built out of — a pad, the key printed on it, the countdown around it, and
+ * the pointer — so the picture on the card is the picture in the run. Three of
+ * those were already in the client. The fourth is new, and it is in every clip
+ * for a reason: *the pointer is always on the pad that is lit*. A player who
+ * has watched three seconds of any of these has been told the rule that used
+ * to have to be read, which is that this section wants your mouse as well as
+ * your hand.
+ */
+
+/** The near-black a bench pad sits on when nothing is asking for it. */
+const PAD_OFF = '#7f96b8';
+const GOOD = '#5ce1a8';
+const WARN = '#ffb45c';
+
+/** Eases a point along to another one. The only movement a bench ever makes. */
+const glide = (a: Pt, b: Pt, p: number): Pt => ({
+  x: lerp(a.x, b.x, smooth(p)),
+  y: lerp(a.y, b.y, smooth(p)),
+});
+
+/**
+ * Where a pointer comes to rest on a pad.
+ *
+ * Not the middle. A pad's middle is where its key is printed, and an arrow
+ * parked on top of that hides the one thing the pad is there to say. Down and
+ * to the left is comfortably inside the smallest pad any of these clips draws
+ * and leaves the glyph clear — and the lock ring is drawn around the pointer
+ * rather than around the pad, so it still reads as *the cursor is on this*.
+ */
+const onPad = (p: Pt): Pt => ({ x: p.x - 11, y: p.y + 6 });
+
+interface Pt {
+  x: number;
+  y: number;
+}
+
+/** A partial ring, from twelve o'clock clockwise. Every countdown on a bench. */
+function arcRing(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  p: number,
+  color: string,
+  alpha: number,
+  width = 1.8,
+) {
+  if (p <= 0.002) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + clamp01(p) * TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * A pad: a lit face, an edge, what it wants written on it.
+ *
+ * The same four marks `paintPad` puts on the floor of a real run, in the same
+ * order, so the card and the arena are drawing one object rather than two
+ * things that resemble each other.
+ */
+function benchPad(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  color: string,
+  glow: number,
+  opts: { text?: string; sub?: string; progress?: number; barred?: boolean; dim?: boolean } = {},
+) {
+  const g = clamp01(glow);
+  ctx.save();
+  const face = ctx.createRadialGradient(x, y, 0, x, y, r);
+  face.addColorStop(0, rgba(color, 0.05 + g * 0.34));
+  face.addColorStop(1, rgba(color, 0.01 + g * 0.08));
+  ctx.fillStyle = face;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+  ring(ctx, x, y, r, rgba(color, 1), 0.16 + g * 0.76, 0.9 + g * 1.9);
+  if (opts.progress !== undefined) {
+    arcRing(ctx, x, y, r + 4.5, opts.progress, rgba(opts.progress < 0.3 ? RED : color, 1), 0.85);
+  }
+  if (opts.barred) {
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = rgba(color, 1);
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    const d = r * 0.52;
+    ctx.beginPath();
+    ctx.moveTo(x - d, y - d);
+    ctx.lineTo(x + d, y + d);
+    ctx.moveTo(x + d, y - d);
+    ctx.lineTo(x - d, y + d);
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (opts.text) tag(ctx, x, y, opts.text, rgba(color, 0.45 + g * 0.55), 1, Math.max(8, r * 0.62));
+  if (opts.sub) tag(ctx, x, y + r + 8, opts.sub, rgba(color, 0.85), 0.85, 6.5);
+}
+
+/**
+ * The pointer, and whether it is on the pad.
+ *
+ * It is drawn as the arrow the operating system draws rather than as a
+ * crosshair, because the thing being taught is *where your mouse is*, and a
+ * crosshair reads as a thing in the game world instead. The ring around it is
+ * the lock: closed and bright means this press will count, and that is the one
+ * fact about the lab that nothing on the old card said.
+ */
+function pointer(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, locked = false) {
+  if (locked) {
+    ring(ctx, x, y, 8.5, rgba(color, 1), 0.95, 1.4);
+    ring(ctx, x, y, 13, rgba(color, 1), 0.3, 1);
+  } else {
+    ring(ctx, x, y, 10, rgba(BONE, 1), 0.28, 1, [2.5, 3.5]);
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 11.2);
+  ctx.lineTo(3.1, 8.6);
+  ctx.lineTo(5.3, 13.2);
+  ctx.lineTo(7.1, 12.3);
+  ctx.lineTo(4.9, 7.8);
+  ctx.lineTo(8.6, 7.4);
+  ctx.closePath();
+  ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+  ctx.lineWidth = 1.3;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.96)';
+  ctx.fill();
+  ctx.restore();
+}
+
+/** A key, as the cap it is printed on. The queue modes are built out of these. */
+function keycap(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  label: string,
+  color: string,
+  alpha: number,
+  size = 15,
+) {
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const h = size / 2;
+  ctx.fillStyle = rgba(color, 0.14);
+  ctx.strokeStyle = rgba(color, 0.8);
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.roundRect(x - h, y - h, size, size, 3);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+  tag(ctx, x, y + 0.4, label, rgba(color, 0.95), alpha, size * 0.58);
+}
+
+/** The bench outline: N pads read as one console rather than as N circles. */
+function benchLine(ctx: CanvasRenderingContext2D, pads: Pt[], alpha = 0.22) {
+  if (pads.length < 2) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = 'rgba(150, 185, 230, 0.9)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pads[0].x, pads[0].y);
+  for (let i = 1; i < pads.length; i++) ctx.lineTo(pads[i].x, pads[i].y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** The board in the corner, from level four up. Two lanes and something falling. */
+function corner(f: PreviewFrame, drop: number, lane: number, key: string, hit: number) {
+  const { ctx, accent } = f;
+  const x = STAGE_W - 56;
+  const y = TITLE_BAND - 40;
+  const w = 44;
+  const h = 36;
+  ctx.save();
+  ctx.fillStyle = 'rgba(4, 9, 18, 0.82)';
+  ctx.strokeStyle = 'rgba(140, 175, 220, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+  const laneX = [x + w * 0.32, x + w * 0.68];
+  for (let i = 0; i < 2; i++) {
+    ring(ctx, laneX[i], y + h - 7, 4, rgba(i === lane ? accent : PAD_OFF, 1), i === lane ? 0.9 : 0.3, 1.2);
+  }
+  if (drop >= 0) {
+    const dy = lerp(y + 6, y + h - 7, clamp01(drop));
+    foe(ctx, laneX[1 - lane], dy, 3, 0.95);
+  }
+  tag(ctx, x + w / 2, y - 7, key, rgba(accent, 0.9), 0.9, 6.5);
+  burst(ctx, laneX[lane], y + h - 7, hit, accent, 12);
+}
+
+// ---------------------------------------------------------------- the clips
+
+/**
+ * PULSE — two pads, and the one that does not move.
+ *
+ * Four beats, and the third is the mode: the light stays where it was, so the
+ * hand that had decided to alternate is the hand that gets it wrong. The clip
+ * says so out loud, because it is the entire reason the mode is not a
+ * metronome.
+ */
+const apmPulse: PreviewScene = {
+  length: 3.0,
+  poster: 0.13,
+  caption: 'two keys · the light repeats',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 96);
+    const pads: Pt[] = [
+      { x: 108, y: 92 },
+      { x: 212, y: 92 },
+    ];
+    const LIT = [0, 1, 1, 0];
+    const beat = 0.75;
+    const i = Math.floor(t / beat) % 4;
+    const p = (t % beat) / beat;
+    const lit = LIT[i];
+    const from = pads[LIT[(i + 3) % 4]];
+    const to = pads[lit];
+    const cur = glide(onPad(from), onPad(to), clamp01(p / 0.38));
+    const pressed = p >= 0.46;
+    const repeat = LIT[(i + 3) % 4] === lit;
+
+    benchLine(ctx, pads);
+    pads.forEach((pd, k) => {
+      const on = k === lit;
+      benchPad(ctx, pd.x, pd.y, 30, on ? accent : PAD_OFF, on ? (pressed ? 0.45 : 1) : 0.06, {
+        text: k === 0 ? 'Q' : 'W',
+        progress: on && !pressed ? 1 - p / 0.46 : undefined,
+      });
+    });
+    if (pressed) burst(ctx, to.x, to.y, (p - 0.46) / 0.3, accent, 40, 6);
+    pointer(ctx, cur.x, cur.y, accent, p >= 0.38);
+    // One line at the top, and it says whichever of the two things this beat
+    // is about: the light repeating, or — on every other beat — the rule that
+    // governs all thirteen benches. The foot of the frame belongs to the card.
+    if (repeat) tag(ctx, 160, 30, 'SAME PAD AGAIN', rgba(WARN, 1), 0.85 * smooth(clamp01(p * 4)));
+    else tag(ctx, 160, 30, 'CURSOR ON THE PAD, THEN THE KEY', rgba(BONE, 0.55), 0.75, 7);
+    vignette(f);
+  },
+};
+
+/**
+ * SEQUENCE — a queue that never empties.
+ *
+ * The queue is the picture: five caps rolling in from the right, and only the
+ * one at the front worth anything. Nothing about it is a rhythm — the clip
+ * answers the same key twice in four beats — so what the eye takes from it is
+ * *read the front, take the front*, which is the mode.
+ */
+const apmSequence: PreviewScene = {
+  length: 3.2,
+  poster: 0.2,
+  caption: 'take the front of the queue',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 110);
+    const SEQ = [0, 1, 2, 1];
+    const GLYPH = ['Q', 'W', 'E'];
+    const beat = 0.8;
+    const i = Math.floor(t / beat) % 4;
+    const p = (t % beat) / beat;
+    const pads: Pt[] = [
+      { x: 96, y: 122 },
+      { x: 160, y: 122 },
+      { x: 224, y: 122 },
+    ];
+    const want = SEQ[i];
+
+    // The queue, rolling one cap left over each beat. Six drawn, four distinct
+    // — so the picture at the end of the loop is the picture at the start.
+    for (let k = 0; k < 6; k++) {
+      const x = 128 + (k - smooth(clamp01((p - 0.55) / 0.3))) * 36;
+      const a = k === 0 ? 1 - clamp01((p - 0.55) / 0.3) : 1;
+      keycap(ctx, x, 46, GLYPH[SEQ[(i + k) % 4]], k === 0 ? accent : PAD_OFF, a * (k === 0 ? 1 : 0.6), k === 0 ? 20 : 16);
+    }
+    tag(ctx, 128, 24, 'NEXT', rgba(accent, 0.9), 0.8, 6.5);
+
+    benchLine(ctx, pads);
+    const pressed = p >= 0.5;
+    pads.forEach((pd, k) => {
+      const on = k === want;
+      benchPad(ctx, pd.x, pd.y, 26, on ? accent : PAD_OFF, on ? (pressed ? 0.4 : 0.95) : 0.06, {
+        text: GLYPH[k],
+      });
+    });
+    const cur = glide(onPad(pads[SEQ[(i + 3) % 4]]), onPad(pads[want]), clamp01(p / 0.42));
+    if (pressed) burst(ctx, pads[want].x, pads[want].y, (p - 0.5) / 0.28, accent, 34, 5);
+    pointer(ctx, cur.x, cur.y, accent, p >= 0.42);
+    vignette(f);
+  },
+};
+
+/**
+ * CHORD — two fingers, one moment.
+ *
+ * The number is the mode, so the number is on screen: the pair lands, and the
+ * gap between the two presses is printed where it happened. Anything under the
+ * tolerance is a hit and the clip shows a hit, because a preview that showed
+ * the failure would be advertising the thing the mode is trying to remove.
+ */
+const apmChord: PreviewScene = {
+  length: 2.6,
+  poster: 0.31,
+  caption: 'both keys, one moment',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 92);
+    const c = { x: 160, y: 92 };
+    const GLYPH = ['Q', 'W', 'E', 'R'];
+    const pads: Pt[] = GLYPH.map((_, k) => {
+      const a = -Math.PI / 2 + (k / 4) * TAU;
+      return { x: c.x + Math.cos(a) * 74, y: c.y + Math.sin(a) * 38 };
+    });
+    const PAIRS: [number, number][] = [
+      [0, 2],
+      [1, 3],
+    ];
+    const beat = 1.3;
+    const i = Math.floor(t / beat) % 2;
+    const p = (t % beat) / beat;
+    const pair = PAIRS[i];
+    const prev = PAIRS[(i + 1) % 2];
+    const pressed = p >= 0.5;
+    const mid = { x: (pads[pair[0]].x + pads[pair[1]].x) / 2, y: (pads[pair[0]].y + pads[pair[1]].y) / 2 };
+
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.strokeStyle = rgba(accent, 0.9);
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(pads[pair[0]].x, pads[pair[0]].y);
+    ctx.lineTo(pads[pair[1]].x, pads[pair[1]].y);
+    ctx.stroke();
+    ctx.restore();
+
+    pads.forEach((pd, k) => {
+      const on = k === pair[0] || k === pair[1];
+      benchPad(ctx, pd.x, pd.y, 24, on ? accent : PAD_OFF, on ? (pressed ? 0.45 : 0.95) : 0.06, {
+        text: GLYPH[k],
+        progress: on && !pressed ? 1 - p / 0.5 : undefined,
+      });
+    });
+    if (pressed) {
+      const q = (p - 0.5) / 0.3;
+      burst(ctx, pads[pair[0]].x, pads[pair[0]].y, q, accent, 32, 4);
+      burst(ctx, pads[pair[1]].x, pads[pair[1]].y, q, accent, 32, 4);
+      tag(ctx, mid.x, mid.y - 2, '11ms', rgba(GOOD, 1), 1 - q * 0.4, 10);
+    }
+    // One pointer, two pads: resting on either of the pair is enough, which is
+    // the one place the rule bends and the only way a chord could obey it.
+    const cur = glide(onPad(pads[prev[0]]), onPad(pads[pair[0]]), clamp01(p / 0.44));
+    pointer(ctx, cur.x, cur.y, accent, p >= 0.44);
+    vignette(f);
+  },
+};
+
+/**
+ * GO / NO-GO — the press you were right not to make.
+ *
+ * Half the clip is a pad nobody touches, which is the hardest thing a preview
+ * can be asked to show and the only honest picture of this mode. The pointer
+ * still travels to the barred pad — the eye goes there, the hand does not —
+ * because that is exactly what the mode costs a player who cannot stop.
+ */
+const apmGate: PreviewScene = {
+  length: 3.2,
+  poster: 0.66,
+  caption: 'half of them say do not press',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 96);
+    const GLYPH = ['Q', 'W', 'E'];
+    const pads: Pt[] = [
+      { x: 88, y: 96 },
+      { x: 160, y: 96 },
+      { x: 232, y: 96 },
+    ];
+    const CALLS: { pad: number; bar: boolean }[] = [
+      { pad: 0, bar: false },
+      { pad: 2, bar: true },
+      { pad: 1, bar: false },
+      { pad: 2, bar: false },
+    ];
+    const beat = 0.8;
+    const i = Math.floor(t / beat) % 4;
+    const p = (t % beat) / beat;
+    const call = CALLS[i];
+    const color = call.bar ? RED : accent;
+    const pressed = !call.bar && p >= 0.5;
+
+    benchLine(ctx, pads);
+    pads.forEach((pd, k) => {
+      const on = k === call.pad;
+      benchPad(ctx, pd.x, pd.y, 28, on ? color : PAD_OFF, on ? (pressed ? 0.4 : 0.95) : 0.06, {
+        text: GLYPH[k],
+        progress: on && !pressed ? 1 - p / (call.bar ? 1 : 0.5) : undefined,
+        barred: on && call.bar,
+        sub: on ? (call.bar ? 'HANDS OFF' : 'GO') : undefined,
+      });
+    });
+    if (pressed) burst(ctx, pads[call.pad].x, pads[call.pad].y, (p - 0.5) / 0.3, accent, 36, 5);
+    if (call.bar && p > 0.86) {
+      tag(ctx, pads[call.pad].x, pads[call.pad].y - 44, 'HELD', rgba(GOOD, 1), (p - 0.86) / 0.14);
+    }
+    const cur = glide(onPad(pads[CALLS[(i + 3) % 4].pad]), onPad(pads[call.pad]), clamp01(p / 0.42));
+    pointer(ctx, cur.x, cur.y, color, p >= 0.42);
+    vignette(f);
+  },
+};
+
+/**
+ * BUFFER — press before it opens, not after.
+ *
+ * Two cycles, and the whole subject is a quarter of a second wide, so the clip
+ * draws the thing that quarter-second is measured against: a ring closing on
+ * an opening, the press landing inside the last sliver of it, and the word
+ * that separates this mode from every other one in the section — *buffered*,
+ * not *reacted*.
+ */
+const apmBuffer: PreviewScene = {
+  length: 2.4,
+  poster: 0.42,
+  caption: 'press just before it opens',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 94);
+    const c = { x: 160, y: 94 };
+    const cycle = 1.2;
+    const p = (t % cycle) / cycle;
+    // The opening is at 0.82 of the cycle; the buffer window is the 0.16
+    // before it, and the press lands at 0.74 — inside it, which is the point.
+    const open = 0.82;
+    const pressed = p >= 0.74;
+    const opened = p >= open;
+
+    // The window, drawn on the floor as the band it is.
+    arcRing(ctx, c.x, c.y, 54, 1, rgba(PAD_OFF, 1), 0.18, 2);
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = rgba(GOOD, 1);
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 54, -Math.PI / 2 + (open - 0.16) * TAU, -Math.PI / 2 + open * TAU);
+    ctx.stroke();
+    ctx.restore();
+    arcRing(ctx, c.x, c.y, 54, p, rgba(accent, 1), 0.95, 2.4);
+
+    benchPad(ctx, c.x, c.y, 40, opened ? GOOD : accent, pressed ? 0.5 : 0.5 + p * 0.4, {
+      text: 'Q',
+      sub: opened ? 'OPEN' : 'SHUT',
+    });
+    if (pressed) {
+      burst(ctx, c.x, c.y, clamp01((p - 0.74) / 0.26), accent, 46, 6);
+      tag(ctx, c.x, c.y - 60, 'BUFFERED · 74ms EARLY', rgba(GOOD, 1), 1 - clamp01((p - 0.74) / 0.4) * 0.3);
+    } else {
+      tag(ctx, c.x, c.y - 60, 'TOO EARLY IS IGNORED', rgba(BONE, 0.6), 0.7, 7);
+    }
+    // The idle wobble rides the cycle rather than the wall clock: a hand
+    // resting on a pad still moves, and a movement whose period does not
+    // divide the loop is the one thing that would stop this being a loop.
+    const rest = onPad(c);
+    pointer(ctx, rest.x + Math.sin(p * TAU) * 3, rest.y + Math.cos(p * TAU * 2) * 2, accent, true);
+    vignette(f);
+  },
+};
+
+/**
+ * CANCEL — start it, then cut it short.
+ *
+ * The bar between the two pads is the animation you are cancelling, and the
+ * clip is built so the eye can see the part of it that never plays: the cut
+ * lands with a third of the bar still unspent, and the stub left behind is the
+ * whole of what the mode is worth.
+ */
+const apmCancel: PreviewScene = {
+  length: 3.0,
+  poster: 0.63,
+  caption: 'start the bar, then cut it',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 92);
+    const a = { x: 96, y: 92 };
+    const b = { x: 224, y: 92 };
+    const cycle = 1.5;
+    const p = (t % cycle) / cycle;
+    // call → start at 0.24 → commit → cut window opens 0.56 → cut at 0.68.
+    const started = p >= 0.24;
+    const cutting = p >= 0.56;
+    const cut = p >= 0.68;
+    const barTo = cut ? 0.66 : clamp01((p - 0.24) / 0.66);
+
+    // The bar: the thing you are racing, drawn between the two keys that
+    // start it and end it.
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = 'rgba(12, 20, 34, 0.9)';
+    ctx.strokeStyle = rgba(PAD_OFF, 0.5);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(a.x, 40, b.x - a.x, 11);
+    ctx.fill();
+    ctx.stroke();
+    if (started) {
+      ctx.fillStyle = rgba(cut ? WARN : accent, cut ? 0.55 : 0.85);
+      ctx.fillRect(a.x + 1, 41, (b.x - a.x - 2) * barTo, 9);
+    }
+    ctx.restore();
+    // Where the cut is allowed. A window you can see is a window you can aim at.
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = rgba(GOOD, 1);
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(a.x + (b.x - a.x) * 0.48, 36);
+    ctx.lineTo(a.x + (b.x - a.x) * 0.48, 55);
+    ctx.moveTo(a.x + (b.x - a.x) * 0.78, 36);
+    ctx.lineTo(a.x + (b.x - a.x) * 0.78, 55);
+    ctx.stroke();
+    ctx.restore();
+    tag(ctx, 160, 28, cut ? 'CANCELLED · 92ms' : cutting ? 'CUT IT NOW' : 'CASTING', rgba(cut ? GOOD : accent, 1), 0.95);
+
+    benchPad(ctx, a.x, a.y, 30, started && !cut ? PAD_OFF : accent, started && !cut ? 0.08 : 0.85, {
+      text: 'Q',
+      sub: 'START',
+    });
+    benchPad(ctx, b.x, b.y, 30, cutting ? accent : PAD_OFF, cutting ? (cut ? 0.4 : 0.95) : 0.06, {
+      text: 'R',
+      sub: 'CUT',
+      progress: cutting && !cut ? 1 - (p - 0.56) / 0.12 : undefined,
+    });
+    if (p >= 0.24 && p < 0.44) burst(ctx, a.x, a.y, (p - 0.24) / 0.2, accent, 34, 4);
+    if (cut) burst(ctx, b.x, b.y, clamp01((p - 0.68) / 0.26), GOOD, 40, 6);
+
+    const cur =
+      cutting || cut
+        ? glide(onPad(a), onPad(b), clamp01((p - 0.5) / 0.12))
+        : glide(onPad(b), onPad(a), clamp01((p + 0.16) / 0.2));
+    pointer(ctx, cur.x, cur.y, accent, true);
+    vignette(f);
+  },
+};
+
+/**
+ * VECTOR — a direction, as fast as you can produce one.
+ *
+ * Nothing to dodge, nowhere to be: an arrow calls a heading and the body goes
+ * there. Four calls that sum to zero, so the champion ends the loop standing
+ * exactly where it opened it and there is no cut to hide.
+ */
+const apmVector: PreviewScene = {
+  length: 2.8,
+  poster: 0.18,
+  caption: 'the call, then the heading',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 96);
+    const DIRS: Pt[] = [
+      { x: 1, y: 0 },
+      { x: 0, y: 1 },
+      { x: -1, y: 0 },
+      { x: 0, y: -1 },
+    ];
+    const NAMES = ['EAST', 'SOUTH', 'WEST', 'NORTH'];
+    const beat = 0.7;
+    const i = Math.floor(t / beat) % 4;
+    const p = (t % beat) / beat;
+    const step = 26;
+    // Where the body is: every leg it has already walked, plus this one.
+    let hx = 160;
+    let hy = 96;
+    for (let k = 0; k < i; k++) {
+      hx += DIRS[k].x * step;
+      hy += DIRS[k].y * step * 0.62;
+    }
+    const go = smooth(clamp01((p - 0.22) / 0.6));
+    hx += DIRS[i].x * step * go;
+    hy += DIRS[i].y * step * 0.62 * go;
+    const d = DIRS[i];
+    const ang = Math.atan2(d.y * 0.62, d.x);
+
+    // The call: a wedge on the floor, wide enough to be the tolerance it is.
+    ctx.save();
+    ctx.globalAlpha = 0.16 + 0.14 * (1 - clamp01(p / 0.3));
+    ctx.fillStyle = rgba(accent, 1);
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.arc(hx, hy, 64, ang - 0.38, ang + 0.38);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    lance(ctx, hx + Math.cos(ang) * 48, hy + Math.sin(ang) * 48, ang, 34, accent, 0.9, 2.6);
+    tag(ctx, 160, 26, NAMES[i], rgba(accent, 1), 0.9 * (1 - clamp01((p - 0.5) / 0.5) * 0.5), 11);
+    ring(ctx, hx, hy, 15 + go * 6, rgba(accent, 1), 0.3 * (1 - go), 1.4);
+    hero(ctx, hx, hy, accent, ang);
+    tag(ctx, 160, TITLE_BAND - 14, 'NO PADS · JUST THE COMMAND', rgba(BONE, 0.5), 0.75, 7);
+    vignette(f);
+  },
+};
+
+/**
+ * FIELD — pure mouse, and scored on the middle.
+ *
+ * The only mode on the bench with no key in it, so the clip has no key in it:
+ * a mark drifts, the pointer catches it, and the ring that blooms is drawn
+ * from where the click actually landed rather than from the middle — the mode
+ * pays for the centre and the picture has to be able to say so.
+ */
+const apmField: PreviewScene = {
+  length: 3.0,
+  poster: 0.26,
+  caption: 'click it, and click it central',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 96);
+    const SPOTS: Pt[] = [
+      { x: 96, y: 62 },
+      { x: 224, y: 100 },
+      { x: 150, y: 112 },
+    ];
+    const beat = 1.0;
+    const i = Math.floor(t / beat) % 3;
+    const p = (t % beat) / beat;
+    // Two turns of the loop, so a mark is back where it started at 3s and the
+    // clip closes. A drift on its own clock would never quite close.
+    const drift = (sp: Pt, k: number): Pt => ({
+      x: sp.x + Math.sin((t / 3.0) * TAU * 2 + k) * 16,
+      y: sp.y + Math.cos((t / 3.0) * TAU * 2 + k * 2) * 9,
+    });
+    const target = drift(SPOTS[i], i);
+    const r = 30;
+    const clicked = p >= 0.72;
+
+    // The one ahead of it, faint: the bench always has more than one alive.
+    const nextSpot = drift(SPOTS[(i + 1) % 3], i + 1);
+    if (p > 0.45) benchPad(ctx, nextSpot.x, nextSpot.y, r, accent, 0.18 * ((p - 0.45) / 0.55), { text: '' });
+
+    benchPad(ctx, target.x, target.y, r, clicked ? GOOD : accent, clicked ? 0.35 : 0.8, {
+      progress: clicked ? undefined : 1 - p / 0.72,
+    });
+    ring(ctx, target.x, target.y, r * 0.3, rgba(accent, 1), clicked ? 0.2 : 0.55, 1);
+    const cur = glide(drift(SPOTS[(i + 2) % 3], i + 2), target, clamp01(p / 0.66));
+    if (clicked) {
+      burst(ctx, target.x, target.y, (p - 0.72) / 0.28, GOOD, 40, 6);
+      tag(ctx, target.x, target.y - r - 12, 'CENTRE', rgba(GOOD, 1), 1 - (p - 0.72) / 0.4);
+    }
+    pointer(ctx, cur.x, cur.y, accent, p >= 0.66);
+    vignette(f);
+  },
+};
+
+/**
+ * HANDOFF — mouse, keyboard, mouse, keyboard.
+ *
+ * The measurement is the handover, so the clip draws the handover: a bracket
+ * under the picture that names whose turn it is, switching on the beat. Four
+ * beats is two full passes, which is the shortest loop that shows the
+ * alternation is a rule rather than a coincidence.
+ */
+const apmHandoff: PreviewScene = {
+  length: 3.2,
+  poster: 0.14,
+  caption: 'never twice with one hand',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 86);
+    const beat = 0.8;
+    const i = Math.floor(t / beat) % 4;
+    const p = (t % beat) / beat;
+    const mouseTurn = i % 2 === 0;
+    const CLICKS: Pt[] = [
+      { x: 108, y: 72 },
+      { x: 214, y: 62 },
+    ];
+    const keys: Pt[] = [
+      { x: 116, y: 126 },
+      { x: 160, y: 126 },
+      { x: 204, y: 126 },
+    ];
+    const GLYPH = ['Q', 'W', 'E'];
+    const clickPad = CLICKS[(i >> 1) % 2];
+    const keyIdx = [1, 0, 2, 0][i];
+    const done = p >= 0.56;
+
+    benchLine(ctx, keys);
+    keys.forEach((pd, k) => {
+      const on = !mouseTurn && k === keyIdx;
+      benchPad(ctx, pd.x, pd.y, 20, on ? accent : PAD_OFF, on ? (done ? 0.4 : 0.95) : 0.05, {
+        text: GLYPH[k],
+      });
+    });
+    if (mouseTurn) {
+      benchPad(ctx, clickPad.x, clickPad.y, 34, done ? GOOD : accent, done ? 0.35 : 0.85, {
+        sub: 'CLICK',
+        progress: done ? undefined : 1 - p / 0.56,
+      });
+    }
+    const to = mouseTurn ? clickPad : keys[keyIdx];
+    const from = mouseTurn ? keys[[1, 0, 2, 0][(i + 3) % 4]] : CLICKS[((i + 3) >> 1) % 2];
+    const cur = glide(mouseTurn ? from : onPad(from), mouseTurn ? to : onPad(to), clamp01(p / 0.5));
+    if (done) burst(ctx, to.x, to.y, (p - 0.56) / 0.3, mouseTurn ? GOOD : accent, 38, 5);
+    pointer(ctx, cur.x, cur.y, accent, p >= 0.5);
+
+    // Whose turn it is, spelled out. The mode is the alternation and nothing
+    // else, so the clip states it rather than leaving it to be inferred.
+    tag(ctx, 116, 26, 'MOUSE', rgba(mouseTurn ? accent : PAD_OFF, 1), mouseTurn ? 1 : 0.4, 9);
+    tag(ctx, 160, 26, '→', rgba(BONE, 0.5), 0.6, 9);
+    tag(ctx, 204, 26, 'KEYS', rgba(!mouseTurn ? accent : PAD_OFF, 1), !mouseTurn ? 1 : 0.4, 9);
+    vignette(f);
+  },
+};
+
+/**
+ * SPLIT — the middle and the corner, at the same time.
+ *
+ * Two things happen in this clip and neither waits for the other, which is the
+ * entire mode. The queue in the middle keeps its beat all the way through the
+ * orb falling in the corner, so the picture never resolves into one thing to
+ * look at — because in the run it never does either.
+ */
+const apmSplit: PreviewScene = {
+  length: 3.2,
+  poster: 0.72,
+  caption: 'the queue and the corner',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 140, 92);
+    const GLYPH = ['Q', 'W', 'E'];
+    const SEQ = [0, 2, 1, 2];
+    const beat = 0.8;
+    const i = Math.floor(t / beat) % 4;
+    const p = (t % beat) / beat;
+    const pads: Pt[] = [
+      { x: 74, y: 92 },
+      { x: 134, y: 92 },
+      { x: 194, y: 92 },
+    ];
+    const want = SEQ[i];
+    const pressed = p >= 0.5;
+
+    benchLine(ctx, pads);
+    pads.forEach((pd, k) => {
+      const on = k === want;
+      benchPad(ctx, pd.x, pd.y, 24, on ? accent : PAD_OFF, on ? (pressed ? 0.4 : 0.95) : 0.06, {
+        text: GLYPH[k],
+        progress: on && !pressed ? 1 - p / 0.5 : undefined,
+      });
+    });
+    if (pressed) burst(ctx, pads[want].x, pads[want].y, (p - 0.5) / 0.28, accent, 30, 4);
+    const cur = glide(onPad(pads[SEQ[(i + 3) % 4]]), onPad(pads[want]), clamp01(p / 0.42));
+    pointer(ctx, cur.x, cur.y, accent, p >= 0.42);
+
+    // The corner, on its own clock: one orb every two beats, and it does not
+    // care which beat the queue is on.
+    const orb = (t % 1.6) / 1.6;
+    corner(f, orb < 0.78 ? orb / 0.78 : -1, Math.floor(t / 1.6) % 2 === 0 ? 0 : 1, 'D · F', orb > 0.78 ? (orb - 0.78) / 0.22 : 0);
+    tag(ctx, 134, 30, 'BOTH AT ONCE', rgba(BONE, 0.55), 0.75, 7);
+    vignette(f);
+  },
+};
+
+/**
+ * UPKEEP — four dials and nobody reminding you.
+ *
+ * The four rings fill at four rates that share a period with the clip, so what
+ * the loop shows is the thing the mode is actually made of: at any instant one
+ * of them is full and being wasted while you are looking at another. The one
+ * with the cross on it is the rule that stops the mode being a sweep — a dial
+ * that is up and must be left alone.
+ */
+const apmUpkeep: PreviewScene = {
+  length: 3.6,
+  poster: 0.3,
+  caption: 'spend each one the moment it fills',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 96);
+    const GLYPH = ['Q', 'W', 'E', 'R'];
+    const PERIOD = [1.2, 1.8, 0.9, 3.6];
+    const pads: Pt[] = GLYPH.map((_, k) => ({ x: 58 + k * 68, y: 96 }));
+    // Which dial came up most recently: that is the one worth a press, and it
+    // is the one the pointer is on.
+    let live = 0;
+    let newest = -1;
+    for (let k = 0; k < 4; k++) {
+      const since = t % PERIOD[k];
+      if (since > newest) {
+        newest = since;
+        live = k;
+      }
+    }
+    const locked = 3;
+    const spendable = live === locked ? (live + 1) % 4 : live;
+    const spend = clamp01((newest - 0.1) / 0.3);
+
+    benchLine(ctx, pads);
+    pads.forEach((pd, k) => {
+      const fill = (t % PERIOD[k]) / PERIOD[k];
+      const up = k === live;
+      const bar = k === locked;
+      const color = bar ? RED : up ? accent : PAD_OFF;
+      benchPad(ctx, pd.x, pd.y, 27, color, bar ? 0.4 : up ? 0.9 : 0.1 + fill * 0.2, {
+        text: GLYPH[k],
+        progress: bar ? undefined : 1 - fill,
+        barred: bar,
+        sub: bar ? 'LOCKED' : up ? 'UP' : undefined,
+      });
+    });
+    if (spendable === live && spend > 0 && spend < 1) {
+      burst(ctx, pads[live].x, pads[live].y, spend, accent, 36, 5);
+    }
+    const rest = onPad(pads[spendable]);
+    pointer(ctx, rest.x, rest.y, accent, true);
+    tag(ctx, 160, 30, 'NOTHING TELLS YOU WHEN', rgba(BONE, 0.55), 0.75, 7);
+    vignette(f);
+  },
+};
+
+/**
+ * SWITCH — what it costs to move your hand.
+ *
+ * Three destinations and the prompt jumping between them, which is the only
+ * way to draw a cost that is measured in travel. The banks are drawn where
+ * they are on a keyboard — the far one above, the near one below, the mouse in
+ * the middle — so the picture is a hand's geography rather than a row.
+ */
+const apmSwitch: PreviewScene = {
+  length: 3.2,
+  poster: 0.58,
+  caption: 'near bank · far bank · mouse',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 92);
+    const far: Pt[] = [
+      { x: 128, y: 42 },
+      { x: 192, y: 42 },
+    ];
+    const near: Pt[] = [
+      { x: 128, y: 130 },
+      { x: 192, y: 130 },
+    ];
+    const mouse: Pt = { x: 160, y: 94 };
+    const CALLS: { bank: 0 | 1 | 2; idx: number; label: string }[] = [
+      { bank: 0, idx: 0, label: 'Q' },
+      { bank: 1, idx: 1, label: 'R' },
+      { bank: 2, idx: 0, label: 'CLICK' },
+      { bank: 1, idx: 0, label: 'E' },
+    ];
+    const beat = 0.8;
+    const i = Math.floor(t / beat) % 4;
+    const p = (t % beat) / beat;
+    const call = CALLS[i];
+    const spotOf = (c: (typeof CALLS)[number]): Pt =>
+      c.bank === 0 ? near[c.idx] : c.bank === 1 ? far[c.idx] : mouse;
+    const to = spotOf(call);
+    const from = spotOf(CALLS[(i + 3) % 4]);
+    const done = p >= 0.56;
+
+    benchLine(ctx, far);
+    benchLine(ctx, near);
+    tag(ctx, 84, 42, 'FAR', rgba(PAD_OFF, 1), 0.55, 7, 'right');
+    tag(ctx, 84, 130, 'NEAR', rgba(PAD_OFF, 1), 0.55, 7, 'right');
+
+    const drawBank = (pads: Pt[], bank: number, labels: string[]) =>
+      pads.forEach((pd, k) => {
+        const on = call.bank === bank && call.idx === k;
+        benchPad(ctx, pd.x, pd.y, 21, on ? accent : PAD_OFF, on ? (done ? 0.4 : 0.95) : 0.05, {
+          text: labels[k],
+        });
+      });
+    drawBank(near, 0, ['Q', 'W']);
+    drawBank(far, 1, ['E', 'R']);
+    benchPad(ctx, mouse.x, mouse.y, 30, call.bank === 2 ? accent : PAD_OFF, call.bank === 2 ? (done ? 0.4 : 0.85) : 0.05, {
+      sub: call.bank === 2 ? 'CLICK' : undefined,
+    });
+    if (done) burst(ctx, to.x, to.y, (p - 0.56) / 0.3, accent, 34, 5);
+
+    // The travel itself, drawn: the cost this mode prints is the length of
+    // this dashed line, and nothing else on the card could say that.
+    ctx.save();
+    ctx.globalAlpha = 0.28 * (1 - clamp01(p / 0.56));
+    ctx.strokeStyle = rgba(accent, 1);
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.restore();
+    const cur = glide(
+      CALLS[(i + 3) % 4].bank === 2 ? from : onPad(from),
+      call.bank === 2 ? to : onPad(to),
+      clamp01(p / 0.5),
+    );
+    pointer(ctx, cur.x, cur.y, accent, p >= 0.5);
+    vignette(f);
+  },
+};
+
+/**
+ * SUSTAIN — the rate you can be held to, found by taking it away.
+ *
+ * Every other bench is previewed at one speed because every other bench runs
+ * at one speed. This one does not: the beat steps up while you are on it, and
+ * a clip that hid that would be previewing a different mode. So the loop runs
+ * three beats at one rate, three at the next, and then does the only thing
+ * this mode can do to end — it takes the rate past the hands holding it.
+ *
+ * That break is also what makes the loop close. Every other clip here returns
+ * to its first frame because nothing in it ever changed for good; a mode built
+ * on a number that only goes up has no such frame, so the clip earns one the
+ * way the mode does, by dropping the beat and starting again.
+ */
+const apmSustain: PreviewScene = {
+  length: 3.6,
+  poster: 0.08,
+  caption: 'it speeds up until you drop it',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 96);
+    const GLYPH = ['Q', 'W', 'E', 'R'];
+    const c = { x: 160, y: 92 };
+    const pads: Pt[] = GLYPH.map((_, k) => {
+      const a = -Math.PI / 2 + (k / 4) * TAU;
+      return { x: c.x + Math.cos(a) * 78, y: c.y + Math.sin(a) * 36 };
+    });
+    // Six beats and then the break. The table is the clip: three at one rate,
+    // three a third faster, and 0.75s of the run being over.
+    const STEP1 = 0.5;
+    const STEP2 = 0.45;
+    const BREAK_AT = STEP1 * 3 + STEP2 * 3;
+    const LIT = [0, 2, 1, 3, 0, 2];
+    const broken = t >= BREAK_AT;
+    const slow = t < STEP1 * 3;
+    const beat = slow ? STEP1 : STEP2;
+    const idx = slow ? Math.floor(t / STEP1) : 3 + Math.floor((t - STEP1 * 3) / STEP2);
+    const p = broken ? 1 : ((t - (slow ? 0 : STEP1 * 3)) % beat) / beat;
+    const lit = LIT[Math.min(idx, LIT.length - 1)];
+    const pressed = p >= 0.4;
+
+    pads.forEach((pd, k) => {
+      const on = !broken && k === lit && !pressed;
+      benchPad(ctx, pd.x, pd.y, 24, on ? accent : PAD_OFF, on ? 0.95 : 0.06, {
+        text: GLYPH[k],
+        progress: on ? 1 - p / 0.4 : undefined,
+      });
+    });
+    if (!broken) {
+      if (pressed) burst(ctx, pads[lit].x, pads[lit].y, (p - 0.4) / 0.3, accent, 32, 4);
+      const cur = glide(onPad(pads[LIT[(idx + LIT.length - 1) % LIT.length]]), onPad(pads[lit]), clamp01(p / 0.34));
+      pointer(ctx, cur.x, cur.y, accent, p >= 0.34);
+    }
+
+    // The metronome, and the step it is on.
+    const bw = 132;
+    ctx.save();
+    ctx.fillStyle = 'rgba(12, 20, 34, 0.85)';
+    ctx.strokeStyle = rgba(PAD_OFF, 0.45);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(160 - bw / 2, 24, bw, 7);
+    ctx.fill();
+    ctx.stroke();
+    if (!broken) {
+      ctx.fillStyle = rgba(accent, 0.9);
+      ctx.fillRect(160 - bw / 2 + 1, 25, (bw - 2) * (1 - p), 5);
+    }
+    ctx.restore();
+    tag(ctx, 160, 13, broken ? '133 APM' : `${slow ? 100 : 133} APM`, rgba(broken ? RED : slow ? accent : WARN, 1), 0.95, 10);
+    if (!slow && !broken && t < STEP1 * 3 + 0.3) {
+      tag(ctx, 160, TITLE_BAND - 12, 'STEP UP', rgba(WARN, 1), 1 - (t - STEP1 * 3) / 0.3, 8);
+    }
+    if (broken) {
+      // Two dropped beats and the run is over. The red is what the arena does
+      // about it, at the alpha it does it at.
+      const q = clamp01((t - BREAK_AT) / 0.75);
+      ctx.save();
+      ctx.globalAlpha = 0.22 * (1 - q);
+      ctx.fillStyle = rgba(RED, 1);
+      ctx.fillRect(-f.bleed, 0, STAGE_W + f.bleed * 2, STAGE_H);
+      ctx.restore();
+      tag(ctx, 160, 92, 'BROKE AT 133 APM', rgba(RED, 1), 0.95, 11);
+      tag(ctx, 160, 108, 'THAT NUMBER IS THE SCORE', rgba(BONE, 0.7), 0.8, 7);
+    }
+    vignette(f);
+  },
+};
+
 export const PREVIEWS: Partial<Record<DrillId, PreviewScene>> = {
   rangecheck,
   vayneTumble,
@@ -926,4 +1962,17 @@ export const PREVIEWS: Partial<Record<DrillId, PreviewScene>> = {
   vayneHunt,
   caitlynDodge,
   lanePhase,
+  apmPulse,
+  apmSequence,
+  apmChord,
+  apmGate,
+  apmBuffer,
+  apmCancel,
+  apmVector,
+  apmField,
+  apmHandoff,
+  apmSplit,
+  apmUpkeep,
+  apmSwitch,
+  apmSustain,
 };

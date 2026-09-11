@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import type { RunMode } from '../drills/modes';
@@ -22,18 +22,24 @@ import {
   rungAdds,
 } from '../drills/apm';
 import type { ApmDrillId } from '../drills/apm';
-import type { Profile } from '../progression/profile';
+import { checkLabBinds, faultKey, playableTo, type BindReport } from '../drills/apm/binds';
+import { defaultsFor, resolveBindings, type Bindings } from '../engine/input';
+import type { AppSettings, Profile } from '../progression/profile';
 import { Explainer } from './components/Explainer';
+import { ModePreview } from './components/ModePreview';
 import './practice.css';
 import './lab.css';
 
 interface Props {
   profile: Profile;
+  settings: AppSettings;
   onPlay: (
     id: DrillId,
     mode: RunMode,
     opts?: { difficulty?: number; duration?: number; level?: number },
   ) => void;
+  /** Opens the controls screen. The lab is the one section that can need it. */
+  onFixControls: () => void;
 }
 
 type PlayFn = Props['onPlay'];
@@ -77,7 +83,23 @@ const LAB_GROUPS: { kind: ApmModeKind; label: string; note: string }[] = [
   },
 ];
 
-export function Lab({ profile, onPlay }: Props) {
+/**
+ * The layout a lab run will actually be played on.
+ *
+ * Read here rather than inside a card, and read defensively: this screen is
+ * reached from a stored profile, and a menu that throws on a half-written
+ * settings object is a player who cannot reach the screen that would fix it.
+ */
+const labBindings = (settings: AppSettings | undefined): Bindings => {
+  const scheme = settings?.movementScheme === 'wasd' ? 'wasd' : 'click';
+  try {
+    return resolveBindings(scheme, scheme === 'wasd' ? settings?.wasdBindings : settings?.bindings);
+  } catch {
+    return defaultsFor(scheme);
+  }
+};
+
+export function Lab({ profile, settings, onPlay, onFixControls }: Props) {
   // Which rung each mode is showing. Empty means "whatever the ladder
   // suggests", so a mode the player has not touched this session always opens
   // on the rung they have not beaten rather than on the one they last looked at.
@@ -102,7 +124,8 @@ export function Lab({ profile, onPlay }: Props) {
           <div className="eyebrow">Train · one minute at a time</div>
           <h1 className="display pr-h1 lab-h1">THE LAB</h1>
           <p className="dim pr-lead">
-            Squares light up. Hit the right key — misses and mashing score nothing.
+            Squares light up. Put your cursor on the one that is lit and hit its key — misses
+            and mashing score nothing.
           </p>
           <div className="lab-tally mono">
             <span>
@@ -118,7 +141,14 @@ export function Lab({ profile, onPlay }: Props) {
         </header>
 
         <div className="pr-panel fade-up" style={{ ['--c' as string]: '#7ceaff' }}>
-          <LabPanel profile={profile} picked={picked} onStep={step} onPlay={onPlay} />
+          <LabPanel
+            profile={profile}
+            settings={settings}
+            picked={picked}
+            onStep={step}
+            onPlay={onPlay}
+            onFixControls={onFixControls}
+          />
         </div>
       </div>
     </div>
@@ -136,6 +166,95 @@ function GroupHead({ label, note, count }: { label: string; note: string; count?
       {count && <span className="pr-group-count mono">{count}</span>}
       <span className="pr-group-rule" aria-hidden />
       <i>{note}</i>
+    </div>
+  );
+}
+
+/**
+ * THE ONE THING THAT CAN MAKE THIS SECTION LIE TO YOU.
+ *
+ * The lab's levels are made of keys — the ladder hands over one more piece of
+ * the keyboard every rung — so a player missing a binding has not made the lab
+ * slightly different, they have made part of it unplayable. And the bench will
+ * not say so: it lights the pad, waits out the window, scores the miss, and
+ * the run comes back reading *you were too slow*.
+ *
+ * That is the one failure this client must never have, because it teaches the
+ * player that their hands are the problem when the truth is that a key is
+ * missing. So the section checks before the run rather than after it, says
+ * which row on which screen, and — this is the part that matters — says what
+ * it is going to cost, in rungs, so the player can decide whether to fix it
+ * now or play the eight levels it does not affect.
+ */
+function BindWarning({
+  report,
+  bound,
+  ceiling,
+  onFixControls,
+}: {
+  report: BindReport;
+  bound: Bindings;
+  ceiling: number;
+  onFixControls: () => void;
+}) {
+  const shut = ceiling < APM_LEVELS;
+  return (
+    <div className="lab-binds" role="alert">
+      <div className="lab-binds-head">
+        <b className="display">
+          {ceiling === 0 ? 'THE LAB CANNOT RUN ON THIS LAYOUT' : 'SOME LEVELS CANNOT BE PLAYED'}
+        </b>
+        <button
+          type="button"
+          className="lab-binds-fix"
+          onMouseEnter={() => audio.play('uiHover')}
+          onClick={() => {
+            audio.play('uiClick');
+            onFixControls();
+          }}
+        >
+          FIX CONTROLS
+        </button>
+      </div>
+      <p className="lab-binds-lead">
+        {ceiling === 0 ? (
+          <>
+            Level 1 already asks for a key you do not have bound. Nothing here can be scored
+            honestly until this is fixed — the bench would light a pad, wait, and mark you down
+            for a press you have no way to make.
+          </>
+        ) : (
+          <>
+            Levels <b>1–{ceiling}</b> are fine and every card below will play them. From{' '}
+            <b>level {ceiling + 1}</b> the ladder starts asking for a key you do not have, and a
+            bench does not know the difference between a key you cannot press and a key you
+            pressed late — it would simply score you as slow.
+          </>
+        )}
+      </p>
+      <ul className="lab-binds-list">
+        {report.faults.map((fault) => (
+          <li key={fault.action} className={`lab-bind-row ${fault.kind}`}>
+            <b className="mono">{fault.kind === 'unbound' ? 'UNBOUND' : faultKey(bound, fault)}</b>
+            <span>
+              <b>{fault.label}</b> — {fault.role}
+              {fault.kind === 'clash' && (
+                <i> · shares its button with {fault.clashes.join(', ')}, so one of them never arrives</i>
+              )}
+            </span>
+            <i className="mono lab-bind-from">FROM LEVEL {fault.from}</i>
+          </li>
+        ))}
+      </ul>
+      {shut && ceiling > 0 && (
+        <p className="set-note">
+          Nothing is hidden and nothing is locked. Every card still shows all ten levels and the
+          arrows still move between them — the rungs above {ceiling} simply will not{' '}
+          <i>start</i> until this is fixed, and each card names the key it is waiting on. That is
+          the only thing in this section that has ever stopped a button, and it is here because
+          the alternative is a minute of being marked down for a press you have no key to make.
+        </p>
+      )}
     </div>
   );
 }
@@ -173,22 +292,49 @@ function KeyLadder() {
 
 function LabPanel({
   profile,
+  settings,
   picked,
   onStep,
   onPlay,
+  onFixControls,
 }: {
   profile: Profile;
+  settings: AppSettings;
   picked: Partial<Record<ApmDrillId, number>>;
   onStep: (m: ApmMode, level: number, by: number) => void;
   onPlay: PlayFn;
+  onFixControls: () => void;
 }) {
+  const scheme = settings?.movementScheme === 'wasd' ? 'wasd' : 'click';
+  const bound = labBindings(settings);
+  // The whole ladder, not the rung a card happens to be showing: a layout that
+  // cannot answer level seven is worth saying out loud on level one, because
+  // the player is going to walk into it and the mode will not tell them.
+  const ceiling = playableTo(bound, scheme, APM_LEVELS);
+  const top = checkLabBinds(bound, APM_LEVELS, scheme);
   return (
     <>
+      {!top.ok && (
+        <BindWarning
+          report={top}
+          bound={bound}
+          ceiling={ceiling}
+          onFixControls={onFixControls}
+        />
+      )}
       <Explainer title="HOW THE LAB WORKS">
         <p className="dim pr-lead pr-panel-lead">
           Each run lasts one minute and counts the presses you got <i>right</i> — a wrong key or
           a wasted one scores nothing, so hammering the keyboard gives you the worst score here,
           not the best. Get several right in a row and they start counting for more.
+        </p>
+        <p className="dim pr-lead pr-panel-lead">
+          <b>Your cursor has to be on the square you are answering.</b> The key alone does
+          nothing — put the pointer on the lit square and then press it. That is the whole
+          rule, and it is why this section cannot be beaten by hammering the right keys from
+          wherever your mouse happened to be left. The square you have to be on wears a second
+          ring inside its edge; it closes and lights up the moment you are on it, and if you
+          are not, a line is drawn from your cursor to the square that wants you.
         </p>
         <p className="dim pr-lead pr-panel-lead">
           <b>Pick a level and it stays there for the whole minute.</b> It never speeds up because
@@ -257,7 +403,14 @@ function LabPanel({
                   <LabBench
                     key={m.id}
                     mode={m}
+                    settings={settings}
                     level={level}
+                    // The check is the rung's rather than the mode's — all
+                    // thirteen benches read one ladder — so it is computed
+                    // where the rung is known and handed down finished.
+                    binds={checkLabBinds(bound, level, scheme)}
+                    bound={bound}
+                    onFixControls={onFixControls}
                     cleared={rec.levels.map((lv) => levelStars(lv) > 0)}
                     lv={rec.levels[level - 1]}
                     // Defensive, like everything else this screen reads out of
@@ -283,7 +436,11 @@ function LabPanel({
 
 function LabBench({
   mode,
+  settings,
   level,
+  binds,
+  bound,
+  onFixControls,
   cleared,
   lv,
   infRuns,
@@ -294,7 +451,12 @@ function LabBench({
   onPlay,
 }: {
   mode: ApmMode;
+  settings: AppSettings;
   level: number;
+  /** Whether this rung can be answered on the layout the player actually has. */
+  binds: BindReport;
+  bound: Bindings;
+  onFixControls: () => void;
   /** Which of the ten rungs have a star on them, for the ladder strip. */
   cleared: boolean[];
   lv: ApmLevelRecord;
@@ -307,36 +469,73 @@ function LabBench({
 }) {
   const meta = DRILLS[mode.id];
   const stars = levelStars(lv);
+  // The clip watches the whole card rather than only its picture — resting
+  // anywhere on a bench is looking at that bench — and it watches the element
+  // itself, so a cursor crossing the grid never re-renders a card.
+  const card = useRef<HTMLElement>(null);
   // The infinite run opens on whatever rung the card is showing and then stops
   // caring about it. It is on the right mouse button because it is the same
   // activity as PLAY with one thing removed — the choice of level — and a
   // second full-size button would suggest it is a second mode rather than the
   // same bench with the floor let loose. The chip under it is the same gesture
   // for anyone whose pointer, browser or hands do not have a right click.
+  // A rung this layout cannot answer does not start. Not because the section
+  // gates anything — it gates nothing, and this is the only thing in it that
+  // ever stops a button — but because the alternative is a minute of being
+  // marked down for presses the player has no key to make.
+  const blocked = !binds.ok;
+  // The first rung this layout stops answering. Faults only ever accumulate as
+  // the ladder climbs, so the lowest arrival among the ones found here is the
+  // rung the card would have to drop below — which is the fix that costs
+  // nothing and is worth offering before the one that costs a trip to a menu.
+  const firstBroken = binds.ok ? APM_LEVELS + 1 : Math.min(...binds.faults.map((f) => f.from));
+  const refuse = () => {
+    audio.play('castRefuse');
+    onFixControls();
+  };
   const goInfinite = () => {
+    if (blocked) return refuse();
     audio.play('uiClick');
     onPlay(mode.id, 'infinite', { difficulty: levelDifficulty(level), level });
   };
   // The same bench and the same rung, with the one thing PLAY refuses to do:
   // let the run's own chain move the floor under it.
   const goSurge = () => {
+    if (blocked) return refuse();
     audio.play('uiClick');
     onPlay(mode.id, 'surge', { difficulty: levelDifficulty(level), level });
   };
 
   return (
     <article
-      className="pr-lab-mode"
+      ref={card}
+      className={`pr-lab-mode${blocked ? ' unplayable' : ''}`}
       style={{ ['--c' as string]: meta.accent }}
       onContextMenu={(e) => {
         e.preventDefault();
         goInfinite();
       }}
     >
-      <header className="pr-lab-head">
-        <b className="pr-lab-name">{meta.name}</b>
-        <span className="pr-lab-kind mono">{mode.kind === 'isolated' ? 'ONE JOB' : 'TWO JOBS'}</span>
-      </header>
+      {/* WHAT THIS BENCH LOOKS LIKE.
+
+          The thirteen names in this section are thirteen abstractions —
+          CANCEL, UPKEEP, SWITCH — and no amount of copy turns "spend each dial
+          as soon as it fills up" into a picture. So every card carries the
+          same thing the champion modes carry: a still of its own bench, and
+          the loop it was cut from, which plays when you rest on the card.
+
+          The clip is also where the section's one rule about the mouse is
+          taught rather than written down: the pointer in every one of these
+          is on the pad that is lit, because in a run it has to be. */}
+      <div className="pr-lab-media">
+        <ModePreview id={mode.id} accent={meta.accent} host={card} still={settings.lowFx} />
+        <div className="pr-lab-title">
+          <b className="pr-lab-name">{meta.name}</b>
+          <span className="pr-lab-kind mono">
+            {mode.kind === 'isolated' ? 'ONE JOB' : 'TWO JOBS'}
+          </span>
+        </div>
+      </div>
       <div className="pr-lab-tag">{meta.tagline}</div>
       <p className="pr-lab-brief">{meta.brief}</p>
 
@@ -399,10 +598,45 @@ function LabBench({
         ))}
       </div>
 
+      {/* The card's own version of the warning at the top of the screen, at the
+          rung it is showing. It sits directly above the button it is stopping,
+          because that is where somebody who skipped the banner is looking. */}
+      {blocked && (
+        <div className="pr-lab-blocked">
+          <b className="mono">LEVEL {level} NEEDS A KEY YOU DO NOT HAVE</b>
+          <span>
+            {binds.faults
+              .map((f) =>
+                f.kind === 'unbound'
+                  ? `${f.label} is unbound`
+                  : `${f.label} shares ${faultKey(bound, f)} with ${f.clashes.join(', ')}`,
+              )
+              .join(' · ')}
+          </span>
+          <button
+            type="button"
+            onMouseEnter={() => audio.play('uiHover')}
+            onClick={() => {
+              audio.play('uiClick');
+              onFixControls();
+            }}
+          >
+            FIX CONTROLS
+          </button>
+          <i>
+            {firstBroken > 1
+              ? `Or use the arrows above — levels 1–${firstBroken - 1} still play.`
+              : 'This one is needed from level 1, so the arrows cannot get around it.'}
+          </i>
+        </div>
+      )}
+
       <button
         className="pr-go pr-go-play"
+        disabled={blocked}
         onMouseEnter={() => audio.play('uiHover')}
         onClick={() => {
+          if (blocked) return refuse();
           audio.play('uiClick');
           onPlay(mode.id, 'play', { difficulty: levelDifficulty(level), level });
         }}
@@ -419,6 +653,7 @@ function LabBench({
       <div className="pr-lab-alts">
         <button
           className="pr-lab-surge"
+          disabled={blocked}
           onMouseEnter={() => audio.play('uiHover')}
           onClick={goSurge}
           title={`${meta.name}: a SURGE run at level ${level}. One minute, and a good streak makes it harder.`}
@@ -437,6 +672,7 @@ function LabBench({
       </div>
       <button
         className="pr-lab-inf"
+        disabled={blocked}
         onMouseEnter={() => audio.play('uiHover')}
         onClick={goInfinite}
         title={`${meta.name}: an endless run, starting at level ${level}. Right-click the card for the same thing.`}

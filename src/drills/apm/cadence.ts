@@ -111,6 +111,11 @@ export class ApmPulseDrill extends LabDrill {
     return { keys: [this.keySlots[this.lit]] };
   }
 
+  /** The lit one. Two pads, and only one of them is ever asking. */
+  protected aimPads(): readonly Pad[] {
+    return [this.pads[this.lit]];
+  }
+
   protected slotName(slot: AbilitySlot): string {
     return slot === this.keySlots[0] ? 'LEFT PAD' : slot === this.keySlots[1] ? 'RIGHT PAD' : '';
   }
@@ -309,6 +314,18 @@ export class ApmSustainDrill extends LabDrill {
 
   protected modeSolution(): LabSolution {
     return this.answeredBeat ? { wait: true } : { keys: [this.keySlots[this.lit]] };
+  }
+
+  /**
+   * The pad on this beat, and only while the beat is still owed.
+   *
+   * Once the beat is paid the bench wants nothing, so it asks the mouse for
+   * nothing: a player who has answered is free to start moving towards
+   * wherever they think the next one is, which is exactly the anticipation
+   * this mode is trying to build.
+   */
+  protected aimPads(): readonly Pad[] {
+    return this.answeredBeat ? [] : [this.pads[this.lit]];
   }
 
   protected slotName(): string {

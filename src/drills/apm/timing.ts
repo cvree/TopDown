@@ -135,6 +135,11 @@ export class ApmBufferDrill extends LabDrill {
     });
   }
 
+  /** The one pad. It wants the cursor for as long as the gate is unpaid. */
+  protected aimPads(): readonly Pad[] {
+    return this.done ? [] : [this.pad];
+  }
+
   protected modeSolution(): LabSolution {
     if (this.done) return { wait: true };
     const lead = this.openAt - this.s.elapsed;
@@ -391,6 +396,27 @@ export class ApmCancelDrill extends LabDrill {
         return { keys: [this.cutSlot] };
       default:
         return { wait: true };
+    }
+  }
+
+  /**
+   * Whichever pad the phase is on — and both while the bar is committing.
+   *
+   * The commit is the only moment in the mode where nothing may be pressed and
+   * something is about to be, so it is the only moment the cursor is given a
+   * head start: the hand is allowed to be on its way to the cut pad before the
+   * cut opens, which is precisely what a player who can cancel does.
+   */
+  protected aimPads(): readonly Pad[] {
+    switch (this.phase) {
+      case 'call':
+        return [this.startPad];
+      case 'commit':
+        return [this.cutPad, this.startPad];
+      case 'cut':
+        return [this.cutPad];
+      default:
+        return [];
     }
   }
 

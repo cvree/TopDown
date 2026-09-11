@@ -267,7 +267,16 @@ const hintsFor = (settings: AppSettings, drill: DrillId, level: number): Hint[] 
       // line here is the one that puts the cursor on a pad.
       ...keep(scheme === 'wasd' ? ['move', 'attack'] : ['move']),
       ...(bench.length
-        ? [{ id: 'bench', key: bench.map((slot) => abilityKeyLabel(settings, drill, slot)).join(' '), label: 'your keys' }]
+        ? [
+            {
+              id: 'bench',
+              key: bench.map((slot) => abilityKeyLabel(settings, drill, slot)).join(' '),
+              // Not 'your keys'. A key on this bench is half an answer: the
+              // cursor has to be on the pad first, and the cheat sheet is
+              // where a player learns that before losing a chain to it.
+              label: 'your keys · point first',
+            },
+          ]
         : []),
       ...(lanes ? [{ id: 'lanes', key: lanes, label: 'lanes · dodge the map' }] : []),
       ...orders.map((o) => ({

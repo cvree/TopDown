@@ -118,6 +118,19 @@ export class ApmGateDrill extends LabDrill {
     return this.barred ? { wait: true } : { keys: [this.slotsHere[this.lit]] };
   }
 
+  /**
+   * The pad that lit, barred or not.
+   *
+   * A barred pad still wants the cursor, and that is the point rather than an
+   * oversight: the mode is about arriving at something and then not pressing
+   * it. Letting the mouse stay away while the pad is crossed out would make
+   * the barred half of the mode easier than the half it exists to contrast
+   * with, which is backwards.
+   */
+  protected aimPads(): readonly Pad[] {
+    return [this.pads[this.lit]];
+  }
+
   protected slotName(slot: AbilitySlot): string {
     return this.slotsHere[this.lit] === slot ? (this.barred ? 'HOLD' : 'GO') : '';
   }

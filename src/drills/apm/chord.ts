@@ -132,6 +132,20 @@ export class ApmChordDrill extends LabDrill {
     this.deal();
   }
 
+  /**
+   * Both pads of the pair, for the whole of the pair.
+   *
+   * The one place the rule has to bend, and it bends for arithmetic rather
+   * than for comfort: two keys are being asked for inside a twentieth of a
+   * second and a cursor is one object. Resting on either pad of the pair is
+   * therefore enough, and it stays enough after the first key has landed —
+   * demanding the cursor move to the partner in the forty milliseconds the
+   * tolerance allows would not be a harder mode, it would be an impossible one.
+   */
+  protected aimPads(): readonly Pad[] {
+    return [this.padOf(this.pair[0]), this.padOf(this.pair[1])].filter(Boolean);
+  }
+
   protected modeSolution(): LabSolution {
     // Both keys, this instant. The harness sends them in one step, which is
     // exactly the thing the mode is asking a pair of fingers to do.
