@@ -78,6 +78,22 @@ export interface PreviewScene {
   poster: number;
   /** The clip's caption — six words on what you are looking at. */
   caption: string;
+  /**
+   * This clip resolves rather than cycles.
+   *
+   * Most of them are a loop in the strict sense: a pure, periodic function of
+   * the time into the loop, so the picture at `length` is the picture at zero
+   * and the wrap is invisible. A few modes are a *sentence* instead — a wave
+   * walks in and a minion dies, a four-key combo lands, a cast becomes a wall
+   * stun, a run finally breaks — and a sentence cannot be made periodic
+   * without stopping being the thing it is describing. Those say so here, and
+   * the restart reads as the next rep rather than as a glitch.
+   *
+   * It is a flag rather than a list kept somewhere else because the fact
+   * belongs to the clip: whoever writes the painter is the only person who
+   * knows which of the two they have written.
+   */
+  narrative?: boolean;
   paint: (f: PreviewFrame) => void;
 }
 
@@ -378,7 +394,7 @@ const rangecheck: PreviewScene = {
   poster: 0.3,
   caption: 'the ring is the mode',
   paint: (f) => {
-    const { ctx, accent, t, u } = f;
+    const { ctx, accent, u } = f;
     stage(f, 108, 96);
     const hx = 108;
     const hy = 96;
@@ -391,7 +407,7 @@ const rangecheck: PreviewScene = {
     const ey = hy + Math.sin(ang) * dist;
     const inside = dist <= R;
 
-    const pulse = inside ? 0.55 + 0.25 * Math.sin(t * 7) : 0.16;
+    const pulse = inside ? 0.55 + 0.25 * Math.sin(u * TAU * 4) : 0.16;
     ring(ctx, hx, hy, R, rgba(accent, 1), pulse, inside ? 1.8 : 1.1, inside ? undefined : [4, 5]);
     if (inside) {
       const fill = ctx.createRadialGradient(hx, hy, R * 0.55, hx, hy, R);
@@ -417,7 +433,7 @@ const rangecheck: PreviewScene = {
 
     // An attack every 0.55s, but only while the dummy is in reach.
     if (inside) {
-      const beat = ((t % 0.55) / 0.55);
+      const beat = (u * 6) % 1;
       const p = easeOut(beat);
       lance(ctx, lerp(hx, ex, p), lerp(hy, ey, p), ang, 16, accent, 1 - beat * 0.35, 2.2);
       burst(ctx, ex, ey, 1 - beat > 0.72 ? (1 - beat - 0.72) / 0.28 : 0, accent, 16);
@@ -524,6 +540,7 @@ const vayneBolts: PreviewScene = {
   length: 2.9,
   poster: 0.62,
   caption: 'one, two, three',
+  narrative: true,
   paint: (f) => {
     const { ctx, accent, t } = f;
     const step = 0.62;
@@ -598,6 +615,7 @@ const vayneCondemn: PreviewScene = {
   length: 3.2,
   poster: 0.42,
   caption: 'into something solid',
+  narrative: true,
   paint: (f) => {
     const { ctx, accent, t } = f;
     stage(f, 92, 100);
@@ -624,7 +642,7 @@ const vayneCondemn: PreviewScene = {
     // The aim line, held for as long as the mode gives you to decide.
     if (t < cast) {
       ctx.save();
-      ctx.globalAlpha = 0.18 + 0.18 * Math.sin(t * 9);
+      ctx.globalAlpha = 0.18 + 0.18 * Math.sin(f.u * TAU * 5);
       ctx.strokeStyle = rgba(accent, 1);
       ctx.lineWidth = 9;
       ctx.setLineDash([2, 6]);
@@ -710,9 +728,9 @@ const vayneHunt: PreviewScene = {
       foe(ctx, m.x, m.y, 5.5, clamp01(1 - (d - VIS * 0.35) / (VIS * 0.8)));
     });
 
-    const target = marks[Math.floor(t / 1.47) % 3];
+    const target = marks[Math.floor(f.u * 3) % 3];
     const ang = Math.atan2(target.y - hy, target.x - hx);
-    const beat = t % 1.47;
+    const beat = ((f.u * 3) % 1) * (4.4 / 3);
     if (beat < 0.5) {
       const q = easeOut(beat / 0.42);
       lance(ctx, lerp(hx, target.x, q), lerp(hy, target.y, q), ang, 18, accent, 0.95, 2.3);
@@ -720,7 +738,7 @@ const vayneHunt: PreviewScene = {
     }
 
     // Final Hour: the aura that says the ultimate is up.
-    const ult = 0.5 + 0.5 * Math.sin(t * 2.4);
+    const ult = 0.5 + 0.5 * Math.sin(f.u * TAU * 2);
     ring(ctx, hx, hy, 16 + ult * 4, rgba('#ff8fc8', 1), 0.25 + ult * 0.35, 1.6);
     hero(ctx, hx, hy, accent, ang);
     vignette(f, 0.7);
@@ -739,6 +757,7 @@ const caitlynDodge: PreviewScene = {
   length: 3.4,
   poster: 0.56,
   caption: 'step before it leaves',
+  narrative: true,
   paint: (f) => {
     const { ctx, accent, t } = f;
     stage(f, 96, 100);
@@ -837,6 +856,7 @@ const lanePhase: PreviewScene = {
   length: 4.8,
   poster: 0.52,
   caption: 'a wave, and somebody opposite',
+  narrative: true,
   paint: (f) => {
     const { ctx, accent, t } = f;
     const L = -f.bleed;
@@ -1883,6 +1903,7 @@ const apmSustain: PreviewScene = {
   length: 3.6,
   poster: 0.08,
   caption: 'it speeds up until you drop it',
+  narrative: true,
   paint: (f) => {
     const { ctx, accent, t } = f;
     stage(f, 160, 96);
@@ -1954,7 +1975,1615 @@ const apmSustain: PreviewScene = {
   },
 };
 
-export const PREVIEWS: Partial<Record<DrillId, PreviewScene>> = {
+// ===========================================================================
+// THE REST OF THE VOCABULARY
+// ===========================================================================
+
+/**
+ * A node: somewhere to be, and how much of being there you have done.
+ *
+ * MOVEMENT and the academy's first module are both built out of these, and in
+ * both of them the mode is not "go near it" but "stop dead inside it" — so the
+ * fill is the part that matters and it is drawn as a fill rather than as a
+ * colour change.
+ */
+function node(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  color: string,
+  alpha: number,
+  fill = 0,
+) {
+  if (fill > 0.002) {
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.22 * fill;
+    ctx.fillStyle = rgba(color, 1);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+  ring(ctx, x, y, r, rgba(color, 1), alpha, 1.5, fill > 0.002 ? undefined : [3.5, 4]);
+  if (fill > 0.002) arcRing(ctx, x, y, r + 4, fill, rgba(color, 1), alpha * 0.9, 2);
+}
+
+/** A minion: a small square, so a wave never reads as a row of champions. */
+function minion(ctx: CanvasRenderingContext2D, x: number, y: number, tint: string, hp = 1, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = rgba(tint, 0.22);
+  ctx.strokeStyle = rgba(tint, 0.85);
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.rect(x - 3.4, y - 3.4, 6.8, 6.8);
+  ctx.fill();
+  ctx.stroke();
+  // The bar is the whole of LAST HIT, so it is drawn on every minion that has
+  // one rather than only on the one being taken.
+  ctx.globalAlpha = alpha * 0.9;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(x - 6, y - 8.5, 12, 2.2);
+  ctx.fillStyle = rgba(hp < 0.25 ? WARN : tint, 0.95);
+  ctx.fillRect(x - 6, y - 8.5, 12 * clamp01(hp), 2.2);
+  ctx.restore();
+}
+
+/** A telegraph wedge: anything that is about to happen in a direction. */
+function cone(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  ang: number,
+  half: number,
+  len: number,
+  color: string,
+  alpha: number,
+) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = rgba(color, 0.16);
+  ctx.strokeStyle = rgba(color, 0.75);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.arc(x, y, len, ang - half, ang + half);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * A telegraph band: a skillshot's footprint, before it is a skillshot.
+ *
+ * `warn` fills from the caster outwards, which is the one thing about a
+ * telegraph a player has to be able to read at a glance — not that it is
+ * there, but how much of the time it gives you is left.
+ */
+function band(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  ang: number,
+  len: number,
+  width: number,
+  color: string,
+  alpha: number,
+  warn = 1,
+) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(ang);
+  ctx.strokeStyle = rgba(color, 0.6);
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.strokeRect(0, -width / 2, len, width);
+  ctx.setLineDash([]);
+  ctx.fillStyle = rgba(color, 0.18);
+  ctx.fillRect(0, -width / 2, len * clamp01(warn), width);
+  ctx.restore();
+}
+
+/** Afterimages, evenly spaced along a path the champion has just taken. */
+function ghosts(
+  ctx: CanvasRenderingContext2D,
+  from: Pt,
+  to: Pt,
+  p: number,
+  color: string,
+  n = 4,
+) {
+  for (let i = 1; i <= n; i++) {
+    const q = clamp01(p - i * 0.12);
+    if (q <= 0) continue;
+    const a = 0.3 * (1 - i / (n + 1)) * (1 - p * 0.4);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = rgba(color, 1);
+    ctx.beginPath();
+    ctx.arc(lerp(from.x, to.x, easeOut(q)), lerp(from.y, to.y, easeOut(q)), 4.2, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/** A turret: the one structure a lane clip needs. */
+function turret(ctx: CanvasRenderingContext2D, x: number, y: number, tint: string) {
+  ctx.save();
+  ctx.strokeStyle = rgba(tint, 0.7);
+  ctx.fillStyle = rgba(tint, 0.14);
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 9);
+  ctx.lineTo(x + 7, y - 1);
+  ctx.lineTo(x + 4.5, y + 8);
+  ctx.lineTo(x - 4.5, y + 8);
+  ctx.lineTo(x - 7, y - 1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ===========================================================================
+// FOUNDATION
+// ===========================================================================
+
+/**
+ * MOVEMENT — arriving, rather than heading roughly that way.
+ *
+ * The clip shows the one thing the mode scores and nothing else: the champion
+ * crosses to a node on a straight line and *stops inside it*, and the ring
+ * fills only while she is actually standing still in there. The node that is
+ * next is already drawn, dim, because in the mode it is too — most of what
+ * this drill costs a player is the second they spend deciding.
+ */
+const movement: PreviewScene = {
+  length: 3.6,
+  poster: 0.42,
+  caption: 'stop dead inside it',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    stage(f, 150, 96);
+    const spots: Pt[] = [
+      { x: 74, y: 112 },
+      { x: 168, y: 62 },
+      { x: 248, y: 118 },
+    ];
+    // Three legs round three nodes, so the last one walks back to the first and
+    // the loop closes without a cut.
+    const leg = 3.6 / spots.length;
+    const n = f.u * spots.length;
+    const i = Math.floor(n) % spots.length;
+    const p = clamp01((n % 1) / 0.62);
+    const from = spots[i];
+    const to = spots[(i + 1) % spots.length];
+    const hx = lerp(from.x, to.x, easeOut(p));
+    const hy = lerp(from.y, to.y, easeOut(p));
+    const settled = clamp01(((n % 1) - 0.62) / 0.3);
+    void leg;
+
+    // The line you were asked to walk, and the line you walked. They are the
+    // same line here, which is the whole of PATH EFFICIENCY.
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.strokeStyle = rgba(accent, 0.8);
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.restore();
+
+    spots.forEach((s, k) => {
+      const live = k === (i + 1) % spots.length;
+      node(ctx, s.x, s.y, 15, live ? accent : PAD_OFF, live ? 0.9 : 0.2, live ? settled : 0);
+    });
+    ghosts(ctx, from, to, p, accent);
+    hero(ctx, hx, hy, accent, Math.atan2(to.y - from.y, to.x - from.x));
+    if (settled > 0.15) {
+      burst(ctx, to.x, to.y, settled, GOOD, 22);
+      tag(ctx, to.x, to.y - 26, 'STOPPED', rgba(GOOD, 1), settled * 0.95);
+    }
+    vignette(f);
+  },
+};
+
+/**
+ * AIM — the right one, exactly on it, now.
+ *
+ * Three marks and only one of them is the one. The cursor travels, and the
+ * clip holds on the travel rather than cutting to the click, because the
+ * distance the hand covers between two marks *is* the thing being measured —
+ * a preview that snapped straight to the answer would be advertising a
+ * reaction test and delivering a precision one.
+ */
+const aim: PreviewScene = {
+  length: 2.82,
+  poster: 0.62,
+  caption: 'the right one, exactly on it',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    stage(f, 160, 92);
+    const marks: Pt[] = [
+      { x: 96, y: 70 },
+      { x: 190, y: 108 },
+      { x: 244, y: 58 },
+    ];
+    const n = f.u * marks.length;
+    const k = Math.floor(n) % marks.length;
+    const p = n % 1;
+    const prev = marks[(k + marks.length - 1) % marks.length];
+    const want = marks[k];
+    const travel = clamp01(p / 0.46);
+    const struck = p >= 0.46 ? (p - 0.46) / 0.24 : 0;
+
+    marks.forEach((m, j) => {
+      const live = j === k;
+      // A mark surfaces and sinks: it is worth marks only while it is up, and
+      // a clip that drew all three the same would be lying about that.
+      const up = live ? clamp01(p / 0.18) : j === (k + 1) % marks.length ? 0.16 : 0.1;
+      foe(ctx, m.x, m.y, 5 + up * 1.6, 0.25 + up * 0.75);
+      if (live) ring(ctx, m.x, m.y, 11 + (1 - up) * 8, rgba(accent, 1), up * 0.7, 1.3);
+    });
+
+    const cx = lerp(prev.x, want.x, easeOut(travel));
+    const cy = lerp(prev.y, want.y, easeOut(travel));
+    ctx.save();
+    ctx.globalAlpha = 0.2;
+    ctx.strokeStyle = rgba(BONE, 0.9);
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(prev.x, prev.y);
+    ctx.lineTo(cx, cy);
+    ctx.stroke();
+    ctx.restore();
+    if (struck > 0 && struck < 1) burst(ctx, want.x, want.y, struck, accent, 20, 4);
+    pointer(ctx, cx, cy, accent, travel >= 1);
+    tag(
+      ctx,
+      want.x,
+      want.y - 20,
+      struck > 0 ? `${180 + k * 24}ms` : 'TAKE IT',
+      rgba(struck > 0 ? GOOD : accent, 1),
+      0.9,
+    );
+    vignette(f);
+  },
+};
+
+/**
+ * SKILLSHOT — the shot goes where they will be.
+ *
+ * The band is drawn before the missile because that is the order the decision
+ * happens in: you commit to a strip of ground, and then find out whether the
+ * thing you were aiming at agreed to be in it. The target here strafes at a
+ * constant speed and the lead is correct, so the clip is a picture of the
+ * mode being answered rather than of a coin landing.
+ */
+const skillshot: PreviewScene = {
+  length: 3,
+  poster: 0.72,
+  caption: 'lead it, then fire',
+  paint: (f) => {
+    const { ctx, accent, t, u } = f;
+    stage(f, 78, 108);
+    const hx = 62;
+    const hy = 104;
+    const ey = 60 + 34 * Math.sin(u * TAU);
+    const ex = 236;
+    const aimY = ey + 26 * Math.cos(u * TAU);
+    const ang = Math.atan2(aimY - hy, ex - hx);
+    const cycle = 1.5;
+    const p = (t % cycle) / cycle;
+
+    band(ctx, hx, hy, ang, 200, 15, accent, 0.75, clamp01(p / 0.34));
+    if (p >= 0.34) {
+      const q = clamp01((p - 0.34) / 0.3);
+      const mx = lerp(hx, ex, q);
+      const my = lerp(hy, aimY, q);
+      lance(ctx, mx, my, ang, 26, accent, 1, 3);
+      if (q >= 1) burst(ctx, ex, aimY, clamp01((p - 0.64) / 0.24), accent, 26, 6);
+    }
+    foe(ctx, ex, ey, 5.5, 1);
+    // Where it will be when the missile gets there — the only number this mode
+    // is about, drawn rather than written.
+    ring(ctx, ex, aimY, 8, rgba(WARN, 1), 0.5, 1, [2, 3]);
+    hero(ctx, hx, hy, accent, ang);
+    tag(ctx, ex, Math.min(aimY, ey) - 18, 'LEAD', rgba(WARN, 1), 0.85);
+    vignette(f);
+  },
+};
+
+/**
+ * DODGE — one step, and it has to be a useful one.
+ *
+ * Both halves of the mode are in the frame at once, which is the point of it:
+ * the cone is what you are leaving and the emitter in the corner is what you
+ * are supposed to be killing while you leave it. A clip with only the dodge in
+ * it would be advertising half a drill.
+ */
+const dodge: PreviewScene = {
+  length: 3.2,
+  poster: 0.5,
+  caption: 'leave it, and kill the thrower',
+  paint: (f) => {
+    const { ctx, accent, t, u } = f;
+    stage(f, 130, 104);
+    const sx = 246;
+    const sy = 62;
+    const cycle = 1.6;
+    const p = (t % cycle) / cycle;
+    const warn = clamp01(p / 0.4);
+    const fire = p >= 0.4 ? clamp01((p - 0.4) / 0.18) : 0;
+
+    const home = { x: 128, y: 104 };
+    const safe = { x: 92, y: 132 };
+    // The step happens *inside* the telegraph, not after it: a dodge taken
+    // when the thing is already in the air is a dodge that did not happen.
+    const step = clamp01((p - 0.24) / 0.16);
+    const hx = lerp(home.x, safe.x, easeOut(step));
+    const hy = lerp(home.y, safe.y, easeOut(step));
+
+    const ang = Math.atan2(home.y - sy, home.x - sx);
+    cone(ctx, sx, sy, ang, 0.34, 190, fire > 0 ? RED : WARN, fire > 0 ? 0.85 * (1 - fire) : 0.35 + warn * 0.45);
+    if (fire > 0) burst(ctx, home.x, home.y, fire, RED, 34, 6);
+
+    foe(ctx, sx, sy, 6, 1);
+    ring(ctx, sx, sy, 13, rgba(RED, 1), 0.35 + 0.3 * Math.sin(u * TAU * 4), 1.2);
+    ghosts(ctx, home, safe, step, accent, 3);
+    hero(ctx, hx, hy, accent, Math.atan2(sy - hy, sx - hx));
+    // The other half: she is shooting the emitter the whole time she is
+    // leaving its cone.
+    const shot = (t % 0.4) / 0.4;
+    lance(ctx, lerp(hx, sx, easeOut(shot)), lerp(hy, sy, easeOut(shot)), Math.atan2(sy - hy, sx - hx), 18, accent, 0.9, 2.2);
+    tag(ctx, hx, hy + 22, step > 0.5 ? 'CLEAR' : 'MOVE', rgba(step > 0.5 ? GOOD : WARN, 1), 0.9);
+    vignette(f);
+  },
+};
+
+// ===========================================================================
+// RHYTHM
+// ===========================================================================
+
+/**
+ * SPACING — the band between the two rings, and then the band without them.
+ *
+ * Two circles: what you can reach, and what can reach you. The pocket is the
+ * ground in one and not the other, and the clip spends its second half fading
+ * the rings out — because that is literally what the mode does to you, and a
+ * preview that kept them would be showing the easy half.
+ */
+const spacing: PreviewScene = {
+  length: 4,
+  poster: 0.2,
+  caption: 'hold the pocket, then hold it blind',
+  paint: (f) => {
+    const { ctx, accent, u } = f;
+    stage(f, 110, 100);
+    const ex = 206;
+    const ey = 94;
+    const mine = 84;
+    const theirs = 52;
+    // Rings all the way out and all the way back, so the loop closes on the
+    // frame it opened on and the mode's second half is in every clip.
+    const shown = (1 + Math.cos(u * TAU)) / 2;
+    const hx = ex - (theirs + 16 + 8 * Math.sin(u * TAU));
+    const hy = ey + 6 * Math.sin(u * TAU * 2);
+
+    // The pocket itself: the annulus you are allowed to stand in.
+    ctx.save();
+    ctx.globalAlpha = 0.14 + shown * 0.1;
+    ctx.fillStyle = rgba(GOOD, 1);
+    ctx.beginPath();
+    ctx.arc(ex, ey, mine, 0, TAU);
+    ctx.arc(ex, ey, theirs, 0, TAU, true);
+    ctx.fill();
+    ctx.restore();
+
+    ring(ctx, ex, ey, theirs, rgba(RED, 1), 0.2 + shown * 0.6, 1.4, shown > 0.5 ? undefined : [4, 5]);
+    ring(ctx, hx, hy, mine, rgba(accent, 1), 0.1 + shown * 0.5, 1.3, [5, 6]);
+    foe(ctx, ex, ey, 5.5, 1);
+    hero(ctx, hx, hy, accent, 0);
+    tag(
+      ctx,
+      ex,
+      ey - theirs - 14,
+      shown > 0.4 ? 'THEIR REACH' : 'FROM MEMORY',
+      rgba(shown > 0.4 ? RED : accent, 0.95),
+      0.9,
+    );
+    vignette(f);
+  },
+};
+
+/**
+ * KITE — attack, step, attack, and never in the wrong order.
+ *
+ * The bar under the champion is the whole mode: it is the attack, split into
+ * the part a step throws away and the part a step is free in. Red is the
+ * windup, and she never moves during it; the moment it turns, she does.
+ */
+const kite: PreviewScene = {
+  length: 4,
+  poster: 0.3,
+  caption: 'move in the backswing, never the windup',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 100, 100);
+    const ex = 206;
+    const ey = 76;
+    const cycle = 1;
+    const p = (t % cycle) / cycle;
+    const WIND = 0.28;
+    const n = Math.floor(t / cycle);
+    // Two lanes far enough apart that the step between attacks is the thing
+    // the eye follows. A drill about moving cannot preview as a champion that
+    // twitches.
+    const lane = 86 + (n % 2) * 46;
+    const nextLane = 86 + ((n + 1) % 2) * 46;
+    const hx = 96;
+    // Planted through the windup, moving through the backswing. That asymmetry
+    // is the entire drill.
+    const hy = p < WIND ? lane : lerp(lane, nextLane, easeOut((p - WIND) / (1 - WIND)));
+    const ang = Math.atan2(ey - hy, ex - hx);
+
+    if (p < WIND) {
+      ring(ctx, hx, hy, 13, rgba(RED, 1), 0.5, 1.4);
+    } else {
+      const q = (p - WIND) / 0.32;
+      if (q < 1) lance(ctx, lerp(hx, ex, easeOut(q)), lerp(hy, ey, easeOut(q)), ang, 20, accent, 1, 2.4);
+      if (q >= 1) burst(ctx, ex, ey, clamp01(q - 1), accent, 20);
+    }
+
+    foe(ctx, ex, ey, 5.5, 1);
+    hero(ctx, hx, hy, accent, ang);
+
+    // The cycle, drawn as the thing it is: two stretches of time, one of which
+    // is yours to spend.
+    const bx = 100;
+    const by = TITLE_BAND - 16;
+    const bw = 120;
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,16,28,0.8)';
+    ctx.fillRect(bx, by, bw, 6);
+    ctx.fillStyle = rgba(RED, 0.4);
+    ctx.fillRect(bx, by, bw * WIND, 6);
+    ctx.fillStyle = rgba(GOOD, 0.34);
+    ctx.fillRect(bx + bw * WIND, by, bw * (1 - WIND), 6);
+    ctx.fillStyle = rgba(BONE, 0.95);
+    ctx.fillRect(bx + bw * p - 1, by - 2, 2, 10);
+    ctx.restore();
+    tag(ctx, bx + bw * (WIND / 2), by - 9, 'LOCKED', rgba(RED, 0.95), 0.85, 7);
+    tag(ctx, bx + bw * (WIND + (1 - WIND) / 2), by - 9, 'FREE', rgba(GOOD, 0.95), 0.85, 7);
+    vignette(f);
+  },
+};
+
+/**
+ * LAST HIT — one attack, and it has to be the one that kills.
+ *
+ * The bar on the middle minion is the clip. It falls on its own — the two
+ * waves are fighting whether you are there or not — and the shot leaves at the
+ * moment it has to, which is early enough that the missile arrives late enough.
+ * Travel time is the reason this mode is hard and it is the reason the lance
+ * is in the air for a third of the loop.
+ */
+const lasthit: PreviewScene = {
+  length: 3.4,
+  poster: 0.66,
+  caption: 'the killing blow, not the next one',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 96, 92);
+    const cycle = 1.7;
+    const p = (t % cycle) / cycle;
+    const hx = 66;
+    const hy = 104;
+    const mx = 178;
+    const my = 88;
+
+    turret(ctx, 292, 62, RED);
+    // Your wave and theirs, trading in the middle.
+    for (let i = 0; i < 3; i++) minion(ctx, 122 + i * 16, 116 - i * 5, BLUE, 1, 0.85);
+    minion(ctx, 210, 74, RED, 0.72, 0.85);
+    minion(ctx, 226, 96, RED, 0.44, 0.85);
+
+    // The one being taken: its bar falls to the threshold and is finished.
+    const hp = p < 0.52 ? lerp(0.5, 0.16, p / 0.52) : 0;
+    if (hp > 0) minion(ctx, mx, my, RED, hp, 1);
+    const ang = Math.atan2(my - hy, mx - hx);
+    if (p >= 0.34 && p < 0.56) {
+      const q = (p - 0.34) / 0.22;
+      lance(ctx, lerp(hx, mx, q), lerp(hy, my, q), ang, 22, accent, 1, 2.6);
+    }
+    if (p >= 0.52 && p < 0.8) burst(ctx, mx, my, (p - 0.52) / 0.28, WARN, 26, 6);
+    hero(ctx, hx, hy, accent, ang);
+    tag(
+      ctx,
+      mx,
+      my - 20,
+      p < 0.34 ? 'WAIT' : p < 0.52 ? 'NOW' : '+21g',
+      rgba(p < 0.34 ? PAD_OFF : p < 0.52 ? accent : WARN, 1),
+      0.95,
+    );
+    vignette(f);
+  },
+};
+
+/**
+ * TARGET SWITCH — off the old one, onto the new one, and no dithering.
+ *
+ * The mark moves first and the cursor follows, and the gap between the two is
+ * drawn as a dashed line because that gap *is* the score. Three bodies, so the
+ * move is a choice rather than a reflex.
+ */
+const targetswitch: PreviewScene = {
+  length: 3.3,
+  poster: 0.34,
+  caption: 'the priority moved — go',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    stage(f, 92, 100);
+    const foes: Pt[] = [
+      { x: 156, y: 58 },
+      { x: 232, y: 96 },
+      { x: 168, y: 126 },
+    ];
+    const hx = 68;
+    const hy = 96;
+    const n = f.u * foes.length;
+    const k = Math.floor(n) % foes.length;
+    const p = n % 1;
+    const prev = foes[(k + foes.length - 1) % foes.length];
+    const want = foes[k];
+    // Reaction, then commitment: the hand is late on purpose for a fifth of a
+    // second, because it is in a run too.
+    const react = clamp01((p - 0.12) / 0.3);
+    const cx = lerp(prev.x, want.x, easeOut(react));
+    const cy = lerp(prev.y, want.y, easeOut(react));
+
+    foes.forEach((e, j) => {
+      const live = j === k;
+      foe(ctx, e.x, e.y, 5.5, live ? 1 : 0.45);
+      if (live) {
+        ring(ctx, e.x, e.y, 13 + (1 - clamp01(p / 0.2)) * 10, rgba(WARN, 1), 0.9, 1.6);
+        tag(ctx, e.x, e.y - 20, 'PRIORITY', rgba(WARN, 1), 0.9, 7.5);
+      }
+    });
+
+    if (react >= 1) {
+      const shot = clamp01((p - 0.42) / 0.22);
+      const ang = Math.atan2(want.y - hy, want.x - hx);
+      if (shot < 1) lance(ctx, lerp(hx, want.x, shot), lerp(hy, want.y, shot), ang, 20, accent, 1, 2.4);
+      else burst(ctx, want.x, want.y, clamp01((p - 0.64) / 0.26), accent, 20);
+    }
+    hero(ctx, hx, hy, accent, Math.atan2(cy - hy, cx - hx));
+    pointer(ctx, cx, cy, accent, react >= 1);
+    vignette(f);
+  },
+};
+
+/**
+ * COMBOS — four keys, in an order somebody else picked.
+ *
+ * The row of caps is the mode's instrument and the timer above it is its
+ * pressure, so both are in every frame. The cast lands on the target as each
+ * cap goes out, because a sequence drill that showed only the keyboard would
+ * be a typing test.
+ */
+const combos: PreviewScene = {
+  length: 3.1,
+  poster: 0.45,
+  caption: 'in order, before it closes',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 110, 88);
+    const KEYS = ['Q', 'E', 'W', 'R'];
+    const ex = 232;
+    const ey = 82;
+    const hx = 84;
+    const hy = 96;
+    const step = 0.62;
+    // A sequence cannot loop without a reset somewhere. This one puts the reset
+    // behind the flash the last cast makes — which is where a real combo puts
+    // it too — so the clip closes on the frame it opens on.
+    const seam = Math.max(clamp01((t - step * KEYS.length) / 0.34), clamp01(1 - t / 0.34));
+    const k = Math.min(KEYS.length - 1, Math.floor(t / step));
+    const p = Math.min(1, (t - k * step) / step);
+    const left = 1 - clamp01(t / (step * KEYS.length));
+
+    const ang = Math.atan2(ey - hy, ex - hx);
+    foe(ctx, ex, ey, 6, 1);
+    hero(ctx, hx, hy, accent, ang);
+    if (p < 0.5) {
+      const q = p / 0.5;
+      lance(ctx, lerp(hx, ex, easeOut(q)), lerp(hy, ey, easeOut(q)), ang, 22, accent, 1, 2.6);
+    } else {
+      burst(ctx, ex, ey, (p - 0.5) / 0.4, accent, 24, 5);
+    }
+
+    KEYS.forEach((key, j) => {
+      const x = 116 + j * 26;
+      const done = j < k;
+      const now = j === k;
+      keycap(ctx, x, TITLE_BAND - 22, key, done ? GOOD : now ? accent : PAD_OFF, done ? 0.55 : now ? 1 : 0.3, 17);
+      if (now) arcRing(ctx, x, TITLE_BAND - 22, 13, 1 - p, rgba(accent, 1), 0.8, 1.6);
+    });
+    // The window, and the fact that it is closing.
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,16,28,0.75)';
+    ctx.fillRect(110, 26, 100, 4);
+    ctx.fillStyle = rgba(left < 0.3 ? RED : accent, 0.9);
+    ctx.fillRect(110, 26, 100 * left, 4);
+    ctx.restore();
+    tag(ctx, 160, 16, 'SEQUENCE', rgba(BONE, 0.6), 0.8, 7.5);
+    if (seam > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = seam * 0.5;
+      ctx.fillStyle = rgba(GOOD, 1);
+      ctx.fillRect(-f.bleed, 0, STAGE_W + f.bleed * 2, STAGE_H);
+      ctx.restore();
+      tag(ctx, 160, 96, 'CLEAN', rgba(BONE, 1), seam * 0.9, 13);
+    }
+    vignette(f);
+  },
+};
+
+// ===========================================================================
+// COMBAT
+// ===========================================================================
+
+/**
+ * The duels, drawn from one painter.
+ *
+ * 1v1, 1v2 and 1v3 are the same picture with more of the same thing in it, and
+ * that is exactly what the three modes are — so they share a painter and differ
+ * only in how many bodies are closing and how little room is left. The
+ * clip is written round the moment that separates them: with one opponent the
+ * ring you are holding is a pocket, with three it is a shrinking island.
+ */
+const duel = (count: number, poster: number, caption: string): PreviewScene => ({
+  length: 3.6,
+  poster,
+  caption,
+  paint: (f) => {
+    const { ctx, accent, u } = f;
+    stage(f, 120, 100);
+    // A piece of terrain to fight around, pulled in off the edge: flush
+    // against the frame it stops reading as ground and starts reading as a
+    // border somebody drew on the card.
+    wall(ctx, 284, 38, 134);
+    const cx = 138;
+    const cy = 94;
+    const hx = cx + 16 * Math.cos(u * TAU);
+    const hy = cy + 10 * Math.sin(u * TAU * 2);
+
+    // They close, and the closest one is always the one being answered.
+    const bodies = Array.from({ length: count }, (_, i) => {
+      const a = count === 1 ? -0.2 : -0.95 + (i / (count - 1)) * 1.9;
+      const r = 92 - 16 * Math.sin(u * TAU + i * 1.3);
+      return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r * 0.72, a };
+    });
+    // Rounded before it is compared: two bodies a millionth of a unit apart
+    // are the same distance away, and letting the last bit of a float decide
+    // which one is answered puts a flicker in the loop.
+    const away = (b: { x: number; y: number }) => Math.round(Math.hypot(b.x - hx, b.y - hy) * 1000);
+    const near = bodies.reduce((p, q) => (away(p) <= away(q) ? p : q));
+
+    ring(ctx, hx, hy, 78, rgba(accent, 1), 0.22, 1.1, [5, 6]);
+    for (const b of bodies) {
+      foe(ctx, b.x, b.y, 5.5, b === near ? 1 : 0.6);
+      if (b !== near) {
+        // Everybody who is not being shot is still doing something.
+        // Wrapped the long way round: a heading behind the champion is a
+        // negative angle, and JavaScript's remainder keeps the sign, which
+        // would put this clock in a different place at the end of the loop
+        // than at the start of it.
+        const q = (((u * 3 + b.a / TAU) % 1) + 1) % 1;
+        lance(ctx, lerp(b.x, hx, q), lerp(b.y, hy, q), Math.atan2(hy - b.y, hx - b.x), 14, RED, 0.5, 1.8);
+      }
+    }
+    const ang = Math.atan2(near.y - hy, near.x - hx);
+    const shot = (u * 6) % 1;
+    if (shot < 0.7) lance(ctx, lerp(hx, near.x, shot / 0.7), lerp(hy, near.y, shot / 0.7), ang, 20, accent, 1, 2.5);
+    else burst(ctx, near.x, near.y, (shot - 0.7) / 0.3, accent, 20);
+    hero(ctx, hx, hy, accent, ang);
+    tag(ctx, near.x, near.y - 20, count === 1 ? 'TRADE' : 'PRIORITY', rgba(count === 1 ? accent : WARN, 1), 0.9, 7.5);
+    vignette(f);
+  },
+});
+
+const duel1v1 = duel(1, 0.36, 'the whole kit, against somebody');
+const duel1v2 = duel(2, 0.5, 'two angles, one of them first');
+const duel1v3 = duel(3, 0.58, 'outnumbered, and still choosing');
+
+// ===========================================================================
+// THE WASD ACADEMY
+// ===========================================================================
+
+/**
+ * The four keys, in the shape they sit on the keyboard.
+ *
+ * Every module in this section is about the left hand, so every clip in it
+ * carries the left hand. `held` is a unit heading and the caps light by how
+ * much of themselves that heading is using, which means a diagonal lights two
+ * at three quarters rather than two at full — the distinction the second
+ * module is entirely about.
+ *
+ * {@link KEYS_AT} is where it goes, and it is the same corner in all nine:
+ * the card's caption owns the top left and the picture owns the middle, so the
+ * top right is the one place a fixed instrument can sit without ever being
+ * read as part of the arena. The stylesheet already reserves it — see the
+ * width the caption stops short at.
+ */
+const KEYS_AT: Pt = { x: 284, y: 40 };
+
+function wasdKeys(ctx: CanvasRenderingContext2D, x: number, y: number, held: Pt, accent: string) {
+  const caps: [string, number, number, number, number][] = [
+    ['W', 0, -1, 0, -1],
+    ['A', -1, 0, -1, 0],
+    ['S', 0, 1, 0, 1],
+    ['D', 1, 0, 1, 0],
+  ];
+  for (const [label, dx, dy, ux, uy] of caps) {
+    const lit = clamp01(held.x * ux + held.y * uy);
+    keycap(ctx, x + dx * 15, y + dy * 15, label, lit > 0.05 ? accent : PAD_OFF, 0.24 + lit * 0.76, 13);
+  }
+}
+
+/**
+ * WASD 01 · MOVEMENT — the keys, and stopping.
+ *
+ * The same node as the mouse module, answered with the other hand — so the
+ * clip is that node plus the caps that are driving towards it, and the caps go
+ * dark a beat before she arrives, because letting go early is the whole of
+ * stopping dead on a keyboard.
+ */
+const wasdMove: PreviewScene = {
+  length: 3.2,
+  poster: 0.46,
+  caption: 'let go early, stop exactly',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    stage(f, 150, 92);
+    const spots: Pt[] = [
+      { x: 88, y: 118 },
+      { x: 196, y: 64 },
+      { x: 236, y: 124 },
+    ];
+    const n = f.u * spots.length;
+    const i = Math.floor(n) % spots.length;
+    const p = clamp01((n % 1) / 0.6);
+    const from = spots[i];
+    const to = spots[(i + 1) % spots.length];
+    const hx = lerp(from.x, to.x, easeOut(p));
+    const hy = lerp(from.y, to.y, easeOut(p));
+    const settled = clamp01(((n % 1) - 0.6) / 0.28);
+    // Released at four fifths of the way there. The coast is the skill.
+    const held: Pt = p < 0.8 ? { x: to.x - from.x, y: to.y - from.y } : { x: 0, y: 0 };
+    const m = Math.hypot(held.x, held.y) || 1;
+
+    spots.forEach((s, k) => {
+      const live = k === (i + 1) % spots.length;
+      node(ctx, s.x, s.y, 15, live ? accent : PAD_OFF, live ? 0.9 : 0.2, live ? settled : 0);
+    });
+    ghosts(ctx, from, to, p, accent);
+    hero(ctx, hx, hy, accent, Math.atan2(to.y - from.y, to.x - from.x));
+    wasdKeys(ctx, KEYS_AT.x, KEYS_AT.y, { x: held.x / m, y: held.y / m }, accent);
+    tag(ctx, hx, hy + 22, p < 0.8 ? 'HELD' : settled > 0.4 ? 'DEAD STOP' : 'COASTING', rgba(p < 0.8 ? accent : GOOD, 1), 0.9, 7.5);
+    vignette(f);
+  },
+};
+
+/**
+ * WASD 02 · CURSOR INDEPENDENCE — the two hands disagreeing on purpose.
+ *
+ * The clip is one picture: a line from the champion to her feet and a line
+ * from the champion to her cursor, and the angle between them. That angle is
+ * literally the score, so it is drawn as an arc and the arc is widest at the
+ * moment the poster is taken.
+ */
+const wasdIndep: PreviewScene = {
+  length: 3.4,
+  poster: 0.28,
+  caption: 'feet one way, cursor the other',
+  paint: (f) => {
+    const { ctx, accent, u } = f;
+    stage(f, 150, 96);
+    const cx = 158;
+    const cy = 96;
+    const swing = Math.sin(u * TAU);
+    const feetA = Math.PI + swing * 0.5;
+    const aimA = swing * 0.5;
+    const hx = cx + Math.cos(feetA) * 26;
+    const hy = cy + Math.sin(feetA) * 14;
+    const mark: Pt = { x: cx + Math.cos(aimA) * 96, y: cy + Math.sin(aimA) * 52 };
+
+    // The two commitments, and the ground between them.
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = rgba(accent, 0.8);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(hx + Math.cos(feetA) * 46, hy + Math.sin(feetA) * 26);
+    ctx.stroke();
+    ctx.strokeStyle = rgba(WARN, 0.8);
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(mark.x, mark.y);
+    ctx.stroke();
+    ctx.restore();
+    arcRing(ctx, hx, hy, 34, 0.5 - Math.abs(swing) * 0.08, rgba(GOOD, 1), 0.55, 2);
+
+    foe(ctx, mark.x, mark.y, 5.2, 1);
+    pointer(ctx, mark.x, mark.y, accent, true);
+    hero(ctx, hx, hy, accent, aimA);
+    wasdKeys(ctx, KEYS_AT.x, KEYS_AT.y, { x: Math.cos(feetA), y: Math.sin(feetA) }, accent);
+    tag(ctx, hx, hy - 26, 'OPPOSED', rgba(GOOD, 1), 0.9, 7.5);
+    // A shot every beat, because the cursor is doing a job rather than posing.
+    const shot = (u * 5) % 1;
+    if (shot < 0.7) {
+      const ang = Math.atan2(mark.y - hy, mark.x - hx);
+      lance(ctx, lerp(hx, mark.x, shot / 0.7), lerp(hy, mark.y, shot / 0.7), ang, 18, accent, 0.95, 2.2);
+    }
+    vignette(f);
+  },
+};
+
+/**
+ * WASD 03 · STRAFING — making it fire where you were.
+ *
+ * The shot is drawn *behind* her, always, and the flip happens while the
+ * telegraph is filling. That is the only readable way to show a bait: the
+ * picture has to contain both the place the shooter aimed at and the place she
+ * actually is, at the same instant.
+ */
+const wasdStrafe: PreviewScene = {
+  length: 3.2,
+  poster: 0.68,
+  caption: 'be where it is not',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 150, 100);
+    const sx = 56;
+    const sy = 92;
+    const cycle = 1.6;
+    const p = (t % cycle) / cycle;
+    const side = Math.floor(t / cycle) % 2 === 0 ? 1 : -1;
+    const laneY = 96;
+    // Committed to, then abandoned: the aim point is where she was at the
+    // moment the shot was called.
+    const readAt = 0.3;
+    const beforeY = laneY + side * 34;
+    const afterY = laneY - side * 30;
+    const flip = clamp01((p - readAt) / 0.24);
+    const hy = p < readAt ? beforeY : lerp(beforeY, afterY, easeOut(flip));
+    const hx = 218;
+
+    const ang = Math.atan2(beforeY - sy, hx - sx);
+    band(ctx, sx, sy, ang, 190, 14, p < 0.54 ? WARN : RED, 0.8, clamp01(p / 0.54));
+    if (p >= 0.54) {
+      const q = clamp01((p - 0.54) / 0.26);
+      lance(ctx, lerp(sx, hx, q), lerp(sy, beforeY, q), ang, 24, RED, 1, 2.6);
+      if (q >= 1) burst(ctx, hx, beforeY, clamp01((p - 0.8) / 0.2), RED, 24);
+    }
+    foe(ctx, sx, sy, 6, 1);
+    ghosts(ctx, { x: hx, y: beforeY }, { x: hx, y: afterY }, flip, accent, 3);
+    hero(ctx, hx, hy, accent, Math.PI);
+    wasdKeys(ctx, KEYS_AT.x, KEYS_AT.y, { x: 0, y: p < readAt ? side : -side }, accent);
+    tag(ctx, hx + 8, hy - 20, p >= 0.54 ? 'BAITED' : 'CHANGE', rgba(p >= 0.54 ? GOOD : accent, 1), 0.9, 7.5);
+    vignette(f);
+  },
+};
+
+/**
+ * WASD 04 · AIM WHILE MOVING — never stopping to shoot.
+ *
+ * A trail behind her that never has a gap in it, and marks being taken off it.
+ * The claim the mode makes is that a mark taken standing still is worth a
+ * fraction of one taken moving, so the clip never stops: the champion is in
+ * motion in every single frame, including the ones where the shot lands.
+ */
+const wasdAimMove: PreviewScene = {
+  length: 3.2,
+  poster: 0.4,
+  caption: 'never stop to take one',
+  paint: (f) => {
+    const { ctx, accent, u } = f;
+    stage(f, 150, 100);
+    const cx = 150;
+    const cy = 96;
+    const a = u * TAU;
+    const hx = cx + Math.cos(a) * 62;
+    const hy = cy + Math.sin(a) * 34;
+    const prev = { x: cx + Math.cos(a - 0.4) * 62, y: cy + Math.sin(a - 0.4) * 34 };
+
+    ring(ctx, cx, cy, 62, rgba(accent, 1), 0.1, 1, [4, 6]);
+    const marks: Pt[] = [
+      { x: 244, y: 62 },
+      { x: 238, y: 124 },
+      { x: 92, y: 56 },
+    ];
+    const n = u * marks.length;
+    const k = Math.floor(n) % marks.length;
+    const p = n % 1;
+    marks.forEach((mk, j) => {
+      const live = j === k;
+      foe(ctx, mk.x, mk.y, 5.2, live ? 1 : 0.2);
+      if (live) ring(ctx, mk.x, mk.y, 10 + (1 - clamp01(p / 0.3)) * 9, rgba(WARN, 1), 0.8, 1.4);
+    });
+    const want = marks[k];
+    const ang = Math.atan2(want.y - hy, want.x - hx);
+    const shot = clamp01((p - 0.22) / 0.3);
+    if (shot > 0 && shot < 1) lance(ctx, lerp(hx, want.x, shot), lerp(hy, want.y, shot), ang, 20, accent, 1, 2.4);
+    if (shot >= 1) burst(ctx, want.x, want.y, clamp01((p - 0.52) / 0.26), accent, 20, 4);
+
+    ghosts(ctx, prev, { x: hx, y: hy }, 1, accent, 4);
+    hero(ctx, hx, hy, accent, ang);
+    pointer(ctx, want.x, want.y, accent, true);
+    wasdKeys(ctx, KEYS_AT.x, KEYS_AT.y, { x: -Math.sin(a), y: Math.cos(a) * 0.55 }, accent);
+    tag(ctx, cx, 24, 'ON THE MOVE', rgba(GOOD, 1), 0.85, 7.5);
+    vignette(f);
+  },
+};
+
+/**
+ * WASD 05 · ATTACK CADENCE — the bar, and which part of it is yours.
+ *
+ * This module *is* a bar, so the bar is the clip and the arena is the caption
+ * on it. The key row lights only in the green stretch, because the one thing
+ * the mode teaches is which stretch a held key is free in — and a clip that
+ * lit the keys through the red would be teaching the opposite of it.
+ */
+const wasdCadence: PreviewScene = {
+  length: 3,
+  poster: 0.62,
+  caption: 'which part of it is free',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 150, 64);
+    const cycle = 1;
+    const p = (t % cycle) / cycle;
+    const WIND = 0.3;
+    const free = p >= WIND;
+    const ex = 236;
+    const ey = 62;
+    const hy = free ? 84 + 22 * easeOut((p - WIND) / (1 - WIND)) : 84;
+    const hx = 104;
+    const ang = Math.atan2(ey - hy, ex - hx);
+
+    foe(ctx, ex, ey, 5.5, 1);
+    if (!free) ring(ctx, hx, hy, 13, rgba(RED, 1), 0.55, 1.5);
+    else {
+      const q = (p - WIND) / 0.3;
+      if (q < 1) lance(ctx, lerp(hx, ex, easeOut(q)), lerp(hy, ey, easeOut(q)), ang, 20, accent, 1, 2.4);
+    }
+    hero(ctx, hx, hy, accent, ang);
+
+    const bx = 74;
+    const by = 128;
+    const bw = 172;
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,16,28,0.85)';
+    ctx.strokeStyle = rgba(PAD_OFF, 0.4);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, 11, 3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = rgba(RED, 0.45);
+    ctx.fillRect(bx + 1, by + 1, (bw - 2) * WIND, 9);
+    ctx.fillStyle = rgba(GOOD, 0.38);
+    ctx.fillRect(bx + 1 + (bw - 2) * WIND, by + 1, (bw - 2) * (1 - WIND), 9);
+    ctx.fillStyle = rgba(BONE, 0.95);
+    ctx.fillRect(bx + (bw - 2) * p, by - 3, 2, 17);
+    ctx.restore();
+    tag(ctx, bx + bw * WIND * 0.5, by - 10, 'WINDUP', rgba(RED, 0.95), 0.9, 7);
+    tag(ctx, bx + bw * (WIND + (1 - WIND) / 2), by - 10, 'BACKSWING', rgba(GOOD, 0.95), 0.9, 7);
+    wasdKeys(ctx, KEYS_AT.x, KEYS_AT.y, free ? { x: 0, y: 1 } : { x: 0, y: 0 }, accent);
+    vignette(f);
+  },
+};
+
+/**
+ * The three kiting modules, from one painter.
+ *
+ * They are the same cycle pointed in three directions — held, chasing,
+ * retreating — and the only honest way to preview three modes that differ by
+ * one sign is to draw them with one painter and let the sign be the
+ * difference. `drift` is where the pair is going: zero holds, positive chases,
+ * negative gives ground.
+ */
+const kiting = (drift: number, label: string, poster: number, caption: string): PreviewScene => ({
+  length: 3.2,
+  poster,
+  caption,
+  paint: (f) => {
+    const { ctx, accent, u } = f;
+    stage(f, 110, 96);
+    const p = (u * 4) % 1;
+    const WIND = 0.3;
+    const reach = 74;
+    // The pair travels together across the frame and back, because a clip that
+    // only travelled would have to teleport home. The gap between them is what
+    // each of the three modes is actually scoring.
+    const march = Math.sin(u * TAU) * 46 * drift;
+    const ex = 214 + march;
+    const ey = 86;
+    const hx = ex - reach - (drift < 0 ? 6 : 0) + march * 0.06;
+    const hy = ey + 22 + (p < WIND ? 0 : 16 * easeOut((p - WIND) / (1 - WIND))) * (drift >= 0 ? 1 : -1);
+    const ang = Math.atan2(ey - hy, ex - hx);
+
+    ring(ctx, hx, hy, reach, rgba(accent, 1), 0.26, 1.2, [5, 6]);
+    if (drift < 0) ring(ctx, ex, ey, 40, rgba(RED, 1), 0.4, 1.2, [4, 5]);
+    foe(ctx, ex, ey, 5.5, 1);
+    if (p < WIND) ring(ctx, hx, hy, 12, rgba(RED, 1), 0.5, 1.4);
+    else {
+      const q = (p - WIND) / 0.34;
+      if (q < 1) lance(ctx, lerp(hx, ex, easeOut(q)), lerp(hy, ey, easeOut(q)), ang, 20, accent, 1, 2.4);
+      else burst(ctx, ex, ey, clamp01(q - 1), accent, 18);
+    }
+    hero(ctx, hx, hy, accent, ang);
+    wasdKeys(ctx, KEYS_AT.x, KEYS_AT.y, p < WIND ? { x: 0, y: 0 } : { x: drift >= 0 ? 1 : -1, y: 0.3 }, accent);
+    // The gap, drawn as the measurement it is.
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = rgba(GOOD, 0.9);
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    ctx.restore();
+    tag(ctx, (hx + ex) / 2, Math.min(hy, ey) - 16, label, rgba(GOOD, 1), 0.9, 7.5);
+    vignette(f);
+  },
+});
+
+const wasdKite = kiting(0, 'ON THE BEAT', 0.36, 'attack, move, attack — timed');
+const wasdOffKite = kiting(1, 'EDGE OF REACH', 0.44, 'chase without closing');
+const wasdDefKite = kiting(-1, 'NEVER CLOSER', 0.52, 'backwards, still shooting');
+
+/**
+ * WASD 09 · MULTITASKING — all of it, at once.
+ *
+ * The only clip in the client that is deliberately busy. Everything the module
+ * runs is on screen in the same frame — a telegraph to leave, two skillshots
+ * in flight, a priority that has just moved and a cycle that has not stopped —
+ * because "several things at the same time" cannot be previewed one at a time.
+ */
+const wasdMulti: PreviewScene = {
+  length: 3.2,
+  poster: 0.4,
+  caption: 'all of it, at the same time',
+  paint: (f) => {
+    const { ctx, accent, u } = f;
+    stage(f, 120, 102);
+    const hx = 116 + 16 * Math.cos(u * TAU);
+    const hy = 106 + 12 * Math.sin(u * TAU * 2);
+    const foes: Pt[] = [
+      { x: 224, y: 58 },
+      { x: 258, y: 116 },
+      { x: 170, y: 46 },
+    ];
+    const k = Math.floor(u * 3) % foes.length;
+    const want = foes[k];
+
+    // Something on the floor, always — and it has to read as a thing arriving
+    // rather than as a rectangle, so it is short enough to see both ends of
+    // and bright enough to be the second thing the eye finds.
+    const tele = (u * 2) % 1;
+    band(
+      ctx,
+      302,
+      136,
+      Math.PI * 1.14,
+      142,
+      24,
+      tele < 0.6 ? WARN : RED,
+      tele < 0.6 ? 0.55 + tele * 0.5 : 0.95,
+      clamp01(tele / 0.6),
+    );
+
+    foes.forEach((e, j) => {
+      foe(ctx, e.x, e.y, 5.4, j === k ? 1 : 0.55);
+      if (j === k) ring(ctx, e.x, e.y, 12, rgba(WARN, 1), 0.85, 1.5);
+    });
+
+    // Two missiles in the air on different clocks, because in the module they
+    // are on different cooldowns.
+    const q1 = (u * 3) % 1;
+    const q2 = (u * 4 + 0.5) % 1;
+    if (q1 < 0.7) {
+      const ang = Math.atan2(want.y - hy, want.x - hx);
+      lance(ctx, lerp(hx, want.x, q1 / 0.7), lerp(hy, want.y, q1 / 0.7), ang, 22, accent, 1, 2.6);
+    }
+    if (q2 < 0.7) {
+      const other = foes[(k + 1) % foes.length];
+      const ang = Math.atan2(other.y - hy, other.x - hx);
+      lance(ctx, lerp(hx, other.x, q2 / 0.7), lerp(hy, other.y, q2 / 0.7), ang, 18, BLUE, 0.9, 2.2);
+    }
+    hero(ctx, hx, hy, accent, Math.atan2(want.y - hy, want.x - hx));
+    pointer(ctx, want.x, want.y, accent, true);
+    wasdKeys(ctx, KEYS_AT.x, KEYS_AT.y, { x: -Math.sin(u * TAU), y: Math.cos(u * TAU * 2) * 0.6 }, accent);
+    vignette(f);
+  },
+};
+
+// ===========================================================================
+// EZREAL
+// ===========================================================================
+
+/**
+ * MYSTIC SHOT — how long it takes and how wide it is.
+ *
+ * There is nothing to lead and nothing to dodge, so the clip has room to show
+ * the two facts the mode exists to install: the missile is in the air for a
+ * real length of time, and it is not a line, it is a strip with a width. The
+ * strip stays drawn while the missile crosses it, which is the only way a
+ * still frame carries both.
+ */
+const ezQ: PreviewScene = {
+  length: 2.6,
+  poster: 0.42,
+  caption: 'travel time, and a width',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 78, 100);
+    const hx = 66;
+    const hy = 98;
+    const ex = 246;
+    const ey = 74;
+    const cycle = 1.3;
+    const p = (t % cycle) / cycle;
+    const ang = Math.atan2(ey - hy, ex - hx);
+
+    band(ctx, hx, hy, ang, 190, 13, accent, 0.55, 1);
+    foe(ctx, ex, ey, 5.5, 1);
+    if (p < 0.62) {
+      const q = p / 0.62;
+      lance(ctx, lerp(hx, ex, q), lerp(hy, ey, q), ang, 26, accent, 1, 3);
+      tag(ctx, lerp(hx, ex, q), lerp(hy, ey, q) - 14, `${Math.round(q * 420)}ms`, rgba(BONE, 0.75), 0.8, 7);
+    } else {
+      burst(ctx, ex, ey, (p - 0.62) / 0.38, accent, 26, 6);
+    }
+    hero(ctx, hx, hy, accent, ang);
+    vignette(f);
+  },
+};
+
+/**
+ * LEAD — the shot goes to the arrival.
+ *
+ * Two markers: where they are, and where the missile is going. The gap between
+ * them is the mode. The target moves at a constant speed and the lead is right,
+ * so the clip shows a player who has solved it rather than one who is guessing.
+ */
+const ezLead: PreviewScene = {
+  length: 3,
+  poster: 0.3,
+  caption: 'aim at the arrival',
+  paint: (f) => {
+    const { ctx, accent, t, u } = f;
+    stage(f, 78, 100);
+    const hx = 62;
+    const hy = 100;
+    const ex = 232;
+    const ey = 92 + 44 * Math.sin(u * TAU);
+    const lead = ey + 40 * Math.cos(u * TAU);
+    const ang = Math.atan2(lead - hy, ex - hx);
+    const cycle = 1.5;
+    const p = (t % cycle) / cycle;
+
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = rgba(WARN, 0.9);
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(ex, ey);
+    ctx.lineTo(ex, lead);
+    ctx.stroke();
+    ctx.restore();
+    ring(ctx, ex, lead, 9, rgba(WARN, 1), 0.8, 1.3, [3, 3]);
+    foe(ctx, ex, ey, 5.5, 1);
+    if (p < 0.62) {
+      const q = p / 0.62;
+      lance(ctx, lerp(hx, ex, q), lerp(hy, lead, q), ang, 24, accent, 1, 2.8);
+    } else burst(ctx, ex, lead, (p - 0.62) / 0.38, accent, 22, 5);
+    hero(ctx, hx, hy, accent, ang);
+    tag(ctx, ex, lead - 18, 'ARRIVAL', rgba(WARN, 1), 0.9, 7.5);
+    vignette(f);
+  },
+};
+
+/**
+ * Q WHILE STRAFING — both feet busy, and the shot goes anyway.
+ *
+ * The zones land where she *is*, so she can never be standing still when the
+ * missile leaves — which is the mode's whole scoring rule drawn rather than
+ * written. Every frame has her in motion and a circle closing on where she was.
+ */
+const ezStrafe: PreviewScene = {
+  length: 3.2,
+  poster: 0.44,
+  caption: 'moving, and landing it anyway',
+  paint: (f) => {
+    const { ctx, accent, t, u } = f;
+    stage(f, 110, 102);
+    const cx = 132;
+    const cy = 100;
+    const a = u * TAU;
+    const hx = cx + Math.cos(a) * 54;
+    const hy = cy + Math.sin(a) * 30;
+    const ex = 252;
+    const ey = 70;
+    const ang = Math.atan2(ey - hy, ex - hx);
+
+    // A zone on the ground she has already left, and one arriving.
+    for (const off of [0, 0.5]) {
+      const q = (u + off) % 1;
+      const zx = cx + Math.cos(a - 1.5) * 54;
+      const zy = cy + Math.sin(a - 1.5) * 30;
+      if (q < 0.55) {
+        ring(ctx, zx, zy, 24, rgba(WARN, 1), 0.6 * (1 - q / 0.55), 1.4, [4, 4]);
+      } else {
+        burst(ctx, zx, zy, (q - 0.55) / 0.45, RED, 30);
+      }
+    }
+
+    foe(ctx, ex, ey, 5.5, 1);
+    const cycle = 1.6;
+    const p = (t % cycle) / cycle;
+    if (p < 0.55) {
+      const q = p / 0.55;
+      lance(ctx, lerp(hx, ex, q), lerp(hy, ey, q), ang, 24, accent, 1, 2.8);
+    } else burst(ctx, ex, ey, (p - 0.55) / 0.45, accent, 22, 5);
+    ghosts(ctx, { x: cx + Math.cos(a - 0.4) * 54, y: cy + Math.sin(a - 0.4) * 30 }, { x: hx, y: hy }, 1, accent, 4);
+    hero(ctx, hx, hy, accent, ang);
+    tag(ctx, cx, 26, 'FIRED ON THE MOVE', rgba(GOOD, 1), 0.85, 7.5);
+    vignette(f);
+  },
+};
+
+/**
+ * THREAD — the gap, and how long it is there for.
+ *
+ * The wave is drawn as the wall it is, and the one gap in it closes over the
+ * loop. The missile goes through at the last moment it could have, because a
+ * clip of a gap being threaded early would be a clip of an easier mode.
+ */
+const ezThread: PreviewScene = {
+  length: 3,
+  poster: 0.56,
+  caption: 'find the gap, fire before it shuts',
+  paint: (f) => {
+    const { ctx, accent, t, u } = f;
+    stage(f, 74, 100);
+    const hx = 58;
+    const hy = 98;
+    const ex = 266;
+    const ey = 78;
+    // The wall, with one hole in it that drifts and narrows.
+    const gapY = 74 + 16 * Math.sin(u * TAU);
+    const rows = [40, 58, 76, 94, 112, 130];
+    const wallX = 168;
+    const p = (t % 1.5) / 1.5;
+    const ang = Math.atan2(gapY - hy, ex - hx);
+
+    band(ctx, hx, hy, ang, 220, 10, accent, 0.45, 1);
+    for (const ry of rows) {
+      if (Math.abs(ry - gapY) < 15) continue;
+      minion(ctx, wallX, ry, RED, 1, 0.8);
+      minion(ctx, wallX + 20, ry - 8, RED, 1, 0.5);
+    }
+    foe(ctx, ex, ey, 5.5, 1);
+    if (p < 0.6) {
+      const q = p / 0.6;
+      lance(ctx, lerp(hx, ex, q), lerp(hy, ey, q), ang, 24, accent, 1, 2.8);
+    } else burst(ctx, ex, ey, (p - 0.6) / 0.4, accent, 22, 5);
+    hero(ctx, hx, hy, accent, ang);
+    tag(ctx, wallX + 10, gapY - 16, 'GAP', rgba(GOOD, 1), 0.9, 7.5);
+    vignette(f);
+  },
+};
+
+/**
+ * WEAVE — the missile goes between the attacks, not instead of them.
+ *
+ * Three marks on one bar: the attack, the window the Q belongs in, and the
+ * window it must never be in. The champion runs the cycle correctly on the
+ * beat, so the clip is a metronome you can copy rather than a diagram you have
+ * to decode.
+ */
+const ezWeave: PreviewScene = {
+  length: 3,
+  poster: 0.5,
+  caption: 'auto, Q, auto',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 96, 96);
+    const hx = 96;
+    const hy = 100;
+    const ex = 244;
+    const ey = 80;
+    const cycle = 1.5;
+    const p = (t % cycle) / cycle;
+    const WIND = 0.26;
+    const ang = Math.atan2(ey - hy, ex - hx);
+
+    foe(ctx, ex, ey, 5.5, 1);
+    if (p < WIND) ring(ctx, hx, hy, 13, rgba(RED, 1), 0.55, 1.5);
+    // The auto goes out at the end of the windup; the Q rides the backswing.
+    if (p >= WIND && p < WIND + 0.3) {
+      const q = (p - WIND) / 0.3;
+      lance(ctx, lerp(hx, ex, q), lerp(hy, ey, q), ang, 20, accent, 1, 2.4);
+    }
+    if (p >= WIND + 0.16 && p < WIND + 0.62) {
+      const q = (p - WIND - 0.16) / 0.46;
+      lance(ctx, lerp(hx, ex, q), lerp(hy, ey + 12, q), ang + 0.06, 26, BLUE, 1, 3);
+    }
+    hero(ctx, hx, hy, accent, ang);
+
+    const bx = 90;
+    const by = TITLE_BAND - 16;
+    const bw = 140;
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,16,28,0.82)';
+    ctx.fillRect(bx, by, bw, 7);
+    ctx.fillStyle = rgba(RED, 0.42);
+    ctx.fillRect(bx, by, bw * WIND, 7);
+    ctx.fillStyle = rgba(BLUE, 0.34);
+    ctx.fillRect(bx + bw * (WIND + 0.16), by, bw * 0.46, 7);
+    ctx.fillStyle = rgba(BONE, 0.95);
+    ctx.fillRect(bx + bw * p - 1, by - 2, 2, 11);
+    ctx.restore();
+    tag(ctx, bx + bw * WIND * 0.5, by - 9, 'NOT HERE', rgba(RED, 0.95), 0.9, 7);
+    tag(ctx, bx + bw * (WIND + 0.39), by - 9, 'Q HERE', rgba(BLUE, 0.95), 0.9, 7);
+    vignette(f);
+  },
+};
+
+/**
+ * MAX RANGE Q — the outer quarter, and nothing else.
+ *
+ * The band that scores is shaded and the rest of the reach is not, so the
+ * picture answers the only question the mode asks before a word of copy is
+ * read: how far out do I have to be standing.
+ */
+const ezMaxRange: PreviewScene = {
+  length: 2.8,
+  poster: 0.46,
+  caption: 'only the outer quarter counts',
+  paint: (f) => {
+    const { ctx, accent, t, u } = f;
+    stage(f, 70, 102);
+    const hx = 54;
+    const hy = 104;
+    const R = 196;
+    const inner = R * 0.75;
+    const a = -0.34 + 0.12 * Math.sin(u * TAU);
+    const ex = hx + Math.cos(a) * (R - 14);
+    const ey = hy + Math.sin(a) * (R - 14);
+
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = rgba(GOOD, 1);
+    ctx.beginPath();
+    ctx.arc(hx, hy, R, 0, TAU);
+    ctx.arc(hx, hy, inner, 0, TAU, true);
+    ctx.fill();
+    ctx.restore();
+    ring(ctx, hx, hy, R, rgba(accent, 1), 0.55, 1.5);
+    ring(ctx, hx, hy, inner, rgba(GOOD, 1), 0.45, 1.2, [4, 5]);
+
+    const cycle = 1.4;
+    const p = (t % cycle) / cycle;
+    if (p < 0.66) {
+      const q = p / 0.66;
+      lance(ctx, lerp(hx, ex, q), lerp(hy, ey, q), a, 26, accent, 1, 2.8);
+    } else burst(ctx, ex, ey, (p - 0.66) / 0.34, GOOD, 24, 6);
+    foe(ctx, ex, ey, 5.5, 1);
+    hero(ctx, hx, hy, accent, a);
+    tag(ctx, ex - 6, ey - 18, 'MAX', rgba(GOOD, 1), 0.9, 7.5);
+    vignette(f);
+  },
+};
+
+/**
+ * KITE AND Q — the cycle, with something on you.
+ *
+ * The hunter closes the whole time and the cycle never breaks, which is the
+ * claim the mode makes about itself: aiming a missile is a thing you do *while*
+ * the attack timer is running, not instead of it.
+ */
+const ezKite: PreviewScene = {
+  length: 3.2,
+  poster: 0.38,
+  caption: 'aim with something on you',
+  paint: (f) => {
+    const { ctx, accent, t, u } = f;
+    stage(f, 108, 100);
+    const ex = 218 - 30 * Math.sin(u * TAU);
+    const ey = 74;
+    const hx = 104 - 18 * Math.sin(u * TAU);
+    const hy = 112;
+    const ang = Math.atan2(ey - hy, ex - hx);
+    const cycle = 0.8;
+    const p = (t % cycle) / cycle;
+
+    ring(ctx, hx, hy, 78, rgba(accent, 1), 0.22, 1.1, [5, 6]);
+    ring(ctx, ex, ey, 34, rgba(RED, 1), 0.38, 1.2, [4, 4]);
+    foe(ctx, ex, ey, 5.8, 1);
+    if (p < 0.28) ring(ctx, hx, hy, 12, rgba(RED, 1), 0.5, 1.4);
+    else {
+      const q = (p - 0.28) / 0.34;
+      if (q < 1) lance(ctx, lerp(hx, ex, easeOut(q)), lerp(hy, ey, easeOut(q)), ang, 20, accent, 1, 2.4);
+    }
+    // The missile runs on its own clock, twice as slow as the attack.
+    const qq = (t % 1.6) / 1.6;
+    if (qq < 0.5) lance(ctx, lerp(hx, ex, qq / 0.5), lerp(hy, ey + 10, qq / 0.5), ang + 0.05, 26, BLUE, 1, 3);
+    hero(ctx, hx, hy, accent, ang);
+    tag(ctx, hx, hy + 22, 'CYCLE HELD', rgba(GOOD, 1), 0.85, 7.5);
+    vignette(f);
+  },
+};
+
+/**
+ * ARCANE SHIFT — scored on where it puts you.
+ *
+ * Two circles you must not be in and one you must stay inside, and the blink
+ * lands in the sliver that satisfies all three. The sliver is shaded, because
+ * "out of their reach, still in yours" is a piece of *ground* and the mode is
+ * about finding it.
+ */
+const ezShift: PreviewScene = {
+  length: 3.4,
+  poster: 0.62,
+  caption: 'out of theirs, still inside yours',
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 104, 100);
+    const ex = 244;
+    const ey = 78;
+    const shells: Pt[] = [
+      { x: 128, y: 52 },
+      { x: 116, y: 130 },
+    ];
+    const from: Pt = { x: 86, y: 92 };
+    const to: Pt = { x: 186, y: 96 };
+    const cycle = 1.7;
+    const p = (t % cycle) / cycle;
+    const blink = clamp01((p - 0.24) / 0.14);
+    const hx = blink >= 1 ? to.x : blink > 0 ? lerp(from.x, to.x, easeIn(blink)) : from.x;
+    const hy = blink >= 1 ? to.y : blink > 0 ? lerp(from.y, to.y, easeIn(blink)) : from.y;
+
+    for (const s of shells) {
+      ring(ctx, s.x, s.y, 56, rgba(RED, 1), 0.4, 1.3, [4, 5]);
+      foe(ctx, s.x, s.y, 5, 0.8);
+    }
+    ring(ctx, to.x, to.y, 84, rgba(accent, 1), 0.3, 1.2, [5, 6]);
+    foe(ctx, ex, ey, 5.5, 1);
+
+    if (blink > 0 && blink < 1) {
+      ghosts(ctx, from, to, blink, accent, 4);
+      burst(ctx, from.x, from.y, blink, accent, 22);
+    }
+    if (blink >= 1) burst(ctx, to.x, to.y, clamp01((p - 0.38) / 0.24), accent, 24, 6);
+    hero(ctx, hx, hy, accent, Math.atan2(ey - hy, ex - hx));
+    tag(ctx, to.x, to.y - 22, blink >= 1 ? 'CLEAR · IN RANGE' : 'BLINK', rgba(blink >= 1 ? GOOD : accent, 1), 0.9, 7.5);
+    vignette(f);
+  },
+};
+
+/**
+ * TRANSFER — the mark moves, and the missile has to follow it.
+ *
+ * The same shape as TARGET SWITCH one section down, and deliberately so: the
+ * skill is the same and the instrument is different. What the clip adds is
+ * travel time — the missile is still crossing when the eye has already gone,
+ * which is exactly why transferring a skillshot is harder than transferring an
+ * attack.
+ */
+const ezSwitch: PreviewScene = {
+  length: 3.3,
+  poster: 0.4,
+  caption: 'onto the one that matters',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    stage(f, 78, 100);
+    const hx = 62;
+    const hy = 100;
+    const foes: Pt[] = [
+      { x: 214, y: 52 },
+      { x: 262, y: 104 },
+      { x: 190, y: 134 },
+    ];
+    const n = f.u * foes.length;
+    const k = Math.floor(n) % foes.length;
+    const p = n % 1;
+    const want = foes[k];
+    const ang = Math.atan2(want.y - hy, want.x - hx);
+
+    foes.forEach((e, j) => {
+      const live = j === k;
+      foe(ctx, e.x, e.y, 5.4, live ? 1 : 0.45);
+      if (live) {
+        ring(ctx, e.x, e.y, 12 + (1 - clamp01(p / 0.2)) * 10, rgba(WARN, 1), 0.85, 1.5);
+        tag(ctx, e.x, e.y - 19, 'MARKED', rgba(WARN, 1), 0.9, 7);
+      }
+    });
+    const fire = clamp01((p - 0.22) / 0.44);
+    if (fire > 0 && fire < 1) {
+      band(ctx, hx, hy, ang, 220, 11, accent, 0.35, 1);
+      lance(ctx, lerp(hx, want.x, fire), lerp(hy, want.y, fire), ang, 24, accent, 1, 2.8);
+    }
+    if (fire >= 1) burst(ctx, want.x, want.y, clamp01((p - 0.66) / 0.3), accent, 22, 5);
+    hero(ctx, hx, hy, accent, ang);
+    pointer(ctx, want.x, want.y, accent, fire > 0);
+    vignette(f);
+  },
+};
+
+/**
+ * THE FIGHT — everything the section taught, in the same ten seconds.
+ *
+ * The busiest picture in the client after MULTITASKING, and for the same
+ * reason: the mode's subject is that all of it is true at once. A hunter, a
+ * duelist, a wave, terrain, a missile in the air and a cycle still running —
+ * and no single one of them is the thing you are looking at.
+ */
+const ezFight: PreviewScene = {
+  length: 3.6,
+  poster: 0.46,
+  caption: 'move, aim, attack, decide',
+  paint: (f) => {
+    const { ctx, accent, u } = f;
+    stage(f, 96, 104);
+    wall(ctx, 288, 34, 138);
+    const hx = 104 + 18 * Math.cos(u * TAU);
+    const hy = 108 + 14 * Math.sin(u * TAU * 2);
+    const hunter: Pt = { x: 198 - 26 * Math.sin(u * TAU), y: 62 };
+    const duelist: Pt = { x: 244, y: 126 - 20 * Math.cos(u * TAU) };
+
+    for (let i = 0; i < 3; i++) minion(ctx, 150 + i * 15, 100 + i * 9, RED, 1 - i * 0.22, 0.7);
+    const tele = (u * 2) % 1;
+    cone(ctx, duelist.x, duelist.y, Math.PI * 0.92, 0.3, 130, tele < 0.62 ? WARN : RED, tele < 0.62 ? 0.3 + tele * 0.5 : 0.8 * (1 - (tele - 0.62) / 0.38));
+
+    foe(ctx, hunter.x, hunter.y, 5.6, 1);
+    foe(ctx, duelist.x, duelist.y, 5.6, 1);
+    ring(ctx, hx, hy, 80, rgba(accent, 1), 0.2, 1.1, [5, 6]);
+
+    const ang = Math.atan2(hunter.y - hy, hunter.x - hx);
+    const auto = (u * 5) % 1;
+    if (auto < 0.62) lance(ctx, lerp(hx, hunter.x, auto / 0.62), lerp(hy, hunter.y, auto / 0.62), ang, 20, accent, 1, 2.4);
+    const q = (u * 2) % 1;
+    if (q < 0.5) lance(ctx, lerp(hx, duelist.x, q / 0.5), lerp(hy, duelist.y, q / 0.5), Math.atan2(duelist.y - hy, duelist.x - hx), 26, BLUE, 1, 3);
+    hero(ctx, hx, hy, accent, ang);
+    pointer(ctx, hunter.x, hunter.y, accent, true);
+    vignette(f);
+  },
+};
+
+/**
+ * EVERY ACTIVITY, AND ITS CLIP.
+ *
+ * Total over `DrillId` on purpose, and that is the point of the type rather
+ * than a detail of it: adding a mode to the catalogue without drawing it is a
+ * compile error now, not a card that quietly renders an empty rectangle. The
+ * menus ask for a clip by id and get one, always.
+ */
+export const PREVIEWS: Record<DrillId, PreviewScene> = {
   rangecheck,
   vayneTumble,
   vayneBolts,
@@ -1975,4 +3604,35 @@ export const PREVIEWS: Partial<Record<DrillId, PreviewScene>> = {
   apmUpkeep,
   apmSwitch,
   apmSustain,
+  movement,
+  aim,
+  skillshot,
+  dodge,
+  spacing,
+  kite,
+  lasthit,
+  targetswitch,
+  combos,
+  duel1v1,
+  duel1v2,
+  duel1v3,
+  wasdMove,
+  wasdIndep,
+  wasdStrafe,
+  wasdAimMove,
+  wasdCadence,
+  wasdKite,
+  wasdOffKite,
+  wasdDefKite,
+  wasdMulti,
+  ezQ,
+  ezLead,
+  ezStrafe,
+  ezThread,
+  ezWeave,
+  ezMaxRange,
+  ezKite,
+  ezShift,
+  ezSwitch,
+  ezFight,
 };

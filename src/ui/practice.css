@@ -1279,11 +1279,17 @@
   opacity: 0.9;
 }
 
-/* ------------------------------------------------------------ the hold ring
+/* --------------------------------------------------- the badge, and the ring
 
-   Fills over the same 480ms the component waits. It is the answer to "why has
-   nothing happened", and it turns the wait into something to aim at rather
-   than something to endure. */
+   Two jobs in one mark, and the first one is why it is on screen at rest.
+
+   A still picture of a mode does not tell anybody there is a clip behind it,
+   so every card carries a small play badge from the moment it is drawn: the
+   icon *is* the promise that resting here will move. It brightens under the
+   cursor and its ring then fills over the same 480ms the component waits,
+   which is the answer to "why has nothing happened" — and it goes out
+   altogether once the clip is running, because by then the picture is making
+   the promise itself. */
 .pv-hold {
   position: absolute;
   z-index: 2;
@@ -1291,8 +1297,8 @@
   bottom: 10px;
   width: 26px;
   height: 26px;
-  opacity: 0;
-  transform: scale(0.82);
+  opacity: 0.5;
+  transform: scale(0.88);
   transition: opacity 0.18s ease, transform 0.22s var(--ease);
   pointer-events: none;
   filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.8));
@@ -1389,8 +1395,12 @@
 /* A player who has asked the system for less motion gets the still frame and
    the caption, permanently — the picture still does its job. */
 @media (prefers-reduced-motion: reduce) {
-  .pv-hold,
   .pv-bar {
+    display: none;
+  }
+  /* The badge stays: it says a clip exists, which is still true. The ring does
+     not, because there is no wait to count down. */
+  .pv-hold-fill {
     display: none;
   }
   .pv-cap {

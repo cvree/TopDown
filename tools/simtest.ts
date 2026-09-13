@@ -21,6 +21,7 @@ import {
   type LabSolution,
 } from '../src/drills/apm';
 import { WASD_DRILL_IDS } from '../src/drills/wasd';
+import { PREVIEWS, type PreviewScene } from '../src/ui/components/previews';
 import { DRILLS, WASD_SEQUENCE, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
 import { clearPaint, newPaint } from '../src/engine/paint';
@@ -4540,6 +4541,120 @@ line('\n=== BINDINGS: the layouts themselves ===');
   expect('an unbound slot reads as unbound', codeLabel(UNBOUND) === 'Unbound', codeLabel(UNBOUND));
   expect('a mouse button reads as a mouse button', codeLabel('Mouse2') === 'Right Click', codeLabel('Mouse2'));
   expect('a punctuation key reads as what is printed on it', codeLabel('Semicolon') === ';', codeLabel('Semicolon'));
+}
+
+line('\n=== EVERY ACTIVITY HAS A CLIP, AND EVERY CLIP LOOPS ===');
+{
+  // The menus promise a picture of the mode on every card. That promise is
+  // kept by a type — `PREVIEWS` is total over `DrillId` — so what is left to
+  // check is the part a type cannot see: that each painter actually paints,
+  // that it paints something, and that the frame it ends on is the frame it
+  // starts on.
+  //
+  // Painted against a recorder rather than a canvas. Every one of these clips
+  // is a pure function of the time into the loop, so the stream of drawing
+  // commands *is* the frame: two identical streams are two identical pictures,
+  // and there is no browser in the room to ask.
+  type Op = string;
+  const recorder = () => {
+    const ops: Op[] = [];
+    const round = (v: unknown) => (typeof v === 'number' ? (Math.abs(v) < 1e-9 ? 0 : Number(v.toFixed(3))) : v);
+    const gradient = { addColorStop: (o: number, c: string) => ops.push(`stop ${round(o)} ${c}`) };
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, key: string) => {
+          if (key === 'createLinearGradient' || key === 'createRadialGradient') {
+            return (...a: unknown[]) => {
+              ops.push(`${key}(${a.map(round).join(',')})`);
+              return gradient;
+            };
+          }
+          if (key === 'measureText') return () => ({ width: 10 });
+          if (key === 'canvas') return { width: 320, height: 180 };
+          return (...a: unknown[]) => ops.push(`${key}(${a.map(round).join(',')})`);
+        },
+        set: (_t, key: string, v: unknown) => {
+          ops.push(`${key}=${round(v)}`);
+          return true;
+        },
+      },
+    ) as unknown as CanvasRenderingContext2D;
+    return { ctx, ops };
+  };
+
+  const frame = (scene: PreviewScene, t: number, accent: string): Op[] => {
+    const r = recorder();
+    scene.paint({ ctx: r.ctx, t, u: t / scene.length, accent, bleed: 0 });
+    return r.ops;
+  };
+
+  let thin = 0;
+  let seams = 0;
+  let narrative = 0;
+  for (const id of Object.keys(DRILLS) as DrillId[]) {
+    const scene = PREVIEWS[id];
+    const accent = DRILLS[id].accent;
+    if (!scene) {
+      expect(`${id} has a clip`, false, 'no scene');
+      continue;
+    }
+    // Sampled across the whole loop: a painter that throws only in the second
+    // somebody actually hovers is a painter that throws.
+    let ops = 0;
+    let threw = '';
+    for (let i = 0; i < 48; i++) {
+      try {
+        ops += frame(scene, (i / 48) * scene.length, accent).length;
+      } catch (e) {
+        threw = String(e);
+        break;
+      }
+    }
+    if (threw) {
+      expect(`${id}'s clip paints`, false, threw);
+      continue;
+    }
+    // A clip has to be a picture rather than a cleared rectangle. The floor
+    // alone is about eighty commands, so this is a low bar cleared by drawing
+    // anything at all on top of it.
+    if (ops / 48 < 120) thin++;
+    expect(`${id}'s clip draws a picture`, ops / 48 >= 120, `${Math.round(ops / 48)} commands a frame`);
+    // The one claim the file makes about itself that a reader cannot check by
+    // eye: the picture at `length` is the picture at zero. Painted against a
+    // recorder, two identical command streams are two identical frames.
+    //
+    // A clip that says it is a sentence rather than a cycle is exempt from
+    // this and from nothing else — see `PreviewScene.narrative`. The exemption
+    // is declared by the painter rather than held in a list here, so it cannot
+    // drift away from the clip it is about.
+    const head = frame(scene, 0, accent).join('|');
+    const tail = frame(scene, scene.length, accent).join('|');
+    if (scene.narrative) {
+      narrative++;
+      // It still has to resolve into a picture rather than into an empty
+      // frame: a clip whose last second is blank is a clip that looks broken
+      // for a sixth of the time somebody is looking at it.
+      expect(
+        `${id}'s clip resolves into something`,
+        frame(scene, scene.length * 0.98, accent).length >= 120,
+        'the last frame is nearly empty',
+      );
+    } else {
+      if (head !== tail) seams++;
+      expect(`${id}'s clip loops without a cut`, head === tail, 'the last frame is not the first');
+    }
+    expect(`${id}'s clip names itself`, scene.caption.length > 3 && scene.caption.length <= 40, scene.caption);
+    expect(`${id}'s poster is inside its loop`, scene.poster >= 0 && scene.poster < 1, `${scene.poster}`);
+  }
+  line(
+    `  ${Object.keys(DRILLS).length} activities, ${Object.keys(PREVIEWS).length} clips, ` +
+      `${narrative} of them a sentence rather than a cycle, ${seams} seams, ${thin} thin`,
+  );
+  // A cap rather than a list: the flag is a real property of a few modes and a
+  // convenient way to silence this check for all of them, so the number of
+  // clips allowed to claim it is held down here.
+  expect('most clips are cycles rather than sentences', narrative <= 8, `${narrative} narrative`);
 }
 
 line(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}\n`);

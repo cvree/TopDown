@@ -109,6 +109,8 @@ export function ModePreview({
   still?: boolean;
   label?: string;
 }) {
+  // Total over `DrillId`, so there is no such thing as a mode without a clip
+  // and no empty-rectangle branch to keep working. See `PREVIEWS`.
   const scene = PREVIEWS[id];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -363,8 +365,6 @@ export function ModePreview({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [still]);
-
-  if (!scene) return null;
 
   return (
     <div
