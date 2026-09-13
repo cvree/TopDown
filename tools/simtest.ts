@@ -124,6 +124,7 @@ type Policy =
   | 'labWasd'
   | 'labBlind'
   | 'labParked'
+  | 'labOffPad'
   /* --- the WASD academy. Every one of these drives the keys, not the mouse --- */
   | 'acadMove'
   | 'acadIndep'
@@ -239,6 +240,13 @@ const runDrill = (
   let strafeSide = 1;
   let tellSeen = false;
   let strafeFlipAt = 0;
+  /**
+   * Where the condemn policy is walking to put a wall behind somebody.
+   *
+   * Null means it has no angle in mind: either one is already available from
+   * where it stands, or none is worth the walk.
+   */
+  let craftAt: { x: number; y: number } | null = null;
   /** When the lab policy last issued an input, for its human rate limit. */
   let lastLabInput = -1;
   /** The mark the range policies have already reacted to, by actor id. */
@@ -674,7 +682,7 @@ const runDrill = (
             }
             const wantK = p.attack.range + target.radius - 26;
             const dK = dist(p.pos, target.pos);
-            if (p.targetId !== target.id) {
+            if (p.targetId !== target.id || !p.fireArmed) {
               input.push({ kind: 'attackMove', x: target.pos.x, y: target.pos.y, t: t * 1000 });
             }
             if (Math.abs(dK - wantK) <= 22) {
@@ -781,7 +789,9 @@ const runDrill = (
             const inRange = d - target.radius <= p.attack.range;
             if (p.attackCd <= 0.001 && inRange) {
               input.dir = { x: 0, y: 0 };
-              if (p.targetId !== target.id) {
+              // One command, one bullet. Releasing the keys is what lets the
+              // shot start; it is not what buys it.
+              if (p.targetId !== target.id || !p.fireArmed) {
                 input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
               }
               break;
@@ -965,7 +975,7 @@ const runDrill = (
             const inRange = d - want.radius <= p.attack.range;
             if (p.attackCd <= 0.001 && inRange) {
               input.dir = { x: 0, y: 0 };
-              if (p.targetId !== want.id) {
+              if (p.targetId !== want.id || !p.fireArmed) {
                 input.push({ kind: 'move', x: want.pos.x, y: want.pos.y, t: t * 1000 });
               }
               break;
@@ -1256,7 +1266,7 @@ const runDrill = (
           }
           case 'vayneCondemn': {
             // Condemns the first charger that has terrain waiting behind it,
-            // and otherwise keeps attacking.
+            // walks to where one would if none does, and otherwise attacks.
             reactTimer = 0.06;
             const kit = kitOf(drill);
             if (kit && kit.condemnCd <= 0 && kit.condemnCastLeft <= 0) {
@@ -1281,10 +1291,60 @@ const runDrill = (
                 if (!path.hit) continue;
                 session.cursorWorld = { x: e.pos.x, y: e.pos.y };
                 input.push({ kind: 'ability', slot: 'e', x: e.pos.x, y: e.pos.y, t: t * 1000 });
+                craftAt = null;
                 break;
               }
             }
-            if (target && p.attackCd <= 0.001 && p.phase !== 'windup') {
+            // And when nothing is condemnable from here, go and make one.
+            //
+            // This is the half of Condemn the mode is actually about: a target
+            // standing in the open has no wall behind it from where you are
+            // and a wall behind it from somewhere else, and walking to the
+            // somewhere else is the skill. A reference run that only ever took
+            // the angles it was handed was modelling a player who has not
+            // noticed that, and left the "angles made rather than found" claim
+            // resting on whatever the seed happened to hand it.
+            if (kit && kit.condemnCd <= 0 && kit.condemnCastLeft <= 0 && target && craftAt === null) {
+              const push = VAYNE_STATS.condemnPush * 0.75;
+              let best: { x: number; y: number } | null = null;
+              let bestD = Infinity;
+              for (let i = 0; i < 16; i++) {
+                const a = (i / 16) * Math.PI * 2;
+                // Stand a shade inside Condemn's reach, so arriving is enough
+                // to be able to cast.
+                const stand = {
+                  x: target.pos.x + Math.cos(a) * (VAYNE_STATS.condemnRange - 90),
+                  y: target.pos.y + Math.sin(a) * (VAYNE_STATS.condemnRange - 90),
+                };
+                const margin = 90;
+                if (stand.x < margin || stand.x > bounds.w - margin) continue;
+                if (stand.y < margin || stand.y > bounds.h - margin) continue;
+                const dir = norm(target.pos.x - stand.x, target.pos.y - stand.y);
+                if (!session.world.terrainAlong(target.pos, dir, push, target.radius).hit) continue;
+                const walk = dist(p.pos, stand);
+                if (walk < bestD) {
+                  bestD = walk;
+                  best = stand;
+                }
+              }
+              // Only worth walking for if it is a walk rather than a trek: a
+              // player who crosses the arena for an angle has given up more
+              // farm than the stun is worth.
+              if (best && bestD > 40 && bestD < 520) craftAt = best;
+            }
+            if (craftAt) {
+              if (dist(p.pos, craftAt) < 46) craftAt = null;
+              else {
+                input.push({ kind: 'move', x: craftAt.x, y: craftAt.y, t: t * 1000 });
+                break;
+              }
+            }
+            // Asked for a hair before the timer lands rather than exactly on
+            // it: an attack order is free to give early under the click
+            // scheme, and this policy only looks at the world every sixtieth
+            // of a second, so the window has to be at least that wide or the
+            // reference run drops a shot a cycle to its own poll rate.
+            if (target && p.attackCd <= 0.08 && !p.fireArmed && p.phase !== 'windup') {
               input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
             }
             break;
@@ -1318,7 +1378,7 @@ const runDrill = (
             const inRangeW = dW - target.radius <= p.attack.range;
             if (p.attackCd <= 0.001 && inRangeW) {
               input.dir = { x: 0, y: 0 };
-              if (p.targetId !== target.id) {
+              if (p.targetId !== target.id || !p.fireArmed) {
                 input.push({ kind: 'move', x: target.pos.x, y: target.pos.y, t: t * 1000 });
               }
               break;
@@ -1517,6 +1577,32 @@ const runDrill = (
               gyC = p.pos.y + toCentre.y * 300;
             }
             walk({ x: gxC, y: gyC });
+            break;
+          }
+          // ------------------------------------------------ the lab, cheated
+          case 'labOffPad': {
+            // The other corner-parked player, and the interesting one.
+            //
+            // `labParked` presses what the mode *asks* for from the wrong
+            // place. This one presses whatever the bench has a circle lit for
+            // — preferring a key the prompt has not named, because that is the
+            // press the aim rule used to wave through. On a bench that lights
+            // four dials and names one, that was the whole mode available from
+            // a mouse that had not moved since the countdown.
+            reactTimer = 0.04;
+            if (t - lastLabInput < LAB_MIN_GAP) break;
+            const bench = drill as unknown as {
+              aimPads?: () => readonly { slot: string | null }[];
+              solution?: () => LabSolution;
+            };
+            const lit = (bench.aimPads?.() ?? []).map((pd) => pd.slot).filter((k): k is string => !!k);
+            if (!lit.length) break;
+            const asked = new Set(bench.solution?.()?.keys ?? []);
+            const pick = lit.find((k) => !asked.has(k as AbilitySlot)) ?? lit[0];
+            lastLabInput = t;
+            input.cursor = { x: 60, y: 60 };
+            session.cursorWorld = { x: 60, y: 60 };
+            input.push({ kind: 'ability', slot: pick as AbilitySlot, x: 60, y: 60, t: t * 1000 });
             break;
           }
           // ---------------------------------------------------------- the lab
@@ -3041,6 +3127,30 @@ line('\n=== THE LAB: a key is not an answer until it is pointed at something ===
       `${id} does not pay a parked mouse`,
       parked.out.performance < played.out.performance * 0.6,
       `parked ${pct(parked.out.performance)} vs played ${pct(played.out.performance)}`,
+    );
+    // And the version of that player who reads the bench rather than the
+    // prompt. The rule used to be written about the key the mode was asking
+    // for this instant, which is a smaller set than the keys that pay: a bench
+    // that lights four dials and names one left the other three spendable from
+    // a corner, at full value. It is a separate check because it is a separate
+    // hole, and because "the prompt was answered from the wrong place" and
+    // "something else on the bench was" fail in different modes.
+    const offPad = runDrill(drill, 'labOffPad', 0.35);
+    line(`  ${''.padEnd(13)} off-pad ${pct(offPad.out.performance)} (${onPad(offPad)})`);
+    expect(
+      `${id} does not pay an off-pad press of anything it has lit`,
+      offPad.out.performance < played.out.performance * 0.4,
+      `off-pad ${pct(offPad.out.performance)} vs played ${pct(played.out.performance)}`,
+    );
+    // The sharper half of the same claim, and the one that actually caught it:
+    // not a single one of those presses may be *counted* as pointed. A share
+    // above zero here means the bench took a key from a cursor that has been
+    // sitting in the corner since the countdown, whatever the score came out
+    // at afterwards.
+    expect(
+      `${id} counts none of them as pointed`,
+      share(offPad) <= 0,
+      `${pct(Math.max(0, share(offPad)))} of off-pad presses credited`,
     );
   }
 }

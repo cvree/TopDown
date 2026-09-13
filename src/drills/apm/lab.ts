@@ -276,13 +276,29 @@ export abstract class LabDrill extends ApmDrill {
   /**
    * Whether a press of this key, made from here, is pointed at anything.
    *
-   * True whenever the mode is not asking for the key — the mode owns that
-   * mistake — and true whenever the mode has no pads to point at.
+   * The rule is about the *circles*, not about the prompt. It used to be about
+   * the prompt — a press was let through unaimed whenever the mode was not
+   * asking for that exact key this instant — and that quietly handed back
+   * everything the rule was for, because "the key the mode is asking for" and
+   * "a key that pays" are not the same set. UPKEEP is the plainest case: four
+   * dials come up and it names only the one closest to being wasted, so every
+   * *other* dial that was up could be spent from a mouse parked in a corner,
+   * at full value, for a whole minute. That is exactly the hand the bench
+   * exists to refuse.
+   *
+   * So a press is aimed when the cursor is on a live pad, and otherwise only
+   * let through when the bench has nothing lit for the key at all — a key the
+   * mode did not ask for and no live circle carries. The mode owns that
+   * mistake and names it properly (WRONG PAD, BAIT, NOTHING TO CUT), which a
+   * blanket "cursor off the pad" would flatten into one verdict.
    */
   private aimed(slot: AbilitySlot, at: Vec2): boolean {
-    if (this.aimPads().length === 0) return true;
-    if (!this.wantsKey(slot)) return true;
-    return this.aimedPad(at) !== null;
+    const pads = this.aimPads();
+    // No pads at all: this mode is asking the mouse for nothing. VECTOR, whose
+    // whole answer is a heading, is the only one.
+    if (pads.length === 0) return true;
+    if (this.aimedPad(at) !== null) return true;
+    return !(this.wantsKey(slot) || pads.some((p) => p.slot === slot));
   }
 
   setup(): void {

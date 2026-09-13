@@ -36,6 +36,84 @@ export interface Viewport {
 const PITCH = THREE.MathUtils.degToRad(57.5);
 const FOV = 34;
 
+/**
+ * How many units of ground depth one unit of camera distance buys.
+ *
+ * A pitched camera sees far more ground away from itself than toward itself,
+ * so the near and far rays are worked out rather than assumed symmetric; both
+ * scale linearly with distance, so one probe answers it for every distance.
+ */
+const depthPerUnit = (): number => {
+  const halfV = THREE.MathUtils.degToRad(FOV / 2);
+  const probe = 1000;
+  const height = Math.sin(PITCH) * probe;
+  const behind = Math.cos(PITCH) * probe;
+  const near = behind - height / Math.tan(Math.min(1.55, PITCH + halfV));
+  const far = behind - height / Math.max(0.02, Math.tan(PITCH - halfV));
+  return (near - far) / probe;
+};
+
+/**
+ * League's default camera, in world units of ground across the screen.
+ *
+ * This trainer is built at League's scale — the champion's auto-attack reaches
+ * 545 units, the same as the marksman it is modelled on — so the one framing
+ * every habit here has to transfer to can be written down as a number instead
+ * of guessed at as a zoom fraction.
+ */
+export const LEAGUE_VIEW_WIDTH = 2900;
+
+/**
+ * The height of a champion model here, in world units.
+ *
+ * What decides how close a camera *feels* is not the collision radius, it is
+ * how tall the thing you are looking at is drawn. This client's champions
+ * stand 5.4 radii tall, so a thirty-unit body is about a hundred and sixty
+ * units of model, against roughly two hundred in League — so a framing copied
+ * across as a raw width would land a shade further away than it looks on
+ * paper. The opening width below has that difference taken out of it already.
+ */
+export const CHAMPION_HEIGHT = 162;
+
+/**
+ * The framing a run opens on: a shade tighter than League's.
+ *
+ * Close enough that your champion is the thing you are looking at rather than
+ * a token on a board — which matters here more than it does in a real game,
+ * because every mistake this client is built to show you happens within one
+ * attack range of your own body. Far enough that the edge of that range is
+ * still comfortably on screen with room to read what is walking into it.
+ *
+ * It is a *width* and not a zoom fraction because the arenas are not one size.
+ * The same fraction frames a range drill and a lane completely differently,
+ * and what a player is owed between two drills is the same scale, not the same
+ * arithmetic. The zoom that produces this width is worked out per arena and
+ * per viewport, so a 21:9 monitor and a laptop open on the same picture.
+ */
+export const OPENING_VIEW_WIDTH = 2300;
+
+/**
+ * Ground kept clear around the playable rectangle at the opening framing.
+ *
+ * Most of these arenas are smaller than League's screen, so framing them at
+ * League's *scale* means framing the scenery: at zoom one the playable floor
+ * is about sixty percent of the picture and the rest is terraces. That is a
+ * lovely still and the wrong thing to play on — it shrinks the champion, it
+ * pins the camera to the middle of the arena because nothing ever leaves the
+ * frame, and it means the one camera skill worth training, keeping yourself
+ * somewhere useful in a frame that is moving, never comes up.
+ *
+ * So the opening framing takes the arena plus this and no more. A hundred and
+ * forty units is a quarter of an attack range: enough that a spawn on the rim
+ * is not flush against the edge of the screen, little enough that the floor is
+ * what you are looking at.
+ */
+const OPENING_MARGIN = 140;
+
+/** The closest and furthest the camera may ever be driven. */
+const ZOOM_MIN = 0.42;
+const ZOOM_MAX = 1.06;
+
 export class RiftCamera {
   readonly camera: THREE.PerspectiveCamera;
   /** 1 = default framing. Smaller is closer. */
@@ -68,6 +146,21 @@ export class RiftCamera {
   private bounds = { w: 1660, h: 960 };
   private viewport: Viewport = { width: 1600, height: 900 };
   private initialised = false;
+  /**
+   * The furthest out the drill is willing to be framed, as a zoom fraction.
+   *
+   * One is the whole arena. A drill whose arena is deliberately bigger than a
+   * screen asks for less, and the opening framing may only ever come in
+   * tighter than what it asked for, never pull back out past it.
+   */
+  private framingCap = 1;
+  /**
+   * True once the player has driven the zoom themselves.
+   *
+   * After that the opening framing stops re-asserting itself: resizing the
+   * window, or rotating a tablet, must not quietly undo a zoom somebody chose.
+   */
+  private userZoom = false;
 
   constructor() {
     this.camera = new THREE.PerspectiveCamera(FOV, 16 / 9, 40, 12000);
@@ -79,6 +172,7 @@ export class RiftCamera {
     this.target.set(w / 2, 0, h / 2);
     this.smoothed.copy(this.target);
     this.initialised = false;
+    this.applyFraming();
   }
 
   setViewport(v: Viewport): void {
@@ -86,6 +180,57 @@ export class RiftCamera {
     this.camera.aspect = v.width / Math.max(1, v.height);
     this.camera.updateProjectionMatrix();
     this.recomputeBaseDistance();
+    // The opening framing is a width, so a new aspect ratio is a new zoom.
+    // Re-derived rather than kept, which is what makes the same run open on
+    // the same picture on a laptop and on an ultrawide.
+    this.applyFraming();
+  }
+
+  /** The zoom at which the frustum covers `width` units of ground. */
+  zoomForWidth(width: number): number {
+    const halfV = THREE.MathUtils.degToRad(FOV / 2);
+    const perZoom = 2 * this.baseDistance * Math.tan(halfV) * (this.camera.aspect || 16 / 9);
+    return perZoom > 0 ? width / perZoom : 1;
+  }
+
+  /** The zoom at which the frustum covers `depth` units of ground front to back. */
+  zoomForDepth(depth: number): number {
+    const perZoom = this.baseDistance * depthPerUnit();
+    return perZoom > 0 ? depth / perZoom : 1;
+  }
+
+  /**
+   * Where a run opens, as the tightest of three answers.
+   *
+   *  - **The scale.** {@link OPENING_VIEW_WIDTH} — a shade inside League's
+   *    camera, so what your hands learn here about distance is what they will
+   *    find there.
+   *  - **The arena.** Whatever frames the playable floor plus
+   *    {@link OPENING_MARGIN}, so a floor smaller than a League screen is not
+   *    played at arm's length just because it would fit.
+   *  - **The drill.** {@link setZoom} — a drill whose arena is deliberately
+   *    longer than one screen knows something about itself, and the opening
+   *    framing is never allowed to pull back out past what it asked for.
+   *
+   * Tightest of the three, so no one of them can ever push the camera further
+   * away than another wanted it.
+   */
+  private applyFraming(): void {
+    if (this.userZoom) return;
+    const arena = Math.max(
+      this.zoomForWidth(this.bounds.w + OPENING_MARGIN * 2),
+      this.zoomForDepth(this.bounds.h + OPENING_MARGIN * 2),
+    );
+    const z = THREE.MathUtils.clamp(
+      Math.min(this.framingCap, this.zoomForWidth(OPENING_VIEW_WIDTH), arena),
+      ZOOM_MIN,
+      ZOOM_MAX,
+    );
+    this.zoomTarget = z;
+    // Snapped rather than eased: this is where the run *starts*, and a camera
+    // that flies in over the first half second is a camera that is moving
+    // while the countdown is asking the player to read the arena.
+    this.zoom = z;
   }
 
   /**
@@ -102,15 +247,7 @@ export class RiftCamera {
     const needH = this.bounds.h + 540;
     // Ground footprint of the frustum at distance d, for a camera pitched at PITCH.
     const dForWidth = needW / (2 * Math.tan(halfV) * aspect);
-    // Depth scales linearly with distance too, so one probe is enough to solve
-    // for the distance at which the footprint is exactly `needH` deep.
-    const probe = 1000;
-    const height = Math.sin(PITCH) * probe;
-    const behind = Math.cos(PITCH) * probe;
-    const depthPerUnit =
-      (behind - height / Math.tan(Math.min(1.55, PITCH + halfV)) - (behind - height / Math.max(0.02, Math.tan(PITCH - halfV)))) /
-      probe;
-    const dForDepth = needH / depthPerUnit;
+    const dForDepth = needH / depthPerUnit();
     this.baseDistance = Math.max(dForWidth, dForDepth);
   }
 
@@ -140,11 +277,19 @@ export class RiftCamera {
   }
 
   zoomBy(delta: number): void {
-    this.zoomTarget = THREE.MathUtils.clamp(this.zoomTarget + delta, 0.42, 1.06);
+    this.userZoom = true;
+    this.zoomTarget = THREE.MathUtils.clamp(this.zoomTarget + delta, ZOOM_MIN, ZOOM_MAX);
   }
 
+  /**
+   * The framing the drill asks for, as a ceiling rather than a setting.
+   *
+   * The opening framing may come in tighter than this; nothing pulls back out
+   * past it. See {@link applyFraming}.
+   */
   setZoom(z: number): void {
-    this.zoomTarget = THREE.MathUtils.clamp(z, 0.42, 1.06);
+    this.framingCap = THREE.MathUtils.clamp(z, ZOOM_MIN, ZOOM_MAX);
+    this.applyFraming();
   }
 
   /** A short pull-in on a kill or a heavy hit. Sells weight better than shake. */

@@ -85,6 +85,27 @@ export interface Actor {
    * you in League, and precisely why mashing loses races.
    */
   fireRequest?: number;
+  /**
+   * This body never attacks on its own. Every shot is a command.
+   *
+   * Only the player carries it. A champion that keeps shooting because you
+   * once told it to is the one habit a trainer must not build: it turns the
+   * whole of combat into "click the target, then think about something else",
+   * and the thing this client measures — a command per attack, timed against
+   * the attack timer — stops being something the hands ever do. So the stance
+   * still chooses *what* to shoot, and the trigger is always yours.
+   */
+  manualFire?: boolean;
+  /**
+   * One shot, owed.
+   *
+   * Armed by an attack command — an attack-move, an attack order on a unit,
+   * a fire request — and spent by the attack it starts. It survives walking
+   * into range, so an attack-move clicked from across the arena still fires
+   * once on arrival, and it is dropped by a plain move order or a stop,
+   * because both of those are you changing your mind.
+   */
+  fireArmed?: boolean;
 
   /** Visual/analysis bookkeeping. */
   lastAttackAt: number;

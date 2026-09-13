@@ -165,11 +165,13 @@ const baseHints = (scheme: MovementScheme, b: Bindings): Hint[] => {
     const attack = shortCodeLabel(b.attackMove.secondary ?? 'Mouse0');
     return [
       { id: 'move', key: joinKeys(MOVE_ACTIONS.map((a) => keyOf(b, a))), label: 'move' },
-      { id: 'attack', key: attack, label: 'attack' },
+      { id: 'attack', key: attack, label: 'attack · one shot a click' },
       { id: 'abilities', key: (['q', 'w', 'e', 'r'] as ActionId[]).map((a) => keyOf(b, a)).join(' '), label: 'abilities' },
-      // Both ways of buying a shot, because there are two and a player who only
-      // knows the first one is orbwalking with one hand tied.
-      { id: 'release', key: 'RELEASE', label: `or ${attack} to shoot` },
+      // The other half of the same rule. The click buys the shot; the keys
+      // decide when it is allowed to leave, because a held direction never
+      // fires. A player who knows only one of the two is orbwalking with one
+      // hand tied.
+      { id: 'release', key: 'RELEASE', label: 'let go and it fires' },
       check,
       zoom,
       pause,
@@ -177,7 +179,7 @@ const baseHints = (scheme: MovementScheme, b: Bindings): Hint[] => {
   }
   return [
     { id: 'move', key: keyOf(b, 'move'), label: 'move · attack' },
-    { id: 'attackMove', key: keyOf(b, 'attackMove'), label: 'attack-move' },
+    { id: 'attackMove', key: keyOf(b, 'attackMove'), label: 'attack-move · one shot' },
     { id: 'stop', key: keyOf(b, 'stop'), label: 'stop' },
     check,
     { id: 'cameraLock', key: keyOf(b, 'cameraLock'), label: 'camera lock' },

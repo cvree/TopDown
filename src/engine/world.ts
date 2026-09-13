@@ -364,6 +364,10 @@ export class World {
       label: 'YOU',
     });
     p.visual = this.playerHero;
+    // The trigger is yours, always. See `Actor.manualFire`: everything else on
+    // the floor shoots the moment its timer is up, and the one body a person
+    // is driving does not.
+    p.manualFire = true;
     this.playerId = p.id;
     return p;
   }
@@ -434,6 +438,9 @@ export class World {
       this.emit({ type: 'attackCancel', actorId: a.id, amount: remaining });
     }
     a.order = { kind: attackMove ? 'attackMove' : 'move', pos: { ...pos } };
+    // An attack-move is an attack command and owes one shot; a plain move is
+    // you changing your mind, and takes the owed shot back with the target.
+    a.fireArmed = attackMove;
     if (!attackMove) a.targetId = null;
     this.emit({ type: 'moveOrder', actorId: a.id, pos: { ...pos } });
   }
@@ -441,6 +448,7 @@ export class World {
   issueAttackTarget(a: Actor, targetId: number): void {
     a.order = { kind: 'attackTarget', pos: { ...a.pos }, targetId };
     a.targetId = targetId;
+    a.fireArmed = true;
   }
 
   /**
@@ -454,6 +462,7 @@ export class World {
   issueAttackHere(a: Actor, targetId?: number): void {
     a.order = { kind: 'attackMove', pos: { ...a.pos } };
     if (targetId !== undefined) a.targetId = targetId;
+    a.fireArmed = true;
   }
 
   /**
@@ -469,6 +478,7 @@ export class World {
    */
   requestFire(a: Actor): number {
     if (a.phase === 'windup') return 0;
+    a.fireArmed = true;
     const cost = Math.max(0, a.attackCd);
     a.fireRequest = Math.min(FIRE_REQUEST_MAX, Math.max(cost, 1 / 240));
     return Math.min(FIRE_REQUEST_MAX, cost);
@@ -492,6 +502,7 @@ export class World {
     a.order = null;
     a.targetId = null;
     a.fireRequest = 0;
+    a.fireArmed = false;
     a.vel.x = 0;
     a.vel.y = 0;
   }
@@ -946,12 +957,23 @@ export class World {
     // An attack-move never chases: it walks to the point you clicked and
     // attacks whatever enters range on the way, exactly as in League. Only an
     // explicit attack-on-target order follows the unit.
-    // Under direct control an attack needs one of two things: the keys let go
-    // of — the classic orbwalk release — or an explicit attack command, which
-    // costs you standing still until the shot leaves. A held direction alone
-    // never fires, because a champion that shoots while you drive it is not
-    // teaching anybody to orbwalk.
-    const firing = a.directControl ? a.moveDir === null || (a.fireRequest ?? 0) > 0 : true;
+    //
+    // Two gates, and the player is the only body either of them applies to.
+    //
+    // The first is the trigger. Every shot is a command and a command is worth
+    // exactly one shot — see `Actor.manualFire`. A stance that kept firing on
+    // its own would mean a minute of combat cost one click, and there is no
+    // version of this trainer in which that measures anything: the attack
+    // timer is the metronome the whole client is built around, and a metronome
+    // you do not have to hit is not being practised.
+    //
+    // The second is direct control's, and it is unchanged: a held direction
+    // never fires, so under WASD a shot needs the keys let go of — the classic
+    // orbwalk release — or the fire command, which plants your feet until the
+    // shot leaves.
+    const armed = a.manualFire ? (a.fireArmed ?? false) : true;
+    const firing =
+      armed && (a.directControl ? a.moveDir === null || (a.fireRequest ?? 0) > 0 : true);
     if (target && a.attackCd <= 0 && a.phase !== 'windup' && firing && (target.invisibleFor ?? 0) <= 0) {
       const d = dist(a.pos, target.pos) - target.radius;
       if (d <= a.attack.range) this.beginAttack(a, target);
@@ -1022,6 +1044,8 @@ export class World {
 
   beginAttack(a: Actor, target: Actor): void {
     a.fireRequest = 0;
+    // The shot the command owed. The next one needs a command of its own.
+    a.fireArmed = false;
     const cycle = 1 / Math.max(0.05, a.attack.attackSpeed);
     a.phase = 'windup';
     a.phaseTime = cycle * a.attack.windupRatio;
