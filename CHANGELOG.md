@@ -6,10 +6,31 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.18.0**.
+Currently shipping **v2.19.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.19.0 — ONE BULLET A COMMAND
+
+*2026-09-13*
+
+Your champion no longer shoots on its own, the camera opens close enough that you are looking at it, and every mode in the client has a clip of itself on its card.
+
+### Added
+
+- Every mode has a clip. The thirty-one that had a blank picture on their card now have one each — the four foundations, the five rhythm modes, the three duels, all nine academy modules and all ten of Ezreal’s — and each one is a picture of the thing the mode asks for. KITE is the attack split into the part a step throws away and the part a step is free in. SPACING is the band between what you can reach and what can reach you, and then the same band with the rings taken away. THREAD is a wave with one gap in it. Rest on a card and it plays.
+- A play badge sits on every card from the moment it is drawn, instead of appearing only once your cursor is already there. A still picture does not tell anybody it moves; the badge does, and its ring fills over exactly the wait before the clip starts.
+
+### Changed
+
+- Your champion never attacks on its own any more. An attack-move, an attack order on a unit or the fire command buys exactly one shot, and the next one needs another command. A stance still chooses what you shoot; the trigger is yours. A minute of combat used to cost one click, and the attack timer is the metronome this whole client is built around — a metronome you do not have to hit is not being practised. Everything on the other team still shoots the moment its timer is up.
+- Under WASD the rule you already knew is unchanged on top of it: a held direction still never fires, so a shot needs the keys let go of or the attack command that plants your feet until it leaves.
+- Every run opens closer. The framing is a distance across the floor now rather than a zoom number, so two modes with differently sized arenas open at the same scale and a laptop and an ultrawide open on the same picture. It is set a shade inside League’s own camera: the arenas that used to open at arm’s length now show between 1780 and 2300 units across, against roughly 2900 in the game you are training for.
+
+### Fixed
+
+- THE LAB would take a key from a cursor parked in the corner, as long as the bench had not named that exact key this instant. UPKEEP lights four dials and names the one closest to being wasted, so the other three could be spent from a mouse that had not moved since the countdown, at full value, for a whole minute; BUFFER counted every off-pad press as pointed. The rule is about the circles now: a key a live circle carries has to be pressed with the cursor on a live circle.
 
 ## v2.18.0 — POINT AT IT FIRST
 
