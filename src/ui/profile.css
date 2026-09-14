@@ -89,6 +89,13 @@
   justify-content: center;
   padding: 24px 0 12px;
 }
+/* The radar is drawn at a fixed 320 and carries a viewBox, so letting it scale
+   costs nothing and is the difference between a chart and a chart with its
+   right-hand axis label off the side of a phone. */
+.radar-wrap svg {
+  max-width: 100%;
+  height: auto;
+}
 
 .axis-list {
   display: grid;
@@ -266,5 +273,15 @@
   }
   .axis-list {
     grid-template-columns: 1fr;
+  }
+}
+
+/* A phone. The panels stop being a grid of columns and become a column. */
+@media (max-width: 700px) {
+  .prof-mid {
+    /* The minmax floor above is wider than the screen, and a grid track with a
+       floor wider than its container is how a panel ends up hanging off the
+       side of one. */
+    grid-template-columns: minmax(0, 1fr);
   }
 }

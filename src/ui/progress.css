@@ -350,6 +350,42 @@
   }
 }
 
+/* ------------------------------------------------------------------ a phone
+
+   Everything on this page is a row of fixed columns — a name, a track, a
+   number, a delta — which is the right shape for a table and the wrong shape
+   for four hundred pixels: 108 + 108 + 52 and three gaps does not fit, so the
+   numbers at the end of every row were simply drawn off the side of the
+   screen. Each row becomes two lines instead, label over bar, and the trailing
+   figures sit under the label where there is room for them. */
+@media (max-width: 700px) {
+  .thirty {
+    /* Wider than a phone, which is how the whole panel came to hang off one. */
+    min-width: 0;
+  }
+  .pp-row,
+  .tr-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+    row-gap: 6px;
+  }
+  .pp-row > :nth-child(2),
+  .tr-row > :nth-child(2) {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+  .err-head {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  /* The two middle columns of an error row are prose and a figure; on one line
+     they are unreadable and off the edge. */
+  .err-head > :nth-child(3) {
+    grid-column: 2 / -1;
+    font-size: 11px;
+  }
+}
+
 .th-new {
   margin: 16px 0 0;
   font-size: 11.5px;

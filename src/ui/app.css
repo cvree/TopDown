@@ -317,6 +317,93 @@
   }
 }
 
+/* ---------------------------------------------------------- narrow screens
+
+   Below this the bar stops being a bar and starts being a stack.
+
+   The ladder above trims one thing at a time — the subtitle, the gear's word,
+   the nav's padding — which carries a 1440 desktop down to about a tablet and
+   then runs out of things to trim. Under that it was not degrading, it was
+   breaking: at phone width the rank chip sat two hundred pixels past the right
+   edge of the screen, the version chip was sliced in half, and the help and
+   setup buttons were drawn straight through the word PROGRESS. The third tab
+   of a three-tab client could not be read or reliably pressed.
+
+   So at 860 the utility cluster gives up its words and keeps its icons, and at
+   700 the bar wraps: identity and utilities on the first row, the three tabs
+   on their own row underneath, full width and evenly divided. That is the
+   shape every mobile client eventually arrives at, and it has the property the
+   single row cannot have at this width — nothing overlaps, and every target is
+   the size of a thumb. */
+@media (max-width: 860px) {
+  .topbar {
+    gap: 14px;
+    padding: 0 14px;
+  }
+  .ver-chip {
+    font-size: 10px;
+    padding: 0 7px;
+  }
+  /* The emblem says the rank. The words beside it were only ever a convenience
+     and they are the widest thing on the bar. */
+  .rank-chip > div {
+    display: none;
+  }
+  .rank-chip {
+    padding: 0;
+    background: none;
+    border-color: transparent;
+  }
+}
+
+@media (max-width: 700px) {
+  .topbar {
+    height: auto;
+    flex-wrap: wrap;
+    row-gap: 0;
+    padding: 0 12px 8px;
+  }
+  .logo {
+    height: 54px;
+  }
+  .topbar-right {
+    height: 54px;
+  }
+  /* Full width, its own line, three equal targets. `order` rather than markup
+     surgery: the tabs stay where they belong in the document for a screen
+     reader and for the keyboard, and only the picture changes. */
+  .nav {
+    order: 3;
+    flex: 1 0 100%;
+    display: flex;
+    gap: 6px;
+  }
+  .nav button {
+    flex: 1;
+    height: 42px;
+    padding: 0;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+  .help-chip,
+  .gear-chip {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+@media (max-width: 380px) {
+  /* The crest alone. It is the same mark on the boot screen and on the tab, so
+     it is doing the wordmark's job already. */
+  .logo {
+    font-size: 0;
+    gap: 0;
+  }
+  .ver-chip {
+    display: none;
+  }
+}
+
 /* The walkthrough, on a button. A circle rather than a labelled chip because
    it is the one control on the bar that never changes state and never needs
    reading — everybody already knows what a "?" in a corner does. */

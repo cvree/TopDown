@@ -453,9 +453,14 @@
   .pr-tablist::-webkit-scrollbar {
     display: none;
   }
+  /* Three equal columns that share whatever width there is, with the floor as
+     the only thing that can force a scroll. `max-content` used to be here, from
+     when this rail had four tabs on it: it sizes every column to the longest
+     line inside it whether or not there is room, so on a tablet three tabs that
+     fit comfortably were laid out nine hundred pixels wide and the third was
+     parked off the side of a scroller nobody could see. */
   .pr-tablist {
-    grid-template-columns: repeat(4, minmax(178px, 1fr));
-    min-width: max-content;
+    grid-template-columns: repeat(3, minmax(178px, 1fr));
   }
   .pr-group-head {
     flex-wrap: wrap;
@@ -1237,6 +1242,53 @@
   margin: -22px -22px 4px;
   overflow: hidden;
   border-bottom: 1px solid color-mix(in srgb, var(--c) 26%, transparent);
+}
+
+/* ------------------------------------------------------ three tabs, a phone
+
+   The rail scrolls sideways from 900 down, which is the right answer while the
+   tabs still carry their sub-lines and their counts — but it has no scrollbar
+   by design, so on a phone the second and third sections of the screen were
+   two thirds of the client hidden behind a gesture nobody is told about.
+
+   There are exactly three of them, and at this width a numeral and a word is
+   all a tab needs to be picked from three. So the extra lines go, the rail
+   stops scrolling, and all three are on screen at once — which is what a tab
+   rail is for. */
+@media (max-width: 700px) {
+  .pr-tablist {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-width: 0;
+    overflow-x: visible;
+  }
+  .pr-tab {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'no'
+      'text';
+    justify-items: center;
+    text-align: center;
+    gap: 1px;
+    padding: 10px 6px 11px;
+  }
+  /* The sub-line inside the label, and the count beside it. Both are useful at
+     a width that has room for them and neither is how you tell three tabs
+     apart. */
+  .pr-tab-text i,
+  .pr-tab-meta {
+    display: none;
+  }
+  /* The label is a `b.display` with its own fifteen-pixel size and a fifth of
+     an em of tracking, which at a third of a phone is wider than the tab and
+     put CHARACTER through the middle of THE LANE. Nothing here may be `nowrap`
+     at this width either — a word that cannot wrap and cannot shrink simply
+     draws over its neighbour. */
+  .pr-tab-text b {
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 
 @media (max-width: 640px) {
