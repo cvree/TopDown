@@ -6,10 +6,30 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.19.0**.
+Currently shipping **v2.20.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.20.0 — SAY IT OUT LOUD
+
+*2026-09-14*
+
+Every card has a play button you can actually press, the bench tells you when it has refused a press instead of just refusing it, and the client no longer falls apart on a phone.
+
+### Added
+
+- Every card has a play button. It sits in the middle of the picture at the size of something you can tap, and pressing it turns the card into a clip of that mode and back again. Before this the only way to see one was to rest a mouse on the card for half a second, which meant that on a phone or a tablet there was no way to see one at all.
+- The lab says the rule out loud the first few times you break it. Press a lit pad’s key with the cursor somewhere else and the line from your cursor to the pad flares, a ring closes on the pad you should have been on, and for the first three it also tells you in words. A press that scores nothing and looks like nothing is indistinguishable from a drill that is not counting you.
+
+### Changed
+
+- The APM figure on the run HUD is now the rate the score is actually built on. It used to be every press you made, so mashing keys with the cursor parked in a corner drove the big number to a hundred and held it there while the score sat at zero — the readout your eye goes to was paying for exactly the thing the bench refuses to pay for. It falls the moment your inputs stop landing, and CLEAN beside it still says what share of your hands’ work the bench took.
+- The whole client works on a phone. The top bar wraps instead of drawing its own buttons through the word PROGRESS, the three section tabs all fit on screen instead of hiding two of them behind an invisible sideways scroll, every row on PROGRESS folds onto two lines instead of putting its numbers past the edge of the screen, and the cold open stops clipping the corners off its own wordmark.
+
+### Fixed
+
+- APEX FAILED TO LOAD, on a machine that was perfectly capable of running it. The menu backdrop builds its scene a couple of frames after it is asked to, so leaving the screen quickly left that scene belonging to nobody — and browsers only keep a dozen or so 3D contexts before they start handing back dead ones. A dead one then took the whole client down, because the first thing the renderer asks a new context is a question a dead context cannot answer. The scene is handed back properly now, and a machine that genuinely cannot draw says which of the three things went wrong instead of showing you an error screen.
 
 ## v2.19.0 — ONE BULLET A COMMAND
 
