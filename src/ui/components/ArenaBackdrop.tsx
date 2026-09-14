@@ -170,7 +170,27 @@ export function ArenaBackdrop({
         setLost(true);
         return;
       }
-      if (cancelled) return;
+      // Cancelled while the context was being made.
+      //
+      // This is the one place in the client that can leak a WebGL context, and
+      // it used to. The build is asynchronous — two frames are handed back
+      // before the scene is built, so the cold open can paint — which means the
+      // effect's cleanup can run *before* this line, find `scene` still
+      // undefined, and dispose nothing at all. The context created a moment
+      // later then belongs to nobody: nothing holds it, nothing renders it, and
+      // nothing can ever hand it back.
+      //
+      // A browser keeps only a handful of live contexts and kills the oldest
+      // when it runs out. Orphan a few — a remount, a champion change, React's
+      // development double-mount — and the next context the client asks for is
+      // born already lost, which is not a black backdrop, it is three.js
+      // throwing inside its own constructor and the whole client landing on
+      // APEX FAILED TO LOAD. So the scene is handed straight back here.
+      if (cancelled) {
+        scene.dispose();
+        scene = null;
+        return;
+      }
       const sc = scene;
       // A backdrop must never cost the front end its responsiveness — but it
       // is also the first thing anyone sees, so it keeps the post chain.

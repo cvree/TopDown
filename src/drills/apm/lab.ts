@@ -265,6 +265,21 @@ export abstract class LabDrill extends ApmDrill {
     return !s.wait && (s.keys?.includes(slot) ?? false);
   }
 
+  /**
+   * When the bench last refused a press for being pointed at nothing, and how
+   * many times it has had to.
+   *
+   * The passive guide below — the line and the cross — is deliberately faint,
+   * because a player who leads with the mouse should never notice it. That is
+   * the right volume for a hint and the wrong volume for a verdict: pressing a
+   * key and getting *nothing at all* is indistinguishable from a drill that is
+   * simply not counting you, which is exactly the conclusion to avoid. So a
+   * refusal lights the guide up for a moment, and the first few also say the
+   * rule in words. After that the picture is enough.
+   */
+  private refusedAt = -99;
+  private refusals = 0;
+
   /** The live pad the cursor is inside, or null. */
   protected aimedPad(at: Vec2 = this.s.cursorWorld): Pad | null {
     for (const pad of this.aimPads()) {
@@ -622,11 +637,20 @@ export abstract class LabDrill extends ApmDrill {
     if (!this.aimed(slot, at)) {
       this.press(slot);
       this.offPad++;
+      this.refusedAt = this.s.elapsed;
+      this.refusals++;
       const want = this.aimPads()[0];
       // The spray lands on the pad that wanted the press rather than under the
       // cursor: the correction is *go there*, and the feedback should be
       // where the player has to go.
       this.s.micro('CURSOR OFF THE PAD', want?.pos ?? at, PALETTE.warn);
+      // And the rule in words, for the first few only. A player meets this
+      // rule by breaking it — there is no other way to find it — so the first
+      // time has to explain itself rather than simply decline. Three is enough
+      // to have been read; a fourth would be nagging.
+      if (this.refusals <= 3) {
+        this.s.setBanner('POINT AT THE LIT PAD — A PRESS FROM ANYWHERE ELSE SCORES NOTHING', 1.6);
+      }
       this.stray(want?.pos ?? at);
       return;
     }
@@ -789,6 +813,10 @@ export abstract class LabDrill extends ApmDrill {
     if (pads.length === 0) return;
     const cur = this.s.cursorWorld;
     const on = this.aimedPad(cur);
+    // How recently a press was turned away, 1 at the instant and gone within
+    // half a second. Everything below reads it, so one refusal lights the
+    // whole guide at once rather than flashing one part of it.
+    const flare = clamp(1 - (this.s.elapsed - this.refusedAt) / 0.5, 0, 1);
     for (const pad of pads) {
       const live = pad === on;
       out.markers.push({
@@ -820,7 +848,10 @@ export abstract class LabDrill extends ApmDrill {
       return;
     }
     // Off every pad: the shortest way back, drawn. It is faint on purpose —
-    // a player who is already leading with the mouse never sees it.
+    // a player who is already leading with the mouse never sees it — and it
+    // brightens hard for half a second whenever a press has just been refused,
+    // because at that moment it has stopped being a hint and become the answer
+    // to "why did nothing happen".
     const want = pads[0];
     out.markers.push({
       kind: 'line',
@@ -828,21 +859,35 @@ export abstract class LabDrill extends ApmDrill {
       y: cur.y,
       x2: want.pos.x,
       y2: want.pos.y,
-      halfWidth: 1.4,
-      color: PALETTE.warn,
-      alpha: 0.3,
+      halfWidth: 1.4 + flare * 2.2,
+      color: flare > 0 ? PALETTE.danger : PALETTE.warn,
+      alpha: 0.3 + flare * 0.6,
       rise: 1.1,
     });
     out.markers.push({
       kind: 'cross',
       x: cur.x,
       y: cur.y,
-      radius: 11,
-      color: PALETTE.warn,
-      alpha: 0.7,
-      width: 2,
+      radius: 11 + flare * 9,
+      color: flare > 0 ? PALETTE.danger : PALETTE.warn,
+      alpha: 0.7 + flare * 0.3,
+      width: 2 + flare * 1.6,
       rise: 1.2,
     });
+    // And a ring closing on the pad you should have been on. A refusal is two
+    // facts — not here, *there* — and only one of them is under the cursor.
+    if (flare > 0) {
+      out.markers.push({
+        kind: 'ring',
+        x: want.pos.x,
+        y: want.pos.y,
+        radius: want.radius + 10 + (1 - flare) * 26,
+        color: PALETTE.danger,
+        alpha: flare * 0.8,
+        width: 1.6 + flare * 2,
+        rise: 1.15,
+      });
+    }
   }
 
   /** Draws one pad: a lit face, an edge, a countdown and what it wants. */

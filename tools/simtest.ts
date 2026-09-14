@@ -22,6 +22,7 @@ import {
 } from '../src/drills/apm';
 import { WASD_DRILL_IDS } from '../src/drills/wasd';
 import { PREVIEWS, type PreviewScene } from '../src/ui/components/previews';
+import { contextFault } from '../src/gfx/glcheck';
 import { DRILLS, WASD_SEQUENCE, type DrillId } from '../src/drills/catalog';
 import { derive } from '../src/engine/metrics';
 import { clearPaint, newPaint } from '../src/engine/paint';
@@ -1837,7 +1838,11 @@ const runDrill = (
   const out = drill.outcome();
   const m = session.metrics.m;
   const d = derive(m, session.world.player?.maxHp ?? 720);
-  return { out, m, d, session, drill, paint, travel };
+  // The HUD as the player sees it, sampled on the last frame of the run. The
+  // numbers on screen are a product decision as much as the score is, so they
+  // have to be checkable.
+  const hud = (drill as unknown as { hudFields?: () => { label: string; value: string }[] }).hudFields?.() ?? [];
+  return { out, m, d, session, drill, paint, travel, hud };
 };
 
 /**
@@ -4541,6 +4546,60 @@ line('\n=== BINDINGS: the layouts themselves ===');
   expect('an unbound slot reads as unbound', codeLabel(UNBOUND) === 'Unbound', codeLabel(UNBOUND));
   expect('a mouse button reads as a mouse button', codeLabel('Mouse2') === 'Right Click', codeLabel('Mouse2'));
   expect('a punctuation key reads as what is printed on it', codeLabel('Semicolon') === ';', codeLabel('Semicolon'));
+}
+
+line('\n=== A MACHINE THAT CANNOT DRAW SAYS SO, RATHER THAN FALLING OVER ===');
+{
+  // three.js asks a brand-new context what shader precision it supports before
+  // it does anything else, and a context that is *already lost* answers null —
+  // whereupon the constructor throws from inside itself and the client lands on
+  // its error screen because a decorative background could not be drawn.
+  //
+  // A lost-on-arrival context is not a hypothetical: browsers keep a budget of
+  // live contexts and hand back a dead one once it is spent. So the question is
+  // asked before three is handed anything, and the three ways it fails are
+  // three different sentences, because they are three different problems.
+  const ok = { isContextLost: () => false, getShaderPrecisionFormat: () => ({ precision: 23 }), VERTEX_SHADER: 1, HIGH_FLOAT: 2 };
+  expect('a working context is not faulted', contextFault(ok) === null, String(contextFault(ok)));
+  expect('no context at all is named', /no context/.test(contextFault(null) ?? ''), String(contextFault(null)));
+  expect(
+    'a context that arrives lost is named',
+    /lost/.test(contextFault({ ...ok, isContextLost: () => true }) ?? ''),
+    String(contextFault({ ...ok, isContextLost: () => true })),
+  );
+  expect(
+    'a driver with no precision to report is named',
+    /precision/.test(contextFault({ ...ok, getShaderPrecisionFormat: () => null }) ?? ''),
+    String(contextFault({ ...ok, getShaderPrecisionFormat: () => null })),
+  );
+}
+
+line('\n=== THE HUD LEADS WITH THE NUMBER THE SCORE IS BUILT ON ===');
+{
+  // The readout a player watches must not pay for the habit the section exists
+  // to break. It used to: the big APM figure was the *raw* press rate, so a run
+  // spent mashing with the cursor parked in a corner drove it to a hundred and
+  // held it there while the score sat at zero. Whatever else that teaches, it
+  // is not "point at the pad first".
+  //
+  // Measured rather than asserted about the source: the same bench is played
+  // twice, once properly and once by the corner-parked masher, and the number
+  // on the HUD has to be able to tell them apart.
+  for (const id of ['apmPulse', 'apmSequence', 'apmUpkeep'] as DrillId[]) {
+    const played = runDrill(id, 'lab', 0.35);
+    const mashed = runDrill(id, 'labOffPad', 0.35);
+    const apmOf = (r: typeof played) => {
+      const f = r.hud.find((h) => h.label === 'APM');
+      return f ? Number(f.value) : -1;
+    };
+    line(`  ${id.padEnd(13)} played APM ${apmOf(played)}   mashed APM ${apmOf(mashed)}`);
+    expect(`${id} shows a real rate for a real run`, apmOf(played) > 20, `${apmOf(played)}`);
+    expect(
+      `${id} shows ${'\u2248'}nothing for a corner-parked masher`,
+      apmOf(mashed) <= Math.max(2, apmOf(played) * 0.15),
+      `mashed ${apmOf(mashed)} vs played ${apmOf(played)}`,
+    );
+  }
 }
 
 line('\n=== EVERY ACTIVITY HAS A CLIP, AND EVERY CLIP LOOPS ===');

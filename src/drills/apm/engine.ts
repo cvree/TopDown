@@ -159,6 +159,17 @@ export abstract class ApmDrill extends Drill {
 
   /** Timestamps, in run seconds, of every counted action. */
   private stamps: number[] = [];
+  /**
+   * The same clock, for the actions that *landed*.
+   *
+   * The HUD leads with the correct rate rather than the raw one, and a rate a
+   * player is watching has to answer to what they are doing now. The run-long
+   * average does not: it is a sixtieth as responsive by the end of a minute, so
+   * a hand that has stopped landing anything for five seconds still reads as
+   * whatever it averaged before that. Same window as the raw rate, so the two
+   * numbers on screen are measuring the same stretch of time.
+   */
+  private hitStamps: number[] = [];
 
   protected hits = 0;
   /** Prompts you were right to leave alone. Correct, and not an action. */
@@ -383,6 +394,18 @@ export abstract class ApmDrill extends Drill {
     return this.s.elapsed > 0.5 ? (this.stamps.length / this.s.elapsed) * 60 : 0;
   }
 
+  /** Correct actions per minute over the recent window — the HUD's headline. */
+  liveCorrectApm(): number {
+    const t = this.s.elapsed;
+    const span = Math.min(APM_WINDOW, Math.max(0.75, t));
+    let n = 0;
+    for (let i = this.hitStamps.length - 1; i >= 0; i--) {
+      if (t - this.hitStamps[i] > span) break;
+      n++;
+    }
+    return (n / span) * 60;
+  }
+
   /**
    * Correct actions per minute — the number the score is actually built on.
    *
@@ -448,6 +471,7 @@ export abstract class ApmDrill extends Drill {
   protected hit(pos: Vec2, opts: HitOpts = {}): void {
     if (opts.action !== false) this.note();
     this.hits++;
+    this.hitStamps.push(this.s.elapsed);
     // Every hit is a correct *action*, whether or not the press was the thing
     // that paid out: the rate the tide is calibrated against is this engine's
     // own correct-per-minute, which counts hits and never asks how the payoff
@@ -815,8 +839,24 @@ export abstract class ApmDrill extends Drill {
   // ------------------------------------------------------------------ hud
 
   hudFields(): HudField[] {
-    const apm = this.liveApm();
-    const apmBar = clamp(apm / (this.targetApm * 1.35), 0, 1);
+    // THE NUMBER ON THE HUD IS THE NUMBER THE SCORE IS BUILT ON.
+    //
+    // It used to be `liveApm()` — the raw rate, every press counted, including
+    // the ones the bench refused. That put the engine's whole argument on its
+    // head at the only moment it matters. Mash the keys with the cursor parked
+    // in a corner and the big number climbed to a hundred and stayed there,
+    // while the score sat at zero and said nothing: the readout the eye goes to
+    // was paying for exactly the habit the section exists to break, and a
+    // player watching it reasonably concludes the drill is counting their
+    // hands. It is not, and now it does not look as though it is.
+    //
+    // The correct rate falls the instant an input stops landing, which is the
+    // feedback a wasted press is owed, and the raw rate is still on screen a
+    // slot away as CLEAN — the share of what your hands did that the bench
+    // took. Between them they say the true thing: how fast, and how much of it
+    // counted.
+    const apm = this.liveCorrectApm();
+    const apmBar = clamp(apm / (this.targetRate * 1.35), 0, 1);
     const acc = this.precision;
     const mid = this.modeField();
     const clean: HudField = {
@@ -830,7 +870,7 @@ export abstract class ApmDrill extends Drill {
         label: 'APM',
         value: `${Math.round(apm)}`,
         bar: apmBar,
-        tone: apm > this.targetApm ? 'good' : apm > this.targetApm * 0.6 ? 'warn' : 'bad',
+        tone: apm > this.targetRate ? 'good' : apm > this.targetRate * 0.6 ? 'warn' : 'bad',
       },
       // The HUD has four slots. A mode with something of its own to say gets
       // one, and cleanliness keeps its own either way: in a drill that refuses

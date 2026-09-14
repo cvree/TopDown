@@ -1279,56 +1279,99 @@
   opacity: 0.9;
 }
 
-/* --------------------------------------------------- the badge, and the ring
+/* ------------------------------------------------------- the play control
 
-   Two jobs in one mark, and the first one is why it is on screen at rest.
+   The middle of the picture, the size of a target, and a real button.
 
-   A still picture of a mode does not tell anybody there is a clip behind it,
-   so every card carries a small play badge from the moment it is drawn: the
-   icon *is* the promise that resting here will move. It brightens under the
-   cursor and its ring then fills over the same 480ms the component waits,
-   which is the answer to "why has nothing happened" — and it goes out
-   altogether once the clip is running, because by then the picture is making
-   the promise itself. */
-.pv-hold {
+   Every card in the client carries a film of its own mode, and until this
+   existed nothing on screen said so: the affordance was a half-opacity mark in
+   a corner that the lab's title bar covered up, reachable only by resting a
+   mouse on the card for half a second. Now it is where a play control is in
+   every other product on earth, it can be tapped, and its ring still fills over
+   the hover-hold so a mouse user gets the clip without ever pressing anything.
+   Once the clip runs it dissolves out of the way and comes back as a stop
+   control if you go looking for it. */
+.pv-play {
   position: absolute;
-  z-index: 2;
-  right: 10px;
-  bottom: 10px;
-  width: 26px;
-  height: 26px;
-  opacity: 0.5;
-  transform: scale(0.88);
-  transition: opacity 0.18s ease, transform 0.22s var(--ease);
-  pointer-events: none;
-  filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.8));
+  z-index: 3;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.92;
+  transform: scale(0.94);
+  transition: opacity 0.18s ease, transform 0.24s var(--ease);
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.75));
+  -webkit-tap-highlight-color: transparent;
 }
-.pv:hover .pv-hold,
-.pv.is-arming .pv-hold {
+.pv-play svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.pv:hover .pv-play,
+.pv-play:focus-visible {
   opacity: 1;
-  transform: scale(1);
+  transform: scale(1.05);
 }
-.pv.is-live .pv-hold {
+.pv-play:focus-visible {
+  outline: 2px solid var(--c);
+  outline-offset: 4px;
+  border-radius: 50%;
+}
+.pv-play:active {
+  transform: scale(0.96);
+}
+/* Running: out of the way, and back as a stop control if you reach for it. */
+.pv.is-live .pv-play {
   opacity: 0;
-  transform: scale(1.25);
+  transform: scale(1.3);
+  pointer-events: none;
 }
-.pv-hold-track {
-  fill: rgba(3, 8, 16, 0.6);
-  stroke: rgba(255, 255, 255, 0.16);
-  stroke-width: 1.6;
+.pv.is-live:hover .pv-play,
+.pv.is-live .pv-play:focus-visible {
+  opacity: 0.9;
+  transform: scale(1);
+  pointer-events: auto;
 }
-.pv-hold-fill {
+
+.pv-play-disc {
+  /* Solid enough to read as a control over any frame of any clip. A play
+     button that is legible only on the dark half of a picture is a play button
+     half the cards do not have. */
+  fill: rgba(3, 7, 14, 0.78);
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1.5;
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+.pv:hover .pv-play-disc {
+  fill: rgba(3, 7, 14, 0.9);
+  stroke: color-mix(in srgb, var(--c) 80%, transparent);
+}
+.pv-play-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 2.4;
+}
+.pv-play-fill {
   fill: none;
   stroke: var(--c);
-  stroke-width: 1.8;
+  stroke-width: 2.6;
   stroke-linecap: round;
-  /* 2πr for r=9, to a tenth of a pixel. */
-  stroke-dasharray: 56.5;
-  stroke-dashoffset: 56.5;
+  /* 2πr for r=17, to a tenth of a pixel. */
+  stroke-dasharray: 106.8;
+  stroke-dashoffset: 106.8;
   transform: rotate(-90deg);
-  transform-origin: 12px 12px;
+  transform-origin: 24px 24px;
 }
-.pv.is-arming .pv-hold-fill {
+.pv.is-arming .pv-play-fill {
   /* Linear, and exactly as long as the timer — `--hold` is set from the same
      constant the timer uses. A ring that eased would be telling the player the
      wait is a different length than it is. */
@@ -1339,11 +1382,19 @@
     stroke-dashoffset: 0;
   }
 }
-.pv-hold-play {
-  fill: rgba(255, 255, 255, 0.9);
-  opacity: 0.75;
+.pv-play-glyph {
+  fill: #ffffff;
+  transition: opacity 0.14s ease;
 }
-.pv.is-arming .pv-hold-play {
+.pv-play-stop {
+  fill: #ffffff;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+.pv.is-live .pv-play-glyph {
+  opacity: 0;
+}
+.pv.is-live .pv-play-stop {
   opacity: 1;
 }
 
@@ -1398,9 +1449,11 @@
   .pv-bar {
     display: none;
   }
-  /* The badge stays: it says a clip exists, which is still true. The ring does
-     not, because there is no wait to count down. */
-  .pv-hold-fill {
+  /* The control stays, and stays pressable: somebody who has asked the system
+     for less motion has not asked to be refused a clip they went looking for.
+     What goes is the ring that counts down a wait, because nothing arms itself
+     on hover any more under this setting. */
+  .pv-play-fill {
     display: none;
   }
   .pv-cap {

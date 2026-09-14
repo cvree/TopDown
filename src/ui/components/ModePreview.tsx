@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
+import { audio } from '../../engine/audio';
 import type { DrillId } from '../../drills/catalog';
 import { PREVIEWS, STAGE_H, STAGE_W, type PreviewScene } from './previews';
 
@@ -115,6 +116,7 @@ export function ModePreview({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLElement>(null);
+  const playRef = useRef<HTMLButtonElement>(null);
   // Everything the loop touches lives here, so React state never changes at
   // sixty hertz and a card never re-renders while its clip is running.
   const run = useRef<Runtime>({
@@ -354,6 +356,29 @@ export function ModePreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, host]);
 
+  /**
+   * Play, or stop.
+   *
+   * The button's whole job, and the one route to a clip that does not involve
+   * owning a mouse. It skips the hold — a tap is not an accident the way a
+   * cursor crossing a card is, so there is nothing to disambiguate and nothing
+   * to wait for — and it starts even when the player has asked for reduced
+   * effects, because at that point they have asked for this one specifically.
+   */
+  const toggle = () => {
+    clearTimeout(run.hold as ReturnType<typeof setTimeout>);
+    run.hold = 0;
+    rootRef.current?.classList.remove('is-arming');
+    if (run.playing) {
+      run.stop?.();
+      audio.play('uiBack', 0.5);
+    } else {
+      run.stoppedAt = 0;
+      run.start?.();
+      audio.play('uiTab', 0.6);
+    }
+  };
+
   // Turning low effects on mid-hover stops whatever is running now, rather
   // than at the next time the cursor happens to move.
   useEffect(() => {
@@ -377,13 +402,51 @@ export function ModePreview({
     >
       <canvas className="pv-canvas" ref={canvasRef} aria-hidden />
       <span className="pv-edge" aria-hidden />
-      {/* The ring that fills while a clip is arming: the entire explanation of
-          why nothing has moved yet, and the only instruction it needs. */}
-      <svg className="pv-hold" viewBox="0 0 24 24" aria-hidden>
-        <circle className="pv-hold-track" cx="12" cy="12" r="9" />
-        <circle className="pv-hold-fill" cx="12" cy="12" r="9" />
-        <path className="pv-hold-play" d="M10.2 8.2 L16 12 L10.2 15.8 Z" />
-      </svg>
+      {/* THE PLAY CONTROL.
+   
+          It is the middle of the picture, it is the size of a thing you would
+          tap, and it is a real button. All three of those are corrections.
+   
+          It used to be a ghost in the bottom-right corner at half opacity: on
+          the lab's cards the title bar was drawn over the top of it, on a dark
+          poster it was invisible, and it could only be triggered by resting a
+          mouse on the card for half a second — so on a touchscreen there was no
+          way to reach the clip at all, and on a desktop there was nothing on
+          screen that said one existed. A card that has a film of itself behind
+          it has to *say so* in the one place everybody already looks for that,
+          which is the middle, with the shape everything else in the world uses.
+   
+          Being a button rather than a decoration is what makes it work with a
+          tap, with a click and with the keyboard, and what lets it carry a name
+          for anybody reading the page rather than looking at it. The hover-hold
+          is untouched underneath: rest on the card and the ring fills and the
+          clip starts by itself, exactly as before. */}
+      <button
+        type="button"
+        className="pv-play"
+        ref={playRef}
+        aria-label={`Play a clip: ${label ?? scene.caption}`}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggle();
+        }}
+        // The lab's card opens ENDLESS on a right-click. Over the play control
+        // that would be a menu appearing out of a button, so it is stopped
+        // here and nowhere else.
+        onContextMenu={(e) => e.stopPropagation()}
+      >
+        <svg viewBox="0 0 48 48" aria-hidden>
+          <circle className="pv-play-disc" cx="24" cy="24" r="17" />
+          <circle className="pv-play-track" cx="24" cy="24" r="17" />
+          <circle className="pv-play-fill" cx="24" cy="24" r="17" />
+          <path className="pv-play-glyph" d="M19.5 15.8 L33 24 L19.5 32.2 Z" />
+          <g className="pv-play-stop">
+            <rect x="18.4" y="17.4" width="4.2" height="13.2" rx="1.2" />
+            <rect x="25.4" y="17.4" width="4.2" height="13.2" rx="1.2" />
+          </g>
+        </svg>
+      </button>
       <i className="pv-bar" ref={barRef} aria-hidden />
       <span className="pv-cap">{label ?? scene.caption}</span>
     </div>

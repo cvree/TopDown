@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { contextFault } from './glcheck';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -30,6 +31,53 @@ const SUN_DIR = new THREE.Vector3(-0.46, 0.82, -0.34).normalize();
 
 /** Bloom strength before the combo chain adds to it. */
 const BLOOM_BASE = 0.9;
+
+/**
+ * Thrown when the machine cannot give us a usable 3D context.
+ *
+ * A distinct type because every caller already has a sensible answer to it and
+ * none of them is "take the client down": the menu backdrop falls back to a
+ * flat panel, and a run says so and offers the way back.
+ */
+export class NoContextError extends Error {
+  constructor(reason: string) {
+    super(`WebGL unavailable: ${reason}`);
+    this.name = 'NoContextError';
+  }
+}
+
+/**
+ * The context, checked before three.js is allowed anywhere near it.
+ *
+ * three.js asks a fresh context what floating-point precision its shaders
+ * support before it does anything else, and a context that is *already lost*
+ * answers `null` to that question — whereupon the constructor throws from
+ * inside a getter, half-built, somewhere no caller can see. The visible result
+ * is the whole client on its error screen because a decorative background could
+ * not be drawn.
+ *
+ * A context is born lost when the browser has run out of them, which is a real
+ * state a real machine reaches: the limit is around a dozen and a half, and
+ * anything that creates contexts faster than it hands them back will get there.
+ * So the answer is asked for here, where the failure is still a value rather
+ * than an exception, and turned into something callers can catch by name.
+ */
+function openContext(canvas: HTMLCanvasElement): WebGL2RenderingContext {
+  let gl: WebGL2RenderingContext | null = null;
+  try {
+    gl = canvas.getContext('webgl2', {
+      alpha: false,
+      antialias: false,
+      powerPreference: 'high-performance',
+      stencil: false,
+    }) as WebGL2RenderingContext | null;
+  } catch (e) {
+    throw new NoContextError(String(e));
+  }
+  const fault = contextFault(gl);
+  if (fault || !gl) throw new NoContextError(fault ?? 'unknown');
+  return gl;
+}
 
 export class RiftScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -75,6 +123,7 @@ export class RiftScene {
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
+      context: openContext(canvas),
       antialias: false,
       alpha: false,
       powerPreference: 'high-performance',

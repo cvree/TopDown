@@ -594,9 +594,15 @@ function PracticePanel({
             <i>{m.blurb}</i>
           </span>
         ))}
+        {/* The clip, named as the thing it is. It used to say "hover a card",
+            which was true of a mouse and of nothing else — on a touchscreen
+            there was no hovering to do and the sentence was an instruction
+            nobody could follow. Every card now carries a play control you can
+            press, so the hint leads with that and keeps the hover as the
+            shortcut it always was. */}
         <span className="pr-legend-hint">
-          <b>HOVER A CARD</b>
-          <i>hold a second and it plays</i>
+          <b>▶ ON ANY CARD</b>
+          <i>plays a clip of that mode — or just rest on the card a moment</i>
         </span>
       </div>
 
