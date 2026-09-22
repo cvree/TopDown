@@ -17,6 +17,7 @@ import { RangeDrill } from './rangecheck';
 import { SkillshotDrill } from './skillshot';
 import { SpacingDrill } from './spacing';
 import { TargetSwitchDrill } from './targetswitch';
+import { TwistedDrill, isTwistedDrill } from './twistedfate';
 import { VayneBoltsDrill } from './vaynebolts';
 import { VayneCondemnDrill } from './vaynecondemn';
 import { VayneHuntDrill } from './vaynehunt';
@@ -31,6 +32,8 @@ export const createDrill = (id: DrillId, session: Session): Drill => {
   if (wasd) return wasd;
   // The Ezreal path owns ten ids and builds them from one stage table.
   if (isEzrealDrill(id)) return new EzrealDrill(session, id);
+  // The Twisted Fate path owns nine more, from another.
+  if (isTwistedDrill(id)) return new TwistedDrill(session, id);
   switch (id) {
     case 'movement':
       return new MovementDrill(session);
@@ -107,6 +110,29 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
     case 'ezMaxRange':
     case 'ezFight':
       return { w: 2500, h: 1400 };
+    // Twisted Fate's floors.
+    //
+    // Two shapes, and the difference between them is what the stage asks the
+    // *floor* for. The wheel stages need somewhere to walk while it turns and
+    // nothing more; the fan reaches 1450 units and has to be able to travel the
+    // length of a wave to be worth aiming; and the gate is the only mode in the
+    // client whose whole point is a place you could not walk to in six seconds,
+    // so it gets the largest floor here — a smaller one would make the gate a
+    // convenience rather than a decision.
+    case 'tfPick':
+    case 'tfGold':
+    case 'tfHold':
+      return { w: 1900, h: 1100 };
+    case 'tfDeck':
+    case 'tfPressure':
+    case 'tfCombo':
+      return { w: 2100, h: 1200 };
+    case 'tfWild':
+      return { w: 2400, h: 1300 };
+    case 'tfFight':
+      return { w: 2500, h: 1400 };
+    case 'tfGate':
+      return { w: 2800, h: 1560 };
     // The lab is a bench, not a battlefield. A field the cursor can cross
     // without the camera moving, and no more floor than the console needs.
     case 'apmPulse':

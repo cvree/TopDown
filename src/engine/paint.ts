@@ -29,15 +29,39 @@ export interface MarkerBase {
 export type GroundMarker =
   | (MarkerBase & { kind: 'ring'; radius: number; progress?: number })
   | (MarkerBase & { kind: 'disc'; radius: number })
-  | (MarkerBase & { kind: 'sector'; radius: number; a0: number; a1: number })
+  /**
+   * A wedge, or — with `inner` — an arc between two angles.
+   *
+   * The wedge is a cone telegraph. The arc is what you want when several of
+   * them share a centre and the thing at that centre still has to be visible
+   * through them.
+   */
+  | (MarkerBase & { kind: 'sector'; radius: number; a0: number; a1: number; inner?: number })
   | (MarkerBase & { kind: 'line'; x2: number; y2: number; halfWidth: number; progress?: number })
   | (MarkerBase & { kind: 'cross'; radius: number });
 
 export type Billboard =
   /** A row of ability keys with the next one highlighted — the combo prompt. */
   | { kind: 'keys'; x: number; y: number; seq: string[]; labels: string[]; index: number; progress: number }
-  /** A short piece of text anchored above a world point. */
-  | { kind: 'label'; x: number; y: number; text: string; color: string; size?: number; sub?: string }
+  /**
+   * A short piece of text anchored above a world point.
+   *
+   * `lift` is how far above the floor it is pinned, in the same units the
+   * timer bar uses, and it defaults to just over a champion's head. A drill
+   * that draws something *on* the champion as well — a ring under the feet, a
+   * card on the hand — needs to be able to push its caption clear of the body
+   * rather than print it across the face.
+   */
+  | {
+      kind: 'label';
+      x: number;
+      y: number;
+      text: string;
+      color: string;
+      size?: number;
+      sub?: string;
+      lift?: number;
+    }
   /** A thin horizontal progress bar, e.g. a closing reaction window. */
   | { kind: 'timerBar'; x: number; y: number; progress: number; color: string; width?: number; lift?: number }
   /** A downward caret marking the priority target. */

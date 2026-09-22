@@ -44,6 +44,16 @@ export type DrillId =
   | 'ezShift'
   | 'ezSwitch'
   | 'ezFight'
+  /* --- the Twisted Fate path. Nine stages of choosing under a clock --- */
+  | 'tfPick'
+  | 'tfGold'
+  | 'tfWild'
+  | 'tfDeck'
+  | 'tfHold'
+  | 'tfPressure'
+  | 'tfCombo'
+  | 'tfGate'
+  | 'tfFight'
   /* --- the APM lab. One engine, thirteen ways of measuring a press --- */
   | 'apmPulse'
   | 'apmSequence'
@@ -59,7 +69,17 @@ export type DrillId =
   | 'apmSwitch'
   | 'apmSustain';
 
-export type DrillGroup = 'FOUNDATION' | 'RHYTHM' | 'COMBAT' | 'WASD' | 'APM' | 'VAYNE' | 'EZREAL' | 'CAITLYN' | 'LANE';
+export type DrillGroup =
+  | 'FOUNDATION'
+  | 'RHYTHM'
+  | 'COMBAT'
+  | 'WASD'
+  | 'APM'
+  | 'VAYNE'
+  | 'EZREAL'
+  | 'TWISTED'
+  | 'CAITLYN'
+  | 'LANE';
 
 export interface DrillMeta {
   id: DrillId;
@@ -819,6 +839,149 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     keyMetric: 'LANDED ON THE MOVE',
     order: 59,
   },
+  // ----------------------------------------------------------------------
+  // THE TWISTED FATE PATH
+  //
+  // Nine stages of the one mechanic nothing else in this client can teach:
+  // choosing, at speed, from a list that does not wait. Every other mode here
+  // grades a distance from perfect; these grade a count of chances let go.
+  // ----------------------------------------------------------------------
+  tfPick: {
+    id: 'tfPick',
+    name: 'PICK A CARD',
+    tagline: 'Blue, red, gold, half a second each',
+    brief:
+      'A card is named. Start the wheel and take that one — the first time it comes round, not the second. Nothing else is happening on this stage on purpose.',
+    transfers:
+      'The only three-way choice in League resolved in under half a second. Every Twisted Fate game is two hundred of them.',
+    group: 'TWISTED',
+    axes: { tempo: 0.8, targeting: 0.2 },
+    duration: 45,
+    abilities: ['w', 'f'],
+    accent: '#ffcf5c',
+    keyMetric: 'WASTED CARD-SLOTS',
+    order: 60,
+  },
+  tfGold: {
+    id: 'tfGold',
+    name: 'GOLD CARD',
+    tagline: 'The one that stuns',
+    brief:
+      'Gold, every time, and then the attack that has to carry it to somebody who is not standing still. Locking it is half the job.',
+    transfers: 'The stun that starts every fight he wins — and the walk into range that is the reason it usually misses.',
+    group: 'TWISTED',
+    axes: { tempo: 0.5, targeting: 0.3, kiting: 0.2 },
+    duration: 55,
+    abilities: ['w', 'f'],
+    accent: '#ffc247',
+    keyMetric: 'GOLD CARDS LANDED',
+    order: 61,
+  },
+  tfWild: {
+    id: 'tfWild',
+    name: 'WILD CARDS',
+    tagline: 'Three cards, one press',
+    brief:
+      'The fan spreads twenty-eight degrees and goes through everything it touches. Aimed at a body it lands one card; aimed along the line of them it lands six.',
+    transfers: 'Reading a skillshot as a line through a crowd rather than a point on a target. It is the whole of his wave clear.',
+    group: 'TWISTED',
+    axes: { skillshot: 0.55, aim: 0.25, spacing: 0.2 },
+    duration: 55,
+    abilities: ['q', 'f'],
+    accent: '#ffb347',
+    keyMetric: 'CARDS CONNECTING PER CAST',
+    order: 62,
+  },
+  tfDeck: {
+    id: 'tfDeck',
+    name: 'STACKED DECK',
+    tagline: 'Count to four',
+    brief:
+      'Every fourth attack is worth three of the others, and it goes wherever you were already pointing. A wave is standing between you and the thing that deserves it.',
+    transfers: 'Knowing where you are in your own passive without looking — and refusing to spend it on a caster minion.',
+    group: 'TWISTED',
+    axes: { targeting: 0.5, kiting: 0.3, lastHitting: 0.2 },
+    duration: 60,
+    abilities: ['q', 'f'],
+    accent: '#ffa057',
+    keyMetric: 'FOURTH ATTACKS ON TARGET',
+    order: 63,
+  },
+  tfHold: {
+    id: 'tfHold',
+    name: 'LOADED',
+    tagline: 'Lock it before you need it',
+    brief:
+      'A locked card waits forever. Something walks at you on a clock you can see — the only question is whether gold was already on your hand when it arrived.',
+    transfers: 'The single habit that separates a Twisted Fate who wins fights from one who starts the wheel inside them.',
+    group: 'TWISTED',
+    axes: { tempo: 0.45, targeting: 0.3, spacing: 0.25 },
+    duration: 60,
+    abilities: ['w', 'f'],
+    accent: '#ff9f5c',
+    keyMetric: 'LOADED ON CONTACT',
+    order: 64,
+  },
+  tfPressure: {
+    id: 'tfPressure',
+    name: 'COLD DECK',
+    tagline: 'The same wheel, moving',
+    brief:
+      'Zones land where you are standing and something shells you from across the floor. The wheel turns at exactly the same speed it did when you were allowed to stand still.',
+    transfers: 'Choosing while being shot at, which is the only condition anybody ever has to choose in.',
+    group: 'TWISTED',
+    axes: { tempo: 0.4, dodging: 0.35, movement: 0.25 },
+    duration: 60,
+    abilities: ['q', 'w', 'f'],
+    accent: '#ff8a5c',
+    keyMetric: 'WASTED CARD-SLOTS',
+    order: 65,
+  },
+  tfCombo: {
+    id: 'tfCombo',
+    name: 'THE SET-UP',
+    tagline: 'Gold, cards, attack',
+    brief:
+      'The gold card buys you a second and a half of somebody standing still. Spend all of it: the fan and an attack land inside the stun, or the stun bought nothing.',
+    transfers: 'Finishing the sentence. A stun is a window, and most players treat it as an outcome.',
+    group: 'TWISTED',
+    axes: { combat: 0.4, tempo: 0.3, skillshot: 0.3 },
+    duration: 65,
+    abilities: ['q', 'w', 'f'],
+    accent: '#ff7a6b',
+    keyMetric: 'STUNS FOLLOWED UP',
+    order: 66,
+  },
+  tfGate: {
+    id: 'tfGate',
+    name: 'GATE',
+    tagline: 'Three seconds of standing still',
+    brief:
+      'A ring opens on the far side of the floor and closes before you could walk a third of the way. Destiny takes a second and a half, the gate another, and anything landing on you takes both.',
+    transfers: 'The roam: choosing the place before the window, and holding still for it while being shot at.',
+    group: 'TWISTED',
+    axes: { movement: 0.35, dodging: 0.35, spacing: 0.3 },
+    duration: 65,
+    abilities: ['q', 'w', 'r', 'f'],
+    accent: '#b07bff',
+    keyMetric: 'GATES ON THE MARK',
+    order: 67,
+  },
+  tfFight: {
+    id: 'tfFight',
+    name: 'THE TABLE',
+    tagline: 'All of it, at once',
+    brief:
+      'A hunter, a duelist, a wave, terrain and the whole deck. Choose, aim, count, hold and arrive — simultaneously, against people trying to kill you.',
+    transfers: 'Playing Twisted Fate, rather than owning his abilities.',
+    group: 'TWISTED',
+    axes: { combat: 0.45, tempo: 0.2, targeting: 0.15, skillshot: 0.1, dodging: 0.1 },
+    duration: 0,
+    abilities: ['q', 'w', 'e', 'r', 'f'],
+    accent: '#ff5fa8',
+    keyMetric: 'WASTED CARD-SLOTS',
+    order: 68,
+  },
   vayneTumble: {
     id: 'vayneTumble',
     name: 'TUMBLE',
@@ -945,6 +1108,28 @@ export const EZREAL_SEQUENCE: DrillId[] = [
   'ezFight',
 ];
 
+/**
+ * The Twisted Fate path, in the order it has to be learned.
+ *
+ * The wheel first, because nothing else on the list means anything without it,
+ * and the whole table last. Between them the two halves of him that are not
+ * the wheel — the fan and the count — and then the three stages that are the
+ * wheel again with something taken away: your feet, your time, your distance.
+ */
+export const TWISTED_SEQUENCE: DrillId[] = [
+  'tfPick',
+  'tfGold',
+  'tfWild',
+  'tfDeck',
+  'tfHold',
+  'tfPressure',
+  'tfCombo',
+  'tfGate',
+  'tfFight',
+];
+
+export const isTwistedPathDrill = (id: DrillId): boolean => DRILLS[id].group === 'TWISTED';
+
 export const isVayneDrill = (id: DrillId): boolean => DRILLS[id].group === 'VAYNE';
 
 /**
@@ -1010,6 +1195,17 @@ export const PRESSURE_TIER: Record<DrillId, PressureTier> = {
   ezShift: 'applied',
   ezSwitch: 'applied',
   ezFight: 'live',
+  // The card path climbs the same way: the wheel on a bench, then the wheel
+  // with something taken away, then the wheel in a fight.
+  tfPick: 'isolated',
+  tfGold: 'isolated',
+  tfWild: 'isolated',
+  tfDeck: 'applied',
+  tfHold: 'applied',
+  tfPressure: 'applied',
+  tfCombo: 'applied',
+  tfGate: 'applied',
+  tfFight: 'live',
   apmPulse: 'isolated',
   apmSequence: 'isolated',
   apmChord: 'isolated',

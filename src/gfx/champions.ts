@@ -16,8 +16,17 @@ import { contactShadow } from './textures';
  * only thing you can actually read.
  */
 
-export type WeaponKind = 'sword' | 'greatsword' | 'bow' | 'staff' | 'daggers' | 'hammer' | 'rifle' | 'none';
-export type HeadKind = 'hood' | 'helm' | 'horns' | 'crown' | 'tophat' | 'none';
+export type WeaponKind =
+  | 'sword'
+  | 'greatsword'
+  | 'bow'
+  | 'staff'
+  | 'daggers'
+  | 'hammer'
+  | 'rifle'
+  | 'cards'
+  | 'none';
+export type HeadKind = 'hood' | 'helm' | 'horns' | 'crown' | 'tophat' | 'widebrim' | 'none';
 export type Build = 'lean' | 'medium' | 'heavy' | 'small';
 
 export interface RigSpec {
@@ -342,6 +351,26 @@ export class ChampionRig {
         band.castShadow = false;
         break;
       }
+      case 'widebrim': {
+        // A hat with a brim and a plume. The brim is a shallow cone rather
+        // than a disc, so from overhead it is an oval with a *tilt* to it —
+        // which is what keeps it from reading as the Sheriff's top hat at the
+        // one distance both of them have to be told apart at. The plume is a
+        // long accent-coloured spike coming off the back: it is the only
+        // silhouette on the roster with something pointing backwards, and at
+        // this camera height a backward point is unmistakable.
+        const brim = add(parent, new THREE.ConeGeometry(headR * 2.05, headR * 0.34, 18, 1, true), secondary, 0, headR * 1.3, 0);
+        brim.rotation.x = 0.16;
+        brim.castShadow = true;
+        add(parent, new THREE.ConeGeometry(headR * 1.1, headR * 1.1, 14), secondary, 0, headR * 1.86, 0);
+        const bandRing = add(parent, new THREE.TorusGeometry(headR * 1.02, headR * 0.09, 6, 16), accent, 0, headR * 1.46, 0);
+        bandRing.rotation.x = Math.PI / 2;
+        bandRing.castShadow = false;
+        const plume = add(parent, new THREE.ConeGeometry(headR * 0.16, headR * 1.5, 5), accent, 0, headR * 1.9, -headR * 1.0);
+        plume.rotation.x = 1.15;
+        plume.castShadow = false;
+        break;
+      }
       case 'crown': {
         for (let i = 0; i < 6; i++) {
           const a = (i / 6) * Math.PI * 2;
@@ -450,6 +479,30 @@ export class ChampionRig {
         orb.castShadow = false;
         const ring = add(grip, new THREE.TorusGeometry(H * 0.082, H * 0.008, 5, 16), metal, 0, H * 0.6, 0);
         ring.rotation.x = Math.PI / 2.4;
+        break;
+      }
+      case 'cards': {
+        // A fan of three, held out flat in the main hand, and one more already
+        // spinning in the off hand. Nothing else on the roster is *wider than
+        // it is long* in the hand, which is the whole reason this reads from
+        // above: a blade is a line pointing away from the body and this is a
+        // small bright triangle beside it.
+        const fan = new THREE.Group();
+        fan.rotation.x = Math.PI / 2 - 0.3;
+        hand.add(fan);
+        for (const [i, lean] of [-0.34, 0, 0.34].entries()) {
+          const c = add(fan, box(H * 0.05, H * 0.076, H * 0.006), i === 1 ? accent : metal, 0, H * 0.05, i * 0.0001);
+          c.rotation.z = lean;
+          c.position.x = Math.sin(lean) * H * 0.035;
+          c.castShadow = i === 1;
+        }
+        if (off) {
+          // The one in the air. It is not on a bone that animates, so it is
+          // simply held where a spun card would be: out, low, and edge on.
+          const spun = add(off, box(H * 0.05, H * 0.072, H * 0.006), accent, 0, -H * 0.03, H * 0.05);
+          spun.rotation.set(0.9, 0.5, 0.4);
+          spun.castShadow = false;
+        }
         break;
       }
       case 'daggers': {

@@ -315,7 +315,7 @@ export class OverlayHud {
         return;
       }
       case 'label': {
-        const p = cam.worldToScreen(b.x, b.y, 90);
+        const p = cam.worldToScreen(b.x, b.y, b.lift ?? 90);
         if (!p.visible) return;
         g.textAlign = 'center';
         g.textBaseline = 'middle';

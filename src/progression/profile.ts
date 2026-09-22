@@ -51,6 +51,14 @@ import {
   type EzrealProgress,
   type EzrealRunReport,
 } from './ezreal';
+import {
+  applyTwistedRun,
+  emptyTwistedProgress,
+  isTwistedStage,
+  normalizeTwistedProgress,
+  type TwistedProgress,
+  type TwistedRunReport,
+} from './twistedfate';
 
 const STORAGE_KEY = 'apex.profile.v1';
 const PROFILE_VERSION = 1;
@@ -330,6 +338,7 @@ export interface Profile {
   /** The champion track. Separate from the general ladder on purpose. */
   vayne: VayneProgress;
   ezreal: EzrealProgress;
+  twisted: TwistedProgress;
   /** The APM trainer's own ladder: thirteen modes, ten explicit levels each. */
   apm: ApmProgress;
   /** The WASD academy: nine modules, taken in order, played on the keys. */
@@ -435,6 +444,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   totalSeconds: 0,
   vayne: emptyVayneProgress(),
   ezreal: emptyEzrealProgress(),
+  twisted: emptyTwistedProgress(),
   apm: emptyApmProgress(),
   wasd: emptyWasdProgress(),
   lane: emptyLaneProgress(),
@@ -553,6 +563,7 @@ export const loadProfile = (): Profile => {
       // playable rather than come back with a hole in the middle of it.
       vayne: normalizeVayneProgress(parsed.vayne),
       ezreal: normalizeEzrealProgress(parsed.ezreal),
+      twisted: normalizeTwistedProgress(parsed.twisted),
       // The APM ladder is repaired rather than merged: a profile written
       // before it existed, or before a mode did, has to come back playable.
       apm: normalizeApmProgress(parsed.apm),
@@ -647,6 +658,8 @@ export interface ProgressReport {
   vayne: VayneRunReport | null;
   /** Present only for runs on the Ezreal path. */
   ezreal: EzrealRunReport | null;
+  /** Present only for runs on the Twisted Fate path. */
+  twisted: TwistedRunReport | null;
   /** Present only for runs in the APM trainer. */
   apm: ApmRunReport | null;
   /** Present only for runs in the WASD academy. */
@@ -894,6 +907,18 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
       )
     : null;
 
+  const twisted = isTwistedStage(result.drill)
+    ? applyTwistedRun(
+        p.twisted,
+        result.drill,
+        result.performance,
+        result.difficulty,
+        result.score,
+        Object.fromEntries(result.keyMetrics.map((k) => [k.id, k.value])),
+        p.settings.movementScheme === 'wasd',
+      )
+    : null;
+
   // The rate the ladder records is the *correct* one — the number the mode's
   // score is built on — rather than the raw headline rate, so a level record
   // can never be set by mashing.
@@ -1007,6 +1032,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     limiterWas,
     vayne,
     ezreal,
+    twisted,
     apm,
     wasd,
     lane,

@@ -1,4 +1,4 @@
-import { clamp } from '../engine/math';
+import { asNumber, clamp } from '../engine/math';
 import { DRILLS, EZREAL_SEQUENCE, type DrillId } from '../drills/catalog';
 import { EZREAL_DRILL_IDS, ezrealStage, type EzrealDrillId } from '../drills/ezreal';
 
@@ -110,16 +110,16 @@ export const normalizeEzrealProgress = (raw: Partial<EzrealProgress> | undefined
     const src = raw.stages?.[id];
     if (!src) continue;
     out.stages[id] = {
-      best: clamp(src.best ?? 0, 0, 1),
-      difficulty: clamp(src.difficulty ?? 0, 0, 1),
-      bestScore: Math.max(0, src.bestScore ?? 0),
-      runs: Math.max(0, src.runs ?? 0),
+      best: clamp(asNumber(src.best), 0, 1),
+      difficulty: clamp(asNumber(src.difficulty), 0, 1),
+      bestScore: Math.max(0, asNumber(src.bestScore)),
+      runs: Math.max(0, asNumber(src.runs)),
       habits: src.habits ?? undefined,
       onKeys: src.onKeys ?? undefined,
     };
   }
   out.mastery = computeEzrealMastery(out);
-  out.peak = Math.max(out.mastery, raw.peak ?? 0);
+  out.peak = Math.max(out.mastery, asNumber(raw.peak));
   return out;
 };
 

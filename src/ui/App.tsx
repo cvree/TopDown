@@ -66,6 +66,19 @@ const NAV: { route: Route; label: string; hint: string }[] = [
   { route: 'progress', label: 'PROGRESS', hint: 'Your scores, and whether they are going up' },
 ];
 
+/**
+ * A ladder's per-rung records, copied one level deeper than a spread goes.
+ *
+ * `applyRun` writes a champion path's stage record in place — which is right,
+ * because a path is a ledger rather than a value — so every ladder it touches
+ * has to be handed a copy of its own rungs before it runs. A shallow spread of
+ * the path is not enough: it copies the map and shares every record in it.
+ */
+const copyRungs = <T,>(rungs: T): T =>
+  Object.fromEntries(
+    Object.entries(rungs as Record<string, object>).map(([k, v]) => [k, { ...v }]),
+  ) as T;
+
 /** One run: a mode of a mode. */
 interface Flow {
   drill: DrillId;
@@ -311,14 +324,13 @@ export function App() {
           history: [...prev.history],
           daily: { ...prev.daily, completed: [...prev.daily.completed] },
           dailyMarks: [...prev.dailyMarks],
-          // The champion path is written in place by applyRun, so it has to be
-          // copied down to the records or the previous state would move too.
-          vayne: {
-            ...prev.vayne,
-            stages: Object.fromEntries(
-              Object.entries(prev.vayne.stages).map(([k, v]) => [k, { ...v }]),
-            ) as typeof prev.vayne.stages,
-          },
+          // The champion paths are written in place by applyRun, so they have
+          // to be copied down to the records or the previous state would move
+          // with them — and a "previous" that moves is a results screen that
+          // cannot tell you what changed.
+          vayne: { ...prev.vayne, stages: copyRungs(prev.vayne.stages) },
+          twisted: { ...prev.twisted, stages: copyRungs(prev.twisted.stages) },
+          ezreal: { ...prev.ezreal, stages: copyRungs(prev.ezreal.stages) },
           recentBests: [...prev.recentBests],
         };
         report = applyRun(next, result, flow.level ? { level: flow.level } : {});
@@ -556,7 +568,9 @@ export function App() {
             <div className="logo" onClick={() => setRoute('practice')}>
               <Crest size={26} />
               APEX
-              <span className="logo-sub">VAYNE</span>
+              {/* The subtitle used to be one champion's name, from when there
+                  was one. It is what the client trains, which is now a pair. */}
+              <span className="logo-sub">THE RIFT</span>
             </div>
 
             <nav className="nav">

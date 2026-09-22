@@ -41,6 +41,37 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.21.0',
+    name: 'PICK A CARD',
+    date: '2026-09-22',
+    headline:
+      'A second champion, and the one thing the first one cannot teach: a three-way choice on a clock that does not wait for you.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'Twisted Fate. Nine modes, and every one of them is the wheel with one more thing taken away. PICK A CARD is the wheel alone — blue, red, gold, half a second each, in that order forever — and the score is not whether you took gold, it is how many card-slots you burned getting there. GOLD CARD adds the walk that has to carry it to somebody. WILD CARDS is three missiles in a fan that go through what they touch, so the aim is a line down a wave rather than a point on a body. STACKED DECK is counting to four while a wave stands between you and the thing the fourth attack is worth spending on. LOADED is the habit that decides his fights: a card waits on your hand forever, so lock it before somebody arrives rather than while they are hitting you. COLD DECK is the same wheel with the floor going out from under you. THE SET-UP is the second and a half the gold card bought, spent. GATE is a ring that opens on the far side of the floor and closes before the two channels could finish, so the ultimate has to have been started on the telegraph. THE TABLE is all of it, against people.',
+          'The wheel is drawn on the floor under your feet, because it is a tempo rather than a menu and a tempo belongs where your eyes already are. Three arcs in the order they come, a head sweeping them at two cards a second, and the window draining above your head. Watching it once tells you everything a paragraph could not: gold is a third of a turn away, it will be there shortly, and it will be gone again just as fast.',
+          'PRACTICE has a champion switch. Both champions keep their own modes, their own groups and their own records, and CHARACTER has a third tab with every figure Twisted Fate is built from — the half-second a card lasts, the twenty-eight degrees the fan spreads, the second and a half the gold card buys, and the four that Stacked Deck counts to.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'The results screen draws one panel for every ladder instead of one per ladder. The Vayne path, the card path and the WASD academy all report the same three things — where you stand, what mastery did, what opened — and they now say it in the same words, because two of the three had quietly drifted into different ones.',
+          'The top bar no longer says VAYNE under the wordmark. It says what the client trains, which is now a pair of champions rather than one.',
+        ],
+      },
+      {
+        tag: 'fixed',
+        items: [
+          'A card could not be in two places at once, and now it cannot. An attack cancelled mid-windup hands the card back to your hand, and a wheel started in that gap would have left you holding one card with another still turning — a state League does not have, and one that read as a wheel nobody could lock for six seconds.',
+          'A saved profile with a champion record written as text no longer comes back with a mastery of NaN. Clamping is a comparison, and a comparison against a word quietly returns the word; every stored figure is now read as a number first, across all three paths.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.20.0',
     name: 'SAY IT OUT LOUD',
     date: '2026-09-14',

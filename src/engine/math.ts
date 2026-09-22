@@ -108,3 +108,16 @@ export const percentile = (xs: number[], p: number): number => {
   const hi = Math.ceil(idx);
   return lo === hi ? s[lo] : lerp(s[lo], s[hi], idx - lo);
 };
+
+/**
+ * A number read back from somewhere that was not obliged to store one.
+ *
+ * `clamp` is a comparison, and a comparison against a string quietly returns
+ * the string: `clamp('gold', 0, 1)` is `'gold'`, which travels one more step
+ * into a sum and comes out the other side as `NaN` — a mastery bar that is not
+ * a number, on a screen that cannot say so. Everything that repairs a stored
+ * record goes through here first, so the clamping is done to a number or to
+ * nothing at all.
+ */
+export const asNumber = (v: unknown, fallback = 0): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback;

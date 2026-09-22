@@ -26,6 +26,9 @@ const WEAPON: Record<string, string> = {
   // A long gun, muzzle up: barrel, scope, stock. The longest reach in the box,
   // which is the whole of what the silhouette is saying.
   rifle: 'M30 6 V44 L24 52 H36 L30 44 M30 20 H40 M22 38 H30',
+  // Three cards in a fan. The only mark in this list that is wider than it is
+  // tall, which is exactly what it is in the hand too.
+  cards: 'M18 46 L26 20 L34 23 L28 48 Z M28 48 L34 21 L42 23 L38 50 Z M38 50 L44 22 L52 26 L46 52 Z',
   none: 'M32 18 V50 M22 34 H42',
 };
 
@@ -36,6 +39,9 @@ const HEAD: Record<string, string> = {
   crown: 'M18 24 V10 L25 17 L32 6 L39 17 L46 10 V24 Z',
   // Brim and crown. Wider than anything else on this list, on purpose.
   tophat: 'M10 24 H54 M22 24 V8 H42 V24 M22 18 H42',
+  // A brim with a tilt to it, a low crown, and a plume off the back. Wide like
+  // the top hat and unmistakably not it, which is the only job it has.
+  widebrim: 'M8 22 Q32 30 56 22 M20 22 Q22 8 32 8 Q42 8 44 22 M44 14 Q54 6 58 2',
   none: '',
 };
 

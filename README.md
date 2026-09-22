@@ -1,20 +1,24 @@
 # APEX — MOBA Mechanics Trainer
 
-A browser-based Vayne trainer, built around one idea: the thing that feels
-rewarding should be the thing that actually makes you better.
+A browser-based MOBA mechanics trainer, built around one idea: the thing that
+feels rewarding should be the thing that actually makes you better. Two
+champions, chosen because they ask opposite questions — Vayne grades a
+*distance* from perfect on everything she does, and Twisted Fate grades a
+*choice* you either made in time or did not.
 
 It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
 drawn on the ground where the thing it is about actually is.
 
 The client is two places to play and one place to read about it. **PRACTICE**
-is the champion, in three sections behind one rail. The first is **THE LANE**:
+is the champions, in three sections behind one rail. The first is **THE LANE**:
 the first ten minutes of a game of League, at League's own numbers, against an
 enemy laner farming and trading on the other side of the wave. You pick the
 opponent and the length; everything else is the game. The second is
-**PRACTICE** — the parts of that lane, rehearsed one at a time — one distance,
-one champion and four pieces of her, one opponent — each with two ways to play
-it:
+**PRACTICE** — the parts of that lane, rehearsed one at a time, behind a switch
+between the two champions: one distance, four pieces of Vayne and the opponent
+who shoots at her on one side; nine stages of Twisted Fate's wheel on the other.
+Each mode has two ways to play it:
 
 - **PLAY** — one minute. The same minute every time, so a score means something
   next to the one before it.
@@ -88,9 +92,20 @@ npm run build      # production bundle
 
 ## What it trains
 
-One lane, and six modes made out of the pieces of it. Four of those are parts
-of the same champion; the first is the distance all four of them assume; the
-last is the only one that is not about your hands at all.
+One lane, and fifteen modes made out of the pieces of it — six on Vayne and
+nine on Twisted Fate, with the distance both of them assume at the top of each
+list.
+
+The two champions are not two flavours of the same trainer, and that is the
+reason there are two. Everything Vayne asks is *analogue*: the roll a little
+early, the wall a little off the angle, the third bolt a little stale, and
+every one of her modes grades one of those distances. Everything Twisted Fate
+asks is *discrete*: Pick a Card is showing exactly one of three faces at any
+instant, you take the one you needed or you do not, and the price of not is
+counted in whole revolutions of a wheel that turns at two cards a second
+whether or not you have decided. There is nowhere in that for a bad habit to
+hide, which is what makes it the sharpest thing here to practise and the one
+thing none of her six can teach.
 
 ### Lane phase
 
@@ -217,6 +232,54 @@ figure is slower than that, which takes a single point from six seconds to 3.7
 and leaves the mid-game champion the fighting modes field exactly where League
 leaves her. Rank still shapes both, and the practice screen prints League's
 number next to the trainer's.
+
+### The card path
+
+Nine stages, each gated on the one before it, and every one of them is Pick a
+Card with one more thing taken away.
+
+| Stage | Keys | Measures | The habit it builds |
+| --- | --- | --- | --- |
+| **Pick a Card** | W F | Card-slots burned per lock, and whether it was the card asked for | Arriving at an appointment rather than waiting for one |
+| **Gold Card** | W F | Gold cards that reached a champion | The walk that has to carry the card to somebody who minds |
+| **Wild Cards** | Q F | Cards connecting per cast, casts that went through two or more | Reading a skillshot as a line through a crowd, not a point on a body |
+| **Stacked Deck** | Q F | Fourth attacks that landed on the marked champion rather than a minion | Counting to four without looking |
+| **Loaded** | W F | Approaches entered with gold already on your hand | Locking before the fight rather than inside it |
+| **Cold Deck** | Q W F | The same wheel, with zones landing on your feet | Choosing while being shot at, which is the only condition anybody chooses in |
+| **The Set-up** | Q W F | Stuns followed up with a fan *and* an attack inside the window | Finishing the sentence a gold card starts |
+| **Gate** | Q W R F | Gates that arrived on the mark, channels broken | Starting the ultimate on the telegraph rather than on the window |
+| **The Table** | Q W E R F | All of it, against a hunter, a duelist and a wave | Playing Twisted Fate rather than owning his abilities |
+
+**The number the path leads with is not accuracy.** The wheel starts on blue
+and turns at half a second a card, in the same order forever, so gold is always
+exactly two slots away the first time it comes round. Every extra three slots
+is a whole revolution — a second and a half of standing in front of somebody
+deciding — and that is what WHEEL WASTE counts. A player who takes the card the
+first time it appears reads 0.0 on every run they ever play; a player who lets
+it come round again reads 3.0, and the gap between their scores is the only
+thing the path is really measuring.
+
+His numbers are League's, and two of them are League's *maxed* rather than
+League's at rank one, for the reason the rest of this README keeps giving. Wild
+Cards and Pick a Card both come down to four seconds as they are levelled, and
+every Twisted Fate has them there long before the wheel is deciding his fights
+— so four is the figure the champion is actually played on, and it is also what
+lets one fan arrive with every card, which is what the set-up is made of. The
+ultimate is the one genuine discount: League charges Destiny in minutes because
+the reveal is a macro tool and no sixty-second rep can teach one, so it is
+twenty-two seconds here. Everything else is untouched: the half-second a card
+lasts, the six-second window before the wheel gives up, the twenty-eight
+degrees the fan spreads across 1450 units, the second and a half a gold card
+buys, the four that Stacked Deck counts to, and the three seconds of standing
+still that Destiny and the Gate cost between them.
+
+The wheel is drawn on the floor under the champion rather than in a corner of
+the HUD, because it is a *tempo* and a tempo belongs where your eyes already
+are: three arcs in the order the cards come, a head sweeping them at two a
+second, and the spin window draining above his head. The ability bar
+deliberately does not track the spinning face — it is drawn from a HUD snapshot
+and the wheel turns twice a second, so a bar that tried would spend half its
+life telling you GOLD while the floor said BLUE.
 
 ### The Sheriff
 
@@ -546,6 +609,24 @@ depends on:
   asserted directly to deal no damage and to take 1.25 seconds of movement,
   the Peacemaker is asserted to be the shot she takes at a target who cannot
   move, and running away scores under 45%.
+- **The card path is measured by the wheel, and the wheel by the slots it
+  costs.** Every one of the nine stages is played three ways: properly, one
+  beat late, and not at all. The good player wastes 0.00 card-slots a lock and
+  the late one wastes 3.00 — a whole revolution, every time — and on every
+  stage that hands you a wheel or an ultimate, being a beat late scores less.
+  The two stages that hand you neither are asserted to be played *identically*
+  by both, because they were deliberately built to have nothing to be late
+  with. Underneath that: a gold card that lands is a stun, a fan lands more
+  than one card a cast and goes through two or more bodies, the fourth attack
+  lands on a champion more often than on a minion, locking early means arriving
+  loaded where locking late means arriving empty-handed, over 40% of the stuns
+  bought are actually spent inside the window, and the gate arrives on the mark
+  — which it can only do if the ultimate was started on the telegraph, since
+  the window is shorter than the two channels take.
+- **A card cannot be in two places at once.** An attack cancelled mid-windup
+  hands the card back, so the suite asserts that a run never locks more cards
+  than it started wheels — the state where one sits on your hand while another
+  turns is one League does not have.
 - **Every drill's drawing pass runs in the suite.** The one part of a mode that
   only executes in a browser used to have no proof behind it, and a throw there
   is a black screen rather than a wrong number. The lane additionally asserts
@@ -645,7 +726,8 @@ Several of those checks name drills the menu does not offer. The engine still
 carries the whole catalogue the ratings, the coach and the error log were built
 on — the foundation drills, the WASD academy, the APM lab and the Ezreal path —
 and the harness still holds all of it to the same standard; the client simply
-does not put them in front of you, because it is a Vayne trainer. A diagnosis
+does not put them in front of you, because it puts two champions in front of
+you instead. A diagnosis
 that names one of them is translated into the mode that trains the same thing
 (`practiceFor`, in `src/drills/modes.ts`), so a "fix this" button always starts
 something you can actually play.
@@ -864,8 +946,8 @@ champion.
 The menu is the whole of the first screen, and it is three sections behind one
 sticky rail rather than one column two thousand pixels long. Every tab prints
 how much is inside it and how far through it you are — five opponents and the
-lanes you have played, six modes and how many are on the board — so the shape
-of the screen is readable before you open any of it. The rail walks under the
+lanes you have played, fifteen modes and how many are on the board, three kits
+to read — so the shape of the screen is readable before you open any of it. The rail walks under the
 arrow keys, and the tab you were last on survives a run. Every section on it is
 the champion; the bench moved out to its own screen, because as a fourth tab
 here it read as one more thing about Vayne.
@@ -874,20 +956,25 @@ here it read as one more thing about Vayne.
 answer, and three lengths under theirs. The record it prints is per opponent,
 because that is the only way a creep score means anything.
 
-**PRACTICE** is a card per part of the champion, in four named groups —
-FOUNDATION, which hands you a body and no abilities; THE KIT, one ability at a
-time; THE WHOLE CHAMPION; and AGAINST SOMEBODY, which is the only mode on the
-screen that is not about your hands. Each card carries what the mode asks of
+**PRACTICE** is a card per part of a champion, behind a switch between the two
+of them. Her groups climb by *how much kit*: FOUNDATION, which hands you a body
+and no abilities; THE KIT, one ability at a time; and ALL OF IT, which is the
+whole champion and then the whole champion with somebody shooting back. His
+climb by *how much is taken away*: FOUNDATION again, then THE WHEEL, THE REST
+OF THE DECK, and WITH SOMEBODY THERE. Each card carries what the mode asks of
 you, the League habit it builds, the slice of the bar it hands you drawn as four
 keys — the ones you do not get are shown greyed rather than hidden, so the cards
-read as slices of one champion — and two buttons, PLAY and SURVIVE, each with
-the record it is asking you to beat printed under it.
+read as slices of one champion, and the names under those keys are that
+champion's — and two buttons, PLAY and SURVIVE, each with the record it is
+asking you to beat printed under it.
 
-**THE CODEX** is the reading: both kits in numbers behind one switch — the
+**THE CODEX** is the reading: all three kits in numbers behind one switch — the
 roll's distance and how long it takes, the bolt count and what the third one
 does, Flash's range and what it crosses, Condemn's cast time, knockback and both
-of its cooldowns, the trinket, Final Hour and the passive on one side; every
-window the Sheriff expects you to beat on the other. It also says which Vayne
+of its cooldowns, the trinket, Final Hour and the passive on the first; the
+wheel's half-second, the fan's spread, the stun's second and a half and the two
+channels of Destiny on the second; every window the Sheriff expects you to beat
+on the third. It also says which Vayne
 each mode hands you and why — one point in Q where the rhythm is the lesson, a
 maxed E where the reps are — because a trainer claiming to feel like the
 champion owes you the figures it is claiming it with.
@@ -1009,9 +1096,10 @@ server, no network calls during play.
 ## Deployment
 
 Pushing to `main` builds, typechecks, runs the simulation checks, and publishes
-to GitHub Pages via `.github/workflows/deploy.yml`. Enable it once under
-**Settings → Pages → Source: GitHub Actions**. The build uses relative asset
-paths, so it also works from any static host or subdirectory.
+to GitHub Pages via `.github/workflows/deploy.yml` — which puts the live client
+at **https://cvree.github.io/TopDown/**. Enable it once under **Settings →
+Pages → Source: GitHub Actions**. The build uses relative asset paths, so it
+also works from any static host or subdirectory.
 
 `npm run build:single` additionally emits `dist/apex-single.html` — the whole
 trainer, arena included, inlined into one file for hosts that only take a

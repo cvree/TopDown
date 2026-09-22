@@ -172,6 +172,10 @@ const hostileProfile = (): Record<string, unknown> => ({
   settings: null,
   vayne: { stages: { vayneTumble: null, vayneBolts: { best: 0.7 }, notAStage: { best: 1 } }, mastery: 200, peak: -4 },
   ezreal: { stages: { ezQ: { best: 0.5, difficulty: 0.4 } } },
+  // Every way a champion path's record can be wrong: a stage that was never
+  // written, one written as the wrong type, one that no longer exists, a
+  // mastery above the scale and a peak below zero.
+  twisted: { stages: { tfPick: null, tfGold: { best: 'gold' }, notAStage: { best: 1 } }, mastery: 400, peak: -9 },
   apm: { modes: null },
   wasd: null,
   lane: { tiers: { gold: { runs: 'lots', bestCsPerMin: null }, notATier: { runs: 4 } } },
@@ -391,6 +395,16 @@ section('A profile that is wrong in every way still loads', () => {
   expect('a mistake with no name is dropped', p.errorLog.length === 0, String(p.errorLog.length));
   expect('the champion track comes back whole', Object.keys(p.vayne.stages).length === 4 && p.vayne.stages.vayneTumble.best === 0, JSON.stringify(p.vayne.stages.vayneTumble));
   expect('a mastery of 200 is not a mastery', p.vayne.mastery <= 100 && p.vayne.peak >= 0, `${p.vayne.mastery}/${p.vayne.peak}`);
+  expect(
+    'the card path comes back whole',
+    Object.keys(p.twisted.stages).length === 9 && p.twisted.stages.tfPick.best === 0 && p.twisted.stages.tfGold.best === 0,
+    JSON.stringify(p.twisted.stages.tfGold),
+  );
+  expect(
+    'a mastery of 400 is not a mastery either',
+    p.twisted.mastery <= 100 && p.twisted.peak >= 0,
+    `${p.twisted.mastery}/${p.twisted.peak}`,
+  );
   expect('the academy comes back whole', Object.keys(p.wasd.modules).length === 9, String(Object.keys(p.wasd.modules).length));
   expect('the lab comes back whole', Object.keys(p.apm.modes).length === 13, String(Object.keys(p.apm.modes).length));
   expect('settings come back complete', typeof p.settings.movementScheme === 'string', String(p.settings.movementScheme));

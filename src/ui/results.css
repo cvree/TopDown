@@ -586,6 +586,29 @@
   font-size: 12px;
 }
 
+/* And the card path's, in his gold. Same layout again — three ladders, one
+   shape — recoloured so a glance at the panel says whose run this was before
+   a word of it is read. */
+.res-twisted .panel {
+  border-color: rgba(200, 160, 60, 0.42);
+}
+.res-twisted .rv-stars .on,
+.res-twisted .rv-title b,
+.res-twisted .rv-num {
+  color: #ffcf5c;
+}
+.res-twisted .rv-stars .on {
+  text-shadow: 0 0 14px rgba(255, 207, 92, 0.45);
+}
+.res-twisted .rv-gain,
+.res-twisted .rv-new {
+  background: #ffcf5c;
+  color: #1a1204;
+}
+.res-twisted .rv-unlock {
+  border-left-color: #ffcf5c;
+}
+
 /* The academy's block reuses the champion path's layout — same kind of
    progress, same shape — and only recolours it: cyan for the scheme, as
    everywhere else in the client. */

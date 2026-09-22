@@ -31,6 +31,15 @@ export interface DecalOpts {
   rise?: number;
   /** Additive reads as light; normal reads as paint. */
   additive?: boolean;
+  /**
+   * Inner radius, in world units — sectors only.
+   *
+   * A sector is a wedge by default, which is what a cone telegraph is. Give it
+   * an inner radius and it becomes an *arc*: a band of ring between two angles,
+   * with the middle left empty. That is the only shape in which several of them
+   * can sit around one champion and still let you see the champion.
+   */
+  inner?: number;
 }
 
 const RING_VERT = /* glsl */ `
@@ -236,7 +245,7 @@ export class DecalLayer {
     const u = p.mat.uniforms;
     (u.uColor.value as THREE.Color).set(o.color ?? '#ffffff');
     u.uAlpha.value = o.alpha ?? 1;
-    u.uInner.value = 0;
+    u.uInner.value = Math.max(0, (o.inner ?? 0) / extent);
     u.uOuter.value = radius / extent;
     u.uDash.value = 0;
     u.uProgress.value = 0;

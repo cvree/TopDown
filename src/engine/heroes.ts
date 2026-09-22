@@ -20,12 +20,13 @@ import type { Build, HeadKind, WeaponKind } from '../gfx/champions';
  *    ladder measures your hands, and your hands do not change when your cape
  *    does.
  *  - The modes that field a *named* champion are the exception, and they
- *    override in the other direction: the Vayne path, the Sheriff and the
- *    duels are about specific champions with specific numbers and a specific
- *    kit on the bar, so they spawn her whatever the roster says. A silhouette
- *    you picked doing Condemn's animation would be the client telling you a
- *    smaller lie than a body that does not match the buttons under your
- *    fingers, but it would still be one.
+ *    override in the other direction: the Vayne path, the card path, the
+ *    Sheriff and the duels are about specific champions with specific numbers
+ *    and a specific kit on the bar, so they spawn that champion whatever the
+ *    roster says. A silhouette you picked doing Condemn's animation — or
+ *    fanning three cards out of a hand that is holding a longbow — would be
+ *    the client telling you a smaller lie than a body that does not match the
+ *    buttons under your fingers, but it would still be one.
  *
  * The look fields are exactly the ones `ChampionRig` builds a body out of.
  * Each hero has to be readable as a shape before it is readable as a colour,
@@ -41,6 +42,7 @@ export type HeroId =
   | 'revenant'
   | 'berserker'
   | 'nightHunter'
+  | 'twistedFate'
   | 'caitlyn';
 
 /** The subset of `RigSpec` that is the champion rather than the situation. */
@@ -71,8 +73,12 @@ export interface HeroDef {
   silhouette: string;
   look: HeroLook;
   /**
-   * Set on the champion the Vayne path spawns. She is on the roster because
-   * she is a body you can wear everywhere else too, but the path owns her.
+   * Set on a champion one of the client's own paths spawns.
+   *
+   * These are on the roster because they are bodies you can wear everywhere
+   * else too — but the path owns them, and inside it the silhouette is never
+   * the one the settings screen says, because a body that does not match the
+   * buttons under your fingers is the client telling you a lie.
    */
   championPath?: boolean;
   /**
@@ -229,6 +235,33 @@ export const HEROES: Record<HeroId, HeroDef> = {
       skin: '#e3c6ae',
       weapon: 'bow',
       headgear: 'hood',
+      cape: true,
+    },
+    championPath: true,
+  },
+  // The card path's own body. Every other silhouette here is read by its
+  // weapon; this one is read by its hat, because three cards held flat in one
+  // hand are the smallest thing anybody carries and at this camera height they
+  // very nearly are not there. The brim is the answer: wide, tilted, with a
+  // plume coming off the back — the only outline on the roster that points
+  // backwards as well as forwards.
+  twistedFate: {
+    id: 'twistedFate',
+    name: 'TWISTED FATE',
+    title: 'The Card Master',
+    role: 'Mage',
+    accent: '#ffcf5c',
+    blurb:
+      'Wide brim, long coat, three cards held flat. The only body here whose weapon you cannot see from across the floor — which is fitting, because what he is about to do to you is decided half a second before it happens and not a moment sooner.',
+    silhouette: 'Upright, wide-brimmed, plumed, a fan of cards',
+    look: {
+      build: 'lean',
+      primary: '#3b3f8c',
+      secondary: '#191a3a',
+      accent: '#ffcf5c',
+      skin: '#dcac84',
+      weapon: 'cards',
+      headgear: 'widebrim',
       cape: true,
     },
     championPath: true,

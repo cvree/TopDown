@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
-import { PRACTICE_MODES, RUN_MODE_LIST, type RunMode } from '../drills/modes';
+import { PRACTICE_CHAMPIONS, PRACTICE_MODES, RUN_MODE_LIST, type RunMode } from '../drills/modes';
 import { LANE_LENGTHS, LANE_TIERS, type LaneTier } from '../progression/lane';
 import { CAITLYN_STATS } from '../engine/caitlyn';
 import { FLASH_LEAGUE_CD, FLASH_PRACTICE_CD, FLASH_RANGE } from '../engine/summoners';
 import { VAYNE_STATS, tumbleCdAt, tumblePracticeCdAt, condemnCdAt, condemnPracticeCdAt } from '../engine/vayne';
+import { TWISTED_STATS } from '../engine/twistedfate';
 import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from '../engine/input';
 import type { AppSettings, Profile } from '../progression/profile';
 import { Explainer } from './components/Explainer';
@@ -38,13 +39,30 @@ type PlayFn = Props['onPlay'];
 /** mm:ss, for a survival record. */
 const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
-/** Which keys a mode actually hands you, in the order they sit on the bar. */
-const KIT_ORDER: { slot: AbilitySlot; name: string }[] = [
+/**
+ * Which keys a mode actually hands you, in the order they sit on the bar.
+ *
+ * Champion-specific, because the *names* are: a row of four caps with "TUMBLE"
+ * under Q on a card that spawns Twisted Fate is the menu telling the player
+ * about a champion the run does not contain. The caps themselves come from the
+ * profile's own layout either way — see {@link bindingsOf} — so this is only
+ * ever the tooltip, and it is the one part of the row that can be wrong.
+ */
+const VAYNE_KIT: { slot: AbilitySlot; name: string }[] = [
   { slot: 'q', name: 'TUMBLE' },
   { slot: 'w', name: 'SILVER BOLTS' },
   { slot: 'e', name: 'CONDEMN' },
   { slot: 'r', name: 'FINAL HOUR' },
 ];
+
+const TWISTED_KIT: { slot: AbilitySlot; name: string }[] = [
+  { slot: 'q', name: 'WILD CARDS' },
+  { slot: 'w', name: 'PICK A CARD' },
+  { slot: 'e', name: 'STACKED DECK' },
+  { slot: 'r', name: 'DESTINY' },
+];
+
+const kitOrderFor = (id: DrillId) => (DRILLS[id].group === 'TWISTED' ? TWISTED_KIT : VAYNE_KIT);
 
 /**
  * The keys this profile plays on.
@@ -78,25 +96,27 @@ const bindingsOf = (settings: AppSettings | undefined): Bindings => {
  * of the screen you read rather than click, sat directly between the champion
  * and the lab like a wall.
  *
- * Three sections now, and every one of them is the champion:
+ * Three sections now, and every one of them is a champion:
  *
- *  - **PRACTICE** is the champion in pieces: six modes, grouped by how much of
- *    her they hand you, from a body with no abilities to a whole opponent. It
+ *  - **PRACTICE** is a champion in pieces, grouped by how much of one a mode
+ *    hands you — and there are two champions on it now, behind a switch at the
+ *    top rather than a tab of their own, because "which piece of a champion"
+ *    is one question asked twice and not two different kinds of question. It
  *    is first because it is where a player can actually start. THE LANE is the
  *    game and it is also ten minutes against somebody who is better than you;
  *    opening on it asked a player to be ready before the client had taught
  *    them anything. A menu should open on the thing you can do now.
  *  - **THE LANE** is the game, and everything in PRACTICE exists to make it go
  *    better — so it is second, where it reads as what the pieces add up to.
- *  - **CHARACTER** is the reading: every figure both champions are built from,
- *    so a claim the trainer makes about transfer is one you can check.
+ *  - **CHARACTER** is the reading: every figure all three champions are built
+ *    from, so a claim the trainer makes about transfer is one you can check.
  *
  * The fourth used to be the lab, and the lab is not this screen's business.
- * Everything here is a champion — her lane, her kit, her numbers — and a bench
- * with no champion on it was being read as one more thing about Vayne when it
- * is the layer underneath every champion there will ever be. It is a section
- * of the client now, next to this one in the top bar, and this screen is
- * exactly the three things that are about the woman in the title.
+ * Everything here is a champion — a lane, a kit, the numbers under both — and
+ * a bench with no champion on it was being read as one more thing about Vayne
+ * when it is the layer underneath every champion there will ever be. It is a
+ * section of the client now, next to this one in the top bar, and this screen
+ * is exactly the three things that are about the people in the title.
  *
  * The tab rail is sticky, so the three are one keystroke apart from anywhere on
  * any of them, and the section you are in is never more than a glance away.
@@ -141,20 +161,22 @@ export const SECTION_IDS: SectionId[] = SECTIONS.map((s) => s.id);
  * roughly a dozen questions before anything happened on a screen. This asks
  * two: which part of the champion, and for how long.
  *
- * Every mode on it is played as Vayne. That is not a filter over a larger
- * catalogue — it is what the trainer is for. There are two deliberate
- * exceptions, at the two ends of the list:
+ * Every mode on it is played as a named champion with that champion's real
+ * numbers. That is not a filter over a larger catalogue — it is what the
+ * trainer is for. There are two deliberate exceptions, and both are on both
+ * champions' lists:
  *
  *  - **RANGE** is about the one distance every champion has and no champion
  *    draws for you, so it hands you a body and nothing else. A mode that put
  *    you behind a body with no tumble could tell you about your hands in the
  *    abstract; it could not tell you anything about the quarter of a second at
- *    the end of a roll, which is where this champion is won and lost.
- *  - **SHERIFF** is the other half of a lane. Everything above it measures
- *    what your hands did; this one measures what you did about somebody
- *    else's, which is a skill that cannot be rehearsed alone — so its kit is
- *    printed in the codex exactly as the champion's own is, because a window
- *    you are expected to beat has to be a number you can check.
+ *    the end of a roll, which is where Vayne is won and lost — or about the
+ *    walk a gold card has to survive, which is where he is.
+ *  - **SHERIFF** is the other half of a lane. Everything else measures what
+ *    your hands did; this one measures what you did about somebody else's,
+ *    which is a skill that cannot be rehearsed alone — so its kit is printed
+ *    in the codex exactly as the champions' own are, because a window you are
+ *    expected to beat has to be a number you can check.
  */
 export function Practice({ profile, settings, onPlay, initialSection }: Props) {
   const bound = bindingsOf(settings);
@@ -202,7 +224,7 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
         count: `${PRACTICE_MODES.length} MODES`,
         note: played > 0 ? `${played}/${PRACTICE_MODES.length} tried` : 'none tried yet',
       },
-      codex: { count: '2 CHAMPIONS', note: 'every ability, explained' },
+      codex: { count: `${CODEX.length} CHAMPIONS`, note: 'every ability, explained' },
     } as Record<SectionId, { count: string; note: string }>;
   }, [profile]);
 
@@ -229,11 +251,11 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
     <div className="scroll">
       <div className="wrap practice fade-up">
         <header className="pr-head">
-          <div className="eyebrow">Play as · Vayne</div>
-          <h1 className="display pr-h1">VAYNE</h1>
+          <div className="eyebrow">Play as · Vayne or Twisted Fate</div>
+          <h1 className="display pr-h1">CHAMPIONS</h1>
           <p className="dim pr-lead">
-            One champion, three tabs — the pieces of her, the lane they add up to, and every
-            number behind both.
+            Two of them, three tabs — the pieces of each, the lane one of them plays for real,
+            and every number behind all of it.
           </p>
         </header>
 
@@ -497,49 +519,77 @@ function LaneCard({
 // ===========================================================================
 
 /**
- * The champion, in pieces, grouped by how much of her a mode hands you.
+ * The champions, in pieces, grouped by how much of one a mode hands you.
  *
- * The list itself still lives in `modes.ts` — this is a reading of it, not a
- * second copy. Four groups, in the order the champion is learned:
+ * The list itself lives in `modes.ts` — this is a reading of it, not a second
+ * copy — and the groups are per champion because the two of them are not built
+ * the same way. Hers climbs by *how much kit*: a body, then one ability, then
+ * all four. His climbs by *how much is taken away*: the wheel on an empty
+ * floor, the wheel with the rest of the deck attached, the wheel with people
+ * shooting at you.
  *
- *  1. **FOUNDATION** hands you a body and nothing else, because every mode
- *     under it already assumes you know how far you reach.
- *  2. **THE KIT** is one ability at a time, which is the only way a cooldown
- *     ever becomes a rhythm rather than a decision.
- *  3. **ALL OF IT** is the whole champion handed back at once, and then handed
- *     back with somebody shooting at you.
- *
- * That third group used to be two — THE WHOLE CHAMPION and AGAINST SOMEBODY,
- * one mode each. The distinction is real and it is in the note, but as
- * *headings* they cost two full rows of the screen to carry one tile apiece,
- * which is how six modes came to need five rows. Six modes, three groups,
- * three rows: the whole champion visible at once, which is the only reason to
- * group her.
- *
- * Anything added to `PRACTICE_MODES` that no group claims still appears, under
- * a group of its own — a mode that exists and is not on the menu is a worse
- * outcome than a group heading that reads a little vague.
+ * Anything added to a champion's list that no group here claims still appears,
+ * under a group of its own — a mode that exists and is not on the menu is a
+ * worse outcome than a group heading that reads a little vague.
  */
-const PRACTICE_GROUPS: { id: string; label: string; note: string; members: DrillId[] }[] = [
-  {
-    id: 'foundation',
-    label: 'FOUNDATION',
-    note: 'no abilities — just learning how far you can reach',
-    members: ['rangecheck'],
-  },
-  {
-    id: 'kit',
-    label: 'THE KIT',
-    note: 'one ability at a time, until it stops needing thought',
-    members: ['vayneTumble', 'vayneBolts', 'vayneCondemn'],
-  },
-  {
-    id: 'whole',
-    label: 'ALL OF IT',
-    note: 'the four abilities at once — then with somebody shooting back',
-    members: ['vayneHunt', 'caitlynDodge'],
-  },
-];
+const PRACTICE_GROUPS: Record<string, { id: string; label: string; note: string; members: DrillId[] }[]> = {
+  vayne: [
+    {
+      id: 'foundation',
+      label: 'FOUNDATION',
+      note: 'no abilities — just learning how far you can reach',
+      members: ['rangecheck'],
+    },
+    {
+      id: 'kit',
+      label: 'THE KIT',
+      note: 'one ability at a time, until it stops needing thought',
+      members: ['vayneTumble', 'vayneBolts', 'vayneCondemn'],
+    },
+    {
+      id: 'whole',
+      label: 'ALL OF IT',
+      note: 'the four abilities at once — then with somebody shooting back',
+      members: ['vayneHunt', 'caitlynDodge'],
+    },
+  ],
+  twisted: [
+    {
+      id: 'foundation',
+      label: 'FOUNDATION',
+      note: 'no abilities — a gold card is worth nothing from outside your range',
+      members: ['rangecheck'],
+    },
+    {
+      id: 'wheel',
+      label: 'THE WHEEL',
+      note: 'Pick a Card, alone: the choice, the card that matters, and making it early',
+      members: ['tfPick', 'tfGold', 'tfHold'],
+    },
+    {
+      id: 'deck',
+      label: 'THE REST OF THE DECK',
+      note: 'the fan, the count, and the two channels that move you across the map',
+      members: ['tfWild', 'tfDeck', 'tfGate'],
+    },
+    {
+      id: 'table',
+      label: 'WITH SOMEBODY THERE',
+      note: 'the same hands, with the floor moving and people in the way',
+      members: ['tfPressure', 'tfCombo', 'tfFight'],
+    },
+  ],
+};
+
+/**
+ * Which champion this screen was last showing.
+ *
+ * Module-level for the same reason the section is: it has to survive the
+ * screen being unmounted — which it is every time a run starts — without being
+ * a preference anybody wrote to disk. Coming back from a card stage and
+ * landing on Vayne's six is the client forgetting what you were doing.
+ */
+let lastChampion = PRACTICE_CHAMPIONS[0].id;
 
 function PracticePanel({
   profile,
@@ -552,16 +602,20 @@ function PracticePanel({
   bound: Bindings;
   onPlay: PlayFn;
 }) {
+  const [who, setWho] = useState(lastChampion);
+  const champion = PRACTICE_CHAMPIONS.find((c) => c.id === who) ?? PRACTICE_CHAMPIONS[0];
+
   // Groups are drawn from the real list, so a mode is on this screen because
-  // `PRACTICE_MODES` contains it and not because a group here names it.
-  const claimed = new Set(PRACTICE_GROUPS.flatMap((g) => g.members));
+  // the champion's list contains it and not because a group here names it.
+  const defs = PRACTICE_GROUPS[champion.id] ?? [];
+  const claimed = new Set(defs.flatMap((g) => g.members));
   const groups = [
-    ...PRACTICE_GROUPS.map((g) => ({ ...g, members: g.members.filter((id) => PRACTICE_MODES.includes(id)) })),
+    ...defs.map((g) => ({ ...g, members: g.members.filter((id) => champion.modes.includes(id)) })),
     {
       id: 'more',
       label: 'MORE',
       note: 'newer modes, not yet filed with the rest',
-      members: PRACTICE_MODES.filter((id) => !claimed.has(id)),
+      members: champion.modes.filter((id) => !claimed.has(id)),
     },
   ].filter((g) => g.members.length > 0);
 
@@ -569,11 +623,11 @@ function PracticePanel({
     <>
       <Explainer title="HOW THIS SCREEN WORKS">
         <p className="dim pr-lead pr-panel-lead">
-          One champion, three tabs. <b>PRACTICE</b> — this one — is six modes, each a single piece
-          of a lane taken out and rehearsed on its own. <b>THE LANE</b> is all six at once: a real
-          game of League, farming minions while somebody tries to stop you. <b>CHARACTER</b> is the
-          reference behind both. Want something shorter? <b>TRAIN</b> in the top bar is one-minute
-          drills with no champion at all.
+          Two champions, three tabs. <b>PRACTICE</b> — this one — is each champion taken apart:
+          every mode is a single piece of a lane rehearsed on its own. <b>THE LANE</b> is all of it
+          at once: a real game of League, farming minions while somebody tries to stop you.{' '}
+          <b>CHARACTER</b> is the reference behind both. Want something shorter? <b>TRAIN</b> in the
+          top bar is one-minute drills with no champion at all.
         </p>
         <p className="dim pr-lead pr-panel-lead">
           Every mode has two buttons. <b>PLAY</b> is one minute, always the same, so you can
@@ -582,10 +636,46 @@ function PracticePanel({
           you the mode.
         </p>
         <p className="set-note">
-          Every number behind these six — cooldowns, ranges, how long you have to dodge — is
-          printed in <b>CHARACTER</b>, so you can check any of it against the real game.
+          Every number behind these — cooldowns, ranges, how long you have to dodge — is printed in{' '}
+          <b>CHARACTER</b>, so you can check any of it against the real game.
         </p>
       </Explainer>
+
+      {/* The switch, and the reason it is a switch rather than a fourth tab:
+          both sides of it are the same question — which piece of a champion —
+          asked about two champions. A tab would have said they were two
+          different kinds of thing. */}
+      <div className="pr-seg" role="tablist" aria-label="Which champion">
+        {PRACTICE_CHAMPIONS.map((c) => {
+          const played = c.modes.filter((id) => profile.bests[id] || profile.survive[id]).length;
+          return (
+            <button
+              key={c.id}
+              className={`pr-seg-btn${c.id === who ? ' on' : ''}`}
+              style={{ ['--c' as string]: c.accent }}
+              role="tab"
+              type="button"
+              aria-selected={c.id === who}
+              onMouseEnter={() => audio.play('uiHover')}
+              onClick={() => {
+                if (c.id === who) return;
+                audio.play('uiTab');
+                lastChampion = c.id;
+                setWho(c.id);
+              }}
+            >
+              <b className="display">{c.label}</b>
+              <i>
+                {c.sub} · {played > 0 ? `${played}/${c.modes.length} tried` : `${c.modes.length} modes`}
+              </i>
+            </button>
+          );
+        })}
+      </div>
+
+      <p key={`${champion.id}-blurb`} className="dim pr-lead pr-panel-lead fade-in">
+        {champion.blurb}
+      </p>
 
       <div className="pr-legend">
         {RUN_MODE_LIST.map((m) => (
@@ -606,27 +696,29 @@ function PracticePanel({
         </span>
       </div>
 
-      {groups.map((g) => (
-        <div className="pr-group" key={g.id}>
-          <GroupHead
-            label={g.label}
-            note={g.note}
-            count={`${g.members.length} MODE${g.members.length > 1 ? 'S' : ''}`}
-          />
-          <div className="pr-modes">
-            {g.members.map((id) => (
-              <ModeCard
-                key={id}
-                id={id}
-                profile={profile}
-                settings={settings}
-                bound={bound}
-                onPlay={onPlay}
-              />
-            ))}
+      <div key={champion.id} className="fade-in" style={{ ['--c' as string]: champion.accent }}>
+        {groups.map((g) => (
+          <div className="pr-group" key={g.id}>
+            <GroupHead
+              label={g.label}
+              note={g.note}
+              count={`${g.members.length} MODE${g.members.length > 1 ? 'S' : ''}`}
+            />
+            <div className="pr-modes">
+              {g.members.map((id) => (
+                <ModeCard
+                  key={id}
+                  id={id}
+                  profile={profile}
+                  settings={settings}
+                  bound={bound}
+                  onPlay={onPlay}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </>
   );
 }
@@ -700,7 +792,7 @@ function ModeCard({
             be answering "which abilities" with "none of them", at length. */}
         {meta.abilities.length > 0 && (
           <div className="pr-keys">
-            {KIT_ORDER.map((k) => (
+            {kitOrderFor(id).map((k) => (
               <i key={k.slot} className={uses.has(k.slot) ? 'on' : ''} title={k.name}>
                 {shortCodeLabel(bound[k.slot].primary)}
               </i>
@@ -770,17 +862,18 @@ function ModeCard({
 /**
  * The reading.
  *
- * Two kits, and they used to sit in the middle of the screen between the
+ * Three kits, and they used to sit in the middle of the screen between the
  * champion cards and the lab — a thousand words of reference wedged between
  * two things you were there to click. They are here instead, together, behind
- * one switch, because they are the same kind of object pointed at two
+ * one switch, because they are the same kind of object pointed at three
  * champions: every number a mode is built from, printed, so a claim about
  * transfer is one the player can check rather than take.
  */
-type CodexId = 'vayne' | 'sheriff';
+type CodexId = 'vayne' | 'twisted' | 'sheriff';
 
 const CODEX: { id: CodexId; label: string; sub: string; accent: string }[] = [
   { id: 'vayne', label: 'VAYNE', sub: 'the one you play', accent: '#c86bff' },
+  { id: 'twisted', label: 'TWISTED FATE', sub: 'the other one you play', accent: '#ffcf5c' },
   { id: 'sheriff', label: 'CAITLYN', sub: 'the one shooting at you', accent: '#ffb02e' },
 ];
 
@@ -818,7 +911,7 @@ function CodexPanel() {
       </div>
 
       <div key={who} className="fade-in" style={{ ['--c' as string]: active.accent }}>
-        {who === 'vayne' ? <KitReference /> : <SheriffReference />}
+        {who === 'vayne' ? <KitReference /> : who === 'twisted' ? <TwistedReference /> : <SheriffReference />}
       </div>
     </>
   );
@@ -892,6 +985,76 @@ function KitReference() {
   );
 }
 
+
+/**
+ * The deck, in figures.
+ *
+ * The same contract as Vayne's table, and it matters more here than anywhere
+ * else in this client: his whole champion is a *clock*, and a clock you are
+ * being graded against is one you are owed the reading of. Half a second a
+ * card is not a feel, it is a number — and the difference between taking gold
+ * on the first pass and the second is exactly a second and a half, which is
+ * also exactly how long the stun lasts. Nothing about him is a coincidence
+ * once the figures are next to each other, which is the argument for printing
+ * them next to each other.
+ */
+function TwistedReference() {
+  const rows = [
+    {
+      slot: 'Q',
+      name: 'WILD CARDS',
+      body: `Three cards in a fan ${Math.round(TWISTED_STATS.qFan * 2 * (180 / Math.PI))}° across, out to ${TWISTED_STATS.qRange} units at ${TWISTED_STATS.qSpeed} a second — the slowest missile in this client, and the only one that goes through what it touches rather than stopping on it. ${TWISTED_STATS.qCast}s of cast time roots you first, and the cooldown is the same ${TWISTED_STATS.qCd}s the wheel is on once both are maxed (${TWISTED_STATS.qLeagueCd}s at rank one) — which is what lets one fan arrive with every card. Aimed at a body it lands one card; aimed along a line of them it lands nine, and that difference is about fifteen degrees of wrist.`,
+    },
+    {
+      slot: 'W',
+      name: 'PICK A CARD',
+      body: `Press once to start the wheel, again to take whatever is showing — whatever is showing, not whatever you meant. It turns at ${TWISTED_STATS.wCycle}s a card in the same order forever: blue, red, gold. So gold is exactly ${(TWISTED_STATS.wCycle * 2).toFixed(1)}s away the first time it comes round and ${(TWISTED_STATS.wCycle * 5).toFixed(1)}s away the second, and the whole champion is the habit of never paying the difference. The wheel gives up after ${TWISTED_STATS.wWindow}s. Cooldown is ${TWISTED_STATS.wCd}s, charged from the lock — League's once it is maxed, which is where every Twisted Fate has it by the time the wheel is deciding anything; at rank one it is ${TWISTED_STATS.wLeagueCd}s.`,
+    },
+    {
+      slot: '—',
+      name: 'THE THREE CARDS',
+      body: `A locked card waits on your hand indefinitely and is spent by the next attack that lands, exactly as in League — which is why locking it before the fight is a habit rather than a flourish. Gold is ${TWISTED_STATS.goldStun}s of stun. Red is ${Math.round(TWISTED_STATS.redSlow * 100)}% slow for ${TWISTED_STATS.redSlowFor}s and splashes ${TWISTED_STATS.redSplash} units. Blue takes ${TWISTED_STATS.blueRefund}s off the wheel's own cooldown — this client has no mana, so the mana back arrives as the one currency it does have.`,
+    },
+    {
+      slot: 'E',
+      name: 'STACKED DECK',
+      body: `Passive. Every ${TWISTED_STATS.deckEvery}th basic attack lands for ${TWISTED_STATS.deckDamage} extra, and the attack speed it grants is already folded into the ${TWISTED_STATS.attack.attackSpeed} attacks a second above — a passive with no condition on it is not something anybody should have to track. The counter is drawn as four pips under your feet, because the only thing worth knowing at a glance is whether the next one is the fourth.`,
+    },
+    {
+      slot: 'R',
+      name: 'DESTINY · GATE',
+      body: `${TWISTED_STATS.rChannel}s of standing still for the reveal, ${TWISTED_STATS.rGateArmed}s in which the gate may then be taken, and ${TWISTED_STATS.rGateChannel}s of standing still again to cross up to ${TWISTED_STATS.rGateRange} units. ${TWISTED_STATS.rInterruptAt} damage inside either channel breaks it and the ultimate is gone. League charges this in minutes because the reveal is a macro tool and no sixty-second rep can teach one; here it is ${TWISTED_STATS.rCd}s, because what a rep can teach is the mechanic — choosing the place before the window opens, and holding still for it while being shot at.`,
+    },
+    {
+      slot: 'F',
+      name: 'FLASH',
+      body: `The same object Vayne's is — literally the same, one implementation for the whole client. ${FLASH_RANGE} units toward the cursor, instantly, over terrain, on ${FLASH_PRACTICE_CD}s rather than League's ${FLASH_LEAGUE_CD}.`,
+    },
+  ];
+
+  return (
+    <section className="panel pad pr-kit" style={{ ['--c' as string]: '#ffcf5c' }}>
+      <div className="panel-title">Twisted Fate's abilities, in full</div>
+      <div className="pr-kit-rows">
+        {rows.map((r) => (
+          <div className="pr-kit-row" key={r.name}>
+            <i className="pr-kit-slot">{r.slot}</i>
+            <b className="pr-kit-name">{r.name}</b>
+            <span className="pr-kit-body">{r.body}</span>
+          </div>
+        ))}
+      </div>
+      <p className="set-note">
+        One cooldown here is shorter than League's and it is the ultimate, for the same reason
+        Condemn is charged at {Math.round(VAYNE_STATS.condemnPracticeShare * 100)}%: a minute has
+        to contain enough attempts at the thing worth practising to be a rep rather than an
+        anecdote. The wheel's half a second, its order, the fan's spread, the stun's second and a
+        half and the count of four are all League's exactly — and all five of them are the
+        champion.
+      </p>
+    </section>
+  );
+}
 
 /**
  * What she throws, and how long you have.

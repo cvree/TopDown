@@ -9,6 +9,7 @@ import { expectedRating } from '../progression/rating';
 import { AXIS_LABEL } from '../progression/skills';
 import { APM_LEVELS, CLEAR_AT } from '../progression/apm';
 import { laneTierOf } from '../progression/lane';
+import { TWISTED_STAGES } from '../progression/twistedfate';
 import { VAYNE_STAGES } from '../progression/vayne';
 import { WASD_MODULES } from '../progression/wasd';
 import { ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
@@ -329,128 +330,71 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
           </div>
         )}
 
-        {report.vayne && (
-          <div className={`res-vayne ${stage >= 3 ? 'in' : ''}`}>
-            <div className="panel pad">
-              <div className="panel-title">The Vayne path</div>
-              <div className="rv-grid">
-                <div className="rv-stage">
-                  <span className="eyebrow">
-                    Stage {report.vayne.stage.step} / {VAYNE_STAGES.length} · {report.vayne.stage.title}
-                  </span>
-                  <div className="rv-stars">
-                    {[1, 2, 3].map((n) => (
-                      <span key={n} className={n <= report.vayne!.starsAfter ? 'on' : ''}>
-                        ★
-                      </span>
-                    ))}
-                    {report.vayne.starsAfter > report.vayne.starsBefore && (
-                      <b className="rv-gain">
-                        +{report.vayne.starsAfter - report.vayne.starsBefore}
-                      </b>
-                    )}
-                  </div>
-                  <div className="rv-best mono">
-                    BEST {Math.round(report.vayne.best * 100)}%
-                    {report.vayne.improved && report.vayne.previousBest > 0 && (
-                      <i className="good"> ▲ from {Math.round(report.vayne.previousBest * 100)}%</i>
-                    )}
-                    {!report.vayne.improved && <i className="faint"> · this run {Math.round(result.performance * 100)}%</i>}
-                  </div>
-                </div>
+        {/* Three ladders, one panel.
+            The champion paths and the academy report the same three facts —
+            where you stand on the ladder, what mastery did, and what opened —
+            because they are the same kind of progress and a player who has
+            learned to read one has learned to read all of them. They used to
+            be three copies of the same forty lines, which is how two of them
+            came to have subtly different wording for the same event. */}
+        <LadderPanel
+          shown={stage >= 3}
+          label="The Vayne path"
+          noun="Stage"
+          total={VAYNE_STAGES.length}
+          runPerformance={result.performance}
+          report={
+            report.vayne && {
+              ...report.vayne,
+              step: report.vayne.stage.step,
+              name: report.vayne.stage.title,
+              unlocked: report.vayne.unlocked && {
+                step: report.vayne.unlocked.step,
+                title: report.vayne.unlocked.title,
+              },
+            }
+          }
+        />
 
-                <div className="rv-mastery">
-                  <span className="eyebrow">Mastery</span>
-                  <div className="rv-num display">{Math.round(report.vayne.masteryAfter)}</div>
-                  {report.vayne.masteryAfter > report.vayne.masteryBefore && (
-                    <span className="good mono">
-                      +{(report.vayne.masteryAfter - report.vayne.masteryBefore).toFixed(1)}
-                    </span>
-                  )}
-                </div>
+        <LadderPanel
+          shown={stage >= 3}
+          label="The card path"
+          noun="Stage"
+          total={TWISTED_STAGES.length}
+          className="res-twisted"
+          runPerformance={result.performance}
+          report={
+            report.twisted && {
+              ...report.twisted,
+              step: report.twisted.stage.step,
+              name: report.twisted.stage.title,
+              unlocked: report.twisted.unlocked && {
+                step: report.twisted.unlocked.step,
+                title: report.twisted.unlocked.title,
+              },
+            }
+          }
+        />
 
-                <div className="rv-title">
-                  <span className="eyebrow">Title</span>
-                  <b className="display">{report.vayne.titleAfter.name}</b>
-                  {report.vayne.titleAfter.name !== report.vayne.titleBefore.name && (
-                    <span className="rv-new">NEW</span>
-                  )}
-                  <p>{report.vayne.titleAfter.blurb}</p>
-                </div>
-              </div>
-
-              {report.vayne.unlocked && (
-                <div className="rv-unlock">
-                  Cleared. <b>{report.vayne.unlocked.title}</b> is now open — stage{' '}
-                  {report.vayne.unlocked.step} of the path.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* The academy reports the same three things the champion path does —
-            where the module stands, what mastery did, and what opened —
-            because they are the same kind of progress and should read alike. */}
-        {report.wasd && (
-          <div className={`res-vayne res-wasd ${stage >= 3 ? 'in' : ''}`}>
-            <div className="panel pad">
-              <div className="panel-title">The WASD academy</div>
-              <div className="rv-grid">
-                <div className="rv-stage">
-                  <span className="eyebrow">
-                    Module {report.wasd.module.step} / {WASD_MODULES.length} · {report.wasd.module.title}
-                  </span>
-                  <div className="rv-stars">
-                    {[1, 2, 3].map((n) => (
-                      <span key={n} className={n <= report.wasd!.starsAfter ? 'on' : ''}>
-                        ★
-                      </span>
-                    ))}
-                    {report.wasd.starsAfter > report.wasd.starsBefore && (
-                      <b className="rv-gain">+{report.wasd.starsAfter - report.wasd.starsBefore}</b>
-                    )}
-                  </div>
-                  <div className="rv-best mono">
-                    BEST {Math.round(report.wasd.best * 100)}%
-                    {report.wasd.improved && report.wasd.previousBest > 0 && (
-                      <i className="good"> ▲ from {Math.round(report.wasd.previousBest * 100)}%</i>
-                    )}
-                    {!report.wasd.improved && (
-                      <i className="faint"> · this run {Math.round(result.performance * 100)}%</i>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rv-mastery">
-                  <span className="eyebrow">Mastery</span>
-                  <div className="rv-num display">{Math.round(report.wasd.masteryAfter)}</div>
-                  {report.wasd.masteryAfter > report.wasd.masteryBefore && (
-                    <span className="good mono">
-                      +{(report.wasd.masteryAfter - report.wasd.masteryBefore).toFixed(1)}
-                    </span>
-                  )}
-                </div>
-
-                <div className="rv-title">
-                  <span className="eyebrow">Title</span>
-                  <b className="display">{report.wasd.titleAfter.name}</b>
-                  {report.wasd.titleAfter.name !== report.wasd.titleBefore.name && (
-                    <span className="rv-new">NEW</span>
-                  )}
-                  <p>{report.wasd.titleAfter.blurb}</p>
-                </div>
-              </div>
-
-              {report.wasd.unlocked && (
-                <div className="rv-unlock">
-                  Cleared. <b>{report.wasd.unlocked.title}</b> is now open — module{' '}
-                  {report.wasd.unlocked.step} of nine.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <LadderPanel
+          shown={stage >= 3}
+          label="The WASD academy"
+          noun="Module"
+          total={WASD_MODULES.length}
+          className="res-wasd"
+          runPerformance={result.performance}
+          report={
+            report.wasd && {
+              ...report.wasd,
+              step: report.wasd.module.step,
+              name: report.wasd.module.title,
+              unlocked: report.wasd.unlocked && {
+                step: report.wasd.unlocked.step,
+                title: report.wasd.unlocked.title,
+              },
+            }
+          }
+        />
 
         {report.apm?.infinite && (
           <div className={`res-apm ${stage >= 3 ? 'in' : ''}`}>
@@ -692,6 +636,112 @@ SURGE keeps its own record. The difficulty moved while you played, so this does
             Back <span className="kbd">Esc</span>
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A LADDER, REPORTED.
+ *
+ * Three things in this client keep a ladder — the Vayne path, the card path
+ * and the WASD academy — and all three want to say the same three sentences
+ * after a run: *here is where you stand on it*, *here is what your mastery
+ * did*, and *here is what that opened*. They were three copies of this markup
+ * for a while, and the cost showed up exactly where duplication always does:
+ * two of them drifted into different wording for the same event.
+ *
+ * The shapes they report are already identical, so the only adaptation any
+ * caller does is naming its step — a stage, or a module — and handing over the
+ * numbers. A null report draws nothing, which is what lets a caller pass its
+ * report straight through without a guard of its own.
+ */
+interface LadderView {
+  step: number;
+  name: string;
+  starsBefore: number;
+  starsAfter: number;
+  best: number;
+  previousBest: number;
+  improved: boolean;
+  masteryBefore: number;
+  masteryAfter: number;
+  titleBefore: { name: string };
+  titleAfter: { name: string; blurb: string };
+  unlocked: { step: number; title: string } | null | undefined;
+}
+
+function LadderPanel({
+  report,
+  label,
+  noun,
+  total,
+  shown,
+  runPerformance,
+  className,
+}: {
+  report: LadderView | null | undefined;
+  /** The panel's own heading. */
+  label: string;
+  /** What one rung of this ladder is called, capitalised. */
+  noun: string;
+  total: number;
+  shown: boolean;
+  /** This run, for the line that says what it was worth against your best. */
+  runPerformance: number;
+  className?: string;
+}) {
+  if (!report) return null;
+  return (
+    <div className={`res-vayne${className ? ` ${className}` : ''} ${shown ? 'in' : ''}`}>
+      <div className="panel pad">
+        <div className="panel-title">{label}</div>
+        <div className="rv-grid">
+          <div className="rv-stage">
+            <span className="eyebrow">
+              {noun} {report.step} / {total} · {report.name}
+            </span>
+            <div className="rv-stars">
+              {[1, 2, 3].map((n) => (
+                <span key={n} className={n <= report.starsAfter ? 'on' : ''}>
+                  ★
+                </span>
+              ))}
+              {report.starsAfter > report.starsBefore && (
+                <b className="rv-gain">+{report.starsAfter - report.starsBefore}</b>
+              )}
+            </div>
+            <div className="rv-best mono">
+              BEST {Math.round(report.best * 100)}%
+              {report.improved && report.previousBest > 0 && (
+                <i className="good"> ▲ from {Math.round(report.previousBest * 100)}%</i>
+              )}
+              {!report.improved && <i className="faint"> · this run {Math.round(runPerformance * 100)}%</i>}
+            </div>
+          </div>
+
+          <div className="rv-mastery">
+            <span className="eyebrow">Mastery</span>
+            <div className="rv-num display">{Math.round(report.masteryAfter)}</div>
+            {report.masteryAfter > report.masteryBefore && (
+              <span className="good mono">+{(report.masteryAfter - report.masteryBefore).toFixed(1)}</span>
+            )}
+          </div>
+
+          <div className="rv-title">
+            <span className="eyebrow">Title</span>
+            <b className="display">{report.titleAfter.name}</b>
+            {report.titleAfter.name !== report.titleBefore.name && <span className="rv-new">NEW</span>}
+            <p>{report.titleAfter.blurb}</p>
+          </div>
+        </div>
+
+        {report.unlocked && (
+          <div className="rv-unlock">
+            Cleared. <b>{report.unlocked.title}</b> is now open — {noun.toLowerCase()}{' '}
+            {report.unlocked.step} of {total}.
+          </div>
+        )}
       </div>
     </div>
   );

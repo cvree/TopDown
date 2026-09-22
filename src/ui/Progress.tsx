@@ -17,6 +17,7 @@ import { ERRORS, type ErrorCode } from '../progression/errors';
 import { percentileForRating, rankFromRating } from '../progression/ranks';
 import { AXIS_BLURB, AXIS_LABEL, SKILL_AXES, type SkillAxis } from '../progression/skills';
 import { apmTitleFor } from '../progression/apm';
+import { tfTitleFor } from '../progression/twistedfate';
 import { titleFor } from '../progression/vayne';
 import { RankEmblem } from './components/RankEmblem';
 import { SkillRadar, Sparkline } from './components/charts';
@@ -530,12 +531,22 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
 
         {/* -------------------------------------------------- other tracks */}
         <section className="prof-tracks">
+          {/* One card per champion path. They are separate ladders on purpose
+              — a title earned on her hands is not a title earned on his — so
+              they are two cards rather than a number that averages them. */}
           <div className="panel pad">
-            <span className="eyebrow">Champion path</span>
+            <span className="eyebrow">Vayne</span>
             <b className="display" style={{ color: '#e7c8ff' }}>
               {titleFor(profile.vayne.peak).name}
             </b>
             <span className="faint mono">{Math.round(profile.vayne.mastery)} mastery</span>
+          </div>
+          <div className="panel pad">
+            <span className="eyebrow">Twisted Fate</span>
+            <b className="display" style={{ color: '#ffcf5c' }}>
+              {tfTitleFor(profile.twisted.peak).name}
+            </b>
+            <span className="faint mono">{Math.round(profile.twisted.mastery)} mastery</span>
           </div>
           <div className="panel pad">
             <span className="eyebrow">Hand speed</span>

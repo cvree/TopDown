@@ -141,31 +141,116 @@ export const durationFor = (mode: RunMode): number =>
 export const isOpenEnded = (mode: RunMode): boolean => mode !== 'play' && mode !== 'surge';
 
 /**
- * The practice list, in the order it is taught.
+ * WHO YOU CAN PRACTISE.
  *
- * One champion. Every mode on this list spawns Vayne with the parts of her kit
- * that mode is about, so there is never a run where the hands you are training
- * are not the hands you play with.
+ * This was one list for a long time and the comment above it said "one
+ * champion", which was true and was also the reason the client could not grow:
+ * every screen that wanted to know what to offer asked a flat array, so a
+ * second champion could only ever have arrived as six more cards in Vayne's
+ * row, unlabelled, with her kit legend printed over them.
  *
- * RANGE comes first and hands you no kit at all, because it is the one thing
- * every other mode already assumes you know. Tumbling to a good position, and
- * condemning from one, and holding a stack through a trade are all the same
- * sentence with the same missing word in it: *how far away is far enough*. A
- * player who cannot answer that is practising four abilities on top of a hole.
+ * It is a list of champions now, each owning its own modes, and that is the
+ * only structural change: a mode is still on the menu because a champion's
+ * list names it, the screen still reads the list rather than keeping a second
+ * copy, and nothing here knows what a tab looks like.
+ *
+ * The two of them are deliberately not the same *kind* of trainer, which is
+ * the whole reason there are two:
+ *
+ *  - **Vayne** is an analogue champion. Everything she asks is a distance from
+ *    perfect — the roll a little early, the wall a little off, the stack a
+ *    little stale — and every one of her modes grades one of those distances.
+ *  - **Twisted Fate** is a discrete one. Pick a Card shows exactly one of three
+ *    faces at any instant; you take the one you needed or you do not, and the
+ *    cost of not is counted in whole revolutions of a wheel that does not wait.
+ *    There is nowhere in that for a bad habit to hide, which makes it the
+ *    sharpest thing in the client to practise and the one thing none of
+ *    Vayne's six can teach.
+ *
+ * RANGE sits at the top of both, unchanged, because it hands you no kit at all
+ * and it is the one thing every other mode on either list already assumes you
+ * know: tumbling to a good position, condemning from one, and walking a gold
+ * card into somebody are the same sentence with the same missing word in it —
+ * *how far away is far enough*.
+ */
+export interface PracticeChampion {
+  id: 'vayne' | 'twisted';
+  /** As printed on the switch. */
+  label: string;
+  /** The line under it. */
+  sub: string;
+  /** What this champion is for, in one sentence, above the modes. */
+  blurb: string;
+  accent: string;
+  modes: DrillId[];
+}
+
+export const PRACTICE_CHAMPIONS: PracticeChampion[] = [
+  {
+    id: 'vayne',
+    label: 'VAYNE',
+    sub: 'roll, stack, condemn',
+    blurb:
+      'Four abilities that are all about where you were standing a moment ago. Everything she asks of you is a distance — from the wall, from the windup, from the third bolt — and every mode below grades one of them.',
+    accent: '#c86bff',
+    modes: [
+      'rangecheck',
+      'vayneTumble',
+      'vayneBolts',
+      'vayneCondemn',
+      'vayneHunt',
+      // And one that is not about you at all. Everything above this line asks
+      // what your hands did; SHERIFF asks what you did about somebody else's,
+      // which is the half of a lane no amount of solo practice reaches.
+      'caitlynDodge',
+    ],
+  },
+  {
+    id: 'twisted',
+    label: 'TWISTED FATE',
+    sub: 'choose, at speed',
+    blurb:
+      'A wheel of three cards turning at two a second, and a stun waiting on the third. Nothing else in this client is a choice with a clock on it — every mode below is that clock, with one more thing taken away from you each time.',
+    accent: '#ffcf5c',
+    modes: [
+      // The same opening as hers, and the same reason: a gold card is worth
+      // nothing at all if you walk it in from outside your own attack range.
+      'rangecheck',
+      'tfPick',
+      'tfGold',
+      'tfHold',
+      'tfWild',
+      'tfDeck',
+      'tfGate',
+      'tfPressure',
+      'tfCombo',
+      'tfFight',
+    ],
+  },
+];
+
+/**
+ * Every mode the practice screen offers, across every champion.
+ *
+ * Derived rather than written, so a mode added to a champion cannot go missing
+ * from the counts, from `practiceFor`, or from anything else that has to ask
+ * "is this something a player can start from the menu".
  */
 export const PRACTICE_MODES: DrillId[] = [
-  'rangecheck',
-  'vayneTumble',
-  'vayneBolts',
-  'vayneCondemn',
-  'vayneHunt',
-  // And one that is not about you at all. Everything above this line asks what
-  // your hands did; SHERIFF asks what you did about somebody else's, which is
-  // the half of a lane no amount of solo practice reaches.
-  'caitlynDodge',
+  ...new Set(PRACTICE_CHAMPIONS.flatMap((c) => c.modes)),
 ];
 
 export const isPracticeMode = (id: DrillId): boolean => PRACTICE_MODES.includes(id);
+
+/**
+ * The champion whose list contains a mode, if any does.
+ *
+ * RANGE is on both lists — it hands you no kit, so it belongs to neither — and
+ * this returns the first, which is the honest answer to "whose screen did this
+ * come from" for everything that is not RANGE and a harmless one for RANGE.
+ */
+export const championOf = (id: DrillId): PracticeChampion | undefined =>
+  PRACTICE_CHAMPIONS.find((c) => c.modes.includes(id));
 
 /**
  * The practice mode that trains a given drill's mechanic.

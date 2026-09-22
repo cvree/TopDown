@@ -3575,6 +3575,584 @@ const ezFight: PreviewScene = {
   },
 };
 
+
+// ===========================================================================
+// TWISTED FATE
+//
+// Every other champion in this file is drawn with rings and lances, because
+// every other champion is about distance. His clips need one more noun — a
+// card — and one more verb: a wheel that turns whether or not you are ready,
+// which is the only mechanic in the client that is a *tempo* rather than a
+// geometry. Both live here.
+// ===========================================================================
+
+const TF_CARDS: { id: 'blue' | 'red' | 'gold'; color: string }[] = [
+  { id: 'blue', color: '#5cc8ff' },
+  { id: 'red', color: '#ff6155' },
+  { id: 'gold', color: '#ffcf5c' },
+];
+const TF_GOLDC = '#ffcf5c';
+const TF_VIOLET = '#b07bff';
+
+/** A playing card, face on, at an angle. The one shape that is only his. */
+function card(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  color: string,
+  alpha: number,
+  scale = 1,
+  rot = 0,
+) {
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.scale(scale, scale);
+  const w = 7;
+  const h = 10.5;
+  ctx.fillStyle = rgba(color, 0.9);
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.roundRect(-w / 2, -h / 2, w, h, 1.8);
+  ctx.fill();
+  ctx.stroke();
+  // A pip, so a card at this size still reads as a card and not a chip.
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.arc(0, 0, 1.5, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * THE WHEEL.
+ *
+ * Three arcs in the order they come, and a head sweeping them at two cards a
+ * second. It is the same object the arena draws under his feet, at the same
+ * proportions, for the same reason the bench pads are: the card and the run
+ * should be one picture, not two that resemble each other.
+ *
+ * `phase` is turns, not seconds, so a caller can drive it from anything.
+ */
+function wheel(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  phase: number,
+  lit: 'blue' | 'red' | 'gold' | null,
+  alpha = 1,
+) {
+  const span = TAU / 3;
+  for (let i = 0; i < 3; i++) {
+    const c = TF_CARDS[i];
+    const on = lit === c.id;
+    ctx.save();
+    ctx.globalAlpha = alpha * (on ? 0.95 : 0.3);
+    ctx.strokeStyle = rgba(c.color, 1);
+    ctx.lineWidth = on ? 4.2 : 2;
+    ctx.lineCap = 'butt';
+    ctx.beginPath();
+    ctx.arc(x, y, r, -Math.PI / 2 + i * span + 0.09, -Math.PI / 2 + (i + 1) * span - 0.09);
+    ctx.stroke();
+    ctx.restore();
+  }
+  const a = -Math.PI / 2 + ((((phase % 3) + 3) % 3) * span);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.lineWidth = 1.8;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x + Math.cos(a) * (r - 7), y + Math.sin(a) * (r - 7));
+  ctx.lineTo(x + Math.cos(a) * (r + 6), y + Math.sin(a) * (r + 6));
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Which face the wheel is showing at a given phase in turns. */
+const faceAt = (phase: number): 'blue' | 'red' | 'gold' =>
+  TF_CARDS[Math.floor((((phase % 3) + 3) % 3))].id;
+
+/**
+ * PICK A CARD — the wheel, and the appointment you have to keep.
+ *
+ * The whole mode in one picture: a card is named, the wheel turns at two a
+ * second, and the lock happens the *first* time gold comes round. The head
+ * passes blue and red without stopping, which is the thing that separates this
+ * clip from a clip of somebody waiting — and the count of slots is printed,
+ * because that count is literally the mode's score.
+ */
+const tfPick: PreviewScene = {
+  length: 2.8,
+  poster: 0.66,
+  caption: 'take it the first time round',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 150, 100);
+    const hx = 152;
+    const hy = 96;
+    const R = 46;
+
+    // Two cards a second, starting on blue, locking the moment gold arrives.
+    const spinAt = 0.5;
+    const lockAt = spinAt + 2 * 0.5;
+    const spinning = t >= spinAt && t < lockAt;
+    const phase = spinning ? (t - spinAt) / 0.5 : 0;
+
+    tag(ctx, hx, 26, 'GOLD', TF_GOLDC, t < lockAt ? 0.95 : 0.35, 11);
+    if (t < spinAt) {
+      wheel(ctx, hx, hy, R, 0, null, 0.45);
+    } else if (spinning) {
+      wheel(ctx, hx, hy, R, phase, faceAt(phase), 1);
+      tag(ctx, hx, hy + R + 18, `${Math.floor(phase)} / 2`, rgba(BONE, 1), 0.8, 8);
+    } else {
+      wheel(ctx, hx, hy, R, 2, 'gold', 1);
+      burst(ctx, hx, hy, at(t, lockAt, 0.5), TF_GOLDC, 54, 6);
+      card(ctx, hx + 34, hy - 30, TF_GOLDC, easeOut(at(t, lockAt, 0.25)), 1.1, 0.24);
+      tag(ctx, hx, hy + R + 18, 'NO SLOTS WASTED', GOOD, at(t, lockAt + 0.1, 0.3) * 0.95, 8);
+    }
+
+    hero(ctx, hx, hy, accent, -Math.PI / 2);
+    vignette(f);
+  },
+};
+
+/**
+ * GOLD CARD — the lock, and then the walk that has to pay for it.
+ *
+ * Locking gold is half the mode and the clip gives it half the time. The other
+ * half is the part players forget exists: the card does nothing until an attack
+ * carries it into somebody, and somebody is moving.
+ */
+const tfGold: PreviewScene = {
+  length: 3.2,
+  poster: 0.78,
+  caption: 'lock it, then land it',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t, u } = f;
+    stage(f, 90, 104);
+    const lockAt = 1;
+    const fireAt = 2;
+    const landAt = 2.35;
+
+    const ex = 226 - 26 * Math.sin(u * TAU);
+    const ey = 78 + 30 * Math.cos(u * TAU * 0.8);
+    const walk = smooth(clamp01((t - lockAt) / 1));
+    const hx = lerp(62, 120, walk);
+    const hy = lerp(112, 104, walk);
+    const ang = Math.atan2(ey - hy, ex - hx);
+
+    if (t < lockAt) {
+      const phase = t / 0.5;
+      wheel(ctx, hx, hy, 40, phase, faceAt(phase), 0.95);
+    } else {
+      card(ctx, hx - 20, hy - 22, TF_GOLDC, 1, 0.95, -0.3);
+    }
+
+    ring(ctx, hx, hy, 74, rgba(accent, 1), 0.18, 1.2, [4, 5]);
+    foe(ctx, ex, ey, 5.6, 1);
+    if (t >= fireAt && t < landAt) {
+      const q = (t - fireAt) / (landAt - fireAt);
+      lance(ctx, lerp(hx, ex, q), lerp(hy, ey, q), ang, 22, TF_GOLDC, 1, 2.8);
+    } else if (t >= landAt) {
+      burst(ctx, ex, ey, at(t, landAt, 0.5), TF_GOLDC, 30, 8);
+      ring(ctx, ex, ey, 15 + 3 * Math.sin(t * 14), rgba(TF_GOLDC, 1), 0.9, 2);
+      tag(ctx, ex, ey - 22, 'STUNNED', TF_GOLDC, at(t, landAt, 0.2) * 0.95, 8.5);
+    }
+    hero(ctx, hx, hy, accent, ang);
+    vignette(f);
+  },
+};
+
+/**
+ * WILD CARDS — a line, not a point.
+ *
+ * The one thing the mode is about is visible only by contrast, so the clip
+ * draws the contrast: the same cast, twice. Aimed at the body it clips one
+ * minion. Turned fifteen degrees it goes down the length of the wave and every
+ * card in the fan finds something.
+ */
+const tfWild: PreviewScene = {
+  length: 4,
+  poster: 0.82,
+  caption: 'aim along them, not at them',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    // Two halves that answer each other, so the loop is the comparison rather
+    // than a sentence with an ending: the wrong cast, then the right one, then
+    // the wrong one again. Taken modulo its own length so the frame at the end
+    // is the frame at the start and there is nothing to hide.
+    const t = f.t % 4;
+    stage(f, 66, 100);
+    const hx = 52;
+    const hy = 100;
+    // A column of bodies, standing off to one side, so there is a line that
+    // threads them and a line that does not.
+    const wave: Pt[] = [];
+    for (let i = 0; i < 5; i++) wave.push({ x: 190 + i * 13, y: 52 + i * 21 });
+
+    const bad = t < 2;
+    const aimAt = bad ? wave[2] : { x: wave[0].x - 24, y: wave[0].y - 6 };
+    const ang = Math.atan2(aimAt.y - hy, aimAt.x - hx);
+    const cycle = bad ? t / 2 : (t - 2) / 2;
+    const p = clamp01((cycle - 0.16) / 0.7);
+
+    for (const m of wave) minion(ctx, m.x, m.y, RED, 1);
+
+    for (const off of [-0.2443, 0, 0.2443]) {
+      const a = ang + off;
+      const len = 210;
+      const tipX = hx + Math.cos(a) * len * p;
+      const tipY = hy + Math.sin(a) * len * p;
+      if (p > 0 && p < 1) lance(ctx, tipX, tipY, a, 30, TF_GOLDC, 0.95, 2.6);
+      // Every body the card actually passes through lights up as it goes by.
+      for (const m of wave) {
+        const rx = m.x - hx;
+        const ry = m.y - hy;
+        const along = rx * Math.cos(a) + ry * Math.sin(a);
+        const offAxis = Math.abs(rx * -Math.sin(a) + ry * Math.cos(a));
+        if (offAxis > 7 || along < 0 || along > len) continue;
+        const hitAt = along / len;
+        if (p > hitAt) burst(ctx, m.x, m.y, clamp01((p - hitAt) / 0.3), TF_GOLDC, 16, 4);
+      }
+    }
+
+    tag(ctx, 166, 150, bad ? 'AT THE BODY — ONE CARD' : 'ALONG THE LINE — SIX', bad ? WARN : GOOD, 0.95, 8.5);
+    hero(ctx, hx, hy, accent, ang);
+    pointer(ctx, aimAt.x, aimAt.y, accent, !bad);
+    vignette(f);
+  },
+};
+
+/**
+ * STACKED DECK — the fourth one, and where it is allowed to go.
+ *
+ * Four pips, filling. The first three attacks go into the wave because they
+ * are worth nothing; the fourth goes past it, and the clip lets the three land
+ * in real time so the count is something you watch happen rather than a number
+ * printed on a card.
+ */
+const tfDeck: PreviewScene = {
+  length: 3.6,
+  poster: 0.88,
+  caption: 'the fourth one is worth three',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 66, 104);
+    const hx = 56;
+    const hy = 104;
+    const mins: Pt[] = [
+      { x: 150, y: 74 },
+      { x: 152, y: 108 },
+      { x: 148, y: 140 },
+    ];
+    const champ = { x: 250, y: 92 };
+
+    const beat = 0.8;
+    const n = Math.min(4, Math.floor(t / beat));
+    const p = (t % beat) / beat;
+
+    for (let i = 0; i < mins.length; i++) minion(ctx, mins[i].x, mins[i].y, RED, i < n ? 0.45 : 1);
+    foe(ctx, champ.x, champ.y, 6, 1);
+
+    const to = n < 3 ? mins[Math.min(n, 2)] : champ;
+    const ang = Math.atan2(to.y - hy, to.x - hx);
+    if (n < 4) {
+      if (p < 0.66) {
+        const q = p / 0.66;
+        lance(ctx, lerp(hx, to.x, q), lerp(hy, to.y, q), ang, 20, n === 3 ? TF_GOLDC : accent, 1, n === 3 ? 3.4 : 2.2);
+      } else {
+        burst(ctx, to.x, to.y, (p - 0.66) / 0.34, n === 3 ? TF_GOLDC : accent, n === 3 ? 40 : 16, n === 3 ? 8 : 0);
+      }
+    } else {
+      burst(ctx, champ.x, champ.y, clamp01((t - 4 * beat) / 0.6), TF_GOLDC, 46, 8);
+      tag(ctx, champ.x, champ.y - 24, 'FOURTH', TF_GOLDC, 0.95, 9);
+    }
+
+    // The count, as pips, exactly as the arena draws it.
+    for (let i = 0; i < 4; i++) {
+      const px = hx - 24 + i * 12;
+      const on = i < Math.min(n + (p > 0.66 ? 1 : 0), 4);
+      ring(ctx, px, hy - 34, 4, rgba(on ? TF_GOLDC : BONE, 1), on ? 0.95 : 0.22, on ? 2.2 : 1.2);
+    }
+    hero(ctx, hx, hy, accent, ang);
+    vignette(f);
+  },
+};
+
+/**
+ * LOADED — the card was already there.
+ *
+ * The one habit that decides his fights, and it is a *negative* picture: the
+ * interesting thing is what does not happen when the hunter arrives. So the
+ * clip spends its first half on an empty floor with a wheel turning on it, and
+ * its second on somebody walking into a card that was locked before they were
+ * visible.
+ */
+const tfHold: PreviewScene = {
+  length: 4,
+  poster: 0.86,
+  caption: 'locked before it was needed',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 104, 104);
+    const hx = 104;
+    const hy = 104;
+    const lockAt = 1;
+
+    if (t < lockAt) {
+      const phase = t / 0.5;
+      wheel(ctx, hx, hy, 42, phase, faceAt(phase), 0.95);
+      tag(ctx, hx, 28, 'NOBODY HERE YET', rgba(BONE, 1), 0.6, 8);
+    } else {
+      card(ctx, hx + 2, hy - 30, TF_GOLDC, 1, 1 + 0.06 * Math.sin(t * 5), 0.1);
+      tag(ctx, hx, 28, t < 2.4 ? 'HOLDING' : 'INCOMING', t < 2.4 ? TF_GOLDC : WARN, 0.9, 9);
+    }
+
+    // The approach, on a clock you can see — the mode's own telegraph.
+    const walk = clamp01((t - 2) / 1.4);
+    const ex = lerp(300, 158, easeOut(walk));
+    const ey = 92;
+    if (t > 1.9) {
+      foe(ctx, ex, ey, 5.8, 1);
+      ring(ctx, hx, hy, 74, rgba(accent, 1), 0.2, 1.2, [4, 5]);
+    }
+    if (walk >= 1) {
+      const q = at(t, 3.4, 0.5);
+      burst(ctx, ex, ey, q, TF_GOLDC, 32, 8);
+      if (q > 0.05) ring(ctx, ex, ey, 15 + 3 * Math.sin(t * 15), rgba(TF_GOLDC, 1), 0.9, 2);
+    }
+    hero(ctx, hx, hy, accent, t > 1.9 ? Math.atan2(ey - hy, ex - hx) : -Math.PI / 2);
+    vignette(f);
+  },
+};
+
+/**
+ * COLD DECK — the same wheel, and no floor to stand on.
+ *
+ * Nothing about the wheel changes here, which is the point, so the clip changes
+ * everything around it: the champion is always moving, a circle is always
+ * closing on where she was, and the head goes round at exactly the speed it did
+ * when she was allowed to stand still.
+ */
+const tfPressure: PreviewScene = {
+  length: 3,
+  poster: 0.5,
+  caption: 'choosing, while being shot at',
+  paint: (f) => {
+    const { ctx, accent, t, u } = f;
+    stage(f, 130, 100);
+    const cx = 142;
+    const cy = 100;
+    const a = u * TAU;
+    const hx = cx + Math.cos(a) * 56;
+    const hy = cy + Math.sin(a) * 32;
+
+    // A zone lands where she was a moment ago, every time. Two of them, half a
+    // loop apart, so there is always one on the floor.
+    for (const off of [0, 0.5]) {
+      const q = (u + off) % 1;
+      // Always a step and a bit behind her, which is where a zone aimed at a
+      // moving champion actually lands.
+      const za = a - 1.1 - off * TAU;
+      const zx = cx + Math.cos(za) * 56;
+      const zy = cy + Math.sin(za) * 32;
+      const warn = q < 0.62 ? q / 0.62 : 1;
+      ring(ctx, zx, zy, 26, rgba(q < 0.62 ? WARN : RED, 1), q < 0.62 ? 0.4 + warn * 0.4 : 0.8 * (1 - (q - 0.62) / 0.38), q < 0.62 ? 1.3 : 2.4, q < 0.62 ? [3, 4] : undefined);
+      if (q < 0.62) arcRing(ctx, zx, zy, 26, warn, rgba(WARN, 1), 0.7, 2);
+    }
+
+    const phase = (t / 0.5) % 3;
+    wheel(ctx, hx, hy, 38, phase, faceAt(phase), 0.95);
+    foe(ctx, 284, 52, 5.4, 0.9);
+    // Wrapped, because a heading of 7.85 radians and one of 1.57 are the same
+    // picture and not the same frame — and the loop has to close as a frame.
+    hero(ctx, hx, hy, accent, (a + Math.PI / 2) % TAU);
+    vignette(f);
+  },
+};
+
+/**
+ * THE SET-UP — the stun is a window, not an outcome.
+ *
+ * The clip is a clock: gold lands, a ring starts draining, and the fan and the
+ * attack both land before it empties. A player who has only ever stunned people
+ * has never seen the second half of this picture, which is the reason it is
+ * drawn rather than described.
+ */
+const tfCombo: PreviewScene = {
+  length: 3.4,
+  poster: 0.62,
+  caption: 'spend the whole second and a half',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 74, 104);
+    const hx = 74;
+    const hy = 108;
+    const ex = 228;
+    const ey = 80;
+    const ang = Math.atan2(ey - hy, ex - hx);
+    const stunAt = 0.8;
+    const left = clamp01(1 - (t - stunAt) / 1.5);
+
+    foe(ctx, ex, ey, 5.8, 1);
+    if (t < stunAt) {
+      const q = t / stunAt;
+      card(ctx, lerp(hx, ex, q), lerp(hy, ey, q), TF_GOLDC, 1, 1, q * 9);
+    } else {
+      // The window, drawn as the thing it is: a ring that is running out.
+      ring(ctx, ex, ey, 18, rgba(TF_GOLDC, 1), 0.28, 2);
+      arcRing(ctx, ex, ey, 18, left, rgba(TF_GOLDC, 1), 0.95, 3);
+      burst(ctx, ex, ey, at(t, stunAt, 0.4), TF_GOLDC, 30, 8);
+    }
+
+    // The fan, then the attack, both inside the ring's life.
+    const fanAt = stunAt + 0.25;
+    if (t >= fanAt) {
+      const q = clamp01((t - fanAt) / 0.55);
+      for (const off of [-0.2443, 0, 0.2443]) {
+        const a = ang + off;
+        if (q < 1) lance(ctx, hx + Math.cos(a) * 190 * q, hy + Math.sin(a) * 190 * q, a, 26, TF_GOLDC, 0.9, 2.4);
+      }
+      if (q >= 1) burst(ctx, ex, ey, clamp01((t - fanAt - 0.55) / 0.35), TF_GOLDC, 22, 5);
+    }
+    const autoAt = stunAt + 1.05;
+    if (t >= autoAt) {
+      const q = clamp01((t - autoAt) / 0.3);
+      if (q < 1) lance(ctx, lerp(hx, ex, q), lerp(hy, ey, q), ang, 20, accent, 1, 2.6);
+      else burst(ctx, ex, ey, clamp01((t - autoAt - 0.3) / 0.4), accent, 26, 6);
+    }
+    tag(ctx, ex, ey - 30, left > 0 ? `${(left * 1.5).toFixed(1)}s` : 'SPENT', left > 0 ? TF_GOLDC : GOOD, 0.9, 8.5);
+    hero(ctx, hx, hy, accent, ang);
+    vignette(f);
+  },
+};
+
+/**
+ * GATE — three seconds of standing still, and a place worth them.
+ *
+ * Two channels and a blink, in order, at their real lengths. The ring on the
+ * far side is closing the whole time, which is the mode's entire argument: you
+ * cannot start the ultimate when the window opens and still arrive, so the
+ * ultimate has to have been started before it did.
+ */
+const tfGate: PreviewScene = {
+  length: 4.2,
+  poster: 0.9,
+  caption: 'the window closes before you could walk',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 64, 112);
+    const hx = 60;
+    const hy = 118;
+    const zx = 268;
+    const zy = 56;
+
+    const revealFrom = 0.4;
+    const gateFrom = 2.1;
+    const arriveAt = 3.6;
+    const zoneLeft = clamp01(1 - t / 4);
+
+    ring(ctx, zx, zy, 30, rgba(TF_VIOLET, 1), 0.45, 2, [5, 5]);
+    arcRing(ctx, zx, zy, 34, zoneLeft, rgba(TF_VIOLET, 1), 0.85, 2.4);
+
+    const here = t < arriveAt;
+    const px = here ? hx : zx;
+    const py = here ? hy : zy;
+
+    if (t >= revealFrom && t < revealFrom + 1.5) {
+      const q = (t - revealFrom) / 1.5;
+      ring(ctx, hx, hy, 22 + q * 130, rgba(TF_VIOLET, 1), 0.5 * (1 - q), 1.6);
+      arcRing(ctx, hx, hy, 20, q, rgba(TF_VIOLET, 1), 0.9, 2.6);
+      tag(ctx, hx, hy - 34, 'DESTINY', TF_VIOLET, 0.9, 8);
+    }
+    if (t >= gateFrom && t < arriveAt) {
+      const q = (t - gateFrom) / (arriveAt - gateFrom);
+      arcRing(ctx, hx, hy, 20, q, rgba(TF_VIOLET, 1), 0.95, 3);
+      ctx.save();
+      ctx.globalAlpha = 0.25 + 0.4 * q;
+      ctx.strokeStyle = rgba(TF_VIOLET, 1);
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 5]);
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      ctx.lineTo(zx, zy);
+      ctx.stroke();
+      ctx.restore();
+      tag(ctx, hx, hy - 34, 'GATE', TF_VIOLET, 0.95, 8);
+    }
+    if (t >= arriveAt) {
+      ghosts(ctx, { x: hx, y: hy }, { x: zx, y: zy }, 1, TF_VIOLET, 5);
+      burst(ctx, zx, zy, at(t, arriveAt, 0.6), TF_VIOLET, 46, 8);
+      tag(ctx, zx, zy + 30, 'ON THE MARK', GOOD, at(t, arriveAt, 0.25) * 0.95, 8.5);
+    }
+    hero(ctx, px, py, accent, Math.atan2(zy - hy, zx - hx));
+    vignette(f);
+  },
+};
+
+/**
+ * THE TABLE — the whole deck, and people trying to take it off you.
+ *
+ * The one clip on the path that is a loop rather than a sentence, because the
+ * mode is not a sentence either: the wheel is always turning, something is
+ * always arriving, and the fan is always somewhere in the air.
+ */
+const tfFight: PreviewScene = {
+  length: 3,
+  poster: 0.46,
+  caption: 'all of it, against people',
+  paint: (f) => {
+    const { ctx, accent, t, u } = f;
+    stage(f, 118, 104);
+    const cx = 126;
+    const cy = 104;
+    const a = u * TAU;
+    const hx = cx + Math.cos(a) * 44;
+    const hy = cy + Math.sin(a) * 26;
+
+    wall(ctx, 206, 8, 54);
+    wall(ctx, 206, 132, 178);
+
+    // Everything here turns a whole number of times in one loop — the wheel
+    // twice, the hunter twice, the fan twice, the telegraph twice — which is
+    // the only way a clip with four independent clocks on it closes.
+    const hunter = { x: 232 + 16 * Math.cos(u * TAU * 2), y: 62 + 14 * Math.sin(u * TAU * 2) };
+    const duelist = { x: 264, y: 132 };
+    for (let i = 0; i < 3; i++) minion(ctx, 172 + i * 9, 88 + i * 16, RED, 1 - i * 0.25, 0.75);
+
+    const phase = (t / 0.5) % 3;
+    wheel(ctx, hx, hy, 34, phase, faceAt(phase), 0.8);
+
+    const ang = Math.atan2(hunter.y - hy, hunter.x - hx);
+    const fan = (u * 2) % 1;
+    if (fan < 0.55) {
+      for (const off of [-0.2443, 0, 0.2443]) {
+        const d = ang + off;
+        lance(ctx, hx + Math.cos(d) * 180 * (fan / 0.55), hy + Math.sin(d) * 180 * (fan / 0.55), d, 24, TF_GOLDC, 0.9, 2.2);
+      }
+    }
+    const tele = (u * 2) % 1;
+    cone(ctx, duelist.x, duelist.y, Math.PI * 0.86, 0.3, 120, tele < 0.6 ? WARN : RED, tele < 0.6 ? 0.28 + tele * 0.5 : 0.75 * (1 - (tele - 0.6) / 0.4));
+
+    foe(ctx, hunter.x, hunter.y, 5.6, 1);
+    foe(ctx, duelist.x, duelist.y, 5.6, 1);
+    hero(ctx, hx, hy, accent, ang);
+    pointer(ctx, hunter.x, hunter.y, accent, true);
+    vignette(f);
+  },
+};
+
 /**
  * EVERY ACTIVITY, AND ITS CLIP.
  *
@@ -3635,4 +4213,13 @@ export const PREVIEWS: Record<DrillId, PreviewScene> = {
   ezShift,
   ezSwitch,
   ezFight,
+  tfPick,
+  tfGold,
+  tfWild,
+  tfDeck,
+  tfHold,
+  tfPressure,
+  tfCombo,
+  tfGate,
+  tfFight,
 };
