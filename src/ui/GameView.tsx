@@ -748,24 +748,6 @@ export function GameView({
         elCheckFill.style.width = `${Math.round(burn * 100)}%`;
       }
       elCam.classList.toggle('unlocked', !renderer.cameraLocked);
-      // One voice. A new banner is struck in rather than swapped: the
-      // element is restarted so the entrance plays for every arrival, and
-      // its tone decides how loud it is allowed to be.
-      if (snap.bannerSeq !== lastBannerSeq || snap.banner !== lastBanner) {
-        const arriving = snap.banner !== null && (snap.bannerSeq !== lastBannerSeq || lastBanner === null);
-        lastBannerSeq = snap.bannerSeq;
-        lastBanner = snap.banner;
-        if (snap.banner) {
-          elBanner.textContent = snap.banner;
-          elBanner.dataset.tone = snap.bannerTone;
-        }
-        elBanner.classList.toggle('on', snap.banner !== null);
-        if (arriving) {
-          elBanner.classList.remove('arrive');
-          void elBanner.offsetWidth;
-          elBanner.classList.add('arrive');
-        }
-      }
       // The HUD steps back while you fight and comes back when it is quiet.
       if (snap.fighting !== lastFighting) {
         lastFighting = snap.fighting;
@@ -796,6 +778,26 @@ export function GameView({
           elCount.classList.remove('tick');
           void elCount.offsetWidth;
           elCount.classList.add('tick');
+        }
+      }
+      // One voice. A new banner is struck in rather than swapped: the
+      // element is restarted so the entrance plays for every arrival, and
+      // its tone decides how loud it is allowed to be. While GO is on screen
+      // it waits — a drill's opening line lands after the start, not on it.
+      const bannerText = now < goUntil ? null : snap.banner;
+      if (snap.bannerSeq !== lastBannerSeq || bannerText !== lastBanner) {
+        const arriving = bannerText !== null && (snap.bannerSeq !== lastBannerSeq || lastBanner === null);
+        lastBannerSeq = snap.bannerSeq;
+        lastBanner = bannerText;
+        if (bannerText) {
+          elBanner.textContent = bannerText;
+          elBanner.dataset.tone = snap.bannerTone;
+        }
+        elBanner.classList.toggle('on', bannerText !== null);
+        if (arriving) {
+          elBanner.classList.remove('arrive');
+          void elBanner.offsetWidth;
+          elBanner.classList.add('arrive');
         }
       }
     };

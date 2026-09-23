@@ -270,7 +270,7 @@
 }
 @keyframes bannerIn {
   from {
-    opacity: 0;
+    opacity: 0.35;
     transform: translateY(calc(var(--rise) * -0.5)) scale(calc(2 - var(--pop)));
   }
 }
@@ -325,9 +325,11 @@
 .hud-count.tick::before {
   animation: countClose 1s cubic-bezier(0.45, 0, 0.7, 1) both;
 }
+/* Struck, not faded: it starts large and already readable, because a
+   numeral that starts invisible is a numeral a slow frame can hide. */
 @keyframes countStrike {
   from {
-    opacity: 0;
+    opacity: 0.45;
     transform: scale(calc(1 + (1 - var(--pop)) * 8));
   }
 }
@@ -361,7 +363,7 @@
 }
 @keyframes goImpact {
   0% {
-    opacity: 0;
+    opacity: 0.4;
     transform: scale(calc(1 + (1 - var(--pop)) * 15));
     animation-timing-function: cubic-bezier(0.5, 0, 1, 1);
   }

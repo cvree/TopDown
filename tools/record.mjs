@@ -333,7 +333,35 @@ if (!only.length || only.includes('frames')) {
   ft.layoutMs = per('LayoutDuration');
   const counts = await page.evaluate(() => window.__apex?.session?.shown ?? null);
   await ctx.close();
-  const report = { frame: ft, shownOnLane: counts, at: new Date().toISOString() };
+
+  // And the results reveal: the heaviest screen the client itself draws, with
+  // the arena stopped behind it, so this is the interface being timed.
+  const rctx = await browser.newContext({ viewport: { width: W, height: H }, storageState: state });
+  const rpage = await rctx.newPage();
+  await rpage.goto(url);
+  await enter(rpage);
+  await openModeCard(rpage);
+  await waitRunning(rpage);
+  await fastForward(rpage, playSeconds - 0.2);
+  await rpage.waitForSelector('.results', { timeout: 240_000, state: 'attached' });
+  const rcdp = await rctx.newCDPSession(rpage);
+  await rcdp.send('Performance.enable');
+  const rmetric = async () => Object.fromEntries((await rcdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+  // Past the arena's last second, into the reveal itself.
+  await sleep(1100);
+  const r0 = await rmetric();
+  const rt = await frameTimes(rpage, 2500);
+  const r1 = await rmetric();
+  const rper = (k) => ((r1[k] - r0[k]) * 1000) / Math.max(1, rt.frames);
+  rt.scriptMs = rper('ScriptDuration');
+  rt.styleMs = rper('RecalcStyleDuration');
+  rt.layoutMs = rper('LayoutDuration');
+  await rctx.close();
+  console.log(
+    `  frame time on the results reveal: median ${rt.median.toFixed(1)}ms  p95 ${rt.p95.toFixed(1)}ms  (${rt.frames} frames)` +
+      `  · per frame: script ${rt.scriptMs.toFixed(2)}ms  style ${rt.styleMs.toFixed(2)}ms  layout ${rt.layoutMs.toFixed(2)}ms`,
+  );
+  const report = { frame: ft, results: rt, shownOnLane: counts, at: new Date().toISOString() };
   writeFileSync(join(outDir, 'frames.json'), JSON.stringify(report, null, 2));
   console.log(
     `  frame time on the lane: median ${ft.median.toFixed(1)}ms  p95 ${ft.p95.toFixed(1)}ms  (${ft.frames} frames)` +

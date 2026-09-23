@@ -41,6 +41,45 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.24.0',
+    name: 'ONE VOICE',
+    date: '2026-09-23',
+    headline:
+      'The client got quieter and moves like one thing: one banner at a time, words over the fight you earned, a card that grows into the run, results as a three-part ceremony, a rank that is forged — and every explanation behind one question mark.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'Clicking a card grows its picture into the run: it leaves the card, fills the screen and dissolves into the live arena, with the countdown already running under it.',
+          'Rewind shows what it is doing. The arena as it was when you asked, drained of colour, scrubs backwards while the clock counts back to your moment — then lets go, and the live arena is there in colour.',
+          'A new best arrives in its row on PROGRESS the first time you see that row: the number drops in and rings into place. Once.',
+          'One “?” for every explanation in the client. Every paragraph is still there, word for word, one click away.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'One banner at a time. News interrupts, rules of a mode are said once per player rather than every run (minion aggro, the turret ramp, what a mode wants), and colour — a wave, a level — waits out fights and is never shown for less than a second. Banners no longer overwrite each other.',
+          'Words over the arena are earned, not sprayed. Repeats merge (+20 +21 +20 is one +61 that pops as it grows), each body gets two a second and the arena never more than three at once — down from as many as fifteen. In a lane that is 11 words a minute instead of 50.',
+          'CLEAN DODGE is only said for a skillshot you actually dodged — not for a homing shot a moment before it hits you, or a caster bolt aimed at the minion beside you. PERFECT is said when a chain starts and every fifth link; the chain counter already counts the rest.',
+          'The HUD steps back while you fight — the lane figures, the brief and the difficulty dim quickly and return when it has been quiet — and the brief folds away after the opening.',
+          'The countdown is one struck numeral a second with a ring closing on it; GO lands, holds for a heartbeat, and the camera settles under it.',
+          'Results are three acts: the number rolling up, with a line drawn through your old best on the frame it passes it; one verdict — the sentence, the one thing that held the run back, your rating, one button; and everything else folded behind “why”. R, Space and Escape still work from the first frame.',
+          'The rank-up is forged: the old rank breaks and falls away on the hit and the new one rings into place. It waits for the results number to land first.',
+          'Tabs come in from the side their tab is on, and one line of gold slides between them. WARM UP opens on the streak and the button, and nothing else.',
+          'Buttons give under the finger, card pictures lean away from the cursor, numbers roll to their new values, and the warm-up streak turns over like a counter.',
+          'Reduced effects, or your system’s reduced-motion setting, now gives a calm but complete client — every move becomes a short fade — instead of cutting animations off.',
+        ],
+      },
+      {
+        tag: 'fixed',
+        items: [
+          'GO was on screen for a single frame. It now stays up long enough to read.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.23.0',
     name: 'TAKE IT BACK',
     date: '2026-09-23',

@@ -541,7 +541,10 @@ rebuilt from their tapes and compared with the original run, bit for bit, at
 5, 20 and 45 seconds, and the final scores are compared too. A practice mode
 rebuilds a full minute in about 120 ms; the lane costs more (about 13 ms per
 simulated second, with the fog grid — which only the renderer reads — skipped
-during the rebuild) and rebuilds in slices behind a progress bar.
+during the rebuild) and rebuilds in slices. While it does, the screen shows
+what is happening: the arena as it was when you asked, drained of colour,
+scrubbing backwards while the clock counts back to your moment — then the
+still lets go and the live arena is under it, in colour.
 
 **A rewound run is practice.** A run you can go back inside is a run whose
 score could be edited, so it is scored against a copy of your profile — the
@@ -778,6 +781,10 @@ depends on:
   measures the whole run.
 - **Every drill scores under 30% for a player who does nothing.** No drill can
   be passed by presence alone.
+- **The arena stays calm.** Banners and floating words per minute are held to
+  budgets on a lane, the Sheriff, the card wheel and tumble, never more than
+  three words over the arena at once; a rule taught in one lane is not taught
+  again in the next; and the voice changes no score.
 - **The lane is patch 26.18, and the receipt matches it.** The minion, turret,
   experience and champion figures are asserted at their 26.18 values; the first
   wave is asserted to be 279 experience, level two the seventh minion and level
@@ -1226,6 +1233,43 @@ fix something starts one of the four modes.
 
 Screens that are pages sit on a darkened plate, so the arena behind them shows
 through as depth rather than competing for the same pixels as the text.
+
+### Motion, and how little is said
+
+The client moves in one language and says each thing once.
+
+- **One motion system.** Five durations (120–560 ms), a strong ease-out for
+  entrances, a softer curve for exits, a stagger, and two springs sampled from
+  the same physics the code uses to roll numbers — `--dur-1…5`,
+  `--ease-out`, `--ease-exit`, `--ease-spring`, `--ease-forge` in
+  `global.css`, and `src/ui/motion.ts`. Everything that moves goes from a
+  cause to a result, and animates transform and opacity only.
+- **The run's front door.** A card's picture grows into the run (the View
+  Transitions API, with the card's picture and the arena as one named
+  element); the countdown is one struck numeral with a ring closing on it;
+  GO lands, holds for a heartbeat and the camera settles under it.
+- **One voice in the arena.** Every banner states what it is for — critical
+  news interrupts, a rule of the mode is said once per player and remembered
+  on the profile, colour is dropped in a fight and never shown for under a
+  second — and only one is ever on screen. Floating words are spent from a
+  budget (`src/engine/calm.ts`): repeats merge, each body gets two a second,
+  the arena three at once, and commentary waits out the fight. The HUD's
+  secondary figures step back while you are trading.
+- **Results in three acts.** The number, rolling up with a line drawn through
+  your old best on the frame it passes it; the verdict — one sentence, one
+  limiter, one button; and the evidence, every panel there has ever been,
+  behind one “why”. Sound and motion land together.
+- **A forged rank.** The old rank breaks away on the hit and the new one rings
+  into place; a new best lands in its row on PROGRESS once.
+- **Say it once.** Every explanation in the client lives behind the same “?”,
+  word for word. Headers are one line; WARM UP opens on the streak and the
+  button.
+- **Calm is complete.** Reduced effects or the system's reduced-motion setting
+  turns every move into a short fade — nothing travels, nothing is cut off.
+
+None of it can change a score: the banner voice and the float budget are
+presentation, and `npm test` holds them to budgets per minute on the same
+seeds as every other check.
 
 ## Versions and patch notes
 

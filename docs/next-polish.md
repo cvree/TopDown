@@ -1,5 +1,8 @@
 # Next: elegance, calm and motion
 
+> **Done in v2.24.0 — ONE VOICE.** The measurements, the recordings and what
+> was removed are in [`v2.24-proof.md`](v2.24-proof.md).
+
 *Written after v2.23.0. The prompt at the bottom is meant to be pasted as-is
 into the next session.*
 
