@@ -1,5 +1,6 @@
 import { PATCH } from '../engine/patch';
 import { AccuracyReport } from './AccuracyReport';
+import { cardClickStarts } from './components/cardStart';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
@@ -415,7 +416,18 @@ function LaneCard({
   const record = profile.lane?.tiers?.[tier.id];
 
   return (
-    <section ref={card} className="pr-card panel pr-lane" style={{ ['--c' as string]: tier.accent }}>
+    <section
+      ref={card}
+      className="pr-card panel pr-lane pr-startable"
+      style={{ ['--c' as string]: tier.accent }}
+      // The card starts the quick lane against the opponent picked on it; the
+      // longer lanes are the buttons at the bottom.
+      onClick={(e) => {
+        if (!cardClickStarts(e)) return;
+        audio.play('uiClick');
+        onPlay('lanePhase', 'play', { difficulty: tier.difficulty, duration: LANE_LENGTHS[0].seconds });
+      }}
+    >
       {/* The lane gets a clip for the same reason every mode does — and it
           takes the opponent's colour, so resting on the card after picking a
           harder one shows you the lane you actually chose. */}
@@ -426,6 +438,11 @@ function LaneCard({
           host={card}
           still={settings.lowFx}
           label={`a real lane against ${tier.label.toLowerCase()}`}
+          startLabel={`${LANE_LENGTHS[0].label.toLowerCase()} against ${tier.label}`}
+          onStart={() => {
+            audio.play('uiClick');
+            onPlay('lanePhase', 'play', { difficulty: tier.difficulty, duration: LANE_LENGTHS[0].seconds });
+          }}
         />
       </div>
       <div className="pr-card-head">
@@ -634,8 +651,8 @@ function PracticePanel({
         <p className="dim pr-lead pr-panel-lead">
           Every mode has two buttons. <b>PLAY</b> is one minute, always the same, so you can
           compare today's score to yesterday's. <b>SURVIVE</b> has no clock — it gets harder the
-          longer you last and ends on your third mistake. Rest on a card for a moment and it plays
-          you the mode.
+          longer you last and ends on your third mistake. Clicking anywhere else on a card is PLAY;
+          rest on it for a moment and it plays you a clip of the mode instead.
         </p>
         <p className="set-note">
           Every number behind these — cooldowns, ranges, how long you have to dodge — is printed in{' '}
@@ -693,8 +710,8 @@ function PracticePanel({
             press, so the hint leads with that and keeps the hover as the
             shortcut it always was. */}
         <span className="pr-legend-hint">
-          <b>▶ ON ANY CARD</b>
-          <i>plays a clip of that mode — or just rest on the card a moment</i>
+          <b>▶ CLICK ANY CARD</b>
+          <i>and you are in it — one minute of PLAY. Rest on a card, or press CLIP, to watch it first</i>
         </span>
       </div>
 
@@ -780,12 +797,28 @@ function ModeCard({
   return (
     <section
       ref={card}
-      className={`pr-tile panel${open ? ' open' : ''}`}
+      className={`pr-tile panel pr-startable${open ? ' open' : ''}`}
       style={{ ['--c' as string]: meta.accent }}
       onMouseEnter={() => audio.play('uiHover')}
+      // Anywhere on the card that is not one of its own buttons is PLAY.
+      onClick={(e) => {
+        if (!cardClickStarts(e)) return;
+        audio.play('uiClick');
+        onPlay(id, 'play');
+      }}
     >
       <div className="pr-tile-media">
-        <ModePreview id={id} accent={meta.accent} host={card} still={settings.lowFx} />
+        <ModePreview
+          id={id}
+          accent={meta.accent}
+          host={card}
+          still={settings.lowFx}
+          startLabel={meta.name}
+          onStart={() => {
+            audio.play('uiClick');
+            onPlay(id, 'play');
+          }}
+        />
         <div className="pr-tile-title">
           <h2 className="display pr-name">{meta.name}</h2>
           <div className="pr-tag">{meta.tagline}</div>

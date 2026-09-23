@@ -27,6 +27,7 @@ import { defaultsFor, resolveBindings, type Bindings } from '../engine/input';
 import type { AppSettings, Profile } from '../progression/profile';
 import { Explainer } from './components/Explainer';
 import { ModePreview } from './components/ModePreview';
+import { cardClickStarts } from './components/cardStart';
 import './practice.css';
 import './lab.css';
 
@@ -500,6 +501,11 @@ function LabBench({
   };
   // The same bench and the same rung, with the one thing PLAY refuses to do:
   // let the run's own chain move the floor under it.
+  const goPlay = () => {
+    if (blocked) return refuse();
+    audio.play('uiClick');
+    onPlay(mode.id, 'play', { difficulty: levelDifficulty(level), level });
+  };
   const goSurge = () => {
     if (blocked) return refuse();
     audio.play('uiClick');
@@ -515,6 +521,11 @@ function LabBench({
         e.preventDefault();
         goInfinite();
       }}
+      // The card is the PLAY button. Its own controls — the level arrows,
+      // SURGE, ENDLESS — still mean what they say.
+      onClick={(e) => {
+        if (cardClickStarts(e)) goPlay();
+      }}
     >
       {/* WHAT THIS BENCH LOOKS LIKE.
 
@@ -528,7 +539,14 @@ function LabBench({
           taught rather than written down: the pointer in every one of these
           is on the pad that is lit, because in a run it has to be. */}
       <div className="pr-lab-media">
-        <ModePreview id={mode.id} accent={meta.accent} host={card} still={settings.lowFx} />
+        <ModePreview
+          id={mode.id}
+          accent={meta.accent}
+          host={card}
+          still={settings.lowFx}
+          onStart={goPlay}
+          startLabel={`${meta.name}, level ${level}`}
+        />
         <div className="pr-lab-title">
           <b className="pr-lab-name">{meta.name}</b>
           <span className="pr-lab-kind mono">
@@ -635,11 +653,7 @@ function LabBench({
         className="pr-go pr-go-play"
         disabled={blocked}
         onMouseEnter={() => audio.play('uiHover')}
-        onClick={() => {
-          if (blocked) return refuse();
-          audio.play('uiClick');
-          onPlay(mode.id, 'play', { difficulty: levelDifficulty(level), level });
-        }}
+        onClick={goPlay}
       >
         <span className="pr-go-label">PLAY</span>
         <span className="pr-go-sub">

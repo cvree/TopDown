@@ -4,6 +4,7 @@ import type { AbilitySlot } from '../engine/input';
 import { LEAGUE_RULES, Lane, incomingDamage, pendingHits, sumPending, type PendingHit } from '../engine/lane';
 import { LaneBot } from '../engine/lanebot';
 import { XP_RADIUS, levelFromXp, levelProgress } from '../engine/levels';
+import { TradeLedger, planSpans, type LaneReport } from './lanereport';
 import { CANNON, FIRST_BLOOD_GOLD, KILL_GOLD, PASSIVE_GOLD_FROM, PASSIVE_GOLD_PER_SEC } from '../engine/patch';
 import { clamp, dist } from '../engine/math';
 import { PALETTE } from '../engine/palette';
@@ -86,6 +87,9 @@ import { VayneDrill } from './vaynebase';
  */
 const START_CLOCK = 55;
 
+/** The levels the race is about: the first all-in, the second, and the ultimate. */
+const RACE_LEVELS = [2, 3, 6];
+
 /**
  * League's base respawn wait, by level.
  *
@@ -155,6 +159,11 @@ export class LanePhaseDrill extends VayneDrill {
   private allyMinionsLost = 0;
   private damageToRival = 0;
   private damageTaken = 0;
+  /** Every exchange between the two of you, for the lane report. */
+  private tradeLog = new TradeLedger(() => this.s.world.player?.maxHp ?? 1);
+  /** When each of you reached two, three and six, on the game clock. */
+  private raceYou = new Map<number, number>();
+  private raceHer = new Map<number, number>();
   private minionHitsTaken = 0;
   private turretHitsTaken = 0;
   /** Seconds spent standing inside the enemy laner's reach. */
@@ -317,6 +326,7 @@ export class LanePhaseDrill extends VayneDrill {
     super.update(dt);
     this.lane.update(dt);
     this.clockKeeping(dt);
+    this.tradeLog.tick(this.clock);
 
     const p = this.s.world.player;
     const her = this.bot.actor;
@@ -414,10 +424,18 @@ export class LanePhaseDrill extends VayneDrill {
    * does owe you is to say which button just appeared, loudly, since a level
    * that arrives unnoticed is a level you do not use.
    */
+  /** Her experience, through her own ledger, noting the levels the race is about. */
+  private herXp(amount: number): void {
+    const before = this.bot.ledger.level;
+    this.bot.gainXp(amount);
+    for (let l = before + 1; l <= this.bot.ledger.level; l++) if (RACE_LEVELS.includes(l)) this.raceHer.set(l, this.clock);
+  }
+
   private gainXp(amount: number): void {
     this.xp += amount;
     const level = levelFromXp(this.xp);
     if (level <= this.level) return;
+    for (let l = this.level + 1; l <= level; l++) if (RACE_LEVELS.includes(l)) this.raceYou.set(l, this.clock);
     this.level = level;
     const taken = this.spendPoints();
     this.applyPlayerLevel();
@@ -837,10 +855,39 @@ export class LanePhaseDrill extends VayneDrill {
       if (e.type === 'damage') {
         if (e.targetId === pid) this.notePlayerHurt(e);
         else if (e.targetId === her.id && e.actorId === pid) this.damageToRival += e.amount ?? 0;
+        if (e.targetId === pid || e.targetId === her.id) this.noteTrade(e, pid);
       }
       if (e.type === 'death' && e.actorId != null) this.noteDeath(e, pid);
     }
     this.sheriff.onEvents(events);
+  }
+
+  /** One hit between the two sides, into the trade ledger. */
+  private noteTrade(e: WorldEvent, pid: number): void {
+    const her = this.bot.actor;
+    const src = this.s.world.byId(e.actorId);
+    const from =
+      e.actorId === pid ? 'you' : e.actorId === her.id ? 'her' : src?.unitKind === 'turret' ? 'turret' : src?.isMinion ? 'minion' : null;
+    if (!from) return;
+    const to = e.targetId === pid ? 'you' : 'her';
+    // A hit from her counts as "on your last hit" if the free hit she decided
+    // to take was taken while you were winding up on a minion.
+    const last = this.bot.punishes[this.bot.punishes.length - 1];
+    const onLastHit = from === 'her' && !!last && last.onLastHit && this.s.world.time - last.t < 1.5;
+    this.tradeLog.damage(this.clock, from, to, e.amount ?? 0, onLastHit);
+  }
+
+  /** The lane in order: trades, the level race, and what she was doing and why. */
+  laneReport(): LaneReport {
+    this.tradeLog.close();
+    const toClock = (t: number) => START_CLOCK + t;
+    return {
+      trades: this.tradeLog.trades.slice(),
+      plans: planSpans(this.bot.planLog, this.s.world.time, toClock),
+      levels: RACE_LEVELS.map((level) => ({ level, you: this.raceYou.get(level) ?? null, her: this.raceHer.get(level) ?? null })),
+      punishes: this.bot.punishes.length,
+      punishesOnLastHit: this.bot.punishes.filter((x) => x.onLastHit).length,
+    };
   }
 
   private notePlayerHurt(e: WorldEvent): void {
@@ -903,7 +950,7 @@ export class LanePhaseDrill extends VayneDrill {
       if (killer && killer.id === her.id) {
         this.bot.ledger.kills++;
         this.bot.ledger.gold += this.bountyForKill();
-        this.bot.gainXp(table(CHAMPION_KILL_XP, this.level));
+        this.herXp(table(CHAMPION_KILL_XP, this.level));
       }
       this.s.setBanner(`KILLED · BACK IN ${this.deadFor.toFixed(0)}s`, 2.2);
       return;
@@ -938,7 +985,7 @@ export class LanePhaseDrill extends VayneDrill {
     // Your minion: hers.
     this.allyMinionsLost++;
     if (her.alive && dist(her.pos, victim.pos) <= XP_RADIUS) {
-      this.bot.gainXp(xp);
+      this.herXp(xp);
     }
     if (killer && killer.id === her.id) {
       this.bot.ledger.cs++;
@@ -1167,6 +1214,7 @@ export class LanePhaseDrill extends VayneDrill {
       helped,
       hurt,
       advice,
+      lane: this.laneReport(),
     };
   }
 }

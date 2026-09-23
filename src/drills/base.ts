@@ -1,3 +1,4 @@
+import type { LaneReport } from './lanereport';
 import { EnemyBrain, applyTuningToActor, tuningFor, type BotBehavior } from '../engine/ai';
 import { ARCHETYPES } from '../engine/archetypes';
 import type { DrillPaint } from '../engine/paint';
@@ -20,6 +21,8 @@ export interface DrillOutcome {
    * difficulty setting implies. A 1v3 at level 40 is not a 1v1 at level 40.
    */
   effectiveDifficulty?: number;
+  /** The lane's own report — trades, the level race, her plans. Lane only. */
+  lane?: LaneReport;
 }
 
 /**

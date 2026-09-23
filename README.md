@@ -521,6 +521,50 @@ side. After that they answer what *you* do, so two players on one code are on
 the same course rather than watching the same recording. A benchmark's code is
 the benchmark, and records as one.
 
+## Rewind
+
+Press **Backspace** (rebindable), or ⟲ 3s / ⟲ 10s on the pause screen, and the
+run goes back to that moment and hands it to you — Tekken's replay takeover,
+for a lane. The count before your hands come back is a second and a half, and
+pause works during it.
+
+There is no save state behind it, because there does not need to be one. The
+simulation is deterministic: one seed, a fixed 240 Hz step, every random
+number from a seeded generator. So every simulated step's inputs are written
+to a tape — the cursor, the held direction, and each command with its screen
+position already turned into ground — and a rewind remounts the run on the
+same seed and plays the tape back to the moment asked for. The session never
+sees a pixel, which is what keeps the camera out of the replay.
+
+`npm test` proves the property the whole feature rests on: seven modes are
+rebuilt from their tapes and compared with the original run, bit for bit, at
+5, 20 and 45 seconds, and the final scores are compared too. A practice mode
+rebuilds a full minute in about 120 ms; the lane costs more (about 13 ms per
+simulated second, with the fog grid — which only the renderer reads — skipped
+during the rebuild) and rebuilds in slices behind a progress bar.
+
+**A rewound run is practice.** A run you can go back inside is a run whose
+score could be edited, so it is scored against a copy of your profile — the
+results screen shows everything — and written to nothing: no record, ladder,
+rating or benchmark moves. The HUD and the results screen both say so, and
+RUN AGAIN starts a fresh attempt that counts.
+
+## The lane, read back
+
+A lane's results lead with totals, and under them the lane is read back in
+the order it happened:
+
+- **The level race.** When each of you reached two, three and six, and by
+  how much you were first or late.
+- **Trades.** Every exchange between the two champions, from the first hit
+  to three quiet seconds, with everything you took split by who dealt it —
+  her, her wave, her turret — and a one-line lesson named after the biggest
+  cost. The five most expensive are shown.
+- **What she was doing, and why.** The opponent chooses a plan before she
+  presses a button — farm, freeze, shove, back off, all in — and records the
+  reason: she counted lethal, her wave was three bigger and on her side, she
+  was under 28%. The spans that mattered are listed with those reasons.
+
 ## The accuracy report
 
 CHARACTER has a fourth tab, **ACCURACY**: every League figure the lane is built
@@ -543,7 +587,12 @@ default camera zoom, pitch and field of view, the edge-pan constants, the server
 tick rate and the turret's shot into a minion are all NOT FOUND, because a
 plausible number printed as a fact is worse than a gap.
 
-## Not affiliated with Riot Games
+## Free, non-commercial, and not affiliated with Riot Games
+
+APEX is a free fan project and will stay one: no price, no ads, no paid tier,
+no donations, and none planned. That is also what Riot's fan-content policy
+("Legal Jibber Jabber") allows without separate approval, which is part of why
+it is the rule here rather than a phase.
 
 APEX isn't endorsed by Riot Games and doesn't reflect the views or opinions of
 Riot Games or anyone officially involved in producing or managing Riot Games
@@ -1110,6 +1159,13 @@ keys — the ones you do not get are shown greyed rather than hidden, so the car
 read as slices of one champion, and the names under those keys are that
 champion's — and two buttons, PLAY and SURVIVE, each with the record it is
 asking you to beat printed under it.
+
+**Clicking a card starts it.** The button in the middle of the picture is
+PLAY, and so is a click anywhere on the card that is not one of its own
+controls — the level arrows, SURVIVE, SURGE, ENDLESS and the opponent picker
+still mean what they say. On the lane card it starts the quick lane against
+the opponent picked on it. Resting on a card still plays its clip, and a small
+CLIP chip in the corner plays it on a screen with no cursor to rest.
 
 **THE CODEX** is the reading: all three kits in numbers behind one switch — the
 roll's distance and how long it takes, the bolt count and what the third one

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
 import { newSeed } from '../engine/rng';
+import type { Tape } from '../engine/tape';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { RUN_MODES, practiceFor, type RunMode } from '../drills/modes';
 import {
@@ -148,7 +149,22 @@ interface Flow {
   bench?: string;
   /** The warm-up this run is a step of, if it is one. */
   warm?: WarmState;
+  /**
+   * Where a rewind asked this run to restart: the tape so far and the step to
+   * rebuild to. Set by the rewind key, cleared by anything that starts a new
+   * attempt.
+   */
+  rewind?: { tape: Tape; steps: number };
+  /**
+   * Rewinds taken in this attempt. Any at all makes it practice: a run you can
+   * go back inside is a run whose score could be edited, so it is scored for
+   * you to see and written to nothing.
+   */
+  rewinds?: number;
 }
+
+/** The same run, as a new attempt: no rewind to rebuild, none taken. */
+const fresh = (f: Flow): Flow => ({ ...f, rewind: undefined, rewinds: undefined });
 
 /** A warm-up in progress: the plan, which step is on screen, and what the steps before it scored. */
 interface WarmState {
@@ -365,7 +381,16 @@ export function App() {
       if (!flow) return;
       if (result.endReason === 'abort') {
         // An instant reset is a fresh attempt, not a recorded run.
-        setFlow({ ...flow, seed: flow.fixedSeed ? flow.seed : newSeed() });
+        setFlow({ ...fresh(flow), seed: flow.fixedSeed ? flow.seed : newSeed() });
+        return;
+      }
+
+      // A rewound run is practice. It is scored against a copy of the profile
+      // so the results screen can show everything it normally shows — and the
+      // copy is thrown away, so no record, ladder, rating or benchmark moves.
+      if (flow.rewinds) {
+        const report = applyRun(structuredClone(profileRef.current), result, flow.level ? { level: flow.level } : {});
+        window.setTimeout(() => setResults({ result, report, bounds }), 0);
         return;
       }
 
@@ -463,12 +488,19 @@ export function App() {
     [flow],
   );
 
+  /** Go back inside this run: remount it rebuilt to `steps`, same seed. */
+  const onRewind = useCallback((tape: Tape, steps: number) => {
+    setResults(null);
+    setRankUp(null);
+    setFlow((f) => (f ? { ...f, rewind: { tape, steps }, rewinds: (f.rewinds ?? 0) + 1 } : f));
+  }, []);
+
   const retry = useCallback(() => {
     if (!flow) return;
     setResults(null);
     setRankUp(null);
     setBenchNote(null);
-    setFlow({ ...flow, seed: flow.fixedSeed ? flow.seed : newSeed() });
+    setFlow({ ...fresh(flow), seed: flow.fixedSeed ? flow.seed : newSeed() });
   }, [flow]);
 
   /**
@@ -553,7 +585,7 @@ export function App() {
     if (flow.drill === 'lanePhase') {
       const i = LANE_TIERS.findIndex((t) => t.id === laneTierOf(flow.difficulty ?? 0.32).id);
       const next = LANE_TIERS[Math.min(LANE_TIERS.length - 1, i + 1)];
-      setFlow({ ...flow, difficulty: next.difficulty, seed: newSeed() });
+      setFlow({ ...fresh(flow), difficulty: next.difficulty, seed: newSeed() });
       return;
     }
     // An infinite run's "next" is the rung it just found, played for score:
@@ -562,7 +594,7 @@ export function App() {
     if (flow.mode === 'infinite') {
       const held = clamp(Math.round(flow.heldLevel ?? flow.level ?? 1), 1, APM_LEVELS);
       setFlow({
-        ...flow,
+        ...fresh(flow),
         mode: 'play',
         level: held,
         difficulty: levelDifficulty(held),
@@ -575,10 +607,10 @@ export function App() {
     // the difficulty, so the only way to find out what the rung is actually
     // worth is to play it with the floor nailed down.
     if (flow.mode === 'surge') {
-      setFlow({ ...flow, mode: 'play', seed: newSeed() });
+      setFlow({ ...fresh(flow), mode: 'play', seed: newSeed() });
       return;
     }
-    setFlow({ ...flow, mode: flow.mode === 'play' ? 'survive' : 'play', seed: newSeed() });
+    setFlow({ ...fresh(flow), mode: flow.mode === 'play' ? 'survive' : 'play', seed: newSeed() });
   }, [flow, finishWarm]);
 
   // ------------------------------------------------------------- warm-up
@@ -683,7 +715,9 @@ export function App() {
     return (
       <>
         <GameView
-          key={`${flow.drill}-${flow.mode}-${flow.seed}`}
+          key={`${flow.drill}-${flow.mode}-${flow.seed}-${flow.rewinds ?? 0}`}
+          rewind={flow.rewind ?? null}
+          onRewind={onRewind}
           drill={flow.drill}
           mode={flow.mode}
           difficulty={difficulty}
@@ -692,13 +726,14 @@ export function App() {
           settings={profile.settings}
           onSettingsChange={patchSettings}
           context={
-            flow.drill === 'lanePhase'
+            (flow.drill === 'lanePhase'
               ? `LANE PHASE · ${laneTierOf(difficulty).label}`
               : flow.mode === 'infinite'
                 ? `${DRILLS[flow.drill].name} · ENDLESS · started at level ${flow.level ?? 1}`
                 : flow.mode === 'surge'
                   ? `${DRILLS[flow.drill].name} · SURGE · from level ${flow.level ?? 1}`
-                  : `${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`
+                  : `${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`) +
+            (flow.rewinds ? ` · REWOUND ×${flow.rewinds} · PRACTICE ONLY` : '')
           }
           onComplete={handleComplete}
           onExit={exitToMenu}
@@ -717,7 +752,17 @@ export function App() {
                 ? null
                 : encodeScenario({ drill: flow.drill, mode: flow.mode, difficulty, seed: flow.seed })
             }
-            banner={flow.warm ? warmBanner(flow.warm) : benchNote}
+            banner={
+              flow.rewinds
+                ? {
+                    eyebrow: `Rewound ×${flow.rewinds} · practice`,
+                    line: 'Scored for you to see, and written to nothing — no record, ladder, rating or benchmark moved. Run again for one that counts.',
+                    tone: 'warn',
+                  }
+                : flow.warm
+                  ? warmBanner(flow.warm)
+                  : benchNote
+            }
             nextLabel={
               flow.warm
                 ? warmNextLabel(flow.warm)

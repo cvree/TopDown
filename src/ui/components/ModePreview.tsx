@@ -103,12 +103,22 @@ export function ModePreview({
    */
   still = false,
   label,
+  /**
+   * What the card starts. When a card passes one, the big button in the middle
+   * of the picture *is* the card's play button — press it and you are in the
+   * run — and the clip moves to a small control in the corner. A card is for
+   * playing; a film of it is a courtesy.
+   */
+  onStart,
+  startLabel,
 }: {
   id: DrillId;
   accent: string;
   host?: RefObject<HTMLElement | null>;
   still?: boolean;
   label?: string;
+  onStart?: () => void;
+  startLabel?: string;
 }) {
   // Total over `DrillId`, so there is no such thing as a mode without a clip
   // and no empty-rectangle branch to keep working. See `PREVIEWS`.
@@ -393,7 +403,7 @@ export function ModePreview({
 
   return (
     <div
-      className="pv"
+      className={`pv${onStart ? ' pv-startable' : ''}`}
       ref={rootRef}
       // The ring is filled by a CSS animation and the wait by a timer here, so
       // the two read the same number rather than each keeping their own.
@@ -421,6 +431,52 @@ export function ModePreview({
           for anybody reading the page rather than looking at it. The hover-hold
           is untouched underneath: rest on the card and the ring fills and the
           clip starts by itself, exactly as before. */}
+      {onStart ? (
+        <>
+          <button
+            type="button"
+            className="pv-play pv-start"
+            aria-label={`Start ${startLabel ?? label ?? scene.caption}`}
+            title="Start"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onStart();
+            }}
+            onContextMenu={(e) => e.stopPropagation()}
+          >
+            <svg viewBox="0 0 48 48" aria-hidden>
+              <circle className="pv-play-disc" cx="24" cy="24" r="17" />
+              <circle className="pv-play-track" cx="24" cy="24" r="17" />
+              <path className="pv-play-glyph" d="M19.5 15.8 L33 24 L19.5 32.2 Z" />
+            </svg>
+          </button>
+          {/* The clip, for anybody without a cursor to rest on the card. */}
+          <button
+            type="button"
+            className="pv-clip"
+            ref={playRef}
+            aria-label={`Play a clip: ${label ?? scene.caption}`}
+            title="Watch a clip"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggle();
+            }}
+            onContextMenu={(e) => e.stopPropagation()}
+          >
+            <svg viewBox="0 0 48 48" aria-hidden>
+              <circle className="pv-play-fill" cx="24" cy="24" r="17" />
+              <path className="pv-play-glyph" d="M19.5 15.8 L33 24 L19.5 32.2 Z" />
+              <g className="pv-play-stop">
+                <rect x="18.4" y="17.4" width="4.2" height="13.2" rx="1.2" />
+                <rect x="25.4" y="17.4" width="4.2" height="13.2" rx="1.2" />
+              </g>
+            </svg>
+            <span>CLIP</span>
+          </button>
+        </>
+      ) : (
       <button
         type="button"
         className="pv-play"
@@ -447,6 +503,7 @@ export function ModePreview({
           </g>
         </svg>
       </button>
+      )}
       <i className="pv-bar" ref={barRef} aria-hidden />
       <span className="pv-cap">{label ?? scene.caption}</span>
     </div>

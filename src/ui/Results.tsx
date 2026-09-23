@@ -1,3 +1,4 @@
+import { LaneReportPanel } from './LaneReportPanel';
 import { useEffect, useMemo, useState } from 'react';
 import { audio } from '../engine/audio';
 import { clamp } from '../engine/math';
@@ -585,6 +586,8 @@ SURGE keeps its own record. The difficulty moved while you played, so this does
             </div>
           </div>
         )}
+
+        {result.lane && <LaneReportPanel report={result.lane} visible={stage >= 4} />}
 
         <div className={`res-viz ${stage >= 4 ? 'in' : ''}`}>
           <div className="panel pad">

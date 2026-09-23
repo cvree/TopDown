@@ -1450,6 +1450,64 @@
   opacity: 1;
 }
 
+/* A card that can start its run: the middle button is PLAY, and stays PLAY
+   while the clip runs behind it — the whole point of the card is one click
+   into the run. The clip moves to a small chip in the corner. */
+.pv-startable {
+  cursor: pointer;
+}
+.pv.pv-startable .pv-start,
+.pv.pv-startable.is-live .pv-start {
+  opacity: 0.95;
+  transform: scale(1);
+  pointer-events: auto;
+}
+.pv.pv-startable:hover .pv-start,
+.pv.pv-startable .pv-start:focus-visible {
+  opacity: 1;
+  transform: scale(1.1);
+}
+.pv-start .pv-play-disc {
+  fill: color-mix(in srgb, var(--c) 30%, rgba(3, 7, 14, 0.85));
+  stroke: var(--c);
+}
+.pv.pv-startable.is-live .pv-start .pv-play-glyph {
+  opacity: 1;
+}
+.pv-clip {
+  position: absolute;
+  z-index: 3;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 2px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(3, 7, 14, 0.78);
+  color: #fff;
+  font: 700 9px/1 var(--ui);
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.pv-clip svg {
+  width: 20px;
+  height: 20px;
+  overflow: visible;
+}
+.pv:hover .pv-clip,
+.pv-clip:focus-visible {
+  opacity: 1;
+}
+.pv-clip:focus-visible {
+  outline: 2px solid var(--c);
+  outline-offset: 2px;
+}
+
 /* ------------------------------------------------------- loop position, cap */
 
 .pv-bar {
@@ -1519,4 +1577,14 @@
   .pr-tile:focus-within {
     transform: none;
   }
+}
+
+/* Cards that start their run on a click say so with the cursor. */
+.pr-startable,
+.pr-lab-mode:not(.unplayable) {
+  cursor: pointer;
+}
+.pr-startable :is(p, span, h2, b, i),
+.pr-lab-mode :is(p, span, b, i) {
+  cursor: inherit;
 }
