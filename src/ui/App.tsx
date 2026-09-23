@@ -41,6 +41,7 @@ import { Welcome, type WelcomeResult } from './Welcome';
 import { WarmUp, type WarmupSummary } from './WarmUp';
 import {
   BENCH_DIFFICULTY,
+  BENCH_SCENARIOS,
   BENCH_TIERS,
   benchFor,
   benchPlace,
@@ -58,6 +59,7 @@ import {
   type DayRead,
   type ReactionRun,
   type ReactionTestId,
+  type StopReason,
   type WarmupPlan,
   type WarmupRep,
 } from '../progression/warmup';
@@ -170,6 +172,10 @@ export function App() {
     rollDaily(p);
     return p;
   });
+  // The profile as of the last render, for the two places that have to build
+  // the next one synchronously: a run finishing and a warm-up closing.
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
   // A returning player opens on the warm-up; a new one on the champion, which
   // the walkthrough is about to send them past anyway.
   const [route, setRoute] = useState<Route>(() => (profile.onboarded ? 'warmup' : 'practice'));
@@ -381,54 +387,61 @@ export function App() {
         if (held !== undefined) setFlow((f) => (f ? { ...f, heldLevel: held } : f));
       }
 
-      let report: ProgressReport | null = null;
-      setProfile((prev) => {
-        const next: Profile = {
-          ...prev,
-          ratings: { ...prev.ratings },
-          samples: { ...prev.samples },
-          difficulty: { ...prev.difficulty },
-          bests: { ...prev.bests },
-          survive: { ...prev.survive },
-          history: [...prev.history],
-          daily: { ...prev.daily, completed: [...prev.daily.completed] },
-          dailyMarks: [...prev.dailyMarks],
-          // The champion paths are written in place by applyRun, so they have
-          // to be copied down to the records or the previous state would move
-          // with them — and a "previous" that moves is a results screen that
-          // cannot tell you what changed.
-          vayne: { ...prev.vayne, stages: copyRungs(prev.vayne.stages) },
-          twisted: { ...prev.twisted, stages: copyRungs(prev.twisted.stages) },
-          ezreal: { ...prev.ezreal, stages: copyRungs(prev.ezreal.stages) },
-          recentBests: [...prev.recentBests],
-          bench: Object.fromEntries(Object.entries(prev.bench).map(([k, v]) => [k, v && { ...v }])),
-        };
-        report = applyRun(next, result, flow.level ? { level: flow.level } : {});
-        // A benchmark is only a benchmark on its own terms: its seed, its
-        // difficulty, one minute. A run that was re-rolled or reset is not.
-        const b = flow.bench ? benchFor(result.drill, result.seed) : null;
-        if (b && result.mode === 'play' && Math.abs(result.difficulty - BENCH_DIFFICULTY) < 1e-6) {
-          const before = benchPlace(b, next.bench[b.id]?.best ?? null).tier;
-          const beat = recordBench(next.bench, b.id, result.score);
-          const after = benchPlace(b, next.bench[b.id]?.best ?? null).tier;
-          const name = (t: number) => (t >= 0 ? BENCH_TIERS[t] : 'UNRANKED');
-          setBenchNote({
-            eyebrow: `Benchmark · ${b.label}`,
-            line: after > before
-              ? `${name(before)} → ${name(after)}. New record: ${Math.round(result.score).toLocaleString('en-US')}.`
+      // Computed here, synchronously, from the profile as it stands, and then
+      // handed to React — rather than inside a state updater and read back a
+      // tick later. An updater only runs early when it is the first update of
+      // its batch; a warm-up step queues one before it, and the report came
+      // back empty.
+      const prev = profileRef.current;
+      const next: Profile = {
+        ...prev,
+        ratings: { ...prev.ratings },
+        samples: { ...prev.samples },
+        difficulty: { ...prev.difficulty },
+        bests: { ...prev.bests },
+        survive: { ...prev.survive },
+        history: [...prev.history],
+        daily: { ...prev.daily, completed: [...prev.daily.completed] },
+        dailyMarks: [...prev.dailyMarks],
+        // The champion paths are written in place by applyRun, so they have
+        // to be copied down to the records or the previous state would move
+        // with them — and a "previous" that moves is a results screen that
+        // cannot tell you what changed.
+        vayne: { ...prev.vayne, stages: copyRungs(prev.vayne.stages) },
+        twisted: { ...prev.twisted, stages: copyRungs(prev.twisted.stages) },
+        ezreal: { ...prev.ezreal, stages: copyRungs(prev.ezreal.stages) },
+        recentBests: [...prev.recentBests],
+        bench: Object.fromEntries(Object.entries(prev.bench).map(([k, v]) => [k, v && { ...v }])),
+      };
+      const report: ProgressReport = applyRun(next, result, flow.level ? { level: flow.level } : {});
+      // A benchmark is only a benchmark on its own terms: its seed, its
+      // difficulty, one minute. A run that was re-rolled or reset is not.
+      const b = flow.bench ? benchFor(result.drill, result.seed) : null;
+      if (b && result.mode === 'play' && Math.abs(result.difficulty - BENCH_DIFFICULTY) < 1e-6) {
+        const before = benchPlace(b, next.bench[b.id]?.best ?? null).tier;
+        const beat = recordBench(next.bench, b.id, result.score);
+        const after = benchPlace(b, next.bench[b.id]?.best ?? null).tier;
+        const name = (t: number) => (t >= 0 ? BENCH_TIERS[t] : 'UNRANKED');
+        const first = (next.bench[b.id]?.runs ?? 0) === 1;
+        const fmtN = (v: number) => Math.round(v).toLocaleString('en-US');
+        const up = after < b.thresholds.length - 1 ? `${BENCH_TIERS[after + 1]} is at ${fmtN(b.thresholds[after + 1])}.` : 'Top of the sheet.';
+        setBenchNote({
+          eyebrow: `Benchmark · ${b.label}`,
+          line: first
+            ? `First run on this benchmark: ${fmtN(result.score)} — ${name(after)}. ${up}`
+            : after > before
+              ? `${name(before)} → ${name(after)}. New record: ${fmtN(result.score)}. ${up}`
               : beat
-                ? `New record: ${Math.round(result.score).toLocaleString('en-US')} — still ${name(after)}.`
-                : `${name(after)} · record ${Math.round(next.bench[b.id]?.best ?? 0).toLocaleString('en-US')}. Same seed on RUN AGAIN.`,
-            tone: after > before ? 'good' : beat ? 'good' : undefined,
-          });
-        }
-        return next;
-      });
+                ? `New record: ${fmtN(result.score)} — still ${name(after)}. ${up}`
+                : `Record stands at ${fmtN(next.bench[b.id]?.best ?? 0)} (${name(after)}). Same seed on RUN AGAIN.`,
+          tone: after > before || (beat && !first) ? 'good' : undefined,
+        });
+      }
+      profileRef.current = next;
+      setProfile(next);
 
-      // React 19 batches the state update above; read the report next tick.
       window.setTimeout(() => {
         const rep = report;
-        if (!rep) return;
         setResults({ result, report: rep, bounds });
         if (rep.promoted) {
           const driver = rep.axisChanges.reduce<{ axis: SkillAxis; delta: number } | null>(
@@ -463,19 +476,15 @@ export function App() {
    * on the warm-up screen. `stopped` is the stop rule firing, or a player who
    * left after the two sets that were the point of it.
    */
-  const finishWarm = useCallback((w: WarmState, stopped: boolean) => {
+  const finishWarm = useCallback((w: WarmState, stopped: StopReason | null) => {
     const reps = w.reps.filter((r): r is WarmupRep => !!r);
-    let summary: WarmupSummary | null = null;
-    setProfile((prev) => {
-      const next: Profile = { ...prev, warmup: structuredClone(prev.warmup) };
-      const previous = lastWarmupOn(prev.warmup, w.plan.focus, Date.now());
-      const done = finishWarmup(next, w.plan, reps, w.calibration, w.day, stopped);
-      summary = { session: done.session, ...done.streak, streak: next.warmup.streak, previous };
-      return next;
-    });
-    window.setTimeout(() => {
-      if (summary) setWarmSummary(summary);
-    }, 0);
+    const prev = profileRef.current;
+    const next: Profile = { ...prev, warmup: structuredClone(prev.warmup) };
+    const previous = lastWarmupOn(prev.warmup, w.plan.focus, Date.now());
+    const done = finishWarmup(next, w.plan, reps, w.calibration, w.day, stopped);
+    profileRef.current = next;
+    setProfile(next);
+    setWarmSummary({ session: done.session, ...done.streak, streak: next.warmup.streak, previous });
     setResults(null);
     setRankUp(null);
     setFlow(null);
@@ -487,7 +496,7 @@ export function App() {
     // Leaving a warm-up after its two sets still counts: those were the
     // point of it. Leaving before them is simply leaving.
     if (flow?.warm && flow.warm.reps.filter(Boolean).length >= 2) {
-      finishWarm(flow.warm, true);
+      finishWarm(flow.warm, 'left');
       return;
     }
     setResults(null);
@@ -511,7 +520,7 @@ export function App() {
       const w = flow.warm;
       const next = warmNext(w);
       if (next === null) {
-        finishWarm(w, w.step === 2 && warmStops(w));
+        finishWarm(w, w.step === 2 && warmStops(w) ? 'rule' : null);
         return;
       }
       const step = w.plan.steps[next];
@@ -526,6 +535,18 @@ export function App() {
         warm: { ...w, step: next },
       });
       return;
+    }
+    // A benchmark's "next" is the next row of the sheet, the way a KovaaK's
+    // playlist runs: six minutes, six rows, one key between them.
+    if (flow.bench) {
+      const nb = nextBench(flow.bench);
+      if (nb?.drill && nb.seed !== undefined) {
+        setResults(null);
+        setRankUp(null);
+        setBenchNote(null);
+        setFlow({ drill: nb.drill, mode: 'play', seed: nb.seed, fixedSeed: true, difficulty: BENCH_DIFFICULTY, bench: nb.id });
+        return;
+      }
     }
     setResults(null);
     setRankUp(null);
@@ -700,6 +721,8 @@ export function App() {
             nextLabel={
               flow.warm
                 ? warmNextLabel(flow.warm)
+                : flow.bench && nextBench(flow.bench)
+                  ? `Next benchmark: ${nextBench(flow.bench)?.label}`
                 : flow.drill === 'lanePhase'
                 ? `Lane against ${
                     LANE_TIERS[
@@ -909,6 +932,13 @@ const formatHead = (v: number, f: string): string => {
   return `${Math.round(v)}`;
 };
 
+/** The benchmark row after this one, wrapping, skipping the reaction rows. */
+const nextBench = (id: string): BenchScenario | null => {
+  const rows = BENCH_SCENARIOS.filter((b) => b.kind === 'drill');
+  const i = rows.findIndex((b) => b.id === id);
+  return i < 0 ? null : rows[(i + 1) % rows.length];
+};
+
 // ------------------------------------------------------------ warm-up steps
 
 /** Whether the stop rule fires on this warm-up's two sets. */
@@ -947,8 +977,13 @@ const warmBanner = (w: WarmState): { eyebrow: string; line: string; tone?: 'good
       };
     return {
       eyebrow,
-      line: d >= 0 ? `Set 2 beat set 1 by ${d} performance points.` : `Set 2 was ${-d} points under set 1 — normal variance; carry on.`,
-      tone: d >= 0 ? 'good' : undefined,
+      line:
+        d > 0
+          ? `Set 2 beat set 1 by ${d} performance point${d === 1 ? '' : 's'}.`
+          : d === 0
+            ? 'Set 2 matched set 1 exactly.'
+            : `Set 2 was ${-d} point${d === -1 ? '' : 's'} under set 1 — normal variance on its own; carry on.`,
+      tone: d > 0 ? 'good' : undefined,
     };
   }
   return { eyebrow, line: s.reason };

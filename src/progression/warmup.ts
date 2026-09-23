@@ -202,8 +202,17 @@ export interface WarmupSession {
   calibration: number | null;
   day: DayRead;
   stoppedEarly: boolean;
+  /**
+   * Why it stopped early: the stop rule firing, or the player leaving after
+   * the two sets. Different sentences, because one is the routine protecting
+   * you and the other is you deciding — and telling somebody who chose to
+   * leave that they were getting worse would be inventing a diagnosis.
+   */
+  stopReason: StopReason | null;
   intention: string | null;
 }
+
+export type StopReason = 'rule' | 'left';
 
 export interface WarmupProgress {
   reaction: Record<ReactionTestId, ReactionRecord>;
@@ -279,6 +288,7 @@ export const normalizeWarmup = (raw: unknown): WarmupProgress => {
           calibration: Number.isFinite(num(s.calibration, NaN)) ? num(s.calibration, NaN) : null,
           day: (s.day === 'sharp' || s.day === 'normal' || s.day === 'slow' ? s.day : 'unknown') as DayRead,
           stoppedEarly: s.stoppedEarly === true,
+          stopReason: (s.stopReason === 'rule' || s.stopReason === 'left' ? s.stopReason : s.stoppedEarly === true ? 'rule' : null) as StopReason | null,
           intention: typeof s.intention === 'string' ? s.intention : null,
         }))
         .slice(-90)
@@ -515,7 +525,7 @@ export const finishWarmup = (
   reps: WarmupRep[],
   calibration: ReactionRun | null,
   day: DayRead,
-  stoppedEarly: boolean,
+  stopped: StopReason | null,
 ): { session: WarmupSession; streak: ReturnType<typeof completeDay> } => {
   const session: WarmupSession = {
     date: plan.date,
@@ -525,7 +535,8 @@ export const finishWarmup = (
     reps,
     calibration: calibration?.median ?? null,
     day,
-    stoppedEarly,
+    stoppedEarly: stopped !== null,
+    stopReason: stopped,
     intention: intentionFor(plan.focusError, plan.focus),
   };
   p.warmup.sessions.push(session);

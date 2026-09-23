@@ -246,8 +246,14 @@ function SummaryCard({ summary, onDismiss }: { summary: WarmupSummary; onDismiss
     <section className="panel pad wu-sum fade-in">
       <div className="wu-sum-top">
         <div>
-          <div className="eyebrow">{session.stoppedEarly ? 'Stopped early — and it counts' : 'Warm-up complete'}</div>
-          <h2 className="display wu-sum-h">{session.stoppedEarly ? 'COME BACK TOMORROW' : 'READY FOR RANKED'}</h2>
+          <div className="eyebrow">
+            {session.stopReason === 'rule'
+              ? 'Stopped early — and it counts'
+              : session.stopReason === 'left'
+                ? 'Left after the two sets — and it counts'
+                : 'Warm-up complete'}
+          </div>
+          <h2 className="display wu-sum-h">{session.stopReason === 'rule' ? 'COME BACK TOMORROW' : 'READY FOR RANKED'}</h2>
         </div>
         <button className="btn ghost" type="button" onClick={onDismiss}>
           Close
@@ -283,7 +289,7 @@ function SummaryCard({ summary, onDismiss }: { summary: WarmupSummary; onDismiss
         </div>
       </div>
 
-      {session.stoppedEarly && (
+      {session.stopReason === 'rule' && (
         <p className="wu-sum-stop">
           Your second set was clearly worse than your first on a day your reactions were slower than
           normal. Past that point you are rehearsing tiredness, so the routine stopped. That is a

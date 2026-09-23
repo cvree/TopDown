@@ -5239,7 +5239,7 @@ line('\n=== WARM UP: a routine you can argue with, a streak that forgives ===');
   expect('every mistake has a sentence for the next game', ERROR_CODES.every((c) => INTENTIONS[c].length > 20), 'missing intention');
 
   // Closing a routine writes a session and extends the streak.
-  const done = finishWarmup(erring, fix, [{ drill: 'caitlynDodge', score: 1, performance: 0.5 }, { drill: 'caitlynDodge', score: 2, performance: 0.6 }], null, 'unknown', false);
+  const done = finishWarmup(erring, fix, [{ drill: 'caitlynDodge', score: 1, performance: 0.5 }, { drill: 'caitlynDodge', score: 2, performance: 0.6 }], null, 'unknown', null);
   expect('a finished warm-up is a session', erring.warmup.sessions.length === 1 && done.session.intention === INTENTIONS.LATE_DODGE, `${erring.warmup.sessions.length}`);
   expect('and a day on the streak', erring.warmup.streak === 1 && done.streak.extended, `${erring.warmup.streak}`);
   expect('last time on the same focus is findable', lastWarmupOn(erring.warmup, 'caitlynDodge', Date.now() + 1) !== null, 'not found');

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { audio } from '../engine/audio';
 import { shortCodeLabel, type Bindings } from '../engine/input';
 import {
@@ -70,10 +71,18 @@ export function ReactionTest({ test, bindings, best, baseline, doneLabel = 'DONE
   phaseRef.current = phase;
   const stage = useRef<HTMLDivElement>(null);
 
+  // Your four ability inputs, as you have them bound — which under WASD
+  // includes a mouse button, so the choice test answers clicks as well as
+  // keys. Either half of a binding counts, as it does in a run.
   const keys = useMemo(
-    () => Object.fromEntries(CHOICE_SLOTS.map((s) => [s, bindings[s]?.primary || s.toUpperCase()])) as Record<(typeof CHOICE_SLOTS)[number], string>,
+    () =>
+      Object.fromEntries(
+        CHOICE_SLOTS.map((s) => [s, bindings[s]?.primary || `Key${s.toUpperCase()}`]),
+      ) as Record<(typeof CHOICE_SLOTS)[number], string>,
     [bindings],
   );
+  const answers = (slotId: (typeof CHOICE_SLOTS)[number], code: string): boolean =>
+    code === keys[slotId] || (!!bindings[slotId]?.secondary && code === bindings[slotId]?.secondary);
 
   const run = useMemo(() => (phase === 'done' ? summariseTrials(trials, falseStarts) : null), [phase, trials, falseStarts]);
 
@@ -109,8 +118,11 @@ export function ReactionTest({ test, bindings, best, baseline, doneLabel = 'DONE
         setTarget({ x: rand(0.1, 0.9) * w, y: rand(0.14, 0.86) * h });
       }
       setPhase('go');
-      // Two frames: the first runs before the change is painted, the second
-      // starts on the frame that shows it.
+      // The clock starts now, and is moved to the painted frame once there is
+      // one: two frames on, the first runs before the change is painted and
+      // the second starts on the frame that shows it. A tab that never paints
+      // (hidden, throttled) still times the answer rather than ignoring it.
+      t0.current = performance.now();
       raf.current = requestAnimationFrame(() => {
         raf.current = requestAnimationFrame((ts) => {
           t0.current = ts;
@@ -145,12 +157,12 @@ export function ReactionTest({ test, bindings, best, baseline, doneLabel = 'DONE
     timer.current = window.setTimeout(arm, 900);
   }, [arm]);
 
-  /** Any answer. `code` is a key code, or null for a mouse press. */
+  /** Any answer: a key code, or `Mouse0`–`Mouse2` for a button. */
   const answer = useCallback(
-    (code: string | null, at: number, pos?: { x: number; y: number }) => {
+    (code: string, at: number, pos?: { x: number; y: number }) => {
       const ph = phaseRef.current;
       if (ph === 'intro') {
-        if (code === 'Space' || code === 'Enter' || code === null) arm();
+        if (code === 'Space' || code === 'Enter' || code === 'Mouse0') arm();
         return;
       }
       if (ph === 'wait') {
@@ -168,19 +180,19 @@ export function ReactionTest({ test, bindings, best, baseline, doneLabel = 'DONE
         return;
       }
       if (test === 'choice') {
-        if (code === null) return;
-        record({ ms, correct: code === keys[slot] });
+        record({ ms, correct: answers(slot, code) });
         return;
       }
       if (test === 'aim') {
-        if (code !== null || !pos || !target) return;
+        if (code !== 'Mouse0' || !pos || !target) return;
         const hit = Math.hypot(pos.x - target.x, pos.y - target.y) <= 30;
         record({ ms, correct: hit });
         return;
       }
       record({ ms, correct: true });
     },
-    [arm, early, record, test, keys, slot, target],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [arm, early, record, test, keys, slot, target, bindings],
   );
 
   useEffect(() => {
@@ -212,13 +224,16 @@ export function ReactionTest({ test, bindings, best, baseline, doneLabel = 'DONE
     const at = performance.now();
     const r = stage.current?.getBoundingClientRect();
     const pos = r ? { x: e.clientX - r.left, y: e.clientY - r.top } : undefined;
-    answer(null, at, pos);
+    answer(`Mouse${e.button}`, at, pos);
   };
 
   const lit = phase === 'go' && test === 'visual';
   const shownMs = last ? Math.round(last.ms) : null;
 
-  return (
+  // Portalled to the body: the screens this opens from animate in with a
+  // transform, and a transformed ancestor turns `position: fixed` into
+  // "fixed to me" — which drew the test inside the page instead of over it.
+  return createPortal(
     <div className="rx" style={{ ['--c' as string]: meta.accent }} role="dialog" aria-label={`${meta.label} reaction test`}>
       <header className="rx-head">
         <div>
@@ -266,7 +281,7 @@ export function ReactionTest({ test, bindings, best, baseline, doneLabel = 'DONE
           <div className="rx-center">
             <div className="rx-keys big">
               {CHOICE_SLOTS.map((s) => (
-                <kbd key={s} className={`rx-key${s === slot ? ' on' : ''}`}>{shortCodeLabel(keys[s])}</kbd>
+                <kbd key={s} data-code={keys[s]} className={`rx-key${s === slot ? ' on' : ''}`}>{shortCodeLabel(keys[s])}</kbd>
               ))}
             </div>
           </div>
@@ -340,6 +355,7 @@ export function ReactionTest({ test, bindings, best, baseline, doneLabel = 'DONE
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

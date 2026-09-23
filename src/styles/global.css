@@ -368,6 +368,8 @@ h3 {
   transition: color 0.18s, background 0.18s;
   position: relative;
   text-transform: uppercase;
+  /* Two-word tabs (WARM UP) stay on one line; the bar wraps, a label does not. */
+  white-space: nowrap;
 }
 .nav button::before {
   content: '';
