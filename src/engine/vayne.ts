@@ -27,6 +27,7 @@
  * four Vayne drills and the gauntlet share exactly one implementation of the
  * champion.
  */
+import { VAYNE_26_18 } from './patch';
 import { audio } from './audio';
 import type { AbilitySlot } from './input';
 import { grown, grownAttackSpeed } from './levels';
@@ -363,17 +364,20 @@ export const LEAGUE_TRINKET = { cd: 150, life: 90, max: 1 } as const;
  * laner's poke roughly twice as frequent as any real one, which is not a
  * harder lane, it is a different game.
  *
- * League's figures for Vayne: 232 mana growing 35 a level, regenerating 6.97
- * every five seconds and growing 0.65. Tumble costs 30, Condemn 90, Final Hour
- * 80, and Silver Bolts is a passive that costs nothing.
+ * League's figures for Vayne (26.18, from the patch manifest): 232 mana
+ * growing 35 a level, regenerating 7 every five seconds and growing 0.4.
+ * Tumble costs 46 at rank one and 4 less a rank after — Riot moved that in
+ * 26.17 — Condemn 90, Final Hour 80, and Silver Bolts is a passive that costs
+ * nothing. `cost.q` is the rank-one figure; the lane charges by rank.
  */
 export const VAYNE_MANA = {
-  base: 232,
-  growth: 35,
+  base: VAYNE_26_18.mana.base,
+  growth: VAYNE_26_18.mana.growth,
   /** Mana per five seconds, and its growth per level. */
-  regen: 6.97,
-  regenGrowth: 0.65,
-  cost: { q: 30, w: 0, e: 90, r: 80, d: 0, f: 0 },
+  regen: VAYNE_26_18.mana.regen,
+  regenGrowth: VAYNE_26_18.mana.regenGrowth,
+  cost: { q: VAYNE_26_18.qCostByRank[0], w: 0, e: 90, r: 80, d: 0, f: 0 },
+  qCostByRank: VAYNE_26_18.qCostByRank,
 } as const;
 
 /** Vayne's mana pool and regeneration at a level. */
@@ -383,14 +387,14 @@ export const vayneManaAt = (level: number): { max: number; regen: number } => ({
 });
 
 export const VAYNE_GROWTH = {
-  /** League: 550 health, growing 103 a level. */
-  hp: { base: 550, growth: 103 },
-  /** League: 23 armour, growing 4.2 a level. Folded into the pool, see above. */
-  armor: { base: 23, growth: 4.2 },
-  /** League: 60 attack damage, growing 3.3 a level. */
-  ad: { base: 60, growth: 3.3 },
-  /** League: 0.658 base attack speed, growing 3.3% a level. */
-  attackSpeed: { base: 0.658, growthPct: 3.3 },
+  /** League 26.17: 580 health, growing 98 a level. */
+  hp: VAYNE_26_18.hp,
+  /** League: 23 armour, growing 4.6 a level. Folded into the pool, see above. */
+  armor: VAYNE_26_18.armor,
+  /** League: 60 attack damage, growing 2.35 a level. */
+  ad: VAYNE_26_18.ad,
+  /** League 26.17: 0.658 base attack speed, growing 2.8% a level. */
+  attackSpeed: VAYNE_26_18.attackSpeed,
 } as const;
 
 /** Vayne as she actually is at a given level, before items and runes. */

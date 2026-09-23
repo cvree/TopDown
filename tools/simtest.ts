@@ -44,15 +44,16 @@ import { angleDelta, dist, norm } from '../src/engine/math';
 import { ARCHETYPES } from '../src/engine/archetypes';
 import { EnemyBrain, tuningFor, type BotBehavior } from '../src/engine/ai';
 import type { Actor, Vec2 } from '../src/engine/types';
-import { LEAGUE_MINION_STATS, LEAGUE_RULES, incomingDamage } from '../src/engine/lane';
-import { XP_THRESHOLDS, levelFromXp } from '../src/engine/levels';
+import { LEAGUE_MINION_STATS, LEAGUE_RULES, MINION_STATS, incomingDamage } from '../src/engine/lane';
+import { CONFIDENCES, FACTS, MINION_FIRST_SPAWN, PATCH, factTally } from '../src/engine/patch';
+import { XP_RADIUS, XP_THRESHOLDS, levelFromXp } from '../src/engine/levels';
 import { LANE_TIERS, laneTierOf } from '../src/progression/lane';
 import { laneTuning } from '../src/engine/lanebot';
 import type { VayneKit } from '../src/engine/vayne';
-import { VAYNE_STATS, condemnCdAt, condemnPracticeCdAt, tumbleCdAt, tumblePracticeCdAt, tumbleRhythm } from '../src/engine/vayne';
+import { VAYNE_GROWTH, VAYNE_MANA, VAYNE_STATS, condemnCdAt, condemnPracticeCdAt, tumbleCdAt, tumblePracticeCdAt, tumbleRhythm } from '../src/engine/vayne';
 import { FLASH_PRACTICE_CD, FLASH_RANGE } from '../src/engine/summoners';
 import { EZREAL_STATS, type EzrealKit } from '../src/engine/ezreal';
-import { CAITLYN_STATS, caitlynAtLevel, type CaitlynKit } from '../src/engine/caitlyn';
+import { CAITLYN_MANA, CAITLYN_STATS, caitlynAtLevel, type CaitlynKit } from '../src/engine/caitlyn';
 import { EZREAL_DRILL_IDS, ezrealStage, type EzrealDrillId } from '../src/drills/ezreal';
 import { CARD_ORDER, TWISTED_STATS, type CardColor, type TwistedKit } from '../src/engine/twistedfate';
 import { TWISTED_DRILL_IDS, twistedStage, type TwistedDrillId } from '../src/drills/twistedfate';
@@ -2305,30 +2306,58 @@ line('\n=== LAST HIT: every point of damage has an owner ===');
   expect('doing nothing farms nothing', d.cs === 0, `${d.cs}`);
 }
 
-line('\n=== LANE PHASE: the numbers are League\'s ===');
+line('\n=== LANE PHASE: the numbers are League\'s, patch 26.18 ===');
 {
   const m = LEAGUE_MINION_STATS;
-  expect('a melee minion has 477 health and pays 21 gold', m.melee.hp === 477 && m.melee.gold === 21, `${m.melee.hp}/${m.melee.gold}`);
-  expect('a caster has 296 and pays 14', m.caster.hp === 296 && m.caster.gold === 14, `${m.caster.hp}/${m.caster.gold}`);
-  expect('a cannon has 900 and pays 60', m.cannon.hp === 900 && m.cannon.gold === 60, `${m.cannon.hp}/${m.cannon.gold}`);
+  expect('a melee minion has 430 health, pays 20 gold and 62 experience', m.melee.hp === 430 && m.melee.gold === 20 && m.melee.xp === 62, `${m.melee.hp}/${m.melee.gold}/${m.melee.xp}`);
+  expect('a caster has 284, pays 14 and 31', m.caster.hp === 284 && m.caster.gold === 14 && m.caster.xp === 31, `${m.caster.hp}/${m.caster.gold}/${m.caster.xp}`);
+  expect('a cannon has 920, pays 50 and 75', m.cannon.hp === 920 && m.cannon.gold === 50 && m.cannon.xp === 75, `${m.cannon.hp}/${m.cannon.gold}/${m.cannon.xp}`);
+  expect('minions walk at 350', m.melee.moveSpeed === 350 && m.caster.moveSpeed === 350 && m.cannon.moveSpeed === 350, `${m.melee.moveSpeed}`);
+  expect('and hit other minions for a share of their current health', m.melee.vsMinionPct === 0.02 && m.caster.vsMinionPct === 0.035 && m.cannon.vsMinionPct === 0.05, 'pct');
+  expect('the gesture drill\'s scaled wave has no such bonus', MINION_STATS.melee.vsMinionPct === undefined, 'trainer wave changed');
   expect('the turret reaches 775 and hits for 152', LEAGUE_RULES.turret.range === 775 && LEAGUE_RULES.turret.damage === 152, `${LEAGUE_RULES.turret.range}/${LEAGUE_RULES.turret.damage}`);
+  expect('heat is +50% a shot to 250%', LEAGUE_RULES.turretRamp.ramp === 0.5 && 1 + LEAGUE_RULES.turretRamp.ramp * LEAGUE_RULES.turretRamp.cap === 2.5, `${LEAGUE_RULES.turretRamp.ramp}`);
   expect('waves are thirty seconds apart with a cannon every third', LEAGUE_RULES.waveInterval === 30 && LEAGUE_RULES.cannonEvery === 3, `${LEAGUE_RULES.waveInterval}/${LEAGUE_RULES.cannonEvery}`);
+  expect('experience is shared out to 1500 units, not 1400', XP_RADIUS === 1500, `${XP_RADIUS}`);
 
   // Under-tower farming is arithmetic, and these two rows are the arithmetic.
   const shots = (hp: number) => Math.ceil(hp / LEAGUE_RULES.turret.damage);
   expect('a caster dies to two turret shots', shots(m.caster.hp) === 2, `${shots(m.caster.hp)}`);
-  expect('a melee dies to four', shots(m.melee.hp) === 4, `${shots(m.melee.hp)}`);
+  expect('a melee dies to three', shots(m.melee.hp) === 3, `${shots(m.melee.hp)}`);
 
-  // The level curve, and the fact every solo laner plays around.
+  // The level curve, and the facts every solo laner plays around.
   const wave = m.melee.xp * 3 + m.caster.xp * 3;
   expect('level two costs 280 experience', XP_THRESHOLDS[1] === 280, `${XP_THRESHOLDS[1]}`);
-  expect('a whole first wave is not quite level two', wave < 280 && wave > 250, `${wave.toFixed(1)}`);
+  expect('a whole first wave is one short of level two', wave === 279, `${wave.toFixed(1)}`);
   expect(
-    'and the first minion of the second wave is',
+    'and the seventh minion — the first of wave two — is level two',
     levelFromXp(wave + m.melee.xp) === 2,
     `${levelFromXp(wave + m.melee.xp)}`,
   );
   expect('level three costs 660', XP_THRESHOLDS[2] === 660, `${XP_THRESHOLDS[2]}`);
+  expect('two waves and one melee is not level three', levelFromXp(wave * 2 + m.melee.xp) === 2, 'lvl');
+  expect('the fourteenth minion is', levelFromXp(wave * 2 + m.melee.xp * 2) === 3, 'lvl');
+
+  // The receipt. Every exported figure is printed on a row of the report, and
+  // no row can claim a source it does not name.
+  const byId = (id: string) => FACTS.find((f) => f.id === id);
+  expect('the manifest names patch 26.18', PATCH.league === '26.18' && PATCH.dataDragon === '16.18.1', PATCH.league);
+  expect('first spawn is 0:30 on the report', byId('spawn')?.league === '0:30' && MINION_FIRST_SPAWN === 30, 'spawn');
+  expect('the report prints the melee health the lane runs', byId('meleeHp')?.trainer === String(m.melee.hp), `${byId('meleeHp')?.trainer}`);
+  expect('and the caster experience', byId('casterXp')?.trainer === String(m.caster.xp), `${byId('casterXp')?.trainer}`);
+  expect('and the cannon gold', byId('cannonGold')?.trainer === String(m.cannon.gold), `${byId('cannonGold')?.trainer}`);
+  expect('every VERIFIED or REPORTED row cites a url', FACTS.every((f) => (f.confidence !== 'VERIFIED' && f.confidence !== 'REPORTED') || f.source.url.startsWith('https://')), 'uncited row');
+  expect('every row that differs from League says why', FACTS.every((f) => f.league === f.trainer || !!f.note || !f.modelled), 'unexplained difference');
+  expect('row ids are unique', new Set(FACTS.map((f) => f.id)).size === FACTS.length, 'dupes');
+  const tally = factTally();
+  line(`  report: ${FACTS.length} rows — ${CONFIDENCES.map((c) => `${tally[c]} ${c}`).join(', ')}`);
+  expect('the report admits what it could not find', tally['NOT FOUND'] >= 5, `${tally['NOT FOUND']}`);
+
+  // Champions, at 26.18.
+  expect('a level one Vayne has 580 base health', VAYNE_GROWTH.hp.base === 580 && VAYNE_GROWTH.hp.growth === 98, `${VAYNE_GROWTH.hp.base}`);
+  expect('Tumble costs 46 at rank one and 30 at five', VAYNE_MANA.qCostByRank[0] === 46 && VAYNE_MANA.qCostByRank[4] === 30, 'q cost');
+  expect('Caitlyn opens on 62 attack damage', caitlynAtLevel(1).ad === 62, `${caitlynAtLevel(1).ad}`);
+  expect('her trap costs 20', CAITLYN_MANA.cost.w === 20, `${CAITLYN_MANA.cost.w}`);
 }
 
 line('\n=== LANE PHASE: the ladder is behaviour, never statistics ===');
