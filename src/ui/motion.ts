@@ -158,14 +158,18 @@ export const tween = (
  * update runs synchronously inside the transition so the browser captures the
  * right before and after; without the API, or with calm motion, it simply
  * runs, and the screen's own fade does the work.
+ *
+ * `className` goes on the root for the life of the transition, for the one
+ * change that animates differently: a card opening into a run.
  */
-export const viewTransition = (update: () => void, dir = 0): void => {
+export const viewTransition = (update: () => void, dir = 0, className?: string): void => {
   const doc = typeof document !== 'undefined' ? document : null;
   if (!doc || isCalm() || typeof doc.startViewTransition !== 'function') {
     update();
     return;
   }
-  doc.documentElement.style.setProperty('--nav-dir', String(Math.sign(dir)));
+  const root = doc.documentElement;
+  root.style.setProperty('--nav-dir', String(Math.sign(dir)));
   let ran = false;
   const run = () => {
     if (ran) return;
@@ -173,7 +177,12 @@ export const viewTransition = (update: () => void, dir = 0): void => {
     flushSync(update);
   };
   try {
+    if (className) root.classList.add(className);
     const vt = doc.startViewTransition(run);
+    const done = () => {
+      if (className) root.classList.remove(className);
+    };
+    vt.finished.then(done, done);
     // The browser has to paint the old screen once before it can hand over,
     // and on a slow machine with the arena running behind it that can take
     // several frames. A click is never allowed to wait on a flourish: if the
@@ -183,6 +192,7 @@ export const viewTransition = (update: () => void, dir = 0): void => {
       if (!ran) vt.skipTransition();
     }, 150);
   } catch {
+    if (className) root.classList.remove(className);
     run();
   }
 };

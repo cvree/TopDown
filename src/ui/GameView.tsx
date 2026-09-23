@@ -26,6 +26,7 @@ import { difficultyLevel } from '../progression/apmladder';
 import type { AppSettings, RunResult } from '../progression/profile';
 import { Minimap } from './hud/Minimap';
 import { Settings } from './Settings';
+import { isCalm } from './motion';
 import './gameview.css';
 
 interface Props {
@@ -62,9 +63,13 @@ interface Props {
    * Start this run somewhere other than the beginning: the first `steps`
    * recorded steps of `tape`, rebuilt, then handed back to the player.
    */
-  rewind?: { tape: Tape; steps: number } | null;
-  /** The player asked to go back. The shell remounts the run with `rewind` set. */
-  onRewind?: (tape: Tape, steps: number) => void;
+  rewind?: { tape: Tape; steps: number; still?: string | null } | null;
+  /**
+   * The player asked to go back. The shell remounts the run with `rewind` set,
+   * carrying a still of the arena at the moment of asking so the rebuild can
+   * be shown as the run scrubbing backwards rather than as a loading bar.
+   */
+  onRewind?: (tape: Tape, steps: number, still: string | null) => void;
   /** The rules this profile has already been told, so a teaching banner is said once per player. */
   taught?: readonly string[];
   onTaught?: (key: string) => void;
@@ -357,6 +362,8 @@ export function GameView({
   onTaughtRef.current = onTaught;
   /** Rebuild progress while a rewind replays, 0..1, or null when live. */
   const [rebuilding, setRebuilding] = useState<number | null>(rewind ? 0 : null);
+  /** The scrub is leaving: the rebuilt arena is showing through it. */
+  const [scrubOut, setScrubOut] = useState(false);
   const inputRef = useRef<InputSystem | null>(null);
   const rendererRef = useRef<RiftRenderer | null>(null);
   const settingsRef = useRef(settings);
@@ -499,11 +506,39 @@ export function GameView({
       if (session.phase === 'ended') return;
       session.abort();
     };
+    /**
+     * Rewind, asked for. It is carried out on the next drawn frame rather
+     * than now, because that is the one moment the arena's pixels can be
+     * read back: the still it takes is what the rebuild scrubs backwards over.
+     */
+    let rewindAsked: number | null = null;
     const requestRewind = (seconds: number) => {
       if (session.phase === 'ended' || tin.replaying || holdLeft > 0) return;
+      rewindAsked = seconds;
+    };
+    const carryOutRewind = () => {
+      if (rewindAsked === null) return;
+      const seconds = rewindAsked;
+      rewindAsked = null;
       const steps = Math.max(0, tin.tape.length - Math.round(seconds * SIM_HZ));
+      let still: string | null = null;
+      try {
+        const w = 640;
+        const h = Math.max(1, Math.round((w * canvas.height) / Math.max(1, canvas.width)));
+        const snap = document.createElement('canvas');
+        snap.width = w;
+        snap.height = h;
+        const g = snap.getContext('2d');
+        if (g) {
+          g.drawImage(canvas, 0, 0, w, h);
+          g.drawImage(overlay, 0, 0, w, h);
+          still = snap.toDataURL('image/jpeg', 0.7);
+        }
+      } catch {
+        still = null;
+      }
       audio.play('uiBack');
-      onRewindRef.current?.(tin.tape, steps);
+      onRewindRef.current?.(tin.tape, steps, still);
     };
     session.onRewindRequest = () => requestRewind(REWIND_SECONDS);
     rewindRef.current = requestRewind;
@@ -574,6 +609,10 @@ export function GameView({
 
     const abilityCd: number[] = [];
     let lastCount = '';
+    /** GO stays up a beat after the clock starts, and again when a rewind hands the run back. */
+    let goUntil = 0;
+    let goPending = false;
+    let lastCountPhase: string = session.phase;
     let lastBannerSeq = -1;
     let lastBanner: string | null = null;
     let lastFighting = false;
@@ -726,18 +765,33 @@ export function GameView({
         lastFighting = snap.fighting;
         hud.classList.toggle('hud-fight', snap.fighting);
       }
-      const countText = snap.phase === 'countdown' ? (snap.countdown > 0 ? `${snap.countdown}` : 'GO') : '';
-      if (countText !== lastCount) {
-        lastCount = countText;
-        elCount.textContent = countText;
-        elCount.classList.toggle('go', countText === 'GO');
-        // Restart the strike animation on every tick rather than letting the
-        // number swap silently inside a still element.
-        elCount.classList.remove('tick');
-        void elCount.offsetWidth;
-        if (countText) elCount.classList.add('tick');
+      // The start line. Each second is one numeral struck in, with a ring
+      // closing on it over the second; GO lands, holds for a heartbeat, and
+      // the camera settles under it. A rewound run gets its GO when the
+      // hands are handed back rather than when the rebuild passes the start.
+      const started = lastCountPhase === 'countdown' && snap.phase === 'running' && !rewind;
+      lastCountPhase = snap.phase;
+      if (started || goPending) {
+        goPending = false;
+        goUntil = now + 560;
+        if (!isCalm()) renderer.settle();
       }
-      elCount.style.opacity = snap.phase === 'countdown' ? '1' : '0';
+      const countText =
+        snap.phase === 'countdown' ? (snap.countdown > 0 ? `${snap.countdown}` : 'GO') : now < goUntil ? 'GO' : '';
+      if (countText !== lastCount) {
+        const was = lastCount;
+        lastCount = countText;
+        if (countText) elCount.textContent = countText;
+        elCount.classList.toggle('go', countText === 'GO');
+        elCount.classList.toggle('on', countText !== '');
+        // Restart the strike on every new numeral rather than letting the
+        // number swap silently inside a still element.
+        if (countText && countText !== was) {
+          elCount.classList.remove('tick');
+          void elCount.offsetWidth;
+          elCount.classList.add('tick');
+        }
+      }
     };
 
     const loop = new GameLoop(
@@ -752,6 +806,7 @@ export function GameView({
           if (session.phase === 'paused') return;
           holdLeft -= dt;
           session.banner = holdLeft > 0 ? `YOUR HANDS IN ${Math.ceil(holdLeft)}` : null;
+          if (holdLeft <= 0) goPending = true;
           return;
         }
         session.cursorWorld = tin.beginLive(renderer.screenToWorld(input.cursor.x, input.cursor.y));
@@ -791,6 +846,7 @@ export function GameView({
           paint,
           idle: session.phase === 'countdown',
         });
+        carryOutRewind();
 
         const now = performance.now();
         writeHud(session.hud(loop.stats.fps), now);
@@ -888,6 +944,7 @@ export function GameView({
       },
     );
     let rebuildRaf = 0;
+    let scrubTimer = 0;
     let silenced = false;
     if (rewind) {
       // Rebuild the run from its seed, a slice per frame, in silence and
@@ -917,7 +974,11 @@ export function GameView({
         tin.goLive(input, toWorld);
         input.drain();
         holdLeft = 1.5;
-        setRebuilding(null);
+        // The scrub lets go of the picture and the rebuilt arena shows
+        // through it, in colour, at the moment you asked for.
+        setRebuilding(1);
+        setScrubOut(true);
+        scrubTimer = window.setTimeout(() => setRebuilding(null), 340);
         loop.start();
       };
       rebuildRaf = requestAnimationFrame(tick);
@@ -941,6 +1002,7 @@ export function GameView({
     return () => {
       loop.stop();
       if (rebuildRaf) cancelAnimationFrame(rebuildRaf);
+      window.clearTimeout(scrubTimer);
       if (silenced) audio.muted = false;
       rewindRef.current = null;
       ro.disconnect();
@@ -1264,14 +1326,35 @@ export function GameView({
         )}
       </div>
 
-      {rebuilding !== null && (
-        <div className="rewind-overlay" aria-live="polite">
-          <div className="rewind-card">
-            <div className="eyebrow">REWINDING</div>
-            <div className="rewind-bar">
-              <i style={{ width: `${Math.round(rebuilding * 100)}%` }} />
-            </div>
-            <span className="mono dim">rebuilding the run from its seed · {Math.round(rebuilding * 100)}%</span>
+      {/* THE REWIND. The arena as it was when you asked, drained of colour,
+          scrubbing backwards while the run is rebuilt from its seed under it;
+          the clock runs back to the moment you are being handed. Then the
+          still lets go and the live arena is there, in colour, waiting. */}
+      {rebuilding !== null && rewind && (
+        <div className={`rewind-scrub${scrubOut ? ' out' : ''}${rewind.still ? '' : ' plain'}`} aria-live="polite">
+          {rewind.still && <img className="rs-still" src={rewind.still} alt="" />}
+          <div className="rs-bands" aria-hidden>
+            <i />
+            <i />
+            <i />
+          </div>
+          <div className="rs-read">
+            <span className="rs-mark" aria-hidden>
+              ⟲
+            </span>
+            <b className="num">
+              {(() => {
+                const from = rewind.tape.length / SIM_HZ;
+                const to = rewind.steps / SIM_HZ;
+                const t = from + (to - from) * Math.max(0, Math.min(1, rebuilding));
+                const shown = duration > 0 ? Math.max(0, duration - t) : t;
+                return `${Math.floor(shown / 60)}:${String(Math.floor(shown % 60)).padStart(2, '0')}`;
+              })()}
+            </b>
+            <i className="rs-line">
+              <span style={{ transform: `scaleX(${Math.max(0, Math.min(1, rebuilding))})` }} />
+            </i>
+            <em>rewinding · what follows is practice</em>
           </div>
         </div>
       )}

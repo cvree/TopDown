@@ -790,6 +790,42 @@ h3 {
   animation: fadeUp var(--dur-4) var(--ease-out) both;
 }
 
+/* ---------------------------------------------------- the front door
+   A card opening into a run. The card's picture and the run are the same
+   named thing on either side of the change (`run`), so the browser grows one
+   into the other: the picture leaves the card, fills the screen and
+   dissolves into the live arena, while the menu behind steps back and the
+   dark comes up around it. The HUD's chrome arrives once the arena is in
+   place; the countdown is already running under the picture. */
+:root.vt-launch .game-host {
+  view-transition-name: run;
+}
+:root.vt-launch .hud > :not(.hud-count) {
+  opacity: 0;
+}
+::view-transition-group(run) {
+  animation-duration: var(--dur-4);
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-old(run),
+::view-transition-new(run) {
+  height: 100%;
+  object-fit: cover;
+  animation-duration: var(--dur-4);
+  animation-timing-function: var(--ease-out);
+}
+:root.vt-launch::view-transition-old(root) {
+  animation: vtMenuBack var(--dur-4) var(--ease-out) both;
+}
+:root.vt-launch::view-transition-new(root) {
+  animation: fadeIn var(--dur-4) var(--ease-out) both;
+}
+@keyframes vtMenuBack {
+  to {
+    transform: scale(0.985);
+  }
+}
+
 /* ------------------------------------------------------- calm motion
    Two ways to ask for less: the operating system's reduced-motion switch,
    and the client's own Reduced effects setting (which puts

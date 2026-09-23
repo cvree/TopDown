@@ -41,6 +41,7 @@ import { Settings } from './Settings';
 import { Welcome, type WelcomeResult } from './Welcome';
 import { WarmUp, type WarmupSummary } from './WarmUp';
 import { setCalm, viewTransition } from './motion';
+import { launch, trackLaunches } from './launch';
 import {
   BENCH_DIFFICULTY,
   BENCH_SCENARIOS,
@@ -155,7 +156,7 @@ interface Flow {
    * rebuild to. Set by the rewind key, cleared by anything that starts a new
    * attempt.
    */
-  rewind?: { tape: Tape; steps: number };
+  rewind?: { tape: Tape; steps: number; still?: string | null };
   /**
    * Rewinds taken in this attempt. Any at all makes it practice: a run you can
    * go back inside is a run whose score could be edited, so it is scored for
@@ -263,6 +264,9 @@ export function App() {
     audio.applyVolumes();
   }, [profile.settings]);
 
+  // Which card started a run, so its picture can become the run.
+  useEffect(() => trackLaunches(), []);
+
   // Reduced effects is also a request for calm motion; so is the OS switch.
   useEffect(() => setCalm(profile.settings.lowFx), [profile.settings.lowFx]);
 
@@ -369,18 +373,21 @@ export function App() {
       } = {},
     ) => {
       audio.unlock();
-      setResults(null);
-      setBenchNote(null);
-      setFlow({
-        drill,
-        mode,
-        seed: opts.seed ?? newSeed(),
-        fixedSeed: opts.seed !== undefined,
-        difficulty: opts.difficulty,
-        duration: opts.duration,
-        level: opts.level,
-        bench: opts.bench,
-        warm: opts.warm,
+      // From a card, the card's picture grows into the run; see launch.ts.
+      launch(() => {
+        setResults(null);
+        setBenchNote(null);
+        setFlow({
+          drill,
+          mode,
+          seed: opts.seed ?? newSeed(),
+          fixedSeed: opts.seed !== undefined,
+          difficulty: opts.difficulty,
+          duration: opts.duration,
+          level: opts.level,
+          bench: opts.bench,
+          warm: opts.warm,
+        });
       });
     },
     [],
@@ -533,10 +540,10 @@ export function App() {
   }, []);
 
   /** Go back inside this run: remount it rebuilt to `steps`, same seed. */
-  const onRewind = useCallback((tape: Tape, steps: number) => {
+  const onRewind = useCallback((tape: Tape, steps: number, still: string | null) => {
     setResults(null);
     setRankUp(null);
-    setFlow((f) => (f ? { ...f, rewind: { tape, steps }, rewinds: (f.rewinds ?? 0) + 1 } : f));
+    setFlow((f) => (f ? { ...f, rewind: { tape, steps, still }, rewinds: (f.rewinds ?? 0) + 1 } : f));
   }, []);
 
   const retry = useCallback(() => {

@@ -292,23 +292,26 @@
   position: absolute;
   top: 25%;
   left: 50%;
-  transform: translate(-50%, -50%);
-  display: grid;
-  place-items: center;
   width: 210px;
   height: 210px;
+  margin: -105px 0 0 -105px;
+  display: grid;
+  place-items: center;
   font-family: var(--display);
   font-size: 104px;
   font-weight: 900;
   color: var(--gold-hot);
   text-shadow: 0 0 60px rgba(200, 170, 110, 0.6), 0 3px 8px rgba(2, 5, 11, 0.9), 0 10px 54px rgba(2, 5, 11, 0.6);
   opacity: 0;
-  transition: opacity var(--dur-2) var(--ease-out);
+  transition: opacity var(--dur-2) var(--ease-exit);
 }
-/* A ring struck outward on every tick. A countdown that only swaps a glyph
-   reads as a clock; one that hits the screen reads as a start line. */
-.hud-count::before,
-.hud-count::after {
+.hud-count.on {
+  opacity: 1;
+}
+/* One ring per second, and it closes: it starts wide and faint and draws in
+   onto the numeral as the second runs out, so the time left is a shape you
+   can feel rather than a digit you read. */
+.hud-count::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -316,42 +319,74 @@
   border-radius: 50%;
   opacity: 0;
 }
-.hud-count.tick::before {
-  animation: countRing 0.85s var(--ease) both;
-}
-.hud-count.tick::after {
-  animation: countRing 0.85s var(--ease) 0.09s both;
-}
 .hud-count.tick {
-  animation: countStrike var(--dur-5) var(--ease-in-out) both;
+  animation: countStrike var(--dur-3) var(--ease-out) both;
 }
+.hud-count.tick::before {
+  animation: countClose 1s cubic-bezier(0.45, 0, 0.7, 1) both;
+}
+@keyframes countStrike {
+  from {
+    opacity: 0;
+    transform: scale(calc(1 + (1 - var(--pop)) * 8));
+  }
+}
+@keyframes countClose {
+  0% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+  22% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0.12;
+    transform: scale(0.64);
+  }
+}
+/* GO lands. It drops in hard, holds at the moment of impact for a
+   heartbeat — the hit-stop — and settles as the camera does; one ring is
+   struck outward from it, and that is the whole show. */
 .hud-count.go {
   font-size: 84px;
   letter-spacing: 0.16em;
   text-indent: 0.16em;
   color: #fff6e0;
 }
-@keyframes countRing {
+.hud-count.go.tick {
+  animation: goImpact 560ms linear both;
+}
+.hud-count.go.tick::before {
+  animation: goRing 460ms var(--ease-out) 100ms both;
+}
+@keyframes goImpact {
   0% {
-    transform: scale(0.42);
-    opacity: 0.9;
+    opacity: 0;
+    transform: scale(calc(1 + (1 - var(--pop)) * 15));
+    animation-timing-function: cubic-bezier(0.5, 0, 1, 1);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(calc(1 - (1 - var(--pop)) * 1.5));
+    animation-timing-function: linear;
+  }
+  29% {
+    transform: scale(calc(1 - (1 - var(--pop)) * 1.5));
+    animation-timing-function: var(--ease-out);
   }
   100% {
-    transform: scale(1.5);
-    opacity: 0;
+    opacity: 1;
+    transform: none;
   }
 }
-@keyframes countStrike {
-  0% {
-    transform: translate(-50%, -50%) scale(1.5);
-    filter: blur(8px);
+@keyframes goRing {
+  from {
+    opacity: 0.9;
+    transform: scale(0.7);
   }
-  55% {
-    filter: blur(0);
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(1);
-    filter: blur(0);
+  to {
+    opacity: 0;
+    transform: scale(1.9);
   }
 }
 
@@ -1032,43 +1067,126 @@
 }
 
 /* ------------------------------------------------------------- rewind
-   A rebuild is the run replaying from its seed, a slice a frame. It gets a
-   bar rather than a spinner because it has a known length, and it sits over
-   the arena rather than replacing it so the player never leaves the run. */
-.rewind-overlay {
+   A rebuild is the run replaying from its seed, a slice a frame. It is shown
+   as what it is — the run going backwards — over a still of the arena at the
+   moment you asked: drained of colour, a few tracking lines running up it,
+   and the clock counting back. When it lets go, the live arena is under it
+   in colour at the moment you are being handed. */
+.rewind-scrub {
   position: absolute;
   inset: 0;
   z-index: 40;
-  display: grid;
-  place-items: center;
-  background: rgba(2, 5, 10, 0.72);
-  backdrop-filter: blur(3px);
+  overflow: hidden;
+  background: #02050a;
+  animation: fadeIn var(--dur-2) var(--ease-out) both;
+  transition: opacity var(--dur-4) var(--ease-out);
 }
-.rewind-card {
+.rewind-scrub.out {
+  opacity: 0;
+}
+.rs-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) brightness(0.62) contrast(1.08);
+  animation: scrubBack 1.4s var(--ease-out) both;
+}
+/* Backwards: the picture slides the way the run came from and eases out. */
+@keyframes scrubBack {
+  from {
+    transform: scale(1.012) translateX(calc(var(--rise) * -1.5));
+  }
+  to {
+    transform: scale(1.04) translateX(calc(var(--rise) * 1.5));
+  }
+}
+.rs-bands {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.rs-bands i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(240, 230, 210, 0.22) 20%, rgba(240, 230, 210, 0.3) 50%, rgba(240, 230, 210, 0.22) 80%, transparent);
+  opacity: 0;
+  animation: scrubBand 0.62s linear infinite;
+}
+.rs-bands i:nth-child(2) {
+  animation-delay: 0.21s;
+  height: 2px;
+}
+.rs-bands i:nth-child(3) {
+  animation-delay: 0.43s;
+}
+@keyframes scrubBand {
+  0% {
+    opacity: 0;
+    transform: translateY(100vh);
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10vh);
+  }
+}
+.rewind-scrub.out .rs-bands {
+  display: none;
+}
+.rs-read {
+  position: absolute;
+  left: 50%;
+  top: 21%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  min-width: 280px;
+  gap: 8px;
+  color: var(--gold-hot);
+  text-shadow: 0 2px 10px rgba(2, 5, 11, 0.9);
 }
-.rewind-card .eyebrow {
-  letter-spacing: 0.4em;
+.rs-mark {
+  font-size: 22px;
+  color: var(--accent-2);
+  line-height: 1;
 }
-.rewind-bar {
-  width: 280px;
-  height: 6px;
-  border: 1px solid var(--stroke-2);
-  border-radius: 3px;
+.rs-read b {
+  font-family: var(--display);
+  font-size: 46px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+}
+.rs-line {
+  display: block;
+  width: 180px;
+  height: 2px;
+  background: rgba(240, 230, 210, 0.16);
   overflow: hidden;
 }
-.rewind-bar i {
+.rs-line span {
   display: block;
   height: 100%;
   background: var(--accent-2);
-  transition: width var(--dur-1) linear;
+  transform-origin: 100% 50%;
 }
-.rewind-card span {
-  font-size: 11px;
+.rs-read em {
+  font-family: var(--ui);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+:root[data-motion='calm'] .rs-bands {
+  display: none;
 }
 
 /* ============================================================
@@ -1118,4 +1236,14 @@
     padding-top: 0;
     border-top-width: 0;
   }
+}
+
+/* After a card has grown into the arena, the chrome comes in around it
+   rather than being there before the picture has finished arriving. */
+.hud-clock,
+.hud-right,
+.champ-frame,
+.hud-minimap,
+.hud-hints {
+  transition: opacity var(--dur-3) var(--ease-out);
 }

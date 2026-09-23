@@ -174,6 +174,15 @@ export class RiftRenderer {
     this.scene.rig.addKick(angle, amount);
   }
 
+  /**
+   * The start line landing: a short pull-in that eases back. It is the real
+   * camera moving, so a click during it lands where it looks like it lands,
+   * and it is scaled by Reduce shake like every other involuntary motion.
+   */
+  settle(): void {
+    this.scene.rig.addPunch(70);
+  }
+
   recenterCamera(): void {
     this.scene.rig.recenter();
   }
