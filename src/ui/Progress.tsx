@@ -23,6 +23,7 @@ import { RankEmblem } from './components/RankEmblem';
 import { SkillRadar, Sparkline } from './components/charts';
 import './profile.css';
 import './progress.css';
+import { Why } from './components/Why';
 
 /**
  * PROGRESS.
@@ -218,11 +219,15 @@ export function Progress({ profile, onRename, onReset, onPlay, onRecordsSeen }: 
         {read.length > 0 && (
           <section className="panel pad style-read fade-up">
             <div className="panel-title">Your style</div>
-            {read.map((line, i) => (
-              <p key={i} className={i === 0 ? 'sr-lead' : ''}>
-                {line}
-              </p>
-            ))}
+            {/* The headline of the read, and the rest of it one click away. */}
+            <p className="sr-lead">{read[0]}</p>
+            {read.length > 1 && (
+              <Why label="the rest of the read">
+                {read.slice(1).map((line, i) => (
+                  <p key={i}>{line}</p>
+                ))}
+              </Why>
+            )}
           </section>
         )}
 
@@ -275,11 +280,13 @@ export function Progress({ profile, onRename, onReset, onPlay, onRecordsSeen }: 
         <section className="prof-pressure">
           <div className="panel pad">
             <div className="panel-title">How well it holds up</div>
-            <p className="pp-lead dim">
-              The same skill measured twice: once on its own, and again with somebody fighting back.
-              The percentage on the right is how much of it survives. That gap is the difference
-              between knowing a thing and actually owning it.
-            </p>
+            <Why>
+              <p className="pp-lead dim">
+                The same skill measured twice: once on its own, and again with somebody fighting back.
+                The percentage on the right is how much of it survives. That gap is the difference
+                between knowing a thing and actually owning it.
+              </p>
+            </Why>
             {retention.length ? (
               <div className="pp-list">
                 {retention.map((r) => (
@@ -336,9 +343,11 @@ export function Progress({ profile, onRename, onReset, onPlay, onRecordsSeen }: 
                 {ladder.map((row) => (
                   <TransferStage key={row.stage} row={row} />
                 ))}
-                <p className="tr-foot faint">
-                  Each row is your best three runs of that kind. 82 counts as mastered.
-                </p>
+                <Why>
+                  <p className="tr-foot faint">
+                    Each row is your best three runs of that kind. 82 counts as mastered.
+                  </p>
+                </Why>
               </div>
             ) : (
               <div className="empty">

@@ -37,6 +37,7 @@ import {
 import { ReactionTest } from './ReactionTest';
 import { LegalNotice } from './components/LegalNotice';
 import './warmup.css';
+import { Why } from './components/Why';
 
 /**
  * WARM UP — the section you open every day.
@@ -101,57 +102,62 @@ export function WarmUp({ profile, settings, summary, onDismissSummary, onStart, 
   return (
     <div className="scroll">
       <div className="wrap wu fade-up">
-        <header className="pr-head">
-          <div className="eyebrow">Ten minutes a day · come back tomorrow</div>
+        <header className="pr-head one-line">
           <h1 className="display pr-h1">WARM UP</h1>
-          <p className="dim pr-lead">
-            One button: a reaction check, two sets on the mistake you made most yesterday, one lab
-            bench for your hands, and the same habit under pressure. Then one sentence to take
-            into your next game.
-          </p>
+          <div className="eyebrow">Ten minutes a day · come back tomorrow</div>
+          <Why label="What it is">
+            <p className="dim pr-lead">
+              One button: a reaction check, two sets on the mistake you made most yesterday, one lab
+              bench for your hands, and the same habit under pressure. Then one sentence to take
+              into your next game.
+            </p>
+          </Why>
         </header>
 
         {summary && <SummaryCard summary={summary} onDismiss={onDismissSummary} />}
 
-        <section className="panel pad wu-today">
-          <div className="wu-today-head">
-            <div>
-              <div className="panel-title">Today’s routine · about {plan.minutes} minutes</div>
-              <p className="wu-headline">{plan.headline}</p>
-            </div>
+        {/* Above the fold: the button and the streak, and nothing else. What
+            the ten minutes are made of is one click away. */}
+        <section className="panel pad wu-today wu-hero">
+          <div className="wu-hero-row">
             <StreakBadge streak={w.streak} best={w.bestStreak} freezes={w.freezes} state={streak.state} missed={streak.missed} />
+            <div className="wu-go">
+              <button className="btn primary lg" type="button" onClick={startRoutine}>
+                {streak.state === 'done' ? 'WARM UP AGAIN' : 'START THE WARM-UP'}
+              </button>
+              <span className="dim wu-go-note">about {plan.minutes} minutes</span>
+            </div>
           </div>
 
-          <ol className="wu-steps">
-            {plan.steps.map((s, i) => (
-              <li key={i} className={`wu-step k-${s.kind}`}>
-                <span className="wu-step-n mono">{String(i + 1).padStart(2, '0')}</span>
-                <span className="wu-step-l">{s.label}</span>
-                <b className="wu-step-d">{s.drill ? drillName(s.drill) : REACTION_META.visual.label}</b>
-                <span className="wu-step-r dim">{s.reason}</span>
-              </li>
-            ))}
-          </ol>
-
-          <div className="wu-go">
-            <button className="btn primary lg" type="button" onClick={startRoutine}>
-              {streak.state === 'done' ? 'WARM UP AGAIN' : 'START THE WARM-UP'}
-            </button>
-            <span className="dim wu-go-note">
+          <Why label={`today's ${plan.steps.length} steps`}>
+            <p className="wu-headline">{plan.headline}</p>
+            <ol className="wu-steps">
+              {plan.steps.map((s, i) => (
+                <li key={i} className={`wu-step k-${s.kind}`}>
+                  <span className="wu-step-n mono">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="wu-step-l">{s.label}</span>
+                  <b className="wu-step-d">{s.drill ? drillName(s.drill) : REACTION_META.visual.label}</b>
+                  <span className="wu-step-r dim">{s.reason}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="dim wu-go-note">
               {streak.state === 'done'
                 ? 'Today already counts. Another round is practice, not streak.'
                 : 'Any finished routine counts — even one that stops early because you were getting worse.'}
-            </span>
-          </div>
+            </p>
+          </Why>
           <WeekStrip profile={profile} today={today} />
         </section>
 
         <section className="panel pad">
           <div className="panel-title">Reaction tests</div>
-          <p className="dim wu-sub">
-            Thirty seconds each. They move with sleep and tiredness far more than with skill, which is
-            what makes them a good thermometer. Every figure includes your screen, browser and mouse.
-          </p>
+          <Why>
+            <p className="dim wu-sub">
+              Thirty seconds each. They move with sleep and tiredness far more than with skill, which is
+              what makes them a good thermometer. Every figure includes your screen, browser and mouse.
+            </p>
+          </Why>
           <div className="wu-rx">
             {REACTION_TESTS.map((id) => {
               const m = REACTION_META[id];
@@ -410,12 +416,14 @@ function BenchSheet({
       <div className="wu-bench-head">
         <div>
           <div className="panel-title">Benchmarks · provisional</div>
-          <p className="dim wu-sub">
-            Eight fixed scenarios — same seed, same difficulty ({BENCH_DIFFICULTY}), same minute for everybody — so
-            a score here means the same thing on anybody’s screen. You hold a tier once {BENCH_QUORUM} of the eight
-            reach it. MASTER is exactly what the trainer’s scripted reference player scores; the lines will be
-            re-cut from real players once there are enough of them. An APEX benchmark, not a League rank.
-          </p>
+          <Why>
+            <p className="dim wu-sub">
+              Eight fixed scenarios — same seed, same difficulty ({BENCH_DIFFICULTY}), same minute for everybody — so
+              a score here means the same thing on anybody’s screen. You hold a tier once {BENCH_QUORUM} of the eight
+              reach it. MASTER is exactly what the trainer’s scripted reference player scores; the lines will be
+              re-cut from real players once there are enough of them. An APEX benchmark, not a League rank.
+            </p>
+          </Why>
         </div>
         <div className="wu-bench-badge" style={{ ['--c' as string]: tier ? BENCH_TIER_COLORS[tier] : 'var(--text-3)' }}>
           <b className="display">{tier ?? 'UNRANKED'}</b>
@@ -491,11 +499,13 @@ function CodeBox({ onCode }: { onCode: (c: ScenarioCode) => void }) {
   return (
     <section className="panel pad wu-code">
       <div className="panel-title">Play a scenario code</div>
-      <p className="dim wu-sub">
-        Every results screen prints a code for the minute you just played. Paste one a friend sent and you get
-        the same start — same spawns, same wave, same opening move from the other side. After that it answers
-        what <em>you</em> do, so it is the same course, not the same recording.
-      </p>
+      <Why>
+        <p className="dim wu-sub">
+          Every results screen prints a code for the minute you just played. Paste one a friend sent and you get
+          the same start — same spawns, same wave, same opening move from the other side. After that it answers
+          what <em>you</em> do, so it is the same course, not the same recording.
+        </p>
+      </Why>
       <form
         className="wu-code-row"
         onSubmit={(e) => {

@@ -40,7 +40,7 @@ import { Results } from './Results';
 import { Settings } from './Settings';
 import { Welcome, type WelcomeResult } from './Welcome';
 import { WarmUp, type WarmupSummary } from './WarmUp';
-import { isCalm, setCalm, viewTransition } from './motion';
+import { isCalm, setCalm } from './motion';
 import { launch, trackLaunches } from './launch';
 import {
   BENCH_DIFFICULTY,
@@ -218,7 +218,11 @@ export function App() {
     if (to === from) return;
     const a = NAV.findIndex((n) => n.route === from);
     const b = NAV.findIndex((n) => n.route === to);
-    viewTransition(() => setRouteNow(to), a >= 0 && b >= 0 ? Math.sign(b - a) : 0);
+    const dir = a >= 0 && b >= 0 ? Math.sign(b - a) : 0;
+    const root = document.documentElement.style;
+    root.setProperty('--nav-x', String(dir));
+    root.setProperty('--nav-y', dir === 0 ? '1' : '0');
+    setRouteNow(to);
   }, []);
   const [warmSummary, setWarmSummary] = useState<WarmupSummary | null>(null);
   const [benchNote, setBenchNote] = useState<{ eyebrow: string; line: string; tone?: 'good' | 'warn' } | null>(null);

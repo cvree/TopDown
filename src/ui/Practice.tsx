@@ -14,6 +14,7 @@ import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from
 import type { AppSettings, Profile } from '../progression/profile';
 import { Explainer } from './components/Explainer';
 import { ModePreview } from './components/ModePreview';
+import { Why } from './components/Why';
 import './practice.css';
 
 interface Props {
@@ -253,13 +254,15 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
   return (
     <div className="scroll">
       <div className="wrap practice fade-up">
-        <header className="pr-head">
-          <div className="eyebrow">Play as · Vayne or Twisted Fate</div>
+        <header className="pr-head one-line">
           <h1 className="display pr-h1">CHAMPIONS</h1>
-          <p className="dim pr-lead">
-            Two of them, three tabs — the pieces of each, the lane one of them plays for real,
-            and every number behind all of it.
-          </p>
+          <div className="eyebrow">Play as · Vayne or Twisted Fate</div>
+          <Why label="What is here">
+            <p className="dim pr-lead">
+              Two of them, three tabs — the pieces of each, the lane one of them plays for real,
+              and every number behind all of it.
+            </p>
+          </Why>
         </header>
 
         {/* ------------------------------------------------------------ rail */}
@@ -470,10 +473,6 @@ function LaneCard({
       </div>
 
       <p className="pr-brief">{meta.brief}</p>
-      <p className="pr-transfers">
-        <span className="eyebrow">Why it matters</span>
-        {meta.transfers}
-      </p>
 
       <div className="pr-field">
         <span className="pr-field-label">Who are you up against?</span>
@@ -522,13 +521,16 @@ function LaneCard({
         </div>
       </div>
 
-      <p className="set-note">
-        Everything here is League's own: the same minions, the same health, the same gold, the
-        same wave every thirty seconds, the same turret. You both start at level one and level up
-        as the wave pays for it. There is no shop — gold is just the scoreboard — and no jungler,
-        so nobody is coming out of the river. Health does not come back on its own, so{' '}
-        <b>{shortCodeLabel(bound.f.primary)}</b> to go home is a real decision.
-      </p>
+      <Why label="why the lane">
+        <p className="pr-transfers">{meta.transfers}</p>
+        <p className="set-note">
+          Everything here is League's own: the same minions, the same health, the same gold, the
+          same wave every thirty seconds, the same turret. You both start at level one and level up
+          as the wave pays for it. There is no shop — gold is just the scoreboard — and no jungler,
+          so nobody is coming out of the river. Health does not come back on its own, so{' '}
+          <b>{shortCodeLabel(bound.f.primary)}</b> to go home is a real decision.
+        </p>
+      </Why>
     </section>
   );
 }
@@ -692,28 +694,31 @@ function PracticePanel({
         })}
       </div>
 
-      <p key={`${champion.id}-blurb`} className="dim pr-lead pr-panel-lead fade-in">
-        {champion.blurb}
-      </p>
+      {/* Who she is and what the two buttons mean, said once, behind the why. */}
+      <Why key={`${champion.id}-why`} label={`about ${champion.label.toLowerCase()}'s modes`}>
+        <p key={`${champion.id}-blurb`} className="dim pr-lead pr-panel-lead fade-in">
+          {champion.blurb}
+        </p>
 
-      <div className="pr-legend">
-        {RUN_MODE_LIST.map((m) => (
-          <span className="pr-legend-item" key={m.id} style={{ ['--c' as string]: m.accent }}>
-            <b>{m.label}</b>
-            <i>{m.blurb}</i>
+        <div className="pr-legend">
+          {RUN_MODE_LIST.map((m) => (
+            <span className="pr-legend-item" key={m.id} style={{ ['--c' as string]: m.accent }}>
+              <b>{m.label}</b>
+              <i>{m.blurb}</i>
+            </span>
+          ))}
+          {/* The clip, named as the thing it is. It used to say "hover a card",
+              which was true of a mouse and of nothing else — on a touchscreen
+              there was no hovering to do and the sentence was an instruction
+              nobody could follow. Every card now carries a play control you can
+              press, so the hint leads with that and keeps the hover as the
+              shortcut it always was. */}
+          <span className="pr-legend-hint">
+            <b>▶ CLICK ANY CARD</b>
+            <i>and you are in it — one minute of PLAY. Rest on a card, or press CLIP, to watch it first</i>
           </span>
-        ))}
-        {/* The clip, named as the thing it is. It used to say "hover a card",
-            which was true of a mouse and of nothing else — on a touchscreen
-            there was no hovering to do and the sentence was an instruction
-            nobody could follow. Every card now carries a play control you can
-            press, so the hint leads with that and keeps the hover as the
-            shortcut it always was. */}
-        <span className="pr-legend-hint">
-          <b>▶ CLICK ANY CARD</b>
-          <i>and you are in it — one minute of PLAY. Rest on a card, or press CLIP, to watch it first</i>
-        </span>
-      </div>
+        </div>
+      </Why>
 
       <div key={champion.id} className="fade-in" style={{ ['--c' as string]: champion.accent }}>
         {groups.map((g) => (
@@ -788,7 +793,6 @@ function ModeCard({
   const best = profile.bests[id];
   const survived = profile.survive[id];
   const uses = new Set<AbilitySlot>(meta.abilities);
-  const [open, setOpen] = useState(false);
   // The clip watches the whole card rather than just its picture — resting
   // anywhere on a tile is looking at that mode — and it watches the element
   // itself, so a cursor moving across the screen never re-renders a card.
@@ -797,7 +801,7 @@ function ModeCard({
   return (
     <section
       ref={card}
-      className={`pr-tile panel pr-startable${open ? ' open' : ''}`}
+      className="pr-tile panel pr-startable"
       style={{ ['--c' as string]: meta.accent }}
       onMouseEnter={() => audio.play('uiHover')}
       // Anywhere on the card that is not one of its own buttons is PLAY.
@@ -838,26 +842,9 @@ function ModeCard({
 
       <div className="pr-tile-body">
         <p className="pr-brief">{meta.brief}</p>
-        <button
-          type="button"
-          className="pr-why"
-          aria-expanded={open}
-          onMouseEnter={() => audio.play('uiHover')}
-          onClick={() => {
-            audio.play('uiTab');
-            setOpen((o) => !o);
-          }}
-        >
-          <span className="pr-why-chevron" aria-hidden>
-            ▸
-          </span>
-          why this one
-        </button>
-        <div className="pr-why-panel">
-          <div className="pr-why-inner">
-            <p className="pr-transfers">{meta.transfers}</p>
-          </div>
-        </div>
+        <Why label="why this one" className="pr-card-why">
+          <p className="pr-transfers">{meta.transfers}</p>
+        </Why>
 
         <div className="pr-buttons">
           {RUN_MODE_LIST.map((m) => {
@@ -921,10 +908,12 @@ function CodexPanel() {
 
   return (
     <>
-      <p className="dim pr-lead pr-panel-lead">
-        Reference only — nothing to click. If a drill expects you to dodge something in under a
-        second, this is where you can look up exactly how long you had.
-      </p>
+      <Why label="what this is">
+        <p className="dim pr-lead pr-panel-lead">
+          Reference only — nothing to click. If a drill expects you to dodge something in under a
+          second, this is where you can look up exactly how long you had.
+        </p>
+      </Why>
 
       <div className="pr-seg" role="tablist" aria-label="Which kit">
         {CODEX.map((c) => (

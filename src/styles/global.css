@@ -740,62 +740,43 @@ h3 {
 }
 
 /* ----------------------------------------------------- screen changes
-   A tab is a place, so changing tabs is a short move between two places
-   rather than a reload: the old screen steps back the way you left it
-   and the new one comes in from the side its tab is on. Only the screen
-   moves — the top bar and the arena behind it hold still, which is what
-   makes it read as one client rather than a new page. Driven by the View
-   Transitions API (see `motion.ts`); browsers without it get the plain
-   `fade-up` every screen already has. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
+   A tab is a place, so changing tabs is a short move rather than a reload:
+   the new screen comes in from the side its tab is on (`--nav-x`, set as
+   the route changes) and the top bar and the arena behind hold still. A
+   screen with no place in the tab order simply rises. Plain CSS on the
+   screen's own element — nothing is captured, nothing waits, nothing
+   blocks a click. */
+.shell > .scroll {
+  animation: screenIn var(--dur-4) var(--ease-out) both;
 }
-/* Input goes straight through: nothing blocks a click while it animates. */
-::view-transition {
-  pointer-events: none;
-}
-::view-transition-group(screen) {
-  animation-duration: var(--dur-4);
-  animation-timing-function: var(--ease-out);
-}
-::view-transition-old(screen) {
-  animation: vtOut var(--dur-2) var(--ease-exit) both;
-}
-::view-transition-new(screen) {
-  animation: vtIn var(--dur-4) var(--ease-out) both;
-}
-@keyframes vtOut {
-  to {
-    opacity: 0;
-    transform: translateX(calc(var(--nav-dir, 0) * -18px));
-  }
-}
-@keyframes vtIn {
+@keyframes screenIn {
   from {
     opacity: 0;
-    transform: translateX(calc(var(--nav-dir, 0) * 26px));
+    transform: translate(calc(var(--nav-x, 0) * 28px), calc(var(--nav-y, 1) * var(--rise)));
   }
 }
-.shell > .scroll {
-  view-transition-name: screen;
-}
-/* The screen is what arrives, so its own contents do not arrive a second
-   time inside it. Where the browser has no view transitions (or motion is
-   calm) the screen itself fades up instead — the same entrance, once. */
+/* The screen is what arrives, so its contents do not arrive a second time
+   inside it. */
 .shell > .scroll > .wrap.fade-up {
   animation: none;
 }
-:root:not(.vt-ok) .shell > .scroll {
-  animation: fadeUp var(--dur-4) var(--ease-out) both;
+
+/* Input goes straight through the one transition that uses the View
+   Transitions API — a card opening into a run — and the root is never
+   captured, so everything unnamed stays live while it plays. */
+:root {
+  view-transition-name: none;
+}
+::view-transition {
+  pointer-events: none;
 }
 
 /* ---------------------------------------------------- the front door
    A card opening into a run. The card's picture and the run are the same
    named thing on either side of the change (`run`), so the browser grows one
    into the other: the picture leaves the card, fills the screen and
-   dissolves into the live arena, while the menu behind steps back and the
-   dark comes up around it. The HUD's chrome arrives once the arena is in
+   dissolves into the live arena, while the page it came from fades away
+   behind it. The HUD's chrome arrives once the arena is in
    place; the countdown is already running under the picture. */
 :root.vt-launch .game-host {
   view-transition-name: run;
@@ -813,17 +794,6 @@ h3 {
   object-fit: cover;
   animation-duration: var(--dur-4);
   animation-timing-function: var(--ease-out);
-}
-:root.vt-launch::view-transition-old(root) {
-  animation: vtMenuBack var(--dur-4) var(--ease-out) both;
-}
-:root.vt-launch::view-transition-new(root) {
-  animation: fadeIn var(--dur-4) var(--ease-out) both;
-}
-@keyframes vtMenuBack {
-  to {
-    transform: scale(0.985);
-  }
 }
 
 /* ------------------------------------------------------- calm motion
@@ -868,6 +838,97 @@ h3 {
   ::view-transition-new(*) {
     animation: none !important;
   }
+}
+
+/* --------------------------------------------------------------- why
+   The client's one explanation affordance: a question mark in a ring and a
+   quiet label. Everything a screen has to say about itself lives behind
+   one of these, so the default screen is picture, number, button. */
+.why {
+  margin: 2px 0 18px;
+}
+.why-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 2px;
+  border: 0;
+  background: none;
+  font-family: var(--ui);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color var(--dur-2) var(--ease-out);
+}
+.why-toggle:hover,
+.why-toggle:focus-visible,
+.why.open .why-toggle {
+  color: var(--gold);
+}
+.why-mark {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  transition:
+    background-color var(--dur-2) var(--ease-out),
+    color var(--dur-2) var(--ease-out),
+    transform var(--dur-2) var(--ease-out);
+}
+.why-toggle:active .why-mark {
+  transform: scale(0.9);
+}
+.why.open .why-mark {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #0a1017;
+}
+.why-panel {
+  padding-top: 10px;
+  animation: fadeUp var(--dur-3) var(--ease-out) both;
+}
+.why-panel > :first-child {
+  margin-top: 0;
+}
+.why-panel .pr-panel-lead,
+.why-panel .set-note,
+.why-panel .dim {
+  max-width: 76ch;
+}
+
+/* A page header on one line: the title, what it is in a phrase, and the
+   why at the end of the line. */
+.one-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 20px;
+  row-gap: 4px;
+}
+.one-line > h1 {
+  margin: 0;
+}
+/* The chip sits at the end of the line and stays there when it opens; the
+   words drop in on a line of their own underneath. */
+.one-line > .why {
+  display: contents;
+}
+.one-line .why-toggle {
+  margin-left: auto;
+  align-self: center;
+}
+.one-line .why-panel {
+  flex-basis: 100%;
 }
 
 /* ------------------------------------------------------ empty states */

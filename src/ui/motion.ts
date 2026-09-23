@@ -32,18 +32,12 @@ export const isCalm = (): boolean => {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 };
 
-/**
- * Put the client's motion setting on the document root, where the CSS reads
- * it (`data-motion`), and note whether screen changes can use the View
- * Transitions API (`vt-ok`) — without it every screen falls back to a fade.
- */
+/** Put the client's motion setting on the document root, where the CSS reads it (`data-motion`). */
 export const setCalm = (lowFx: boolean): void => {
   calmSetting = lowFx;
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  const calm = isCalm();
-  root.dataset.motion = calm ? 'calm' : 'full';
-  root.classList.toggle('vt-ok', !calm && typeof document.startViewTransition === 'function');
+  root.dataset.motion = isCalm() ? 'calm' : 'full';
 };
 
 // -------------------------------------------------------------- springs
@@ -151,25 +145,22 @@ export const tween = (
 // ----------------------------------------------------- screen changes
 
 /**
- * Change screens as a move rather than a swap.
+ * A change of state as a View Transition, for the one change that is a
+ * shared-element move: a card opening into a run (see `launch.ts`). Tabs do
+ * not use it — they are a plain CSS entrance, which captures nothing and
+ * never holds the page still.
  *
- * `dir` is which way the new screen lies: -1 to the left, 1 to the right, 0
- * for a screen with no place in the tab order (settings, the patch notes). The
- * update runs synchronously inside the transition so the browser captures the
- * right before and after; without the API, or with calm motion, it simply
- * runs, and the screen's own fade does the work.
- *
- * `className` goes on the root for the life of the transition, for the one
- * change that animates differently: a card opening into a run.
+ * The update runs synchronously inside the transition so the browser captures
+ * the right before and after; without the API, or with calm motion, it simply
+ * runs. `className` goes on the root for the life of the transition.
  */
-export const viewTransition = (update: () => void, dir = 0, className?: string): void => {
+export const viewTransition = (update: () => void, className?: string): void => {
   const doc = typeof document !== 'undefined' ? document : null;
   if (!doc || isCalm() || typeof doc.startViewTransition !== 'function') {
     update();
     return;
   }
   const root = doc.documentElement;
-  root.style.setProperty('--nav-dir', String(Math.sign(dir)));
   let ran = false;
   const run = () => {
     if (ran) return;

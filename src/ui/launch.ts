@@ -55,5 +55,5 @@ export const launch = (start: () => void): void => {
     return;
   }
   pic.style.setProperty('view-transition-name', 'run');
-  viewTransition(start, 0, 'vt-launch');
+  viewTransition(start, 'vt-launch');
 };

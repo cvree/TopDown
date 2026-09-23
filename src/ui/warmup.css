@@ -440,3 +440,31 @@
     flex-wrap: wrap;
   }
 }
+
+/* ------------------------------------------------------------- the hero
+   The first thing on the screen is the streak and the button, side by side,
+   and nothing else: the routine's contents are one "why" away. */
+.wu-hero-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+.wu-hero .wu-go {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.wu-hero .wu-go-note {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.wu-hero > .why {
+  margin: 16px 0 0;
+}
+.wu-hero .why-panel .wu-go-note {
+  margin: 12px 0 0;
+  max-width: none;
+}

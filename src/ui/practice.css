@@ -229,59 +229,13 @@
   margin-top: -4px;
 }
 
-/* --------------------------------------------------------------- explainer
-
-   The reading, closed by default. A returning player already knows how the
-   screen works; a new one is one click away from the same paragraphs this
-   used to print in full every time. */
-.pr-explain {
-  margin: 2px 0 18px;
+/* The screen's explainers are the client's one WHY disclosure (global.css);
+   only the spacing of the prose inside them is this screen's. */
+.why-panel .pr-panel-lead:last-child,
+.why-panel .set-note:last-child {
+  margin-bottom: 0;
 }
-.pr-explain-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 3px;
-  border: 0;
-  background: none;
-  font-family: var(--ui);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  color: var(--text-3);
-  cursor: pointer;
-  transition: color var(--dur-2) var(--ease-out);
-}
-.pr-explain-toggle:hover,
-.pr-explain-toggle:focus-visible {
-  color: var(--gold);
-}
-.pr-explain-chevron {
-  display: inline-block;
-  font-size: 9px;
-  color: var(--text-4);
-  transition: transform var(--dur-3) var(--ease), color var(--dur-2) var(--ease-out);
-}
-.pr-explain.open .pr-explain-chevron {
-  transform: rotate(90deg);
-  color: var(--gold);
-}
-.pr-explain-panel {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows var(--dur-4) var(--ease);
-}
-.pr-explain-inner {
-  overflow: hidden;
-}
-.pr-explain.open .pr-explain-panel {
-  grid-template-rows: 1fr;
-}
-.pr-explain .pr-panel-lead,
-.pr-explain .set-note {
-  padding-top: 12px;
-}
-.pr-explain .lab-keyladder {
+.why-panel .lab-keyladder {
   margin-top: 12px;
 }
 
@@ -1134,58 +1088,34 @@
   overflow: hidden;
 }
 
-/* The fold. Same disclosure the screen's own explainer uses, at card scale —
-   nothing that was on the card has left it, it is simply not all open. */
-.pr-why {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  font-family: var(--ui);
+/* The card's own why, at card scale: nothing that was on the card has left
+   it, it is simply not all open. */
+.pr-card-why {
+  margin: 0;
+}
+.pr-card-why .why-toggle {
   font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  transition: color var(--dur-2) var(--ease-out);
+  padding: 0;
 }
-.pr-why:hover,
-.pr-why:focus-visible {
-  color: var(--c);
-}
-.pr-why-chevron {
-  display: inline-block;
+.pr-card-why .why-mark {
+  width: 15px;
+  height: 15px;
   font-size: 9px;
-  transition: transform var(--dur-2) var(--ease);
 }
-.pr-tile.open .pr-why-chevron {
-  transform: rotate(90deg);
-}
-.pr-tile.open .pr-why {
+.pr-card-why .why-toggle:hover,
+.pr-card-why.open .why-toggle {
   color: var(--c);
 }
-.pr-why-panel {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows var(--dur-3) var(--ease);
+.pr-card-why.open .why-mark {
+  background: var(--c);
+  border-color: var(--c);
 }
-.pr-tile.open .pr-why-panel {
-  grid-template-rows: 1fr;
-}
-.pr-why-inner {
-  overflow: hidden;
-  min-height: 0;
-}
-.pr-why-panel .pr-transfers {
+.pr-card-why .pr-transfers {
   font-size: 12px;
   line-height: 1.55;
-  padding: 2px 0 4px;
+  margin: 0;
+  padding: 2px 0 4px 10px;
   border-left: 2px solid color-mix(in srgb, var(--c) 45%, transparent);
-  padding-left: 10px;
 }
 
 /* Half the height they were: two words and the record they are asking you to

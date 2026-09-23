@@ -27,6 +27,7 @@ import { defaultsFor, resolveBindings, type Bindings } from '../engine/input';
 import type { AppSettings, Profile } from '../progression/profile';
 import { Explainer } from './components/Explainer';
 import { ModePreview } from './components/ModePreview';
+import { Why } from './components/Why';
 import { cardClickStarts } from './components/cardStart';
 import './practice.css';
 import './lab.css';
@@ -121,13 +122,9 @@ export function Lab({ profile, settings, onPlay, onFixControls }: Props) {
   return (
     <div className="scroll">
       <div className="wrap practice lab-screen fade-up">
-        <header className="pr-head">
-          <div className="eyebrow">Train · one minute at a time</div>
+        <header className="pr-head one-line">
           <h1 className="display pr-h1 lab-h1">THE LAB</h1>
-          <p className="dim pr-lead">
-            Squares light up. Put your cursor on the one that is lit and hit its key — misses
-            and mashing score nothing.
-          </p>
+          <div className="eyebrow">Train · one minute at a time</div>
           <div className="lab-tally mono">
             <span>
               <b>{APM_MODES.length}</b> DRILLS
@@ -139,6 +136,12 @@ export function Lab({ profile, settings, onPlay, onFixControls }: Props) {
               <b>{stars}</b>/{APM_MODES.length * APM_LEVELS * 3} STARS
             </span>
           </div>
+          <Why label="What is here">
+            <p className="dim pr-lead">
+              Squares light up. Put your cursor on the one that is lit and hit its key — misses
+              and mashing score nothing.
+            </p>
+          </Why>
         </header>
 
         <div className="pr-panel fade-up" style={{ ['--c' as string]: '#7ceaff' }}>
