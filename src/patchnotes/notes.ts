@@ -41,6 +41,36 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.23.0',
+    name: 'TAKE IT BACK',
+    date: '2026-09-23',
+    headline:
+      'Rewind any run three or ten seconds and take over from that exact moment, read a lane back trade by trade with the reason she did what she did, and click a card to be in it.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'Rewind. Backspace — or ⟲ 3s and ⟲ 10s on the pause screen — takes the run back to that moment and hands it to you after a second and a half, so the three seconds you got wrong are the three seconds you practise. There is no save state behind it: the simulation is deterministic, every input is written down as it is played, and the run is rebuilt from its seed. A test rebuilds seven modes and checks the world is identical to the original, bit for bit.',
+          'A rewound run is practice. It is scored so the results screen can show you everything, and written to nothing — no record, ladder, rating or benchmark moves — because a run you can go back inside is a run whose score could be edited. The HUD says REWOUND for the rest of the run, and RUN AGAIN starts one that counts.',
+          'THE LANE reads itself back. Under the totals: when each of you reached level two, three and six; every trade, who started it, what you took from her, her wave and her turret, and one sentence on what decided it; and what she was doing with the wave and why — “her wave was three minions bigger and on her side, so she held it there”, “she counted her damage against your health and it was enough”.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'Clicking an activity card starts it. The middle of the picture is PLAY, and so is anywhere on the card that is not one of its own buttons. The clip still plays when you rest on a card, and from a small CLIP chip in the corner.',
+          'APEX says what it is: a free, non-commercial fan project, with no price, no ads and no paid tier, printed with Riot’s notice on WARM UP and the accuracy report.',
+        ],
+      },
+      {
+        tag: 'fixed',
+        items: [
+          'The lane opponent decided whether to dive with the old forty-per-cent turret ramp still written into her arithmetic. She now counts the fifty per cent the turret actually hits for.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.22.0',
     name: 'WARM UP',
     date: '2026-09-23',
