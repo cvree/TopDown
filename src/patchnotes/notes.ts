@@ -41,6 +41,35 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.22.0',
+    name: 'WARM UP',
+    date: '2026-09-23',
+    headline:
+      'One button, ten minutes a day: a reaction check, yesterday’s mistake twice, your hands, then pressure — plus benchmarks that mean the same thing on anybody’s screen, and the lane re-audited against patch 26.18 with every source printed.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'WARM UP, the new first tab, and the one a returning player opens on. One button runs a routine built for you that day: five reactions to light, two one-minute sets on the mistake you made most in the last two days, a lab bench for your hands at the rung you have not beaten, and the same habit again with Caitlyn shooting at you. It ends on a single sentence to take into your next ranked game — “Tap Space before a trade to check where your ring ends, then stand on it” — rather than a score to stare at.',
+          'The routine stops itself when you are getting worse. A second set clearly under the first, on a day your reactions are ten per cent off your own normal, is rehearsing tiredness rather than practising, so it ends early and tells you to come back tomorrow. That still counts. So does leaving once the two sets are done: they were the point.',
+          'A streak that forgives. Any finished warm-up counts, however short. Every seven days in a row banks a freeze, up to two, and a freeze covers a missed day on its own. The last fortnight is drawn under the button: warmed up, frozen, or missed.',
+          'Four reaction tests. SEE IT is light, HEAR IT is a tone with nothing on screen, CHOOSE IT lights one of your four ability inputs as you have them bound — a mouse button included — and CLICK IT is a target somewhere on the screen. Each is a median and a spread over a handful of trials, with presses before the cue thrown out and counted. They move with sleep far more than with skill, which is exactly why the warm-up opens on one: it tells the routine what kind of day it is.',
+          'BENCHMARKS. Eight fixed scenarios — six one-minute runs on one seed at one difficulty, and two reaction tests — scored against tiers from ROOKIE to APEX, the way KovaaK’s does it. You hold a tier once six of the eight reach it, and a points total moves with every row. MASTER is exactly what the trainer’s scripted reference player scores, a test holds it there, and the sheet says the lines are provisional until there are enough real players to cut them from. Space after a benchmark plays the next row.',
+          'Scenario codes. Every results screen prints one — vayneTumble-P50-fl4ma-J — and one click copies it. Paste it into WARM UP and you get the same start: the same spawns, the same wave, the same opening move from the other side. A check letter catches a typo instead of quietly starting a different minute.',
+          'An ACCURACY tab in CHARACTER. Every League figure the lane is built from, sixty-four rows, each with the patch it was checked against, how sure we are — VERIFIED from Riot’s notes, REPORTED from a current secondary source, INFERRED from arithmetic, or NOT FOUND — and a link to where it came from. The rows nobody publishes, like the camera’s pitch or the turret’s shot into a minion, say so rather than printing a plausible number. The simulation reads its figures from the same list, so the two cannot disagree.',
+        ],
+      },
+      {
+        tag: 'changed',
+        items: [
+          'THE LANE is on patch 26.18. Minions leave at 0:30 now, so the lane opens at 0:55 with the first wave meeting. Melee minions have 430 health and pay 20 gold and 62 experience; casters 284, 14 and 31; the cannon 920, 50 and 75. They walk at 350, and each one hits another minion for a share of its current health as well as its flat damage, which is why a fresh wave melts a tired one. A full first wave is 279 experience — one short of level two — so two arrives on the seventh minion and three on the fourteenth.',
+          'Experience is shared out to 1,500 units, not 1,400. The turret ramps fifty per cent a shot into a champion, to 250% at three stacks. Passive gold starts at 1:05 instead of 1:50, and the first kill of the lane is worth 400. And under your turret a melee minion is now three shots rather than four.',
+          'Both champions are on their 26.18 stat lines. Vayne has 580 health growing 98 and her 26.17 attack speed, and Tumble costs 46 mana at rank one and 30 at five. Caitlyn opens on 62 attack damage, her trap costs 20, Peacemaker’s ratio climbs from 125% to 205% as it is ranked, and the net and the ultimate hit for their current figures.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.21.0',
     name: 'PICK A CARD',
     date: '2026-09-22',

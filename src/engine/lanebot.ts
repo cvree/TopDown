@@ -594,7 +594,7 @@ export class LaneBot {
       // the difference between a laner and somebody pressing a button. A
       // disciplined one keeps enough for the ultimate it is going to want.
       const reserve = this.ranks.r > 0 && this.tuning.discipline > 0.6 ? CAITLYN_MANA.cost.r : 0;
-      const affordable = this.mana - CAITLYN_MANA.cost.q >= reserve;
+      const affordable = this.mana - this.costOf('q') >= reserve;
       if ((willing || throughWave) && affordable) {
         if (this.spend('q', () => this.kit.command('q', player))) return true;
       }
@@ -609,8 +609,14 @@ export class LaneBot {
    * sight), and a laner who was charged mana for a cast that never happened
    * would slowly lose a lane to a bug rather than to an opponent.
    */
+  private costOf(slot: 'q' | 'w' | 'e' | 'r'): number {
+    if (slot !== 'q') return CAITLYN_MANA.cost[slot];
+    const r = Math.min(CAITLYN_MANA.qCostByRank.length, Math.max(1, this.ranks.q));
+    return CAITLYN_MANA.qCostByRank[r - 1];
+  }
+
   private spend(slot: 'q' | 'w' | 'e' | 'r', cast: () => boolean): boolean {
-    const cost = CAITLYN_MANA.cost[slot];
+    const cost = this.costOf(slot);
     if (this.mana < cost) return false;
     if (!cast()) return false;
     this.mana -= cost;

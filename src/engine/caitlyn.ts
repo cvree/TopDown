@@ -34,6 +34,7 @@
  * items, levels or runes, the figure here stands for one specific Caitlyn and
  * says which.
  */
+import { CAITLYN_26_18 } from './patch';
 import { audio } from './audio';
 import { grown, grownAttackSpeed } from './levels';
 import { clamp, dist, norm } from './math';
@@ -348,23 +349,23 @@ export const caitlynCd = (leagueCd: number): number =>
  */
 export const CAITLYN_LANE = {
   /** League: 580 health, growing 107 a level. */
-  hp: { base: 580, growth: 107 },
+  hp: CAITLYN_26_18.hp,
   /** League: 27 armour, growing 4.7 a level. Folded into the pool. */
-  armor: { base: 27, growth: 4.7 },
-  /** League: 60 attack damage, growing 3.8 a level. */
-  ad: { base: 60, growth: 3.8 },
+  armor: CAITLYN_26_18.armor,
+  /** League: 62 attack damage, growing 3.8 a level. */
+  ad: CAITLYN_26_18.ad,
   /** League: 0.681 base attack speed, growing 4% a level. */
-  attackSpeed: { base: 0.681, growthPct: 4 },
+  attackSpeed: CAITLYN_26_18.attackSpeed,
 
-  /** League: Piltover Peacemaker deals 50/90/130/170/210 (+130% total AD). */
-  qDamageByRank: [50, 90, 130, 170, 210],
-  qAdRatio: 1.3,
+  /** League: Piltover Peacemaker deals 50/90/130/170/210 (+125/145/165/185/205% AD). */
+  qDamageByRank: CAITLYN_26_18.qDamageByRank,
+  qAdRatioByRank: CAITLYN_26_18.qAdRatioByRank,
   /** League: 10/9/8/7/6 seconds. */
   qCdByRank: [10, 9, 8, 7, 6],
-  /** League: 90 Caliber Net deals 70/110/150/190/230. */
-  eDamageByRank: [70, 110, 150, 190, 230],
-  /** League: Ace in the Hole deals 250/475/700 (+200% bonus AD, which is nil). */
-  rDamageByRank: [250, 475, 700],
+  /** League: 90 Caliber Net deals 80/130/180/230/280. */
+  eDamageByRank: CAITLYN_26_18.eDamageByRank,
+  /** League: Ace in the Hole deals 300/475/650 (+100% bonus AD, which is nil). */
+  rDamageByRank: CAITLYN_26_18.rDamageByRank,
   /** League: 90/75/60 seconds. */
   rCdByRank: [90, 75, 60],
   /**
@@ -388,7 +389,8 @@ export const CAITLYN_LANE = {
  * Her mana, for the same reason Vayne has one in the lane and nowhere else.
  *
  * League: 315 mana growing 40 a level, regenerating 7.4 every five seconds and
- * growing 0.7. The costs are what stop a Peacemaker every ten seconds from
+ * growing 0.7. Peacemaker costs 55 at rank one and five more a rank; the trap
+ * is 20. The costs are what stop a Peacemaker every ten seconds from
  * being a Peacemaker every ten seconds for the whole lane — a laner who opens
  * with four of them is a laner with nothing left for the fight at level six,
  * and that trade-off is most of what early poke actually is.
@@ -398,7 +400,8 @@ export const CAITLYN_MANA = {
   growth: 40,
   regen: 7.4,
   regenGrowth: 0.7,
-  cost: { q: 50, w: 50, e: 75, r: 100 },
+  cost: { q: CAITLYN_26_18.qCostByRank[0], w: CAITLYN_26_18.wCost, e: CAITLYN_26_18.eCost, r: CAITLYN_26_18.rCost },
+  qCostByRank: CAITLYN_26_18.qCostByRank,
 } as const;
 
 export const caitlynManaAt = (level: number): { max: number; regen: number } => ({
@@ -680,10 +683,11 @@ export class CaitlynKit {
     const at = <T>(table: readonly T[], r: number): T =>
       table[Math.min(table.length, Math.max(1, Math.round(r))) - 1];
     this.damage = {
-      // League: 50/90/130/170/210 plus 130% of her total attack damage.
-      q: Math.round(at(CAITLYN_LANE.qDamageByRank, ranks.q) + stats.ad * CAITLYN_LANE.qAdRatio),
+      // League: 50/90/130/170/210 plus 125–205% of her total attack damage,
+      // the ratio climbing with the rank.
+      q: Math.round(at(CAITLYN_LANE.qDamageByRank, ranks.q) + stats.ad * at(CAITLYN_LANE.qAdRatioByRank, ranks.q)),
       e: at(CAITLYN_LANE.eDamageByRank, ranks.e),
-      // League: 250/475/700 plus 200% *bonus* attack damage, which without a
+      // League: 300/475/650 plus 100% *bonus* attack damage, which without a
       // shop is zero — so a lane phase ultimate is exactly the base figure.
       r: at(CAITLYN_LANE.rDamageByRank, ranks.r),
       headshot: CAITLYN_LANE.headshotBonus,

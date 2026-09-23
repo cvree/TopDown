@@ -45,9 +45,16 @@ command the bench can grade is being asked for. The floor that used to move
 with your streak has a mode of its own, **SURGE**, where moving it is the
 point.
 
-That is the whole menu. There is no daily plan to opt into, no calibration to
-sit through and no course to unlock — the ladder places you from your first
-three runs, and every mode with a champion in it puts you behind the same one,
+**WARM UP** is the first tab, and the one a returning player opens on. It is
+one button: ten minutes, built fresh each day out of your own mistakes, ending
+on one sentence to take into your next ranked game. It shares the screen with
+the four reaction tests, the benchmark sheet and a box for pasting a scenario
+code — the measurements the routine is built on. It is a button rather than a
+plan: nothing in the client waits on it, and skipping it costs nothing but the
+streak.
+
+That is the whole menu. There is no calibration to sit through and no course
+to unlock — the ladder places you from your first three runs, and every mode with a champion in it puts you behind the same one,
 because the quarter of a second at the end of a tumble is not a thing you can
 practise in the abstract. The roster in Settings is a silhouette and nothing else: not one
 number in the simulation moves behind any of the eight bodies on it.
@@ -110,26 +117,35 @@ thing none of her six can teach.
 ### Lane phase
 
 **LANE PHASE** is the job rather than a piece of it, and it is the mode the
-rest of the client exists to feed. A lane opens at 1:05 with the first wave
-walking in, waves arrive every thirty seconds with a cannon on every third, and
-you play it end to end against an enemy laner doing exactly what you are doing.
+rest of the client exists to feed. Minions leave the base at 0:30 (patch
+26.1 moved it from 1:05), so a lane opens at 0:55 with the first wave meeting,
+waves arrive every thirty seconds with a cannon on every third, and you play it
+end to end against an enemy laner doing exactly what you are doing.
 
-Every number in it is League's, because the whole of laning is arithmetic and
-arithmetic against invented numbers transfers to nothing:
+Every number in it is League's, at patch **26.18**, because the whole of laning
+is arithmetic and arithmetic against invented numbers transfers to nothing:
 
-| | Health | Gold | Experience |
-| --- | --- | --- | --- |
-| **Melee minion** | 477 | 21 | 59.06 |
-| **Caster minion** | 296 | 14 | 29.5 |
-| **Cannon minion** (every third wave) | 900 | 60 | 92.4 |
+| | Health | Gold | Experience | Bonus into minions |
+| --- | --- | --- | --- | --- |
+| **Melee minion** | 430 | 20 | 62 | 2% of current health |
+| **Caster minion** | 284 | 14 | 31 | 3.5% |
+| **Cannon minion** (every third wave) | 920 | 50 | 75 | 5% |
 
 Read the experience column against the level curve — 280 for level two, a
 hundred more for each level after — and the facts every solo laner plays around
-fall straight out: a full first wave is 265.7, so level two arrives on the
-first minion of the second wave, and level three arrives inside the third wave,
-which is the one the cannon rides in with. The outer turret reaches 775 units,
-hits a minion for 152 — a caster dies to two shots, a melee to four — and ramps
-forty per cent a shot into a champion, which is what puts a clock on a dive.
+fall straight out: a full first wave is 279, one short, so level two arrives on
+the seventh minion, and level three on the fourteenth — the second melee of the
+third wave, the one the cannon rides in with. Experience is shared to 1,500
+units. The outer turret reaches 775 units, hits a minion for 152 — a caster
+dies to two shots, a melee to three — and ramps fifty per cent a shot into a
+champion, to 250%, which is what puts a clock on a dive.
+
+None of those figures is typed into the simulation. They live once, in
+`src/engine/patch.ts`, each with its source and a confidence label, and the
+lane imports them from there — which is also what the **accuracy report** in
+CHARACTER prints, row by row, including the ones no current source publishes
+(the turret's shot into a minion and the camera's geometry among them). See
+[The accuracy report](#the-accuracy-report).
 
 Both champions start at level one on base statistics, grow off League's own
 curve, and take a point every time the wave pays for one. Two resources exist
@@ -424,6 +440,117 @@ outlasted.
 A survive run keeps its own record, separate from the play score, because a
 score that grows simply by lasting is not the same measurement twice.
 
+## Warm up
+
+The research this client is built on is blunt about three things. In League's
+own new-player data, practice spread across days went with better outcomes than
+the same practice crammed (PLOS ONE, 2022 — observational, so an association
+rather than a proof). A mechanic is learnt fastest in a block of the same thing
+and kept best when it has to survive among other demands. And feedback is worth
+most when it names one thing to do. The warm-up is those three findings with a
+button on them.
+
+### The routine
+
+| Step | What | Why |
+| --- | --- | --- |
+| **Calibrate** | SEE IT: five reactions to light | A thermometer. Measured the same way daily, reaction time moves with sleep and tiredness far more than with skill |
+| **Fix · set 1** | One minute of the mode that fixes the mistake you made most in the last two days | Yesterday's error, re-shown before anything new |
+| **Fix · set 2** | The same minute again | Blocked practice; the one score that matters today is this one against the last |
+| **Hands** | A lab bench at the rung you have not beaten — a different bench each day | The layer under every champion |
+| **Under pressure** | The same champion, with somebody against you | The only place the habit has to work |
+
+It ends on a summary — set two against set one, today's focus against the last
+warm-up on it, the thermometer against your normal — and one sentence written
+for the mistake in question, phrased as something to *do* in a ranked lane:
+*"Step off the line when the cast starts, not when the missile is in the
+air."*
+
+**The stop rule.** If set two is clearly worse than set one (twelve performance
+points or more) *and* the calibration was ten per cent or more off your own
+normal, the routine ends there and says so. Either half alone is ordinary —
+variance, or a cold morning — and together they are rehearsing tiredness. Both
+thresholds are ours; no paper hands them over, and the code says so.
+
+**The streak** counts any finished warm-up, including one that stopped early
+and one you left after the two sets. Every seven days in a row banks a freeze,
+up to two, and a freeze covers a missed day without asking. A streak that
+punishes hard enough to compete with ranked games is working against its owner.
+
+### Reaction tests
+
+| Test | The cue | The answer |
+| --- | --- | --- |
+| **SEE IT** | The screen lights | Anything |
+| **HEAR IT** | A tone, with nothing on screen | Anything |
+| **CHOOSE IT** | One of your four ability inputs lights, as you have them bound — a mouse button under WASD | That one |
+| **CLICK IT** | A target somewhere on the screen | Click it |
+
+Each is a median and a median absolute deviation over five or eight trials. The
+wait before the cue is random; a press inside it is a false start, thrown away,
+counted and repeated. The light is timed from the frame it was painted on and
+the tone from the audio clock, and every figure still includes your screen,
+browser and mouse — so it compares you with yourself on one setup, and the
+screen says exactly that.
+
+### Benchmarks
+
+KovaaK's answer to "is my score good" is a benchmark: fixed scenarios at fixed
+settings with published thresholds. This is that, for the pieces of a lane.
+Six one-minute runs — RANGE, TUMBLE, SILVER BOLTS, CONDEMN, SHERIFF, PICK A
+CARD — each on one seed at difficulty 0.5, plus SEE IT and CHOOSE IT. Six tiers,
+ROOKIE to APEX; you hold one once six of the eight rows reach it, and a points
+total out of 48 moves with every row.
+
+The thresholds are **provisional** and the sheet says so. MASTER is exactly what
+the trainer's scripted reference player scores on each scenario, pinned in
+`benchmarks.ts` and held there by a test that re-plays every scenario — so a
+change that moves what competent play scores fails the build instead of
+quietly re-grading everyone. They should be cut from real players'
+distributions, and will be once there are enough. The names are deliberately
+not League's: this is a benchmark of this trainer, not an estimate of anybody's
+rank.
+
+### Scenario codes
+
+Every results screen prints a code for the minute just played —
+`vayneTumble-P50-fl4ma-J`: the mode, PLAY or SURVIVE with its difficulty, the
+seed, and a check letter. Paste it into WARM UP and you get the same start: the
+same spawns, the same wave, the same opening move from whoever is on the other
+side. After that they answer what *you* do, so two players on one code are on
+the same course rather than watching the same recording. A benchmark's code is
+the benchmark, and records as one.
+
+## The accuracy report
+
+CHARACTER has a fourth tab, **ACCURACY**: every League figure the lane is built
+from — sixty-four rows — with the patch it was audited against (26.18, Data
+Dragon 16.18.1), League's figure beside the one this client runs, and one of
+five labels:
+
+| Label | Means |
+| --- | --- |
+| **VERIFIED** | Read off Riot's own patch notes or data |
+| **REPORTED** | A current secondary source: probably right, not Riot's word |
+| **INFERRED** | Arithmetic from the rows above, or a judgement where sources are silent |
+| **NOT FOUND** | Nobody publishes it that we could find; the value run is ours and says so |
+| **TRAINER** | Deliberately not League's, for the reason on the row |
+
+Every VERIFIED and REPORTED row links its source, and every row whose two
+columns differ says why — both enforced by tests. The report and the simulation
+read the same file, so they cannot drift apart. What it does *not* claim: the
+default camera zoom, pitch and field of view, the edge-pan constants, the server
+tick rate and the turret's shot into a minion are all NOT FOUND, because a
+plausible number printed as a fact is worse than a gap.
+
+## Not affiliated with Riot Games
+
+APEX isn't endorsed by Riot Games and doesn't reflect the views or opinions of
+Riot Games or anyone officially involved in producing or managing Riot Games
+properties. Riot Games, League of Legends and all associated properties are
+trademarks or registered trademarks of Riot Games, Inc. The notice is also
+printed in the client, on WARM UP and on the accuracy report.
+
 ## The mechanics model
 
 The simulation reproduces the parts of League combat that matter for muscle
@@ -602,6 +729,23 @@ depends on:
   measures the whole run.
 - **Every drill scores under 30% for a player who does nothing.** No drill can
   be passed by presence alone.
+- **The lane is patch 26.18, and the receipt matches it.** The minion, turret,
+  experience and champion figures are asserted at their 26.18 values; the first
+  wave is asserted to be 279 experience, level two the seventh minion and level
+  three the fourteenth; and the accuracy report is asserted to print the same
+  numbers the simulation runs, to cite a URL on every VERIFIED and REPORTED
+  row, and to explain every row where League and the trainer differ.
+- **Benchmarks are anchored and deterministic.** Every benchmark scenario is
+  re-played by the reference player: it must score exactly the pinned
+  reference, land at MASTER, score the same twice on the same seed, and a
+  player who stands still must not reach ROOKIE. Scenario codes round-trip,
+  and a typo or a wrong check letter is refused.
+- **The warm-up does what it says.** Reaction runs are medians that ignore
+  wrong answers; the stop rule fires on a worse set *and* a slow day and on
+  neither alone; seven days bank a freeze, a freeze covers a missed day, and a
+  streak with no freezes left starts again at one; a first routine starts on
+  RANGE, yesterday's most frequent mistake picks the focus, and every step is a
+  mode the menu can start.
 - **The Sheriff is beaten by reading her and by nothing else.** A reference
   player who moves on the telegraph dodges over 90% of the Peacemakers and
   scores in the seventies; the identical player with the telegraph ignored
@@ -935,11 +1079,10 @@ gameplay state directly.
 
 ## The client
 
-Five screens: **Practice**, **The Lab**, **Progress**, setup, and the patch
-notes. The last two live in the corner of the top bar, which leaves a
-navigation bar with three words in it — and the first two of those are the
-shape of the whole trainer: a champion, and the bench underneath every
-champion.
+Six screens: **Warm up**, **Practice**, **The Lab**, **Progress**, setup, and
+the patch notes. The last two live in the corner of the top bar, which leaves a
+navigation bar with four words in it — the daily button first, then the shape
+of the whole trainer: a champion, and the bench underneath every champion.
 
 ### Practice
 
@@ -1050,6 +1193,7 @@ project shipped continuously before it started numbering itself.
 
 ```
 src/engine/     simulation: world, combat, AI, metrics, audio, input, paint
+src/engine/patch.ts   the patch manifest: every League figure, its source and confidence
 src/engine/vayne.ts   the champion kit: tumble, bolts, condemn, final hour, passive, trinket
 src/engine/summoners.ts  Flash: the one button on the bar that belongs to no champion
 src/drills/modes.ts   PLAY and SURVIVE, and which drills the menu offers
@@ -1059,8 +1203,11 @@ src/drills/     the wider mechanics catalogue the ratings were built on. Still
 src/gfx/        the 3D renderer: scene, terrain, walls, champions, decals, VFX
 src/progression/ rating maths, rank ladder, champion path, coach, error log,
                 persistence
+src/progression/warmup.ts      the daily routine, reaction stats, streak and stop rule
+src/progression/benchmarks.ts  benchmark scenarios, tiers and scenario codes
 src/patchnotes/ the release history: the client, the version number and CHANGELOG.md
-src/ui/         React shell, HUD, Practice, results, profile, rank-up, settings
+src/ui/         React shell, HUD, Warm up, reaction tests, Practice, accuracy report,
+                results, profile, rank-up, settings
 tools/          headless test harnesses
 docs/           research notes: the out-of-game practice landscape
 ```

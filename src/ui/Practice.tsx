@@ -1,3 +1,5 @@
+import { PATCH } from '../engine/patch';
+import { AccuracyReport } from './AccuracyReport';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
@@ -224,7 +226,7 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
         count: `${PRACTICE_MODES.length} MODES`,
         note: played > 0 ? `${played}/${PRACTICE_MODES.length} tried` : 'none tried yet',
       },
-      codex: { count: `${CODEX.length} CHAMPIONS`, note: 'every ability, explained' },
+      codex: { count: `${CODEX.length - 1} CHAMPIONS`, note: 'every ability, and every number’s source' },
     } as Record<SectionId, { count: string; note: string }>;
   }, [profile]);
 
@@ -869,12 +871,15 @@ function ModeCard({
  * champions: every number a mode is built from, printed, so a claim about
  * transfer is one the player can check rather than take.
  */
-type CodexId = 'vayne' | 'twisted' | 'sheriff';
+type CodexId = 'vayne' | 'twisted' | 'sheriff' | 'accuracy';
 
 const CODEX: { id: CodexId; label: string; sub: string; accent: string }[] = [
   { id: 'vayne', label: 'VAYNE', sub: 'the one you play', accent: '#c86bff' },
   { id: 'twisted', label: 'TWISTED FATE', sub: 'the other one you play', accent: '#ffcf5c' },
   { id: 'sheriff', label: 'CAITLYN', sub: 'the one shooting at you', accent: '#ffb02e' },
+  // Not a kit: the receipt for all three. Every League figure the lane runs,
+  // the patch it was checked against and where each one came from.
+  { id: 'accuracy', label: 'ACCURACY', sub: `patch ${PATCH.league}, with sources`, accent: '#4fd47c' },
 ];
 
 function CodexPanel() {
@@ -911,7 +916,15 @@ function CodexPanel() {
       </div>
 
       <div key={who} className="fade-in" style={{ ['--c' as string]: active.accent }}>
-        {who === 'vayne' ? <KitReference /> : who === 'twisted' ? <TwistedReference /> : <SheriffReference />}
+        {who === 'vayne' ? (
+          <KitReference />
+        ) : who === 'twisted' ? (
+          <TwistedReference />
+        ) : who === 'sheriff' ? (
+          <SheriffReference />
+        ) : (
+          <AccuracyReport />
+        )}
       </div>
     </>
   );

@@ -290,6 +290,12 @@ function NameStep({ name, onName }: { name: string; onName: (s: string) => void 
 function Tour() {
   const cards = [
     {
+      c: '#4fd47c',
+      k: 'WARM UP',
+      t: 'Ten minutes a day',
+      b: 'One button. A reaction check, your mistake from yesterday twice, then pressure — and one thing to do in your next game.',
+    },
+    {
       c: '#ffd166',
       k: 'PLAY',
       t: 'A real lane',
@@ -311,8 +317,8 @@ function Tour() {
   return (
     <div className="wc-step">
       <div className="eyebrow">what is in here</div>
-      <h1 className="display wc-h1">THREE PLACES, THAT IS ALL</h1>
-      <p className="wc-lead">They are the three words in the top bar. Nothing else is hiding.</p>
+      <h1 className="display wc-h1">FOUR PLACES, THAT IS ALL</h1>
+      <p className="wc-lead">They are the four words in the top bar. Nothing else is hiding.</p>
       <div className="wc-cards">
         {cards.map((c) => (
           <div className="wc-card" key={c.k} style={{ ['--c' as string]: c.c }}>
@@ -324,7 +330,7 @@ function Tour() {
       </div>
       <p className="wc-note">
         Start anywhere. If you have no idea, start with TRAIN — it is one minute and it explains
-        itself as you go.
+        itself as you go. From tomorrow, WARM UP is the button to press first.
       </p>
     </div>
   );

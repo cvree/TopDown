@@ -38,6 +38,31 @@ import { RankUp } from './RankUp';
 import { Results } from './Results';
 import { Settings } from './Settings';
 import { Welcome, type WelcomeResult } from './Welcome';
+import { WarmUp, type WarmupSummary } from './WarmUp';
+import {
+  BENCH_DIFFICULTY,
+  BENCH_SCENARIOS,
+  BENCH_TIERS,
+  benchFor,
+  benchPlace,
+  encodeScenario,
+  recordBench,
+  type BenchScenario,
+  type ScenarioCode,
+} from '../progression/benchmarks';
+import {
+  drillName,
+  finishWarmup,
+  lastWarmupOn,
+  recordReaction,
+  shouldStop,
+  type DayRead,
+  type ReactionRun,
+  type ReactionTestId,
+  type StopReason,
+  type WarmupPlan,
+  type WarmupRep,
+} from '../progression/warmup';
 import '../styles/global.css';
 import './app.css';
 
@@ -57,10 +82,11 @@ import './app.css';
  * anyone will ever add. The lab spent a release as the third tab of the
  * champion screen and read, from there, as one more thing about Vayne.
  */
-type Route = 'practice' | 'lab' | 'progress' | 'settings' | 'patch';
+type Route = 'warmup' | 'practice' | 'lab' | 'progress' | 'settings' | 'patch';
 
 /** The top bar, in order. Setup and the patch notes live in the corner. */
 const NAV: { route: Route; label: string; hint: string }[] = [
+  { route: 'warmup', label: 'WARM UP', hint: 'Ten minutes a day: reaction check, your mistake twice, hands, pressure' },
   { route: 'practice', label: 'PLAY', hint: 'Lane against somebody, or rehearse one piece of the champion' },
   { route: 'lab', label: 'TRAIN', hint: 'One-minute drills for your hands' },
   { route: 'progress', label: 'PROGRESS', hint: 'Your scores, and whether they are going up' },
@@ -112,6 +138,26 @@ interface Flow {
    * after the results screen has been dismissed and re-entered.
    */
   heldLevel?: number;
+  /**
+   * The seed is part of what is being played, not a fresh roll per attempt:
+   * a benchmark or a pasted code is one particular minute, and "run again"
+   * has to mean that minute again.
+   */
+  fixedSeed?: boolean;
+  /** The benchmark this run is being scored against, if it is one. */
+  bench?: string;
+  /** The warm-up this run is a step of, if it is one. */
+  warm?: WarmState;
+}
+
+/** A warm-up in progress: the plan, which step is on screen, and what the steps before it scored. */
+interface WarmState {
+  plan: WarmupPlan;
+  step: number;
+  /** Indexed by step. The calibration step never has one. */
+  reps: (WarmupRep | undefined)[];
+  calibration: ReactionRun | null;
+  day: DayRead;
 }
 
 interface ResultState {
@@ -126,7 +172,15 @@ export function App() {
     rollDaily(p);
     return p;
   });
-  const [route, setRoute] = useState<Route>('practice');
+  // The profile as of the last render, for the two places that have to build
+  // the next one synchronously: a run finishing and a warm-up closing.
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+  // A returning player opens on the warm-up; a new one on the champion, which
+  // the walkthrough is about to send them past anyway.
+  const [route, setRoute] = useState<Route>(() => (profile.onboarded ? 'warmup' : 'practice'));
+  const [warmSummary, setWarmSummary] = useState<WarmupSummary | null>(null);
+  const [benchNote, setBenchNote] = useState<{ eyebrow: string; line: string; tone?: 'good' | 'warn' } | null>(null);
   const [flow, setFlow] = useState<Flow | null>(null);
   const [results, setResults] = useState<ResultState | null>(null);
   const [rankUp, setRankUp] = useState<{
@@ -270,17 +324,28 @@ export function App() {
     (
       drill: DrillId,
       mode: RunMode,
-      opts: { difficulty?: number; duration?: number; level?: number } = {},
+      opts: {
+        difficulty?: number;
+        duration?: number;
+        level?: number;
+        seed?: number;
+        bench?: string;
+        warm?: WarmState;
+      } = {},
     ) => {
       audio.unlock();
       setResults(null);
+      setBenchNote(null);
       setFlow({
         drill,
         mode,
-        seed: newSeed(),
+        seed: opts.seed ?? newSeed(),
+        fixedSeed: opts.seed !== undefined,
         difficulty: opts.difficulty,
         duration: opts.duration,
         level: opts.level,
+        bench: opts.bench,
+        warm: opts.warm,
       });
     },
     [],
@@ -300,8 +365,18 @@ export function App() {
       if (!flow) return;
       if (result.endReason === 'abort') {
         // An instant reset is a fresh attempt, not a recorded run.
-        setFlow({ ...flow, seed: newSeed() });
+        setFlow({ ...flow, seed: flow.fixedSeed ? flow.seed : newSeed() });
         return;
+      }
+
+      // A warm-up step keeps what it scored, so the next step can be chosen
+      // and the summary can compare set two with set one. A retried step
+      // overwrites its own slot rather than adding one.
+      if (flow.warm) {
+        const w = flow.warm;
+        const reps = [...w.reps];
+        reps[w.step] = { drill: result.drill, score: result.score, performance: result.performance };
+        setFlow((f) => (f ? { ...f, warm: { ...w, reps } } : f));
       }
 
       // The rung the tide settled at, kept for the button that offers to play
@@ -312,35 +387,61 @@ export function App() {
         if (held !== undefined) setFlow((f) => (f ? { ...f, heldLevel: held } : f));
       }
 
-      let report: ProgressReport | null = null;
-      setProfile((prev) => {
-        const next: Profile = {
-          ...prev,
-          ratings: { ...prev.ratings },
-          samples: { ...prev.samples },
-          difficulty: { ...prev.difficulty },
-          bests: { ...prev.bests },
-          survive: { ...prev.survive },
-          history: [...prev.history],
-          daily: { ...prev.daily, completed: [...prev.daily.completed] },
-          dailyMarks: [...prev.dailyMarks],
-          // The champion paths are written in place by applyRun, so they have
-          // to be copied down to the records or the previous state would move
-          // with them — and a "previous" that moves is a results screen that
-          // cannot tell you what changed.
-          vayne: { ...prev.vayne, stages: copyRungs(prev.vayne.stages) },
-          twisted: { ...prev.twisted, stages: copyRungs(prev.twisted.stages) },
-          ezreal: { ...prev.ezreal, stages: copyRungs(prev.ezreal.stages) },
-          recentBests: [...prev.recentBests],
-        };
-        report = applyRun(next, result, flow.level ? { level: flow.level } : {});
-        return next;
-      });
+      // Computed here, synchronously, from the profile as it stands, and then
+      // handed to React — rather than inside a state updater and read back a
+      // tick later. An updater only runs early when it is the first update of
+      // its batch; a warm-up step queues one before it, and the report came
+      // back empty.
+      const prev = profileRef.current;
+      const next: Profile = {
+        ...prev,
+        ratings: { ...prev.ratings },
+        samples: { ...prev.samples },
+        difficulty: { ...prev.difficulty },
+        bests: { ...prev.bests },
+        survive: { ...prev.survive },
+        history: [...prev.history],
+        daily: { ...prev.daily, completed: [...prev.daily.completed] },
+        dailyMarks: [...prev.dailyMarks],
+        // The champion paths are written in place by applyRun, so they have
+        // to be copied down to the records or the previous state would move
+        // with them — and a "previous" that moves is a results screen that
+        // cannot tell you what changed.
+        vayne: { ...prev.vayne, stages: copyRungs(prev.vayne.stages) },
+        twisted: { ...prev.twisted, stages: copyRungs(prev.twisted.stages) },
+        ezreal: { ...prev.ezreal, stages: copyRungs(prev.ezreal.stages) },
+        recentBests: [...prev.recentBests],
+        bench: Object.fromEntries(Object.entries(prev.bench).map(([k, v]) => [k, v && { ...v }])),
+      };
+      const report: ProgressReport = applyRun(next, result, flow.level ? { level: flow.level } : {});
+      // A benchmark is only a benchmark on its own terms: its seed, its
+      // difficulty, one minute. A run that was re-rolled or reset is not.
+      const b = flow.bench ? benchFor(result.drill, result.seed) : null;
+      if (b && result.mode === 'play' && Math.abs(result.difficulty - BENCH_DIFFICULTY) < 1e-6) {
+        const before = benchPlace(b, next.bench[b.id]?.best ?? null).tier;
+        const beat = recordBench(next.bench, b.id, result.score);
+        const after = benchPlace(b, next.bench[b.id]?.best ?? null).tier;
+        const name = (t: number) => (t >= 0 ? BENCH_TIERS[t] : 'UNRANKED');
+        const first = (next.bench[b.id]?.runs ?? 0) === 1;
+        const fmtN = (v: number) => Math.round(v).toLocaleString('en-US');
+        const up = after < b.thresholds.length - 1 ? `${BENCH_TIERS[after + 1]} is at ${fmtN(b.thresholds[after + 1])}.` : 'Top of the sheet.';
+        setBenchNote({
+          eyebrow: `Benchmark · ${b.label}`,
+          line: first
+            ? `First run on this benchmark: ${fmtN(result.score)} — ${name(after)}. ${up}`
+            : after > before
+              ? `${name(before)} → ${name(after)}. New record: ${fmtN(result.score)}. ${up}`
+              : beat
+                ? `New record: ${fmtN(result.score)} — still ${name(after)}. ${up}`
+                : `Record stands at ${fmtN(next.bench[b.id]?.best ?? 0)} (${name(after)}). Same seed on RUN AGAIN.`,
+          tone: after > before || (beat && !first) ? 'good' : undefined,
+        });
+      }
+      profileRef.current = next;
+      setProfile(next);
 
-      // React 19 batches the state update above; read the report next tick.
       window.setTimeout(() => {
         const rep = report;
-        if (!rep) return;
         setResults({ result, report: rep, bounds });
         if (rep.promoted) {
           const driver = rep.axisChanges.reduce<{ axis: SkillAxis; delta: number } | null>(
@@ -366,15 +467,43 @@ export function App() {
     if (!flow) return;
     setResults(null);
     setRankUp(null);
-    setFlow({ ...flow, seed: newSeed() });
+    setBenchNote(null);
+    setFlow({ ...flow, seed: flow.fixedSeed ? flow.seed : newSeed() });
   }, [flow]);
 
+  /**
+   * Close a warm-up: write the session, extend the streak, and put the summary
+   * on the warm-up screen. `stopped` is the stop rule firing, or a player who
+   * left after the two sets that were the point of it.
+   */
+  const finishWarm = useCallback((w: WarmState, stopped: StopReason | null) => {
+    const reps = w.reps.filter((r): r is WarmupRep => !!r);
+    const prev = profileRef.current;
+    const next: Profile = { ...prev, warmup: structuredClone(prev.warmup) };
+    const previous = lastWarmupOn(prev.warmup, w.plan.focus, Date.now());
+    const done = finishWarmup(next, w.plan, reps, w.calibration, w.day, stopped);
+    profileRef.current = next;
+    setProfile(next);
+    setWarmSummary({ session: done.session, ...done.streak, streak: next.warmup.streak, previous });
+    setResults(null);
+    setRankUp(null);
+    setFlow(null);
+    setRoute('warmup');
+    audio.play('personalBest');
+  }, []);
+
   const exitToMenu = useCallback(() => {
+    // Leaving a warm-up after its two sets still counts: those were the
+    // point of it. Leaving before them is simply leaving.
+    if (flow?.warm && flow.warm.reps.filter(Boolean).length >= 2) {
+      finishWarm(flow.warm, 'left');
+      return;
+    }
     setResults(null);
     setRankUp(null);
     setFlow(null);
     audio.play('uiBack');
-  }, []);
+  }, [flow, finishWarm]);
 
   /**
    * The other mode of the run you just played, without going back to the menu.
@@ -387,6 +516,38 @@ export function App() {
    */
   const switchMode = useCallback(() => {
     if (!flow) return;
+    if (flow.warm) {
+      const w = flow.warm;
+      const next = warmNext(w);
+      if (next === null) {
+        finishWarm(w, w.step === 2 && warmStops(w) ? 'rule' : null);
+        return;
+      }
+      const step = w.plan.steps[next];
+      setResults(null);
+      setRankUp(null);
+      setFlow({
+        drill: step.drill ?? w.plan.focus,
+        mode: 'play',
+        seed: newSeed(),
+        difficulty: step.difficulty,
+        level: step.level,
+        warm: { ...w, step: next },
+      });
+      return;
+    }
+    // A benchmark's "next" is the next row of the sheet, the way a KovaaK's
+    // playlist runs: six minutes, six rows, one key between them.
+    if (flow.bench) {
+      const nb = nextBench(flow.bench);
+      if (nb?.drill && nb.seed !== undefined) {
+        setResults(null);
+        setRankUp(null);
+        setBenchNote(null);
+        setFlow({ drill: nb.drill, mode: 'play', seed: nb.seed, fixedSeed: true, difficulty: BENCH_DIFFICULTY, bench: nb.id });
+        return;
+      }
+    }
     setResults(null);
     setRankUp(null);
     if (flow.drill === 'lanePhase') {
@@ -418,7 +579,49 @@ export function App() {
       return;
     }
     setFlow({ ...flow, mode: flow.mode === 'play' ? 'survive' : 'play', seed: newSeed() });
-  }, [flow]);
+  }, [flow, finishWarm]);
+
+  // ------------------------------------------------------------- warm-up
+
+  const startWarm = useCallback(
+    (plan: WarmupPlan, calibration: ReactionRun | null, day: DayRead) => {
+      setWarmSummary(null);
+      const first = plan.steps.findIndex((s) => s.drill);
+      const step = plan.steps[first];
+      if (!step?.drill) return;
+      startRun(step.drill, 'play', {
+        difficulty: step.difficulty,
+        level: step.level,
+        warm: { plan, step: first, reps: [], calibration, day },
+      });
+    },
+    [startRun],
+  );
+
+  const onReaction = useCallback((test: ReactionTestId, run: ReactionRun) => {
+    setProfile((p) => {
+      const next: Profile = { ...p, warmup: structuredClone(p.warmup) };
+      recordReaction(next.warmup, test, run);
+      return next;
+    });
+  }, []);
+
+  const playBench = useCallback(
+    (b: BenchScenario) => {
+      if (!b.drill || b.seed === undefined) return;
+      startRun(b.drill, 'play', { difficulty: BENCH_DIFFICULTY, seed: b.seed, bench: b.id });
+    },
+    [startRun],
+  );
+
+  const playCode = useCallback(
+    (c: ScenarioCode) => {
+      // A pasted benchmark code is the benchmark, and records as one.
+      const b = c.mode === 'play' && Math.abs(c.difficulty - BENCH_DIFFICULTY) < 1e-6 ? benchFor(c.drill, c.seed) : null;
+      startRun(c.drill, c.mode, { difficulty: c.difficulty, seed: c.seed, bench: b?.id });
+    },
+    [startRun],
+  );
 
   // Opening the notes is what marks them read; nothing else clears the dot,
   // and a player who never opens them keeps it. The marking is done by the
@@ -509,8 +712,18 @@ export function App() {
             onRetry={retry}
             onExit={exitToMenu}
             onNext={switchMode}
+            code={
+              flow.warm || flow.mode === 'infinite' || flow.mode === 'surge'
+                ? null
+                : encodeScenario({ drill: flow.drill, mode: flow.mode, difficulty, seed: flow.seed })
+            }
+            banner={flow.warm ? warmBanner(flow.warm) : benchNote}
             nextLabel={
-              flow.drill === 'lanePhase'
+              flow.warm
+                ? warmNextLabel(flow.warm)
+                : flow.bench && nextBench(flow.bench)
+                  ? `Next benchmark: ${nextBench(flow.bench)?.label}`
+                : flow.drill === 'lanePhase'
                 ? `Lane against ${
                     LANE_TIERS[
                       Math.min(
@@ -663,6 +876,18 @@ export function App() {
             onExit={() => setRoute('practice')}
             exitLabel="Back to practice"
           >
+            {route === 'warmup' && (
+              <WarmUp
+                profile={profile}
+                settings={profile.settings}
+                summary={warmSummary}
+                onDismissSummary={() => setWarmSummary(null)}
+                onStart={startWarm}
+                onReaction={onReaction}
+                onBench={playBench}
+                onCode={playCode}
+              />
+            )}
             {route === 'practice' && (
               <Practice profile={profile} settings={profile.settings} onPlay={startRun} />
             )}
@@ -705,4 +930,61 @@ const formatHead = (v: number, f: string): string => {
   if (f === 'sec') return `${v.toFixed(1)}s`;
   if (f === 'rate') return v.toFixed(1);
   return `${Math.round(v)}`;
+};
+
+/** The benchmark row after this one, wrapping, skipping the reaction rows. */
+const nextBench = (id: string): BenchScenario | null => {
+  const rows = BENCH_SCENARIOS.filter((b) => b.kind === 'drill');
+  const i = rows.findIndex((b) => b.id === id);
+  return i < 0 ? null : rows[(i + 1) % rows.length];
+};
+
+// ------------------------------------------------------------ warm-up steps
+
+/** Whether the stop rule fires on this warm-up's two sets. */
+const warmStops = (w: WarmState): boolean => shouldStop(w.reps[1]?.performance, w.reps[2]?.performance, w.day);
+
+/** The next step to play, or null when the routine is over. */
+const warmNext = (w: WarmState): number | null => {
+  if (w.step === 2 && warmStops(w)) return null;
+  const n = w.step + 1;
+  return n < w.plan.steps.length ? n : null;
+};
+
+const warmNextLabel = (w: WarmState): string => {
+  const n = warmNext(w);
+  if (n === null) return w.step === 2 && warmStops(w) ? 'Stop here — finish the warm-up' : 'Finish the warm-up';
+  const s = w.plan.steps[n];
+  const runs = w.plan.steps.filter((x) => x.drill).length;
+  const at = w.plan.steps.slice(0, n + 1).filter((x) => x.drill).length;
+  return `Next ${at}/${runs}: ${s.label} · ${s.drill ? drillName(s.drill) : ''}`;
+};
+
+const warmBanner = (w: WarmState): { eyebrow: string; line: string; tone?: 'good' | 'warn' } => {
+  const s = w.plan.steps[w.step];
+  const runs = w.plan.steps.filter((x) => x.drill).length;
+  const at = w.plan.steps.slice(0, w.step + 1).filter((x) => x.drill).length;
+  const eyebrow = `Warm-up · ${at} of ${runs} · ${s.label}`;
+  const a = w.reps[1];
+  const b = w.reps[2];
+  if (w.step === 2 && a && b) {
+    const d = Math.round((b.performance - a.performance) * 100);
+    if (warmStops(w))
+      return {
+        eyebrow,
+        line: `Set 2 was ${-d} points under set 1, on a slow day. That is tiredness, not practice — the routine stops here, and it counts.`,
+        tone: 'warn',
+      };
+    return {
+      eyebrow,
+      line:
+        d > 0
+          ? `Set 2 beat set 1 by ${d} performance point${d === 1 ? '' : 's'}.`
+          : d === 0
+            ? 'Set 2 matched set 1 exactly.'
+            : `Set 2 was ${-d} point${d === -1 ? '' : 's'} under set 1 — normal variance on its own; carry on.`,
+      tone: d > 0 ? 'good' : undefined,
+    };
+  }
+  return { eyebrow, line: s.reason };
 };

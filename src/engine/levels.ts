@@ -1,3 +1,5 @@
+import { MINION_XP_RANGE, XP_LEVEL_STEP, XP_LEVEL_TWO } from './patch';
+
 /**
  * Levels — the clock the first ten minutes are actually played on.
  *
@@ -26,7 +28,7 @@
  */
 
 /** Experience needed to leave each level, League's own table. */
-export const XP_TO_NEXT = (level: number): number => 180 + 100 * level;
+export const XP_TO_NEXT = (level: number): number => XP_LEVEL_TWO - XP_LEVEL_STEP + XP_LEVEL_STEP * level;
 
 /** Cumulative experience at which each level is reached. Index 0 is level 1. */
 export const XP_THRESHOLDS: number[] = (() => {
@@ -88,5 +90,8 @@ export const grownAttackSpeed = (base: number, growthPct: number, level: number)
  * to be safe gets none of it. That trade — safety against experience — is one
  * of the two or three real decisions in the first ten minutes, and it only
  * exists because this number is finite.
+ *
+ * It is 1,500, not the 1,400 half the guides on the internet still print:
+ * Riot widened it in 25.S1.1.
  */
-export const XP_RADIUS = 1400;
+export const XP_RADIUS = MINION_XP_RANGE;

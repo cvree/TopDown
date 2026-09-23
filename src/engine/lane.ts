@@ -22,6 +22,19 @@
  * facts are the whole of under-tower farming, and they are exact here.
  */
 import { dist } from './math';
+import {
+  CANNON,
+  CANNON_EVERY,
+  CASTER,
+  MELEE,
+  MINION_ACQUIRE,
+  MINION_MOVE_SPEED,
+  TURRET_HEAT_PER_STACK,
+  TURRET_HEAT_STACKS,
+  TURRET_RANGE,
+  TURRET_SHOT,
+  WAVE_INTERVAL,
+} from './patch';
 import type { Rng } from './rng';
 import type { Actor, AttackProfile, Vec2 } from './types';
 import type { World } from './world';
@@ -42,6 +55,15 @@ export interface MinionStats {
    * before the other laner is most of what wave one is *for*.
    */
   xp: number;
+  /**
+   * Extra damage into another lane minion, as a share of its *current* health.
+   *
+   * League added this so waves trade evenly however many of them are left
+   * standing, and it is the reason a fresh wave melts a damaged one faster
+   * than the flat numbers suggest. Only the League lane has it: the gesture
+   * drill's health totals were chosen against flat damage.
+   */
+  vsMinionPct?: number;
   attack: AttackProfile;
 }
 
@@ -117,71 +139,77 @@ export const MINION_STATS: Record<MinionRole, MinionStats> = {
  * what a cannon is worth — and arithmetic done against invented numbers
  * transfers to nothing.
  *
- * So these are Summoner's Rift's, as shipped:
+ * So these are Summoner's Rift's, at patch 26.18, read out of the patch
+ * manifest rather than typed here (see `patch.ts`, where every one of them
+ * carries its source and how sure we are of it):
  *
- *  - **Melee** 477 health, 12 attack damage, 21 gold, 59.06 experience.
- *  - **Caster** 296 health, 23 attack damage, 14 gold, 29.5 experience.
- *  - **Cannon** 900 health, 41 attack damage, 60 gold, 92.4 experience.
+ *  - **Melee** 430 health, 11 attack damage, 20 gold, 62 experience.
+ *  - **Caster** 284 health, 21 attack damage, 14 gold, 31 experience.
+ *  - **Cannon** 920 health, 39 attack damage, 50 gold, 75 experience.
  *
  * Read the experience column against the level curve and the two facts every
  * solo laner in the game plays around fall straight out: a full first wave is
- * 265.7 experience against the 280 needed for level two, so two arrives on the
- * first minion of the second wave; three arrives inside the third wave, which
- * is the one the cannon rides in with. Neither of those is a rule this file
- * enforces. They are consequences of the numbers, which is the only way a
- * trainer can claim a habit will survive contact with the game.
+ * 279 experience against the 280 needed for level two — one short — so two
+ * arrives on the first minion of the second wave, the seventh of the lane;
+ * three arrives on the second melee of the third wave, the one the cannon
+ * rides in with. Neither of those is a rule this file enforces. They are
+ * consequences of the numbers, which is the only way a trainer can claim a
+ * habit will survive contact with the game.
  *
- * Minions grow in League — every ninety seconds, from fifteen minutes — and
- * they do not grow here, because nothing in this mode runs past ten.
+ * Minions grow in League every ninety seconds, and the growth that matters
+ * starts after the first ten minutes, so it is not modelled here.
  */
 export const LEAGUE_MINION_STATS: Record<MinionRole, MinionStats> = {
   melee: {
-    hp: 477,
+    hp: MELEE.hp,
     radius: 26,
-    moveSpeed: 325,
-    gold: 21,
-    xp: 59.06,
+    moveSpeed: MINION_MOVE_SPEED,
+    gold: MELEE.gold,
+    xp: MELEE.xp,
+    vsMinionPct: MELEE.vsMinionPct,
     attack: {
       attackSpeed: 1.25,
       windupRatio: 0.28,
       backswingRatio: 0.3,
       /** League: melee minions reach 111 units, which is to say they touch you. */
       range: 111,
-      damage: 12,
+      damage: MELEE.ad,
       projectileSpeed: 0,
     },
   },
   caster: {
-    hp: 296,
+    hp: CASTER.hp,
     radius: 24,
-    moveSpeed: 325,
-    gold: 14,
-    xp: 29.5,
+    moveSpeed: MINION_MOVE_SPEED,
+    gold: CASTER.gold,
+    xp: CASTER.xp,
+    vsMinionPct: CASTER.vsMinionPct,
     attack: {
       attackSpeed: 1.0,
       windupRatio: 0.34,
       backswingRatio: 0.28,
       /** League: 550, the same reach as a marksman. This is why they hurt. */
       range: 550,
-      damage: 23,
+      damage: CASTER.ad,
       projectileSpeed: 650,
       projectileShape: 'orb',
       projectileRadius: 9,
     },
   },
   cannon: {
-    hp: 900,
+    hp: CANNON.hp,
     radius: 33,
-    moveSpeed: 325,
-    gold: 60,
-    xp: 92.4,
+    moveSpeed: MINION_MOVE_SPEED,
+    gold: CANNON.gold,
+    xp: CANNON.xp,
+    vsMinionPct: CANNON.vsMinionPct,
     attack: {
       attackSpeed: 0.7,
       windupRatio: 0.4,
       backswingRatio: 0.3,
       /** League: the siege minion's reach is 300. */
       range: 300,
-      damage: 41,
+      damage: CANNON.ad,
       projectileSpeed: 760,
       projectileShape: 'wave',
       projectileRadius: 14,
@@ -205,16 +233,20 @@ const TURRET_ATTACK: AttackProfile = {
  *
  * 775 units of reach, 152 damage a shot, and the ramp that makes a dive a
  * countdown rather than a decision: every consecutive shot into the same
- * champion lands for forty per cent more, up to three stacks. Those four
+ * champion lands for fifty per cent more, up to 250% at three stacks. Those
  * figures are the whole of "can I go in", and they are the reason the answer
  * changes depending on whether the turret has already been shooting somebody.
+ *
+ * The ramp is Riot's (25.S1.1). The reach and the minion shot are not
+ * published anywhere current we could find, and the manifest says so rather
+ * than pretending otherwise.
  */
 const LEAGUE_TURRET: AttackProfile = {
   attackSpeed: 0.83,
   windupRatio: 0.42,
   backswingRatio: 0.2,
-  range: 775,
-  damage: 152,
+  range: TURRET_RANGE,
+  damage: TURRET_SHOT,
   projectileSpeed: 1450,
   projectileShape: 'shard',
   projectileRadius: 17,
@@ -267,6 +299,8 @@ export interface LaneRules {
    * playing against is not a wave clock you can learn to count.
    */
   tempoFromDifficulty: boolean;
+  /** How far a minion looks for something to hit. */
+  acquire: number;
 }
 
 /** The ninety-second gesture drill's lane. Exactly what LAST HIT always had. */
@@ -278,23 +312,24 @@ export const TRAINER_RULES: LaneRules = {
   turret: TURRET_ATTACK,
   turretRamp: { base: 110, ramp: 45 / 110, cap: 3 },
   tempoFromDifficulty: true,
+  acquire: 470,
 };
 
 /** Summoner's Rift's lane, for the mode that claims to be it. */
 export const LEAGUE_RULES: LaneRules = {
   stats: LEAGUE_MINION_STATS,
-  /** League: a wave leaves the base every thirty seconds, all game. */
-  waveInterval: 30,
+  /** League: a wave leaves the base every thirty seconds until 14:00. */
+  waveInterval: WAVE_INTERVAL,
   firstWave: 0,
   /** League: waves three, six, nine… carry the siege minion before 15:00. */
-  cannonEvery: 3,
+  cannonEvery: CANNON_EVERY,
   turret: LEAGUE_TURRET,
-  turretRamp: { base: 152, ramp: 0.4, cap: 3 },
+  turretRamp: { base: TURRET_SHOT, ramp: TURRET_HEAT_PER_STACK, cap: TURRET_HEAT_STACKS },
   tempoFromDifficulty: false,
+  acquire: MINION_ACQUIRE,
 };
 
-/** How far a minion looks for something to hit, and how far it will follow. */
-const ACQUIRE = 470;
+/** How far a minion will follow a target it has already picked. */
 const LEASH = 690;
 /** A unit counts as "currently attacking" its target for this long after a swing. */
 const AGGRO_MEMORY = 2.5;
@@ -408,8 +443,16 @@ const priorityOf = (world: World, me: Actor, c: Actor): number => {
  */
 export class MinionBrain {
   private retargetCd = 0;
+  private readonly baseDamage: number;
 
-  constructor(readonly actor: Actor, private readonly goal: Vec2) {}
+  constructor(
+    readonly actor: Actor,
+    private readonly goal: Vec2,
+    private readonly acquire = TRAINER_RULES.acquire,
+    private readonly vsMinionPct = 0,
+  ) {
+    this.baseDamage = actor.attack.damage;
+  }
 
   update(world: World, dt: number): void {
     const me = this.actor;
@@ -428,6 +471,11 @@ export class MinionBrain {
     }
 
     const target = world.byId(me.targetId);
+    // The current-health bonus is priced off the target as it stands now, the
+    // way a turret prices its ramp: set the swing's damage every tick, so the
+    // missile that leaves carries the figure for the body it was aimed at.
+    me.attack.damage =
+      this.vsMinionPct > 0 && target?.isMinion ? this.baseDamage + target.hp * this.vsMinionPct : this.baseDamage;
     if (target && target.alive) {
       // Never re-order during a windup: the order object is what the world
       // walks on, and rewriting it mid-swing is a cancel by another name.
@@ -452,7 +500,7 @@ export class MinionBrain {
       if (!c.alive || c.team === this.actor.team) continue;
       if ((c.invisibleFor ?? 0) > 0) continue;
       const d = dist(this.actor.pos, c.pos) - c.radius;
-      if (d > ACQUIRE) continue;
+      if (d > this.acquire) continue;
       const tier = priorityOf(world, this.actor, c);
       if (tier < bestTier || (tier === bestTier && !held && d < bestD)) {
         best = c;
@@ -708,7 +756,7 @@ export class Lane {
           },
         });
         this.minions.push(m);
-        this.brains.push(new MinionBrain(m, goal));
+        this.brains.push(new MinionBrain(m, goal, this.rules.acquire, s.vsMinionPct ?? 0));
       });
     }
     this.events.push({ kind: cannon ? 'cannon' : 'wave', wave: this.waveIndex });

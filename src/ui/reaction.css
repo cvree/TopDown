@@ -1,0 +1,237 @@
+/* A reaction test takes the whole screen: nothing else may move while one is
+   being measured, and the stage is as big as the window so the cue cannot be
+   missed by looking at the wrong corner. */
+
+.rx {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(ellipse at 50% 30%, #0a1424 0%, var(--bg) 70%);
+  color: var(--text);
+  animation: rx-in 0.22s var(--ease) both;
+}
+@keyframes rx-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.rx-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  padding: 18px 24px 12px;
+  border-bottom: 1px solid var(--stroke);
+}
+.rx-title {
+  font-size: 28px;
+  margin: 2px 0 0;
+  color: var(--c);
+  letter-spacing: 0.08em;
+}
+.rx-count {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.rx-fs {
+  color: var(--warn);
+}
+.rx-x {
+  background: transparent;
+  border: 1px solid var(--stroke-2);
+  color: var(--text-2);
+  font: 600 11px/1 var(--ui);
+  letter-spacing: 0.14em;
+  padding: 8px 10px;
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.rx-x:hover {
+  color: var(--gold-hot);
+  border-color: var(--gold);
+}
+
+.rx-stage {
+  position: relative;
+  flex: 1;
+  margin: 16px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-xl);
+  background: #02050a;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+  cursor: pointer;
+}
+.rx-stage.aim {
+  cursor: crosshair;
+}
+/* The cue itself. No transition: a fade would move the moment the light
+   arrives, which is the one thing a light test cannot allow. */
+.rx-stage.lit {
+  background: var(--c);
+}
+.rx-stage.early {
+  background: color-mix(in srgb, var(--danger) 22%, #02050a);
+}
+
+.rx-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  text-align: center;
+}
+.rx-ask {
+  font-size: 20px;
+  max-width: 560px;
+  line-height: 1.45;
+  margin: 0;
+}
+.rx-why {
+  max-width: 520px;
+  margin: 0;
+  font-size: 14px;
+}
+.rx-warn {
+  color: var(--warn);
+  font-size: 13px;
+}
+.rx-start {
+  margin-top: 10px;
+}
+.rx-wait {
+  font: 600 15px/1 var(--ui);
+  letter-spacing: 0.4em;
+  color: var(--text-3);
+}
+.rx-now {
+  font: 800 64px/1 var(--display);
+  color: #02050a;
+  letter-spacing: 0.1em;
+}
+.rx-bad {
+  font: 700 22px/1 var(--ui);
+  letter-spacing: 0.14em;
+  color: var(--danger);
+}
+.rx-ms {
+  font-size: 44px;
+  color: var(--c);
+}
+.rx-ms.bad {
+  color: var(--danger);
+  font-size: 26px;
+}
+
+.rx-keys {
+  display: flex;
+  gap: 12px;
+}
+.rx-key {
+  min-width: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--stroke-2);
+  border-radius: var(--r);
+  background: var(--panel-2);
+  font: 700 16px/1 var(--mono);
+  color: var(--text-2);
+}
+.rx-keys.big .rx-key {
+  min-width: 84px;
+  padding: 26px 18px;
+  font-size: 28px;
+}
+.rx-key.on {
+  background: var(--c);
+  border-color: var(--c);
+  color: #02050a;
+  box-shadow: 0 0 40px -6px var(--c);
+}
+
+.rx-target {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  margin: -30px 0 0 -30px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--c) 0 22%, transparent 23% 44%, var(--c) 45% 58%, transparent 59%);
+  box-shadow: 0 0 30px -4px var(--c);
+  pointer-events: none;
+}
+
+.rx-done {
+  cursor: default;
+}
+.rx-big {
+  font-size: 84px;
+  line-height: 1;
+  color: var(--c);
+}
+.rx-big small {
+  font-size: 22px;
+  color: var(--text-2);
+  margin-left: 6px;
+}
+.rx-sub {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.rx-cmp {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.rx-cmp .good {
+  color: var(--good);
+  font-weight: 600;
+}
+.rx-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.rx-dots i {
+  font: 500 11px/1 var(--mono);
+  font-style: normal;
+  padding: 5px 7px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+}
+.rx-dots i.bad {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+.rx-note {
+  font-size: 12px;
+  max-width: 460px;
+  margin: 2px 0 0;
+}
+.rx-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+@media (max-width: 600px) {
+  .rx-keys.big .rx-key {
+    min-width: 56px;
+    padding: 18px 10px;
+    font-size: 20px;
+  }
+  .rx-big {
+    font-size: 60px;
+  }
+}

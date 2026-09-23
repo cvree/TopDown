@@ -44,15 +44,47 @@ import { angleDelta, dist, norm } from '../src/engine/math';
 import { ARCHETYPES } from '../src/engine/archetypes';
 import { EnemyBrain, tuningFor, type BotBehavior } from '../src/engine/ai';
 import type { Actor, Vec2 } from '../src/engine/types';
-import { LEAGUE_MINION_STATS, LEAGUE_RULES, incomingDamage } from '../src/engine/lane';
-import { XP_THRESHOLDS, levelFromXp } from '../src/engine/levels';
+import { LEAGUE_MINION_STATS, LEAGUE_RULES, MINION_STATS, incomingDamage } from '../src/engine/lane';
+import {
+  BENCH_DIFFICULTY,
+  BENCH_REFERENCE,
+  BENCH_SCENARIOS,
+  BENCH_TIERS,
+  benchPlace,
+  benchSummary,
+  decodeScenario,
+  encodeScenario,
+  normalizeBench,
+  recordBench,
+  type BenchRecords,
+} from '../src/progression/benchmarks';
+import {
+  INTENTIONS,
+  buildWarmup,
+  completeDay,
+  emptyWarmup,
+  finishWarmup,
+  lastWarmupOn,
+  readDay,
+  reactionBaseline,
+  recordReaction,
+  shouldStop,
+  streakState,
+  summariseTrials,
+} from '../src/progression/warmup';
+import { ERROR_CODES } from '../src/progression/errors';
+import { isPracticeMode } from '../src/drills/modes';
+import { newProfile, todayKey as todayKeyOf } from '../src/progression/profile';
+import { isApmDrill } from '../src/progression/apm';
+import { CONFIDENCES, FACTS, MINION_FIRST_SPAWN, PATCH, factTally } from '../src/engine/patch';
+import { XP_RADIUS, XP_THRESHOLDS, levelFromXp } from '../src/engine/levels';
 import { LANE_TIERS, laneTierOf } from '../src/progression/lane';
 import { laneTuning } from '../src/engine/lanebot';
 import type { VayneKit } from '../src/engine/vayne';
-import { VAYNE_STATS, condemnCdAt, condemnPracticeCdAt, tumbleCdAt, tumblePracticeCdAt, tumbleRhythm } from '../src/engine/vayne';
+import { VAYNE_GROWTH, VAYNE_MANA, VAYNE_STATS, condemnCdAt, condemnPracticeCdAt, tumbleCdAt, tumblePracticeCdAt, tumbleRhythm } from '../src/engine/vayne';
 import { FLASH_PRACTICE_CD, FLASH_RANGE } from '../src/engine/summoners';
 import { EZREAL_STATS, type EzrealKit } from '../src/engine/ezreal';
-import { CAITLYN_STATS, caitlynAtLevel, type CaitlynKit } from '../src/engine/caitlyn';
+import { CAITLYN_MANA, CAITLYN_STATS, caitlynAtLevel, type CaitlynKit } from '../src/engine/caitlyn';
 import { EZREAL_DRILL_IDS, ezrealStage, type EzrealDrillId } from '../src/drills/ezreal';
 import { CARD_ORDER, TWISTED_STATS, type CardColor, type TwistedKit } from '../src/engine/twistedfate';
 import { TWISTED_DRILL_IDS, twistedStage, type TwistedDrillId } from '../src/drills/twistedfate';
@@ -2305,30 +2337,58 @@ line('\n=== LAST HIT: every point of damage has an owner ===');
   expect('doing nothing farms nothing', d.cs === 0, `${d.cs}`);
 }
 
-line('\n=== LANE PHASE: the numbers are League\'s ===');
+line('\n=== LANE PHASE: the numbers are League\'s, patch 26.18 ===');
 {
   const m = LEAGUE_MINION_STATS;
-  expect('a melee minion has 477 health and pays 21 gold', m.melee.hp === 477 && m.melee.gold === 21, `${m.melee.hp}/${m.melee.gold}`);
-  expect('a caster has 296 and pays 14', m.caster.hp === 296 && m.caster.gold === 14, `${m.caster.hp}/${m.caster.gold}`);
-  expect('a cannon has 900 and pays 60', m.cannon.hp === 900 && m.cannon.gold === 60, `${m.cannon.hp}/${m.cannon.gold}`);
+  expect('a melee minion has 430 health, pays 20 gold and 62 experience', m.melee.hp === 430 && m.melee.gold === 20 && m.melee.xp === 62, `${m.melee.hp}/${m.melee.gold}/${m.melee.xp}`);
+  expect('a caster has 284, pays 14 and 31', m.caster.hp === 284 && m.caster.gold === 14 && m.caster.xp === 31, `${m.caster.hp}/${m.caster.gold}/${m.caster.xp}`);
+  expect('a cannon has 920, pays 50 and 75', m.cannon.hp === 920 && m.cannon.gold === 50 && m.cannon.xp === 75, `${m.cannon.hp}/${m.cannon.gold}/${m.cannon.xp}`);
+  expect('minions walk at 350', m.melee.moveSpeed === 350 && m.caster.moveSpeed === 350 && m.cannon.moveSpeed === 350, `${m.melee.moveSpeed}`);
+  expect('and hit other minions for a share of their current health', m.melee.vsMinionPct === 0.02 && m.caster.vsMinionPct === 0.035 && m.cannon.vsMinionPct === 0.05, 'pct');
+  expect('the gesture drill\'s scaled wave has no such bonus', MINION_STATS.melee.vsMinionPct === undefined, 'trainer wave changed');
   expect('the turret reaches 775 and hits for 152', LEAGUE_RULES.turret.range === 775 && LEAGUE_RULES.turret.damage === 152, `${LEAGUE_RULES.turret.range}/${LEAGUE_RULES.turret.damage}`);
+  expect('heat is +50% a shot to 250%', LEAGUE_RULES.turretRamp.ramp === 0.5 && 1 + LEAGUE_RULES.turretRamp.ramp * LEAGUE_RULES.turretRamp.cap === 2.5, `${LEAGUE_RULES.turretRamp.ramp}`);
   expect('waves are thirty seconds apart with a cannon every third', LEAGUE_RULES.waveInterval === 30 && LEAGUE_RULES.cannonEvery === 3, `${LEAGUE_RULES.waveInterval}/${LEAGUE_RULES.cannonEvery}`);
+  expect('experience is shared out to 1500 units, not 1400', XP_RADIUS === 1500, `${XP_RADIUS}`);
 
   // Under-tower farming is arithmetic, and these two rows are the arithmetic.
   const shots = (hp: number) => Math.ceil(hp / LEAGUE_RULES.turret.damage);
   expect('a caster dies to two turret shots', shots(m.caster.hp) === 2, `${shots(m.caster.hp)}`);
-  expect('a melee dies to four', shots(m.melee.hp) === 4, `${shots(m.melee.hp)}`);
+  expect('a melee dies to three', shots(m.melee.hp) === 3, `${shots(m.melee.hp)}`);
 
-  // The level curve, and the fact every solo laner plays around.
+  // The level curve, and the facts every solo laner plays around.
   const wave = m.melee.xp * 3 + m.caster.xp * 3;
   expect('level two costs 280 experience', XP_THRESHOLDS[1] === 280, `${XP_THRESHOLDS[1]}`);
-  expect('a whole first wave is not quite level two', wave < 280 && wave > 250, `${wave.toFixed(1)}`);
+  expect('a whole first wave is one short of level two', wave === 279, `${wave.toFixed(1)}`);
   expect(
-    'and the first minion of the second wave is',
+    'and the seventh minion — the first of wave two — is level two',
     levelFromXp(wave + m.melee.xp) === 2,
     `${levelFromXp(wave + m.melee.xp)}`,
   );
   expect('level three costs 660', XP_THRESHOLDS[2] === 660, `${XP_THRESHOLDS[2]}`);
+  expect('two waves and one melee is not level three', levelFromXp(wave * 2 + m.melee.xp) === 2, 'lvl');
+  expect('the fourteenth minion is', levelFromXp(wave * 2 + m.melee.xp * 2) === 3, 'lvl');
+
+  // The receipt. Every exported figure is printed on a row of the report, and
+  // no row can claim a source it does not name.
+  const byId = (id: string) => FACTS.find((f) => f.id === id);
+  expect('the manifest names patch 26.18', PATCH.league === '26.18' && PATCH.dataDragon === '16.18.1', PATCH.league);
+  expect('first spawn is 0:30 on the report', byId('spawn')?.league === '0:30' && MINION_FIRST_SPAWN === 30, 'spawn');
+  expect('the report prints the melee health the lane runs', byId('meleeHp')?.trainer === String(m.melee.hp), `${byId('meleeHp')?.trainer}`);
+  expect('and the caster experience', byId('casterXp')?.trainer === String(m.caster.xp), `${byId('casterXp')?.trainer}`);
+  expect('and the cannon gold', byId('cannonGold')?.trainer === String(m.cannon.gold), `${byId('cannonGold')?.trainer}`);
+  expect('every VERIFIED or REPORTED row cites a url', FACTS.every((f) => (f.confidence !== 'VERIFIED' && f.confidence !== 'REPORTED') || f.source.url.startsWith('https://')), 'uncited row');
+  expect('every row that differs from League says why', FACTS.every((f) => f.league === f.trainer || !!f.note || !f.modelled), 'unexplained difference');
+  expect('row ids are unique', new Set(FACTS.map((f) => f.id)).size === FACTS.length, 'dupes');
+  const tally = factTally();
+  line(`  report: ${FACTS.length} rows — ${CONFIDENCES.map((c) => `${tally[c]} ${c}`).join(', ')}`);
+  expect('the report admits what it could not find', tally['NOT FOUND'] >= 5, `${tally['NOT FOUND']}`);
+
+  // Champions, at 26.18.
+  expect('a level one Vayne has 580 base health', VAYNE_GROWTH.hp.base === 580 && VAYNE_GROWTH.hp.growth === 98, `${VAYNE_GROWTH.hp.base}`);
+  expect('Tumble costs 46 at rank one and 30 at five', VAYNE_MANA.qCostByRank[0] === 46 && VAYNE_MANA.qCostByRank[4] === 30, 'q cost');
+  expect('Caitlyn opens on 62 attack damage', caitlynAtLevel(1).ad === 62, `${caitlynAtLevel(1).ad}`);
+  expect('her trap costs 20', CAITLYN_MANA.cost.w === 20, `${CAITLYN_MANA.cost.w}`);
 }
 
 line('\n=== LANE PHASE: the ladder is behaviour, never statistics ===');
@@ -5052,6 +5112,137 @@ line('\n=== EVERY ACTIVITY HAS A CLIP, AND EVERY CLIP LOOPS ===');
   // roster with one champion on it.
   const cap = Math.round(Object.keys(PREVIEWS).length * 0.25);
   expect('most clips are cycles rather than sentences', narrative <= cap, `${narrative} narrative, cap ${cap}`);
+}
+
+line('\n=== BENCHMARKS: the reference player is MASTER, and nobody gets there standing still ===');
+{
+  const policyFor: Partial<Record<DrillId, [Policy, MovementScheme]>> = {
+    rangecheck: ['edge', 'click'],
+    vayneTumble: ['vayneTumble', 'click'],
+    vayneBolts: ['vayneBolts', 'click'],
+    vayneCondemn: ['vayneCondemn', 'click'],
+    caitlynDodge: ['caitlyn', 'click'],
+    tfPick: ['twisted', 'wasd'],
+  };
+  for (const b of BENCH_SCENARIOS) {
+    if (b.kind !== 'drill' || !b.drill || b.seed === undefined) continue;
+    const [pol, sch] = policyFor[b.drill] ?? ['idle', 'click'];
+    const r = runDrill(b.drill, pol, BENCH_DIFFICULTY, b.seed, sch);
+    const i = runDrill(b.drill, 'idle', BENCH_DIFFICULTY, b.seed, sch);
+    const place = benchPlace(b, r.out.score);
+    line(`  ${b.label.padEnd(12)} reference ${String(r.out.score).padStart(6)} (pinned ${BENCH_REFERENCE[b.id]})  → ${place.tier >= 0 ? BENCH_TIERS[place.tier] : 'unranked'}   idle ${i.out.score}`);
+    expect(`${b.label}: the pinned reference is what the reference player scores`, r.out.score === BENCH_REFERENCE[b.id], `${r.out.score} vs ${BENCH_REFERENCE[b.id]}`);
+    // Exactly MASTER — or APEX on the one row where the reference plays the
+    // mode perfectly and there is no further to go.
+    expect(`${b.label}: the reference player is MASTER`, place.tier === (b.id === 'pick' ? 5 : 4), place.tier >= 0 ? BENCH_TIERS[place.tier] : 'unranked');
+    expect(`${b.label}: standing still is not ROOKIE`, benchPlace(b, i.out.score).tier === -1, `${i.out.score}`);
+    expect(`${b.label}: and the seed replays the same minute`, runDrill(b.drill, pol, BENCH_DIFFICULTY, b.seed, sch).out.score === r.out.score, 'nondeterministic');
+  }
+  expect('the thresholds climb', BENCH_SCENARIOS.every((b) => b.thresholds.every((t, k) => k === 0 || (b.lowerIsBetter ? t < b.thresholds[k - 1] : t > b.thresholds[k - 1]))), 'a tier is out of order');
+
+  // Scenario codes round-trip, and a typo is caught rather than obeyed.
+  const code = encodeScenario({ drill: 'vayneTumble', mode: 'play', difficulty: 0.5, seed: 26180002 });
+  const back = code ? decodeScenario(code) : { error: 'no code' };
+  line(`  code: ${code}`);
+  expect('a code decodes to the run it was made from', !('error' in back) && back.drill === 'vayneTumble' && back.mode === 'play' && back.difficulty === 0.5 && back.seed === 26180002, JSON.stringify(back));
+  const typo = code ? code.replace('vayneTumble', 'vayneTumbIe') : '';
+  expect('a typo is refused', 'error' in decodeScenario(typo), typo);
+  const flipped = code ? code.slice(0, -1) + (code.endsWith('A') ? 'B' : 'A') : '';
+  expect('and so is a wrong check letter', 'error' in decodeScenario(flipped), flipped);
+  expect('the lane has no code', encodeScenario({ drill: 'lanePhase', mode: 'play', difficulty: 0.3, seed: 1 }) === null, 'lane coded');
+  expect('nor does a moving floor', encodeScenario({ drill: 'apmPulse', mode: 'surge', difficulty: 0.3, seed: 1 }) === null, 'surge coded');
+  expect('lower-case codes still read', !('error' in decodeScenario(` ${code?.slice(0, -1)}${code?.slice(-1).toLowerCase()} `)), 'case');
+
+  // The summary: a quorum of six, and points that move with every row.
+  const w = emptyWarmup();
+  const recs: BenchRecords = {};
+  expect('an empty profile is unranked', benchSummary(recs, w).tier === -1 && benchSummary(recs, w).points === 0, 'ranked');
+  for (const b of BENCH_SCENARIOS) if (b.kind === 'drill') recordBench(recs, b.id, b.thresholds[2]);
+  expect('six rows at VETERAN are a VETERAN', benchSummary(recs, w).tier === 2, `${benchSummary(recs, w).tier}`);
+  expect('a record is only replaced by a better one', !recordBench(recs, 'range', 1) && recs.range?.best === BENCH_SCENARIOS[0].thresholds[2] && recs.range?.runs === 2, 'overwritten');
+  w.reaction.visual.best = 200;
+  expect('a reaction row counts lower as better', benchPlace(BENCH_SCENARIOS[6], 200).tier === 5, `${benchPlace(BENCH_SCENARIOS[6], 200).tier}`);
+  expect('and a slow one below ROOKIE still has progress', benchPlace(BENCH_SCENARIOS[6], 600).toNext > 0 && benchPlace(BENCH_SCENARIOS[6], 600).tier === -1, 'no progress');
+  expect('normalising drops junk', Object.keys(normalizeBench({ range: { best: 'x' }, nope: { best: 5 }, tumble: { best: 900, runs: '3' } })).join() === 'tumble', 'junk kept');
+}
+
+line('\n=== WARM UP: a routine you can argue with, a streak that forgives ===');
+{
+  // Trials: a median, a robust spread, and wrong answers kept out of both.
+  const run = summariseTrials(
+    [
+      { ms: 250, correct: true },
+      { ms: 260, correct: true },
+      { ms: 900, correct: true },
+      { ms: 240, correct: true },
+      { ms: 120, correct: false },
+    ],
+    1,
+    0,
+  );
+  expect('the headline is the median of the right answers', run.median === 255, `${run.median}`);
+  expect('one blink does not blow up the spread', run.spread <= 15, `${run.spread}`);
+  expect('a wrong answer costs accuracy rather than speed', run.accuracy === 0.8 && run.falseStarts === 1, `${run.accuracy}`);
+
+  const w = emptyWarmup();
+  expect('a guessed choice run is not a best', !recordReaction(w, 'choice', { ...run, accuracy: 0.5 }) && w.reaction.choice.best === null, `${w.reaction.choice.best}`);
+  expect('an honest one is', recordReaction(w, 'choice', run) && w.reaction.choice.best === 255, `${w.reaction.choice.best}`);
+  for (const m of [250, 260, 240]) recordReaction(w, 'visual', { ...run, median: m });
+  const base = reactionBaseline(w.reaction.visual);
+  expect('your normal is the median of your runs', base === 250, `${base}`);
+  expect('ten per cent slower is a slow day', readDay({ ...run, median: 280 }, base) === 'slow', readDay({ ...run, median: 280 }, base));
+  expect('a hair slower is a normal one', readDay({ ...run, median: 260 }, base) === 'normal', 'normal');
+  expect('and with no history the thermometer says so', readDay(run, null) === 'unknown', 'unknown');
+
+  // The stop rule needs both halves.
+  expect('a worse second set on a slow day stops the routine', shouldStop(0.7, 0.5, 'slow'), 'did not stop');
+  expect('a worse second set on a normal day does not', !shouldStop(0.7, 0.5, 'normal'), 'stopped on variance');
+  expect('a slow day with a steady second set does not', !shouldStop(0.7, 0.66, 'slow'), 'stopped on a cold morning');
+
+  // The streak: consecutive days extend it, missed days spend freezes, and
+  // with no freezes it starts again rather than going to zero.
+  const st = emptyWarmup();
+  const days = ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05', '2026-09-06', '2026-09-07'];
+  for (const d of days) completeDay(st, d);
+  expect('seven days in a row is a seven-day streak', st.streak === 7 && st.bestStreak === 7, `${st.streak}`);
+  expect('and banks a freeze', st.freezes === 1, `${st.freezes}`);
+  expect('finishing twice in a day counts once', !completeDay(st, '2026-09-07').extended && st.streak === 7, `${st.streak}`);
+  expect('a missed day is covered by the freeze', streakState(st, '2026-09-09').state === 'frozen', streakState(st, '2026-09-09').state);
+  const r = completeDay(st, '2026-09-09');
+  expect('and the streak survives it', st.streak === 8 && r.froze === 1 && st.freezes === 0 && st.frozen.includes('2026-09-08'), `${st.streak} ${st.freezes} ${st.frozen}`);
+  expect('two missed days with no freezes break it', streakState(st, '2026-09-12').state === 'broken', streakState(st, '2026-09-12').state);
+  completeDay(st, '2026-09-12');
+  expect('and a broken streak starts again at one', st.streak === 1 && st.bestStreak === 8, `${st.streak}/${st.bestStreak}`);
+  expect('month and year boundaries are one day apart', (() => { const x = emptyWarmup(); completeDay(x, '2026-12-31'); return streakState(x, '2027-01-01').state === 'alive'; })(), 'calendar');
+
+  // The routine itself.
+  const fresh = newProfile();
+  const plan = buildWarmup(fresh, '2026-09-23');
+  line(`  new profile: ${plan.headline}  [${plan.steps.map((x) => x.drill ?? 'calibrate').join(' → ')}]  ~${plan.minutes} min`);
+  expect('a first warm-up starts on range', plan.focus === 'rangecheck', plan.focus);
+  expect('it opens on the thermometer', plan.steps[0].kind === 'calibrate' && !plan.steps[0].drill, plan.steps[0].kind);
+  expect('then the focus twice, blocked', plan.steps[1].drill === plan.focus && plan.steps[2].drill === plan.focus, 'not blocked');
+  expect('every step is a mode the menu can start', plan.steps.every((x) => !x.drill || isPracticeMode(x.drill) || isApmDrill(x.drill)), 'unreachable step');
+  expect('the hands step is a real lab rung', plan.steps[3].level !== undefined && plan.steps[3].level >= 1 && plan.steps[3].level <= 10, `${plan.steps[3].level}`);
+  expect('and it ends under pressure', plan.steps[4].kind === 'pressure', plan.steps[4].kind);
+  expect('and fits in about ten minutes', plan.minutes >= 6 && plan.minutes <= 12, `${plan.minutes}`);
+  expect('the same day builds the same routine', JSON.stringify(buildWarmup(fresh, '2026-09-23')) === JSON.stringify(plan), 'reshuffled');
+  expect('another day changes the bench', buildWarmup(fresh, '2026-09-24').steps[3].drill !== plan.steps[3].drill, 'same bench two days running');
+
+  // Yesterday's mistake is today's focus.
+  const erring = newProfile();
+  erring.history.push({ drill: 'vayneTumble', t: Date.now(), score: 1, performance: 0.4, difficulty: 0.3, overall: 0, key: 0, keyId: 'x' });
+  erring.errorLog.push({ code: 'LATE_DODGE', t: Date.now() - 3600000, drill: 'caitlynDodge', count: 9, rate: 0.4 });
+  const fix = buildWarmup(erring, todayKeyOf());
+  expect('the focus is the mode that fixes yesterday\'s mistake', fix.focusError === 'LATE_DODGE' && fix.focus === 'caitlynDodge', `${fix.focusError} → ${fix.focus}`);
+  expect('and the routine says so first', fix.headline.includes('LATE DODGE'), fix.headline);
+  expect('every mistake has a sentence for the next game', ERROR_CODES.every((c) => INTENTIONS[c].length > 20), 'missing intention');
+
+  // Closing a routine writes a session and extends the streak.
+  const done = finishWarmup(erring, fix, [{ drill: 'caitlynDodge', score: 1, performance: 0.5 }, { drill: 'caitlynDodge', score: 2, performance: 0.6 }], null, 'unknown', null);
+  expect('a finished warm-up is a session', erring.warmup.sessions.length === 1 && done.session.intention === INTENTIONS.LATE_DODGE, `${erring.warmup.sessions.length}`);
+  expect('and a day on the streak', erring.warmup.streak === 1 && done.streak.extended, `${erring.warmup.streak}`);
+  expect('last time on the same focus is findable', lastWarmupOn(erring.warmup, 'caitlynDodge', Date.now() + 1) !== null, 'not found');
 }
 
 line(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}\n`);

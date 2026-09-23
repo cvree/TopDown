@@ -4,6 +4,7 @@ import type { AbilitySlot } from '../engine/input';
 import { LEAGUE_RULES, Lane, incomingDamage, pendingHits, sumPending, type PendingHit } from '../engine/lane';
 import { LaneBot } from '../engine/lanebot';
 import { XP_RADIUS, levelFromXp, levelProgress } from '../engine/levels';
+import { CANNON, FIRST_BLOOD_GOLD, KILL_GOLD, PASSIVE_GOLD_FROM, PASSIVE_GOLD_PER_SEC } from '../engine/patch';
 import { clamp, dist } from '../engine/math';
 import { PALETTE } from '../engine/palette';
 import type { DrillPaint } from '../engine/paint';
@@ -74,14 +75,16 @@ import { VayneDrill } from './vaynebase';
 /**
  * The minute the run opens on.
  *
- * League's first wave leaves the base at 0:05 and meets in the middle at about
- * 1:05, and a trainer that made you stand in an empty lane for a minute to be
- * faithful about it would be faithful about the wrong thing. So the clock
- * starts where the lane does: 1:05, with wave one walking in. Every wave after
- * that arrives exactly thirty seconds apart, which means the wave numbers and
- * the cannon minutes line up with the ones a player already counts.
+ * Since 26.1 League's first wave leaves the base at 0:30, and a trainer that
+ * made you stand in an empty lane for twenty-five seconds to be faithful
+ * about it would be faithful about the wrong thing. So the clock starts where
+ * the lane does, with wave one walking in: 0:55. The spawn is Riot's; the
+ * walk is not published anywhere, and the patch manifest marks the meeting
+ * time as ours. Every wave after that arrives exactly thirty seconds apart,
+ * which means the wave numbers and the cannon minutes line up with the ones a
+ * player already counts.
  */
-const START_CLOCK = 65;
+const START_CLOCK = 55;
 
 /**
  * League's base respawn wait, by level.
@@ -93,12 +96,9 @@ const START_CLOCK = 65;
  */
 const RESPAWN_BY_LEVEL = [6, 6, 8, 8, 10, 10, 12, 12, 14, 16, 20, 21, 26, 28.5, 32.5, 34.5, 36.5, 42.5];
 
-/** League: passive gold starts at 1:50 and pays 20.4 every ten seconds. */
-const PASSIVE_GOLD_FROM = 110;
-const PASSIVE_GOLD_PER_SEC = 2.04;
-
-/** League: a kill on an even champion is 300 gold before shutdowns and streaks. */
-const KILL_GOLD = 300;
+// League (26.18): passive gold starts at 1:05 and pays 20.4 every ten
+// seconds; an even kill is 300 before bounties, and the first one of the game
+// is 400. All four live in the patch manifest with their sources.
 
 /** League: what a kill on an equal-level champion is worth in experience. */
 const CHAMPION_KILL_XP = [42, 114, 144, 174, 204, 234, 264, 294, 324, 354, 384, 414, 444, 474, 504, 534, 564, 594];
@@ -125,6 +125,8 @@ export class LanePhaseDrill extends VayneDrill {
   private cs = 0;
   private gold = 0;
   private xp = 0;
+  /** Whether either laner has died yet, which is what first blood is. */
+  private bloodDrawn = false;
   private level = 1;
   private ranks = { q: 0, w: 0, e: 0, r: 0 };
   /** Points actually spent, so a level can never drift ahead of the bar. */
@@ -356,7 +358,7 @@ export class LanePhaseDrill extends VayneDrill {
   }
 
   /**
-   * Passive gold, which League starts paying at 1:50 and never stops.
+   * Passive gold, which League starts paying at 1:05 and never stops.
    *
    * Both sides of the lane are paid it, and that matters more than it looks:
    * the gold difference is the number the mode leads with, and one that
@@ -578,7 +580,11 @@ export class LanePhaseDrill extends VayneDrill {
 
   onAbility(slot: AbilitySlot, at: Vec2): void {
     if (slot !== 'f') {
-      const cost = VAYNE_MANA.cost[slot] ?? 0;
+      // Tumble got cheaper with every rank in 26.17; the rest are flat.
+      const cost =
+        slot === 'q'
+          ? VAYNE_MANA.qCostByRank[Math.min(5, Math.max(1, this.ranks.q)) - 1]
+          : VAYNE_MANA.cost[slot] ?? 0;
       if (cost > this.mana) {
         // Refused, and said so. A cast that silently does nothing is the
         // single most infuriating thing a client can do, and in a lane the
@@ -866,6 +872,19 @@ export class LanePhaseDrill extends VayneDrill {
    * standing back to be safe still costs you something even when you were
    * never going to get the last hit.
    */
+  /**
+   * What a champion kill pays, and it is only ever more than 300 once.
+   *
+   * First blood is worth a hundred more, which is why the first trade of a
+   * lane is worth more than any trade after it — and the one this lane's
+   * opponents will take a risk for.
+   */
+  private bountyForKill(): number {
+    if (this.bloodDrawn) return KILL_GOLD;
+    this.bloodDrawn = true;
+    return FIRST_BLOOD_GOLD;
+  }
+
   private noteDeath(e: WorldEvent, pid: number): void {
     const victim = this.s.world.byId(e.actorId);
     if (!victim || !e.pos) return;
@@ -883,7 +902,7 @@ export class LanePhaseDrill extends VayneDrill {
       // mistakes with different fixes.
       if (killer && killer.id === her.id) {
         this.bot.ledger.kills++;
-        this.bot.ledger.gold += KILL_GOLD;
+        this.bot.ledger.gold += this.bountyForKill();
         this.bot.gainXp(table(CHAMPION_KILL_XP, this.level));
       }
       this.s.setBanner(`KILLED · BACK IN ${this.deadFor.toFixed(0)}s`, 2.2);
@@ -896,9 +915,10 @@ export class LanePhaseDrill extends VayneDrill {
       this.rivalRecallLeft = 0;
       if (e.byPlayer) {
         this.kills++;
-        this.gold += KILL_GOLD;
+        const bounty = this.bountyForKill();
+        this.gold += bounty;
         this.gainXp(table(CHAMPION_KILL_XP, this.bot.ledger.level));
-        this.s.setBanner('KILL · 300 GOLD', 1.8);
+        this.s.setBanner(bounty > KILL_GOLD ? `FIRST BLOOD · ${bounty} GOLD` : `KILL · ${bounty} GOLD`, 1.8);
       }
       return;
     }
@@ -1081,7 +1101,7 @@ export class LanePhaseDrill extends VayneDrill {
     if (this.level > this.bot.ledger.level) {
       helped.push(`You finished the lane a level up — ${this.level} against ${this.bot.ledger.level}.`);
     }
-    if (this.cannons > 0) helped.push(`${this.cannons} cannon minion${this.cannons > 1 ? 's' : ''} secured, 60 gold each.`);
+    if (this.cannons > 0) helped.push(`${this.cannons} cannon minion${this.cannons > 1 ? 's' : ''} secured, ${CANNON.gold} gold each.`);
     if (this.underTurret > 2) helped.push(`${this.underTurret} last hits taken under your own turret.`);
     if (this.deaths === 0 && this.s.elapsed > 100) helped.push('You did not die once.');
     if (xpShare > 0.9) helped.push('You were in experience range of the wave for almost the whole lane.');

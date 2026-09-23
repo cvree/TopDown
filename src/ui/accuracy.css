@@ -1,0 +1,128 @@
+/* The accuracy report: a ledger, so it is set like one — one row a figure,
+   League's column beside ours, and the confidence as a coloured stamp. */
+
+.acc-lead {
+  color: var(--text-2);
+  line-height: 1.6;
+  margin: 4px 0 14px;
+  max-width: 760px;
+}
+.acc-lead b {
+  color: var(--gold-hot);
+  font-weight: 600;
+}
+
+.acc-tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.acc-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid color-mix(in srgb, var(--t) 45%, transparent);
+  background: color-mix(in srgb, var(--t) 8%, transparent);
+  color: var(--text);
+  border-radius: var(--r);
+  cursor: pointer;
+  font: 600 11px/1 var(--ui);
+  letter-spacing: 0.12em;
+  transition: background 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+.acc-chip b {
+  color: var(--t);
+  font-size: 15px;
+}
+.acc-chip:hover,
+.acc-chip.on {
+  background: color-mix(in srgb, var(--t) 20%, transparent);
+  border-color: var(--t);
+}
+.acc-key {
+  font-size: 12.5px;
+  margin: 10px 0 4px;
+}
+
+.acc-group {
+  margin-top: 20px;
+}
+.acc-gh {
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  color: var(--gold);
+  border-bottom: 1px solid var(--stroke);
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+.acc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 4px 14px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(120, 90, 40, 0.18);
+  font-size: 13px;
+}
+.acc-row.off {
+  opacity: 0.62;
+}
+.acc-row-h {
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  color: var(--text-3);
+  padding: 4px 0;
+}
+.acc-what {
+  color: var(--text);
+}
+.acc-val {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.acc-val.diff {
+  color: var(--warn);
+}
+.acc-conf {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.acc-conf i {
+  font-style: normal;
+  font: 700 9.5px/1 var(--ui);
+  letter-spacing: 0.16em;
+  color: var(--t);
+}
+.acc-conf a,
+.acc-conf em {
+  font-size: 11px;
+  color: var(--text-3);
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+.acc-conf a:hover {
+  color: var(--gold-lit);
+}
+.acc-note {
+  grid-column: 1 / -1;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .acc-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .acc-row-h {
+    display: none;
+  }
+  .acc-what,
+  .acc-conf {
+    grid-column: 1 / -1;
+  }
+}

@@ -628,3 +628,58 @@
 .res-wasd .rv-unlock {
   border-left-color: #58e0ff;
 }
+
+/* ------------------------------------------------------------ context
+   Which warm-up step this was, or which benchmark — and the code that
+   replays the minute. Above the buttons, because it is what decides which
+   button you press. */
+.res-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.55s var(--ease), transform 0.55s var(--ease);
+}
+.res-context.in {
+  opacity: 1;
+  transform: none;
+}
+.res-banner,
+.res-code {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--r);
+  background: var(--panel-2);
+  text-align: left;
+}
+.res-banner {
+  flex: 1;
+  min-width: 240px;
+  border-left: 3px solid var(--gold);
+}
+.res-banner.good {
+  border-left-color: var(--good);
+}
+.res-banner.warn {
+  border-left-color: var(--warn);
+}
+.res-banner b {
+  font-weight: 600;
+  color: var(--text);
+}
+.res-code {
+  cursor: copy;
+  color: var(--text);
+}
+.res-code:hover {
+  border-color: var(--gold);
+}
+.res-code code {
+  font-size: 13px;
+  color: var(--gold-lit);
+}

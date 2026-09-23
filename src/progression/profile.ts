@@ -60,6 +60,9 @@ import {
   type TwistedRunReport,
 } from './twistedfate';
 
+import { emptyWarmup, normalizeWarmup, type WarmupProgress } from './warmup';
+import { normalizeBench, type BenchRecords } from './benchmarks';
+
 const STORAGE_KEY = 'apex.profile.v1';
 const PROFILE_VERSION = 1;
 
@@ -366,6 +369,13 @@ export interface Profile {
    * source of truth.
    */
   recentBests: RecentBest[];
+  /**
+   * The warm-up: reaction test records, the streak and its freezes, and every
+   * finished routine. Its own ledger, because none of it is a drill score.
+   */
+  warmup: WarmupProgress;
+  /** Benchmark records: one scenario each, played at fixed settings. */
+  bench: BenchRecords;
 }
 
 /** One beaten record, kept so the home screen can say what got better. */
@@ -451,6 +461,8 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   dailyMarks: [],
   errorLog: [],
   recentBests: [],
+  warmup: emptyWarmup(),
+  bench: {},
 });
 
 /**
@@ -588,6 +600,10 @@ export const loadProfile = (): Profile => {
       // on the first card the menu draws.
       lane: normalizeLaneProgress(parsed.lane),
       recentBests: keepKnownDrills<RecentBest>(parsed.recentBests, (b) => b.drill, 60),
+      // Written from v2.22. Repaired field by field, so a streak stored as
+      // text or a reaction record with a hole in it comes back playable.
+      warmup: normalizeWarmup(parsed.warmup),
+      bench: normalizeBench(parsed.bench),
     };
   } catch {
     return newProfile();
