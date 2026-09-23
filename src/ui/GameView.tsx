@@ -405,12 +405,28 @@ export function GameView({
   // Everything below lives outside React on purpose: the simulation must not
   // be driven by, or wait on, a render pass.
   useEffect(() => {
-    const canvas = canvasRef.current;
+    let canvas = canvasRef.current;
     const overlay = overlayRef.current;
     const host = hostRef.current;
     const minimapCanvas = minimapRef.current;
     if (!canvas || !host || !overlay || !minimapCanvas) return;
     doneRef.current = false;
+
+    // A canvas hands out one WebGL context for its whole life, and tearing a
+    // run down force-loses it — so a canvas this effect has already drawn on
+    // can never draw again. React's development mode mounts every effect
+    // twice on purpose, and the second mount used to open onto that dead
+    // context and fail the run with "context lost before it was used". So a
+    // spent canvas is swapped for a fresh copy of itself before anything asks
+    // it for a context.
+    if (canvas.dataset.glSpent === '1') {
+      const fresh = canvas.cloneNode(false) as HTMLCanvasElement;
+      delete fresh.dataset.glSpent;
+      canvas.replaceWith(fresh);
+      canvasRef.current = fresh;
+      canvas = fresh;
+    }
+    canvas.dataset.glSpent = '1';
 
     const bounds = arenaFor(drill);
     // The APM section is played on the bench rather than in the stadium: the
