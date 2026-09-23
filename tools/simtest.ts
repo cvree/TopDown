@@ -77,6 +77,7 @@ import { isPracticeMode } from '../src/drills/modes';
 import { newProfile, todayKey as todayKeyOf } from '../src/progression/profile';
 import { isApmDrill } from '../src/progression/apm';
 import { Tape, TapeInput, TapeView, replayInto, type LiveInput } from '../src/engine/tape';
+import { PLAN_LABEL, TradeLedger, clockText, planSpans } from '../src/drills/lanereport';
 import { CONFIDENCES, FACTS, MINION_FIRST_SPAWN, PATCH, factTally } from '../src/engine/patch';
 import { XP_RADIUS, XP_THRESHOLDS, levelFromXp } from '../src/engine/levels';
 import { LANE_TIERS, laneTierOf } from '../src/progression/lane';
@@ -5373,6 +5374,66 @@ line('\n=== REWIND: a run rebuilt from its tape is the same run ===');
   // this is a budget rather than a freeze: a rewind at the end of a full
   // nine-minute lane should still be a matter of seconds.
   expect('rebuilding two and a half minutes of lane takes under four seconds', ms < 4000, `${ms.toFixed(0)} ms`);
+}
+
+line('\n=== LANE REPORT: every trade, the level race, and why she did it ===');
+{
+  // A lane against somebody who fights: trades happen, levels arrive, and she
+  // changes plan for stated reasons.
+  const r = runDrill('lanePhase', 'laneFarm', LANE_TIERS[4].difficulty, 7, 'click', 'hands', { seconds: 150 });
+  const rep = r.out.lane;
+  expect('a lane hands back a report', !!rep, 'none');
+  if (rep) {
+    line(`  ${rep.trades.length} trades (${rep.trades.filter((t) => t.verdict === 'won').length} won, ${rep.trades.filter((t) => t.verdict === 'lost').length} lost), ${rep.plans.length} plan changes, ${rep.punishes} free hits (${rep.punishesOnLastHit} on a last hit)`);
+    for (const t of rep.trades.slice(0, 3)) line(`    ${clockText(t.start)} ${t.startedBy} started · ${t.verdict} ${t.net} · ${t.lesson}`);
+    for (const p of rep.plans.slice(0, 3)) line(`    ${clockText(p.start)}–${clockText(p.end)} ${PLAN_LABEL[p.plan]}: ${p.why}`);
+    for (const l of rep.levels) line(`    level ${l.level}: you ${l.you === null ? '—' : clockText(l.you)}, her ${l.her === null ? '—' : clockText(l.her)}`);
+    expect('trades against a challenger happen', rep.trades.length >= 1, `${rep.trades.length}`);
+    expect('every trade has a lesson and a verdict', rep.trades.every((t) => t.lesson.length > 20 && ['won', 'even', 'lost'].includes(t.verdict)), 'blank');
+    expect('every trade adds up', rep.trades.every((t) => t.net === Math.round(t.dealt - t.fromHer - t.fromMinions - t.fromTurret) || Math.abs(t.net - (t.dealt - t.fromHer - t.fromMinions - t.fromTurret)) <= 2), 'net');
+    expect('her plans come with reasons', rep.plans.every((p) => p.why.length > 10 && p.end > p.start), 'reasonless plan');
+    expect('both of you reach level two, on the clock', rep.levels[0].you !== null && rep.levels[0].her !== null && (rep.levels[0].you ?? 0) > 55, JSON.stringify(rep.levels[0]));
+  }
+
+  // The ledger on its own: a trade opens only on a champion hit, counts her
+  // wave while open, and closes after three quiet seconds.
+  const led = new TradeLedger(() => 600);
+  led.damage(60, 'minion', 'you', 40);
+  led.tick(61);
+  expect('a minion hitting you in an empty lane is not a trade', led.trades.length === 0, `${led.trades.length}`);
+  led.damage(62, 'her', 'you', 70, true);
+  led.damage(62.4, 'minion', 'you', 60);
+  led.damage(62.6, 'minion', 'you', 60);
+  led.damage(63, 'you', 'her', 50);
+  led.tick(67);
+  const tr = led.trades[0];
+  expect('it closes after three quiet seconds', led.trades.length === 1, `${led.trades.length}`);
+  expect('she started it, on your last hit', tr?.startedBy === 'her' && tr.onYourLastHit, JSON.stringify(tr));
+  expect('and it was lost to her wave', tr?.verdict === 'lost' && tr.lesson.startsWith('Her wave did 120'), tr?.lesson ?? '');
+  const won = new TradeLedger(() => 600);
+  won.damage(80, 'you', 'her', 120);
+  won.damage(80.5, 'her', 'you', 40);
+  won.close();
+  expect('a trade you start and win says so', won.trades[0]?.verdict === 'won' && won.trades[0].lesson.startsWith('You started it'), won.trades[0]?.lesson ?? '');
+
+  // Plan spans: flicker folds away, farming is not reported.
+  const spans = planSpans(
+    [
+      { t: 0, plan: 'farm', why: '' },
+      { t: 5, plan: 'freeze', why: 'her wave was bigger' },
+      { t: 5.2, plan: 'farm', why: '' },
+      { t: 5.3, plan: 'freeze', why: 'her wave was bigger' },
+      { t: 9, plan: 'allIn', why: 'she counted lethal' },
+      { t: 9.4, plan: 'retreat', why: 'she was low' },
+      { t: 12, plan: 'farm', why: '' },
+    ],
+    20,
+    (t) => 55 + t,
+  );
+  // One freeze from when it settled to when she dropped it, not two: the
+  // flicker at its start costs it a fraction of a second, never a split.
+  expect('a flicker inside a plan does not split it', spans.filter((x) => x.plan === 'freeze').length === 1 && Math.abs(spans[0].start - 60) <= 0.5 && spans[0].end === 64, JSON.stringify(spans));
+  expect('and a plan held for under a second is left out', !spans.some((x) => x.plan === 'allIn'), 'kept');
 }
 
 line(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}\n`);

@@ -831,6 +831,7 @@ export function GameView({
             helped: out.helped,
             hurt: out.hurt,
             advice: out.advice,
+            lane: out.lane,
           };
           // Let the death/victory effects land before the results take over.
           window.setTimeout(() => onComplete(result, bounds), session.endReason === 'abort' ? 0 : 700);

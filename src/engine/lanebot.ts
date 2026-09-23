@@ -53,6 +53,7 @@
 import { CAITLYN_MANA, CAITLYN_STATS, caitlynManaAt, type CaitlynKit } from './caitlyn';
 import { incomingDamage, type Lane } from './lane';
 import { levelFromXp } from './levels';
+import { TURRET_HEAT_PER_STACK } from './patch';
 import { clamp, dist } from './math';
 import type { Rng } from './rng';
 import type { Actor, Vec2 } from './types';
@@ -170,6 +171,19 @@ export class LaneBot {
 
   /** What it is trying to do with the wave right now. Shown on the HUD. */
   plan: WavePlan = 'farm';
+  /** Why, in words — the half of the plan the results screen reads back. */
+  planWhy = '';
+  /**
+   * Every change of plan, with its reason and the world time it happened.
+   *
+   * Kept so the lane can explain itself afterwards. "Why did she suddenly
+   * walk at me" has an answer every time — she counted lethal, or she had two
+   * more minions than you and wanted the wave on her side — and a player who
+   * can read that answer is a player learning the lane rather than the bot.
+   */
+  readonly planLog: { t: number; plan: WavePlan; why: string }[] = [];
+  /** Every free hit she took on you, and whether you were taking a minion when she did. */
+  readonly punishes: { t: number; onLastHit: boolean }[] = [];
 
   /**
    * Mana, and the reason a lane has a rhythm at all.
@@ -270,7 +284,9 @@ export class LaneBot {
     this.decisionCd = 0.08;
 
     const seen = !!player && player.alive && world.canSee(me.team, player);
-    this.plan = this.choosePlan(world, player, seen, mine, theirs);
+    const plan = this.choosePlan(world, player, seen, mine, theirs);
+    if (plan !== this.plan) this.planLog.push({ t: world.time, plan, why: this.planWhy });
+    this.plan = plan;
 
     // A cast owns the body while it runs: she is rooted for it, and asking her
     // to walk somewhere in the middle of a Peacemaker would be a cancel she
@@ -350,9 +366,17 @@ export class LaneBot {
     const me = this.actor;
     const share = me.hp / me.maxHp;
     const underTheirTurret = this.insideTurret(this.lane.allyTurret, me.pos, 40);
-    if (share < 0.28 || (underTheirTurret && !this.tuning.dives)) return 'retreat';
-    if (player && seen && this.canKill(world, player)) return 'allIn';
-    if (share < this.tuning.bravery * 0.55) return 'retreat';
+    const why = (plan: WavePlan, reason: string): WavePlan => {
+      this.planWhy = reason;
+      return plan;
+    };
+    if (share < 0.28) return why('retreat', 'she was under 28% health');
+    if (underTheirTurret && !this.tuning.dives) return why('retreat', 'she was under your turret, and this opponent does not dive');
+    if (player && seen && this.canKill(world, player)) {
+      const execute = this.ranks.r > 0 && this.kit.cdOf('r') <= 0 && player.hp <= this.kit.damage.r;
+      return why('allIn', execute ? 'you were inside her ultimate’s kill range' : 'she counted her damage against your health and it was enough');
+    }
+    if (share < this.tuning.bravery * 0.55) return why('retreat', 'she had taken more damage than she is willing to fight on');
     // Wave control is the half of laning nobody practises. A laner who is
     // ahead wants the wave to stay where it is — near their own side, so the
     // other one has to walk into the turret to farm it — and a laner who
@@ -360,10 +384,11 @@ export class LaneBot {
     // tuning says it has thought about the wave at all.
     if (this.tuning.waveControl > 0.45) {
       const advantage = mine.length - theirs.length;
-      if (advantage >= 2 && this.lane.frontX() < this.midX()) return 'freeze';
-      if (theirs.length === 0 && mine.length >= 3) return 'shove';
+      if (advantage >= 2 && this.lane.frontX() < this.midX())
+        return why('freeze', `her wave was ${advantage} minions bigger and on her side, so she held it there`);
+      if (theirs.length === 0 && mine.length >= 3) return why('shove', 'your wave was gone, so she pushed hers into your turret');
     }
-    return 'farm';
+    return why('farm', '');
   }
 
   /**
@@ -397,7 +422,7 @@ export class LaneBot {
       // survive two more of them at their current stack count is not diving,
       // they are dying with a kill they can nearly see.
       const turret = this.lane.allyTurret;
-      const next = turret.attack.damage * (1 + 0.4 * this.lane.rampOf(turret));
+      const next = turret.attack.damage * (1 + TURRET_HEAT_PER_STACK * this.lane.rampOf(turret));
       if (me.hp < next * 2.2) return false;
       // And it has to be a dive rather than a chase. A kill you are already
       // in range of is worth the turret shots; one you have to walk eight
@@ -519,6 +544,10 @@ export class LaneBot {
     if (!committed && this.rng.next() < this.tuning.discipline * 0.8) return false;
 
     world.issueAttackTarget(me, player.id);
+    this.punishes.push({
+      t: world.time,
+      onLastHit: player.phase === 'windup' && player.targetId !== null && world.byId(player.targetId)?.isMinion === true,
+    });
     this.wantsPunish = false;
     this.armed = false;
     return true;

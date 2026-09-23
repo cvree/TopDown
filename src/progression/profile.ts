@@ -61,6 +61,7 @@ import {
 } from './twistedfate';
 
 import { emptyWarmup, normalizeWarmup, type WarmupProgress } from './warmup';
+import type { LaneReport } from '../drills/lanereport';
 import { normalizeBench, type BenchRecords } from './benchmarks';
 
 const STORAGE_KEY = 'apex.profile.v1';
@@ -99,6 +100,8 @@ export interface RunResult {
   helped: string[];
   hurt: string[];
   advice: string;
+  /** The lane's report, when the run was a lane. Never stored on the profile. */
+  lane?: LaneReport;
 }
 
 /**

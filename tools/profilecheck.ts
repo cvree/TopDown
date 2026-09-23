@@ -724,8 +724,37 @@ const bindChecks = async (): Promise<void> => {
   );
 };
 
+const laneReportCheck = async (): Promise<void> => {
+  const { LaneReportPanel } = await import('../src/ui/LaneReportPanel');
+  line('\n=== The lane report draws, full and empty ===');
+  const full = {
+    trades: [
+      { start: 62, end: 66, startedBy: 'her', dealt: 40, fromHer: 120, fromMinions: 90, fromTurret: 0, onYourLastHit: true, net: -170, verdict: 'lost', lesson: 'Her wave did 90 of it.' },
+      { start: 140, end: 143, startedBy: 'you', dealt: 200, fromHer: 60, fromMinions: 0, fromTurret: 0, onYourLastHit: false, net: 140, verdict: 'won', lesson: 'You started it.' },
+    ],
+    plans: [{ start: 70, end: 80, plan: 'freeze', why: 'her wave was bigger' }],
+    levels: [
+      { level: 2, you: 93, her: 92 },
+      { level: 3, you: 128, her: null },
+      { level: 6, you: null, her: null },
+    ],
+    punishes: 4,
+    punishesOnLastHit: 2,
+  };
+  const empty = { trades: [], plans: [], levels: [{ level: 2, you: null, her: null }], punishes: 0, punishesOnLastHit: 0 };
+  for (const [what, rep] of [['a full report', full], ['an empty one', empty]] as const) {
+    try {
+      const html = renderToStaticMarkup(createElement(LaneReportPanel as any, { report: rep, visible: true }) as never);
+      expect(`the lane report draws ${what}`, html.includes('The lane, read back'), 'no title');
+    } catch (e) {
+      expect(`the lane report draws ${what}`, false, (e as Error).message);
+    }
+  }
+};
+
 const main = async (): Promise<void> => {
   await bindChecks();
+  await laneReportCheck();
   const list = await screens();
   const cases: [string, Profile][] = [
     ['a new profile', newProfile()],
