@@ -1293,8 +1293,23 @@ export class World {
    * than a champion can cross a cell and already finer than the eye resolves,
    * because the grid it writes into is eased on its way to the screen anyway.
    */
+  /**
+   * Skip the fog grid while a rewind fast-forwards.
+   *
+   * The grid is the picture of the fog and nothing else: every question the
+   * simulation asks about sight — can this body see that one — is answered by
+   * `canSee`, geometrically, and never reads a cell. So a replay nobody is
+   * watching can leave it alone and halve the cost of a lane, and the first
+   * live step primes it fresh, exactly as a run's first step does.
+   */
+  fogIdle = false;
+
   private stepVision(dt: number): void {
     if (!this.vision) return;
+    if (this.fogIdle) {
+      this.visionPrimed = false;
+      return;
+    }
     if (!this.visionPrimed) {
       this.visionPrimed = true;
       this.visionAccum = 0;

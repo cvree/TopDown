@@ -12,7 +12,8 @@ import {
   type Bindings,
   type MovementScheme,
 } from '../engine/input';
-import { GameLoop } from '../engine/loop';
+import { GameLoop, SIM_DT, SIM_HZ } from '../engine/loop';
+import { REWIND_LONG_SECONDS, REWIND_SECONDS, Replayer, Tape, TapeInput, TapeView } from '../engine/tape';
 import { derive } from '../engine/metrics';
 import { clearPaint, newPaint } from '../engine/paint';
 import { ABILITY_BAR, RANGE_CHECK_SECONDS, Session, type HudSnapshot } from '../engine/session';
@@ -57,6 +58,13 @@ interface Props {
   onComplete: (result: RunResult, bounds: { w: number; h: number }) => void;
   onExit: () => void;
   onRetry: () => void;
+  /**
+   * Start this run somewhere other than the beginning: the first `steps`
+   * recorded steps of `tape`, rebuilt, then handed back to the player.
+   */
+  rewind?: { tape: Tape; steps: number } | null;
+  /** The player asked to go back. The shell remounts the run with `rewind` set. */
+  onRewind?: (tape: Tape, steps: number) => void;
 }
 
 /**
@@ -313,6 +321,8 @@ export function GameView({
   onComplete,
   onExit,
   onRetry,
+  rewind = null,
+  onRewind,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -334,6 +344,12 @@ export function GameView({
   // reach the arena until the next run — which is exactly the complaint that
   // put a settings panel on the pause screen in the first place.
   const sessionRef = useRef<Session | null>(null);
+  /** Rewind, as the pause menu calls it: seconds back. */
+  const rewindRef = useRef<((seconds: number) => void) | null>(null);
+  const onRewindRef = useRef(onRewind);
+  onRewindRef.current = onRewind;
+  /** Rebuild progress while a rewind replays, 0..1, or null when live. */
+  const [rebuilding, setRebuilding] = useState<number | null>(rewind ? 0 : null);
   const inputRef = useRef<InputSystem | null>(null);
   const rendererRef = useRef<RiftRenderer | null>(null);
   const settingsRef = useRef(settings);
@@ -384,6 +400,7 @@ export function GameView({
   // screen has to read the binding instead of promising a key that may have
   // moved.
   const resetKey = codeLabel(bindingsFor(settings, drill).reset.primary);
+  const rewindKey = codeLabel(bindingsFor(settings, drill).rewind.primary);
 
   // Everything below lives outside React on purpose: the simulation must not
   // be driven by, or wait on, a render pass.
@@ -419,6 +436,15 @@ export function GameView({
       activeSlots: new Set<AbilitySlot>(meta.abilities),
       scheme,
     });
+    // The tape. Every simulated step's inputs are written to it, in world
+    // units, which is what lets the rewind key rebuild this run from its seed.
+    // A rewound run starts on a slice of the old tape, replaying, and goes live
+    // once the rebuild reaches the moment it was asked for.
+    const toWorld = (x: number, y: number) => renderer.screenToWorld(x, y);
+    const view = new TapeView(renderer);
+    const tin = rewind
+      ? new TapeInput(rewind.tape.slice(rewind.steps), null, null)
+      : new TapeInput(new Tape(), input, toWorld);
     const session = new Session(
       {
         duration,
@@ -436,8 +462,8 @@ export function GameView({
         fogOfWar: settings.fogOfWar !== false,
         negativeFeedback: settings.negativeFeedback === true,
       },
-      input,
-      renderer,
+      tin,
+      view,
     );
     sessionRef.current = session;
     inputRef.current = input;
@@ -448,6 +474,16 @@ export function GameView({
       if (session.phase === 'ended') return;
       session.abort();
     };
+    const requestRewind = (seconds: number) => {
+      if (session.phase === 'ended' || tin.replaying || holdLeft > 0) return;
+      const steps = Math.max(0, tin.tape.length - Math.round(seconds * SIM_HZ));
+      audio.play('uiBack');
+      onRewindRef.current?.(tin.tape, steps);
+    };
+    session.onRewindRequest = () => requestRewind(REWIND_SECONDS);
+    rewindRef.current = requestRewind;
+    /** Seconds of stillness after a rewind, before the hands are yours. */
+    let holdLeft = 0;
 
     const paint = newPaint();
 
@@ -657,8 +693,22 @@ export function GameView({
 
     const loop = new GameLoop(
       (dt) => {
-        session.cursorWorld = renderer.screenToWorld(input.cursor.x, input.cursor.y);
+        if (holdLeft > 0) {
+          // Frozen on the rewound moment, counting down to the handover. What
+          // is pressed meanwhile is thrown away, so the first input of the
+          // retake is one made after the count — except pause, which always
+          // works, and holds the count where it is.
+          const held = input.drain();
+          if (held.some((e) => e.kind === 'pause') && session.phase !== 'ended') session.togglePause();
+          if (session.phase === 'paused') return;
+          holdLeft -= dt;
+          session.banner = holdLeft > 0 ? `YOUR HANDS IN ${Math.ceil(holdLeft)}` : null;
+          return;
+        }
+        session.cursorWorld = tin.beginLive(renderer.screenToWorld(input.cursor.x, input.cursor.y));
+        const before = session.elapsed;
         session.step(dt);
+        tin.end(session.elapsed > before);
       },
       (alpha, dtWall) => {
         clearPaint(paint);
@@ -787,7 +837,42 @@ export function GameView({
         }
       },
     );
-    loop.start();
+    let rebuildRaf = 0;
+    let silenced = false;
+    if (rewind) {
+      // Rebuild the run from its seed, a slice per frame, in silence and
+      // without shaking the camera, then freeze on the moment for a count.
+      silenced = !audio.muted;
+      audio.muted = true;
+      view.quiet = true;
+      const rp = new Replayer(session, tin, rewind.steps, SIM_DT);
+      let shown = -1;
+      const tick = () => {
+        const done = rp.advance(12);
+        const pct = Math.round(rp.progress * 100);
+        if (pct !== shown) {
+          shown = pct;
+          setRebuilding(rp.progress);
+        }
+        if (!done) {
+          rebuildRaf = requestAnimationFrame(tick);
+          return;
+        }
+        rebuildRaf = 0;
+        if (silenced) audio.muted = false;
+        silenced = false;
+        view.quiet = false;
+        session.fx.clear();
+        tin.goLive(input, toWorld);
+        input.drain();
+        holdLeft = 1.5;
+        setRebuilding(null);
+        loop.start();
+      };
+      rebuildRaf = requestAnimationFrame(tick);
+    } else {
+      loop.start();
+    }
 
     // Browsers can take the GPU back — Opera GX's RAM and CPU limiters make it
     // markedly more likely than elsewhere. Unhandled, that is a black canvas
@@ -804,6 +889,9 @@ export function GameView({
 
     return () => {
       loop.stop();
+      if (rebuildRaf) cancelAnimationFrame(rebuildRaf);
+      if (silenced) audio.muted = false;
+      rewindRef.current = null;
       ro.disconnect();
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('webglcontextlost', onContextLost);
@@ -1125,6 +1213,18 @@ export function GameView({
         )}
       </div>
 
+      {rebuilding !== null && (
+        <div className="rewind-overlay" aria-live="polite">
+          <div className="rewind-card">
+            <div className="eyebrow">REWINDING</div>
+            <div className="rewind-bar">
+              <i style={{ width: `${Math.round(rebuilding * 100)}%` }} />
+            </div>
+            <span className="mono dim">rebuilding the run from its seed · {Math.round(rebuilding * 100)}%</span>
+          </div>
+        </div>
+      )}
+
       {gpuLost && (
         <div className="pause-overlay fade-in">
           <div className="pause-card scale-in">
@@ -1170,6 +1270,14 @@ export function GameView({
                   End run &amp; score
                 </button>
               )}
+              {/* Back to a moment of this run, rather than to its start. The
+                  run continues from there as practice — see the note. */}
+              <button className="btn" onClick={() => rewindRef.current?.(REWIND_SECONDS)}>
+                ⟲ {REWIND_SECONDS}s
+              </button>
+              <button className="btn" onClick={() => rewindRef.current?.(REWIND_LONG_SECONDS)}>
+                ⟲ {REWIND_LONG_SECONDS}s
+              </button>
               <button className="btn" onClick={openSetup}>
                 Settings
               </button>
@@ -1181,7 +1289,12 @@ export function GameView({
               </button>
             </div>
             <p className="pause-keys">
-              <kbd className="kbd">Esc</kbd> resume · <kbd className="kbd">{resetKey}</kbd> restart
+              <kbd className="kbd">Esc</kbd> resume · <kbd className="kbd">{resetKey}</kbd> restart ·{' '}
+              <kbd className="kbd">{rewindKey}</kbd> rewind {REWIND_SECONDS}s
+            </p>
+            <p className="pause-keys dim">
+              A rewind rebuilds the run from its seed and hands it back to you at that moment. The rest of the run
+              is practice: it is scored for you to see, and not written to your records.
             </p>
           </div>
         </div>

@@ -24,6 +24,7 @@ export type ActionId =
   | 'centerCamera'
   | 'cameraLock'
   | 'reset'
+  | 'rewind'
   | 'pause';
 
 export interface Binding {
@@ -90,6 +91,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   centerCamera: { primary: 'Space' },
   cameraLock: { primary: 'KeyY' },
   reset: { primary: 'Backquote', secondary: 'Enter' },
+  rewind: { primary: 'Backspace' },
   pause: { primary: 'Escape' },
 };
 
@@ -154,6 +156,7 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   centerCamera: 'Center camera',
   cameraLock: 'Toggle camera lock',
   reset: 'Instant reset',
+  rewind: 'Rewind 3 seconds · practice only',
   pause: 'Pause',
 };
 
@@ -178,6 +181,7 @@ export const CLICK_ACTIONS: ActionId[] = [
   'centerCamera',
   'cameraLock',
   'reset',
+  'rewind',
   'pause',
 ];
 
@@ -199,6 +203,7 @@ export const WASD_ACTIONS: ActionId[] = [
   'centerCamera',
   'cameraLock',
   'reset',
+  'rewind',
   'pause',
 ];
 
@@ -331,6 +336,8 @@ export type InputEventKind =
   | { kind: 'ability'; slot: 'q' | 'w' | 'e' | 'r' | 'd' | 'f'; x: number; y: number; t: number }
   | { kind: 'abilityRelease'; slot: 'q' | 'w' | 'e' | 'r' | 'd' | 'f'; x: number; y: number; t: number }
   | { kind: 'reset'; t: number }
+  /** Back three seconds and take over. Handled by the shell, like reset. */
+  | { kind: 'rewind'; t: number }
   | { kind: 'pause'; t: number }
   /** Focus or visibility was lost. Pauses; never un-pauses. */
   | { kind: 'blur'; t: number }
@@ -688,6 +695,11 @@ export class InputSystem {
 
     if (this.matches('reset', code)) {
       this.queue.push({ kind: 'reset', t });
+      e.preventDefault();
+      return;
+    }
+    if (this.matches('rewind', code)) {
+      this.queue.push({ kind: 'rewind', t });
       e.preventDefault();
       return;
     }

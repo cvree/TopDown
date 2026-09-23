@@ -76,6 +76,7 @@ import { ERROR_CODES } from '../src/progression/errors';
 import { isPracticeMode } from '../src/drills/modes';
 import { newProfile, todayKey as todayKeyOf } from '../src/progression/profile';
 import { isApmDrill } from '../src/progression/apm';
+import { Tape, TapeInput, TapeView, replayInto, type LiveInput } from '../src/engine/tape';
 import { CONFIDENCES, FACTS, MINION_FIRST_SPAWN, PATCH, factTally } from '../src/engine/patch';
 import { XP_RADIUS, XP_THRESHOLDS, levelFromXp } from '../src/engine/levels';
 import { LANE_TIERS, laneTierOf } from '../src/progression/lane';
@@ -217,6 +218,11 @@ interface RunOpts {
   mode?: RunMode;
   /** Seconds to play. Defaults to the drill's own length. */
   seconds?: number;
+  /**
+   * Record the run's inputs on a tape, the way the client does for rewind,
+   * and fingerprint the world after each of these recorded steps.
+   */
+  record?: number[];
 }
 
 const runDrill = (
@@ -235,6 +241,8 @@ const runDrill = (
   // An open-ended shape has no duration at all: the harness's own clock is
   // what stops it, exactly as a player pressing "end run" would.
   const played = opts.seconds ?? (meta.duration > 0 ? meta.duration : 60);
+  const tapeIn = opts.record ? new TapeInput(new Tape(), input as unknown as LiveInput, (x, y) => ({ x, y })) : null;
+  const snaps = new Map<number, string>();
   const session = new Session(
     {
       // Two shapes have a clock — the one-minute rep and the one-minute rep
@@ -248,8 +256,8 @@ const runDrill = (
       scheme,
       tumbleAim,
     },
-    input as unknown as InputSystem,
-    fakeRenderer,
+    tapeIn ?? (input as unknown as InputSystem),
+    tapeIn ? new TapeView(fakeRenderer) : fakeRenderer,
   );
   const drill = createDrill(id, session);
   session.attachDrill(drill);
@@ -417,7 +425,9 @@ const runDrill = (
               const recalling = (drill as unknown as { recallLeft: number }).recallLeft > 0;
               const safe = !her || dist(p.pos, her.pos) > 1200;
               if (!recalling) {
-                if (safe && Math.hypot(p.vel.x, p.vel.y) < 1) drill.onAbility('f', { ...p.pos });
+                // Pressed, not called: the key goes through the input queue like
+                // a player's would, so a recorded lane can be rebuilt from its tape.
+                if (safe && Math.hypot(p.vel.x, p.vel.y) < 1) input.push({ kind: 'ability', slot: 'f', x: p.pos.x, y: p.pos.y, t: t * 1000 });
                 else if (p.phase !== 'windup') {
                   input.push({ kind: 'move', x: 260, y: bounds.h / 2, t: t * 1000 });
                 }
@@ -2014,7 +2024,16 @@ const runDrill = (
       }
     }
 
-    session.step(SIM_DT);
+    if (tapeIn) {
+      tapeIn.beginLive(session.cursorWorld);
+      const before = session.elapsed;
+      session.step(SIM_DT);
+      tapeIn.end(session.elapsed > before);
+      const n = tapeIn.tape.length;
+      if (opts.record?.includes(n) && !snaps.has(n)) snaps.set(n, fingerprint(session));
+    } else {
+      session.step(SIM_DT);
+    }
     t += SIM_DT;
     if (t - paintAt >= 0.25) {
       paintAt = t;
@@ -2047,7 +2066,57 @@ const runDrill = (
   // numbers on screen are a product decision as much as the score is, so they
   // have to be checkable.
   const hud = (drill as unknown as { hudFields?: () => { label: string; value: string }[] }).hudFields?.() ?? [];
-  return { out, m, d, session, drill, paint, travel, hud };
+  return { out, m, d, session, drill, paint, travel, hud, tape: tapeIn?.tape ?? null, snaps };
+};
+
+/**
+ * Everything about a world that a rewind has to reproduce, as one string.
+ *
+ * Full precision, on purpose: a replay that is off by a millionth of a unit is
+ * a replay that will be off by a minion a minute later.
+ */
+const fingerprint = (s: Session): string =>
+  JSON.stringify({
+    e: s.elapsed,
+    sc: s.score,
+    ch: s.chain,
+    st: s.strikes,
+    rc: s.rangeChecks,
+    a: s.world.actors.map((a) => [a.id, a.alive, a.pos.x, a.pos.y, a.hp, a.phase, a.targetId]),
+    p: s.world.projectiles.length,
+  });
+
+/** Rebuild a recorded run from its tape alone, `steps` steps in. */
+const replayDrill = (
+  id: DrillId,
+  difficulty: number,
+  seed: number,
+  scheme: MovementScheme,
+  tape: Tape,
+  steps: number,
+  tumbleAim: TumbleAim = 'hands',
+) => {
+  const meta = DRILLS[id];
+  const ti = new TapeInput(tape, null, null);
+  const session = new Session(
+    {
+      duration: meta.duration > 0 ? meta.duration : 60,
+      mode: 'play',
+      arena: arenaFor(id),
+      seed,
+      difficulty,
+      abilities: meta.abilities,
+      scheme,
+      tumbleAim,
+    },
+    ti,
+    new TapeView(null),
+  );
+  const drill = createDrill(id, session);
+  session.attachDrill(drill);
+  session.countdown = 0;
+  const played = replayInto(session, ti, steps, SIM_DT);
+  return { session, drill, played };
 };
 
 /**
@@ -5243,6 +5312,67 @@ line('\n=== WARM UP: a routine you can argue with, a streak that forgives ===');
   expect('a finished warm-up is a session', erring.warmup.sessions.length === 1 && done.session.intention === INTENTIONS.LATE_DODGE, `${erring.warmup.sessions.length}`);
   expect('and a day on the streak', erring.warmup.streak === 1 && done.streak.extended, `${erring.warmup.streak}`);
   expect('last time on the same focus is findable', lastWarmupOn(erring.warmup, 'caitlynDodge', Date.now() + 1) !== null, 'not found');
+}
+
+line('\n=== REWIND: a run rebuilt from its tape is the same run ===');
+{
+  // The whole of rewind rests on one property: play the recorded inputs back
+  // into a fresh session on the same seed and you get the same world, to the
+  // last bit, at every step. Checked on modes that exercise every kind of
+  // input — clicks, attack orders, abilities, held WASD directions, the range
+  // check — and an opponent that reacts to all of it.
+  const cases: [DrillId, Policy, MovementScheme, number][] = [
+    ['rangecheck', 'edgeChecked', 'click', 0.4],
+    ['vayneTumble', 'vayneTumble', 'click', 0.35],
+    ['vayneCondemn', 'vayneCondemn', 'click', 0.5],
+    ['caitlynDodge', 'caitlyn', 'click', 0.5],
+    ['tfPick', 'twisted', 'wasd', 0.4],
+    ['wasdKite', 'wasd', 'wasd', 0.5],
+    ['lanePhase', 'laneFarm', 'click', 0.32],
+  ];
+  for (const [id, pol, sch, diff] of cases) {
+    const marks = [240 * 5, 240 * 20, 240 * 45];
+    const seconds = id === 'lanePhase' ? 60 : undefined;
+    const rec = runDrill(id, pol, diff, 4242, sch, 'hands', { record: marks, seconds });
+    const tape = rec.tape as Tape;
+    let same = 0;
+    for (const k of marks) {
+      const want = rec.snaps.get(k);
+      if (!want) continue;
+      const got = fingerprint(replayDrill(id, diff, 4242, sch, tape, k).session);
+      if (got === want) same++;
+      else line(`    ${id}: diverged by step ${k}`);
+    }
+    expect(`${id}: the tape rebuilds the run at 5, 20 and 45 seconds, bit for bit`, same === marks.length, `${same}/${marks.length}`);
+    if (id !== 'lanePhase') {
+      const full = replayDrill(id, diff, 4242, sch, tape, tape.length);
+      full.session.phase !== 'ended' && full.session.finish();
+      expect(`${id}: and to the same score at the end`, full.drill.outcome().score === rec.out.score, `${full.drill.outcome().score} vs ${rec.out.score}`);
+    }
+    line(`  ${id.padEnd(13)} ${tape.length} steps recorded`);
+  }
+
+  // Rewinding is a slice of the tape. Played on from the slice with the same
+  // hands, the run is the run; played on with different hands, it is a new
+  // one — and the steps before the slice are untouched either way.
+  const rec = runDrill('vayneTumble', 'vayneTumble', 0.35, 99, 'click', 'hands', { record: [240 * 10] });
+  const tape = rec.tape as Tape;
+  const cut = tape.slice(240 * 10);
+  expect('a slice keeps exactly the steps asked for', cut.length === 240 * 10 && tape.length > cut.length, `${cut.length}`);
+  expect('and a rebuild from it lands where the original was', fingerprint(replayDrill('vayneTumble', 0.35, 99, 'click', cut, cut.length).session) === rec.snaps.get(240 * 10), 'diverged');
+
+  // Speed: a rewind rebuilds everything up to the moment it returns to, so the
+  // longest one — the end of a nine-minute lane — has to be quick enough to
+  // feel like a button rather than a loading screen.
+  const lane = runDrill('lanePhase', 'laneFarm', 0.32, 7, 'click', 'hands', { record: [], seconds: 150 });
+  const t0 = performance.now();
+  replayDrill('lanePhase', 0.32, 7, 'click', lane.tape as Tape, (lane.tape as Tape).length);
+  const ms = performance.now() - t0;
+  line(`  rebuilding 150 s of lane: ${ms.toFixed(0)} ms`);
+  // The client rebuilds in slices between frames behind a progress bar, so
+  // this is a budget rather than a freeze: a rewind at the end of a full
+  // nine-minute lane should still be a matter of seconds.
+  expect('rebuilding two and a half minutes of lane takes under four seconds', ms < 4000, `${ms.toFixed(0)} ms`);
 }
 
 line(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}\n`);

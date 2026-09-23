@@ -4,7 +4,7 @@ import { SURVIVE_RAMP, SURVIVE_RAMP_RANGE, SURVIVE_STRIKES, type RunMode } from 
 import { FxSystem } from './fx';
 import { DEFAULT_HERO, type HeroId } from './heroes';
 import { FLASH_PRACTICE_CD, FlashSpell } from './summoners';
-import { defaultsFor, type AbilitySlot, type Bindings, type InputSystem, type MovementScheme } from './input';
+import { defaultsFor, type AbilitySlot, type Bindings, type InputEventKind, type MovementScheme } from './input';
 import { clamp, dist } from './math';
 import { MetricsRecorder } from './metrics';
 import { PALETTE } from './palette';
@@ -97,6 +97,17 @@ export type Micro =
  * cursor is. Keeping it to an interface is what let the 2D canvas renderer be
  * swapped for the 3D one without the simulation noticing.
  */
+/**
+ * What the session reads from an input: the command queue, the held direction
+ * and the armed slot. The live `InputSystem` is one; the rewind tape is the
+ * other, and neither needs to know about the other.
+ */
+export interface SessionInput {
+  drain(): InputEventKind[];
+  moveVector?(): Vec2;
+  readonly armedSlot: AbilitySlot | null;
+}
+
 export interface ViewProjection {
   screenToWorld(x: number, y: number): Vec2;
   /**
@@ -276,7 +287,7 @@ export class Session {
 
   drill: DrillBase | null = null;
 
-  constructor(config: SessionConfig, private readonly input: InputSystem, private readonly renderer: ViewProjection) {
+  constructor(config: SessionConfig, private readonly input: SessionInput, private readonly renderer: ViewProjection) {
     this.config = config;
     this.rng = new Rng(config.seed);
     this.world = new World(config.arena, this.rng);
@@ -618,6 +629,10 @@ export class Session {
         this.onResetRequest?.();
         continue;
       }
+      if (e.kind === 'rewind') {
+        this.onRewindRequest?.();
+        continue;
+      }
       if (this.phase !== 'running' || !player || !player.alive) continue;
 
       switch (e.kind) {
@@ -729,6 +744,8 @@ export class Session {
 
   /** Called by the shell so `R` can restart instantly from anywhere. */
   onResetRequest: (() => void) | null = null;
+  /** Called by the shell to rewind: rebuild the run a few seconds back. */
+  onRewindRequest: (() => void) | null = null;
 
   /**
    * A cast, with everything a cast is supposed to come with.
