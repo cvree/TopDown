@@ -468,3 +468,71 @@
   margin: 12px 0 0;
   max-width: none;
 }
+
+/* ------------------------------------------------------- the streak turns
+   The one number the warm-up exists to move. When today extended it, the old
+   count lifts away and the new one rises into its place on the forge spring,
+   a beat after the card arrives, with one ring of gold struck out from it. */
+.wu-roll {
+  position: relative;
+  display: inline-grid;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+.wu-sum-cell .wu-roll i {
+  grid-area: 1 / 1;
+  font-style: normal;
+  font-size: inherit;
+  color: inherit;
+}
+.wu-roll-old {
+  animation: rollOut var(--dur-3) var(--ease-exit) 420ms both;
+}
+.wu-sum-cell .wu-roll-new {
+  color: var(--gold-hot);
+  animation: rollIn var(--dur-5) var(--ease-forge) 480ms both;
+}
+@keyframes rollOut {
+  to {
+    opacity: 0;
+    transform: translateY(-70%);
+  }
+}
+@keyframes rollIn {
+  from {
+    opacity: 0;
+    transform: translateY(80%);
+  }
+}
+.wu-sum-streak {
+  position: relative;
+}
+.wu-sum-streak.grew::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 44px;
+  height: 44px;
+  border: 1.5px solid var(--gold-lit);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  animation: streakRing 700ms var(--ease-out) 520ms both;
+}
+@keyframes streakRing {
+  from {
+    opacity: 0.85;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+:root[data-motion='calm'] .wu-roll-old {
+  display: none;
+}
+:root[data-motion='calm'] .wu-sum-streak.grew::before {
+  display: none;
+}

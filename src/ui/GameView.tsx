@@ -609,6 +609,8 @@ export function GameView({
 
     const abilityCd: number[] = [];
     let lastCount = '';
+    let shownScore = 0;
+    const calmHud = isCalm();
     /** GO stays up a beat after the clock starts, and again when a rewind hands the run back. */
     let goUntil = 0;
     let goPending = false;
@@ -636,7 +638,11 @@ export function GameView({
         strikePips.forEach((pip, i) => pip.classList.toggle('spent', i < session.strikes));
       }
 
-      elScore.textContent = snap.score.toLocaleString();
+      // The score rolls to its new value rather than jumping to it: most of
+      // the gap closes each write, so a big hit reads as a number climbing
+      // and a small one is simply there. Only what is printed moves.
+      shownScore = Math.abs(snap.score - shownScore) < 1 || calmHud ? snap.score : shownScore + (snap.score - shownScore) * 0.45;
+      elScore.textContent = Math.round(shownScore).toLocaleString();
 
       // The floor, when the floor moves. Everywhere else these ten pips are a
       // setting; in the infinite run they are the mode's whole read-out, so

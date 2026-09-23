@@ -594,6 +594,21 @@ h3 {
   letter-spacing: 0.05em;
 }
 
+/* Press depth for everything else you can press. A pressed thing goes down
+   at once and comes back as fast: it is the answer to a finger, not an
+   animation. The individual `scale` property composes with whatever
+   transform the control already has, so nothing that is positioned by one
+   jumps. Buttons carry it; a whole card gives a little less. */
+:where(button, [role='button'], [role='tab'], .rank-chip, .logo):not(:disabled):active {
+  scale: 0.965;
+}
+:where(.pr-startable, .wu-rx-card):active {
+  scale: 0.992;
+}
+:root[data-motion='calm'] :where(button, [role='button'], [role='tab'], .rank-chip, .logo, .pr-startable, .wu-rx-card):active {
+  scale: none;
+}
+
 /* ---------------------------------------------------------- utility */
 .row {
   display: flex;

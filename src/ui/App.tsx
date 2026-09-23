@@ -35,6 +35,7 @@ import { Practice } from './Practice';
 import { Progress } from './Progress';
 import { PatchNotes } from './PatchNotes';
 import { RankEmblem } from './components/RankEmblem';
+import { Ticker } from './components/Ticker';
 import { RankUp } from './RankUp';
 import { Results } from './Results';
 import { Settings } from './Settings';
@@ -996,7 +997,9 @@ export function App() {
                 <RankEmblem tier={rank.tier} size={30} />
                 <div>
                   <div className="rc-label">{profile.placed ? rank.label : 'UNRANKED'}</div>
-                  <div className="rc-rating mono">{profile.placed ? Math.round(profile.overall) : '—'}</div>
+                  <div className="rc-rating mono">
+                    {profile.placed ? <Ticker value={Math.round(profile.overall)} format={(n) => String(Math.round(n))} /> : '—'}
+                  </div>
                 </div>
               </div>
             </div>

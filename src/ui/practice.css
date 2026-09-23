@@ -1247,8 +1247,18 @@
   width: 100%;
   height: 100%;
   /* The backing store is already at devicePixelRatio, so the browser must not
-     be given the chance to resample it. */
+     be given the chance to resample it — at rest. Under the cursor it leans
+     a few pixels away and grows by two per cent, which is the only time it
+     is resampled at all. */
   image-rendering: auto;
+  transform: translate(calc(var(--px, 0) * -5px), calc(var(--py, 0) * -3px)) scale(var(--pv-lean, 1));
+  transition: transform var(--dur-5) var(--ease-out);
+}
+.pv:hover {
+  --pv-lean: 1.024;
+}
+:root[data-motion='calm'] .pv-canvas {
+  transform: none;
 }
 /* A one-pixel accent edge along the top of the frame, which is what makes the
    clip read as part of the card rather than a hole cut in it. */

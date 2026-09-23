@@ -28,6 +28,7 @@ import type { AppSettings, Profile } from '../progression/profile';
 import { Explainer } from './components/Explainer';
 import { ModePreview } from './components/ModePreview';
 import { Why } from './components/Why';
+import { Ticker } from './components/Ticker';
 import { cardClickStarts } from './components/cardStart';
 import './practice.css';
 import './lab.css';
@@ -133,7 +134,10 @@ export function Lab({ profile, settings, onPlay, onFixControls }: Props) {
               <b>{APM_LEVELS}</b> LEVELS EACH · NOTHING LOCKED
             </span>
             <span>
-              <b>{stars}</b>/{APM_MODES.length * APM_LEVELS * 3} STARS
+              <b>
+                <Ticker value={stars} />
+              </b>
+              /{APM_MODES.length * APM_LEVELS * 3} STARS
             </span>
           </div>
           <Why label="What is here">

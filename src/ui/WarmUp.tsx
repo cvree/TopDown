@@ -287,8 +287,21 @@ function SummaryCard({ summary, onDismiss }: { summary: WarmupSummary; onDismiss
             <i>{DAY_LINE[session.day]}</i>
           </div>
         )}
-        <div className="wu-sum-cell">
-          <span className="mono">{summary.streak}</span>
+        <div className={`wu-sum-cell wu-sum-streak${summary.extended ? ' grew' : ''}`}>
+          {/* The day that was just earned turns over like a counter: the old
+              number lifts away, the new one rings into its place, once. */}
+          <span className="mono wu-roll" aria-label={`${summary.streak}`}>
+            {summary.extended && summary.streak > 0 ? (
+              <>
+                <i className="wu-roll-old" aria-hidden>
+                  {summary.streak - 1}
+                </i>
+                <i className="wu-roll-new">{summary.streak}</i>
+              </>
+            ) : (
+              summary.streak
+            )}
+          </span>
           <i>
             {summary.extended ? 'days in a row' : 'days in a row — today had already counted'}
             {summary.froze > 0 ? ` · ${summary.froze} freeze${summary.froze > 1 ? 's' : ''} spent on missed days` : ''}

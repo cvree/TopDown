@@ -313,6 +313,43 @@ export function ModePreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // ---------------------------------------------------------------- parallax
+  //
+  // The picture leans a few pixels away from the cursor while you rest on the
+  // card, so it reads as a window rather than a sticker. Two custom
+  // properties written at most once a frame; the move itself is a CSS
+  // transform, and calm motion switches it off in the stylesheet.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    let raf = 0;
+    let px = 0;
+    let py = 0;
+    const write = () => {
+      raf = 0;
+      root.style.setProperty('--px', px.toFixed(3));
+      root.style.setProperty('--py', py.toFixed(3));
+    };
+    const move = (e: PointerEvent) => {
+      const r = root.getBoundingClientRect();
+      px = Math.max(-1, Math.min(1, ((e.clientX - r.left) / Math.max(1, r.width)) * 2 - 1));
+      py = Math.max(-1, Math.min(1, ((e.clientY - r.top) / Math.max(1, r.height)) * 2 - 1));
+      if (!raf) raf = requestAnimationFrame(write);
+    };
+    const leave = () => {
+      px = 0;
+      py = 0;
+      if (!raf) raf = requestAnimationFrame(write);
+    };
+    root.addEventListener('pointermove', move);
+    root.addEventListener('pointerleave', leave);
+    return () => {
+      cancelAnimationFrame(raf);
+      root.removeEventListener('pointermove', move);
+      root.removeEventListener('pointerleave', leave);
+    };
+  }, []);
+
   // ------------------------------------------------------------------ arming
   useEffect(() => {
     const root = rootRef.current;
