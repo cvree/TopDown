@@ -176,7 +176,7 @@ export class RangeDrill extends Drill {
   }
 
   onStart(): void {
-    this.s.setBanner(`${PHASES[0].name} · ${PHASES[0].line}`, 2.2);
+    this.s.setBanner(`${PHASES[0].name} · ${PHASES[0].line}`, 2.2, { tone: 'critical', key: 'phase' });
     this.beginRep();
   }
 
@@ -244,8 +244,9 @@ export class RangeDrill extends Drill {
     }
     if (p.attack.range !== this.lastAnnouncedReach) {
       this.lastAnnouncedReach = p.attack.range;
-      this.s.setBanner(`REACH ${Math.round(p.attack.range)}`, 1.4);
-      this.s.micro(`REACH ${Math.round(p.attack.range)}`, p.pos, PALETTE.violet);
+      // Said once, in the middle: the same words over your head as well
+      // would be the arena repeating itself.
+      this.s.setBanner(`REACH ${Math.round(p.attack.range)}`, 1.4, { tone: 'critical', key: 'reach' });
       audio.play('tick');
     }
 
@@ -533,7 +534,7 @@ export class RangeDrill extends Drill {
         this.mark = null;
       }
       const next = this.phase;
-      this.s.setBanner(`${next.name} · ${next.line}`, 2);
+      this.s.setBanner(`${next.name} · ${next.line}`, 2, { tone: 'critical', key: 'phase' });
       audio.play('uiTab');
     }
     this.gap = verdict === 'missed' ? 0.5 : 0.9;

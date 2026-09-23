@@ -1,6 +1,7 @@
 import { audio } from './audio';
 import type { MapBoard } from './mapboard';
 import { SURVIVE_RAMP, SURVIVE_RAMP_RANGE, SURVIVE_STRIKES, type RunMode } from '../drills/modes';
+import { BannerVoice, FloatBudget, type BannerOpts, type BannerTone, type FloatTier } from './calm';
 import { FxSystem } from './fx';
 import { DEFAULT_HERO, type HeroId } from './heroes';
 import { FLASH_PRACTICE_CD, FlashSpell } from './summoners';
@@ -70,6 +71,11 @@ export interface HudSnapshot {
   attackCd: number;
   countdown: number;
   banner: string | null;
+  /** How loud the banner on screen is, and a counter that moves when a new one arrives. */
+  bannerTone: BannerTone;
+  bannerSeq: number;
+  /** The player is in a fight: the HUD's secondary fields step back. */
+  fighting: boolean;
   fps: number;
 }
 
@@ -207,6 +213,13 @@ export interface SessionConfig {
    * flashing red at a broken streak. Nothing in the simulation reads it.
    */
   negativeFeedback?: boolean;
+  /**
+   * The rules this profile has already been told. A teaching banner is said
+   * once per player, not once per run; nothing in the simulation reads it.
+   */
+  taught?: ReadonlySet<string> | null;
+  /** A teaching banner reached the screen, and the profile should remember it. */
+  onTaught?: (key: string) => void;
 }
 
 /**
@@ -227,7 +240,6 @@ export class Session {
   chain = 0;
   chainBest = 0;
   banner: string | null = null;
-  bannerTime = 0;
 
   /**
    * What this run actually put in front of the player, counted.
@@ -237,7 +249,26 @@ export class Session {
    * number over every fight are the two ways a trainer turns into a
    * notification feed, and neither is visible in a score.
    */
-  readonly shown = { banners: 0, floats: 0, peakFloats: 0 };
+  get shown(): { banners: number; floats: number; peakFloats: number } {
+    return { banners: this.voice.shown, floats: this.words.shown, peakFloats: this.words.peak };
+  }
+
+  /** The one banner, and the queue behind it. */
+  readonly voice: BannerVoice;
+  /** What floating text is allowed to cost. */
+  readonly words: FloatBudget;
+  /**
+   * When the player was last in a fight: hit by anything, or hitting a
+   * champion. Farming a wave on your own is not a fight; being hit by one is.
+   */
+  private lastFightAt = -Infinity;
+
+  /** How long after the last blow a fight is still a fight. */
+  static readonly FIGHT_TAIL = 2.5;
+
+  get fighting(): boolean {
+    return this.elapsed - this.lastFightAt < Session.FIGHT_TAIL;
+  }
 
   cursorWorld: Vec2 = { x: 0, y: 0 };
   hoverTargetId: number | null = null;
@@ -304,6 +335,8 @@ export class Session {
     this.world.playerHero = config.hero ?? DEFAULT_HERO;
     this.fx.negative = config.negativeFeedback === true;
     this.flash = new FlashSpell(this, config.flashCd ?? FLASH_PRACTICE_CD);
+    this.voice = new BannerVoice({ taught: config.taught, onTaught: config.onTaught });
+    this.words = new FloatBudget(this.fx);
   }
 
   /**
@@ -394,11 +427,12 @@ export class Session {
     const left = this.strikesLeft;
     audio.play('fail', left > 0 ? 0.8 : 1.2);
     this.fx.badFlash(left > 0 ? 0.09 : 0.16, PALETTE.danger);
-    if (player) this.micro(reason, player.pos, PALETTE.danger);
+    // The banner says it, so the word over your head does not say it again.
+    void player;
     if (left > 0) {
-      this.setBanner(`${reason} — ${left} LEFT`, 1.3);
+      this.setBanner(`${reason} — ${left} LEFT`, 1.3, { tone: 'critical', key: 'strike' });
     } else {
-      this.setBanner('OUT OF STRIKES', 1.6);
+      this.setBanner('OUT OF STRIKES', 1.6, { tone: 'critical', key: 'strike' });
       this.struckOut = true;
     }
   }
@@ -545,10 +579,7 @@ export class Session {
       this.pollVision(0.05, true);
     }
     this.hitFeedback = Math.max(0, this.hitFeedback - dt * 3.6);
-    if (this.bannerTime > 0) {
-      this.bannerTime -= dt;
-      if (this.bannerTime <= 0) this.banner = null;
-    }
+    if (this.voice.tick(dt, this.elapsed, this.fighting)) this.banner = this.voice.text;
 
     if (this.config.duration > 0 && this.elapsed >= this.config.duration) {
       this.endReason = 'time';
@@ -707,7 +738,7 @@ export class Session {
           const locked = this.renderer.toggleCameraLock?.() ?? true;
           this.cameraLocked = locked;
           audio.play('uiTab');
-          this.setBanner(locked ? 'CAMERA LOCKED' : 'CAMERA UNLOCKED · EDGE PAN', 1.1);
+          this.setBanner(locked ? 'CAMERA LOCKED' : 'CAMERA UNLOCKED · EDGE PAN', 1.1, { tone: 'critical', key: 'camera' });
           break;
         }
         default:
@@ -985,11 +1016,15 @@ export class Session {
             this.chain++;
             this.chainBest = Math.max(this.chainBest, this.chain);
             audio.setComboPitch(this.chain);
-            if (this.chain >= 2) this.micro('PERFECT', player.pos);
+            // Said when a chain starts and at every fifth link, not on every
+            // attack: the chain counter is already counting, and a word per
+            // swing is a word nobody reads by the tenth.
+            if (this.chain === 2) this.micro('PERFECT', player.pos);
+            else if (this.chain >= 5 && this.chain % 5 === 0) this.micro(`PERFECT ×${this.chain}`, player.pos);
           }
           if (target) {
             const d = dist(player.pos, target.pos);
-            if (d > (player.attack.range + target.radius) * 0.88) this.micro('MAX RANGE', player.pos, PALETTE.good);
+            if (d > (player.attack.range + target.radius) * 0.88) this.micro('MAX RANGE', player.pos, PALETTE.good, 'flavour');
           }
           this.movedSinceRelease = false;
           this.lastReleaseAt = this.world.time;
@@ -1017,7 +1052,14 @@ export class Session {
         if (e.pos) {
           audio.play('nearMiss', { pan: this.panOf(e.pos) });
           this.fx.nearMiss(e.pos, 0);
-          if (player) this.micro('CLEAN DODGE', player.pos, PALETTE.warn);
+          // Only a skillshot can be dodged. A homing shot that grazes you is
+          // on its way into you — praising it as a dodge a frame before it
+          // lands is the arena contradicting itself — and a caster's bolt on
+          // its way to the minion beside you was never yours to dodge. Both
+          // keep the sound; neither gets the word.
+          const pos = e.pos;
+          const shot = this.world.projectiles.find((q) => q.pos.x === pos.x && q.pos.y === pos.y);
+          if (player && (!shot || shot.targetId === null)) this.micro('CLEAN DODGE', player.pos, PALETTE.warn);
         }
         break;
       case 'death':
@@ -1034,6 +1076,9 @@ export class Session {
         }
         break;
       case 'damage':
+        if (e.targetId === pid || (e.actorId === pid && !this.world.byId(e.targetId)?.isMinion)) {
+          this.lastFightAt = this.elapsed;
+        }
         if (e.targetId === pid && e.pos) {
           audio.play('hurt', { pan: this.panOf(e.pos) });
           this.fx.hurt(e.pos);
@@ -1066,16 +1111,30 @@ export class Session {
     void this.lastMoveOrderAt;
   }
 
-  micro(text: Micro | string, at: Vec2, color: string = PALETTE.playerCore): void {
-    this.fx.text(at.x, at.y - 52, text, color, 19, 700);
-    this.shown.floats++;
-    this.shown.peakFloats = Math.max(this.shown.peakFloats, this.fx.texts.length);
+  /**
+   * A word over the arena, spent from the budget (see `calm.ts`): repeats
+   * merge, each actor gets two a second and the arena three at once. Dim
+   * commentary is flavour unless a caller says otherwise, and flavour waits
+   * out the fight rather than landing on it.
+   */
+  micro(text: Micro | string, at: Vec2, color: string = PALETTE.playerCore, tier?: FloatTier): void {
+    const t = tier ?? (color === PALETTE.textDim ? 'flavour' : 'result');
+    this.words.add(text, at, color, t, this.elapsed, this.fighting);
   }
 
-  setBanner(text: string, seconds = 1.4): void {
-    this.banner = text;
-    this.bannerTime = seconds;
-    this.shown.banners++;
+  /**
+   * Offer a banner. It reaches the screen when the voice says it may — see
+   * `BannerVoice` — which is not always now, and not always at all.
+   */
+  setBanner(text: string, seconds = 1.4, opts: BannerOpts = {}): void {
+    this.voice.say(text, seconds, opts, this.elapsed, this.fighting);
+    this.banner = this.voice.text;
+  }
+
+  /** Drop every banner, shown and queued — a rewind hands over a clean screen. */
+  clearBanners(): void {
+    this.voice.clear();
+    this.banner = null;
   }
 
   // -------------------------------------------------------------------- hud
@@ -1098,6 +1157,9 @@ export class Session {
       attackCd: p ? clamp(p.attackCd * Math.max(0.05, p.attack.attackSpeed), 0, 1) : 0,
       countdown: Math.max(0, Math.ceil(this.countdown)),
       banner: this.banner,
+      bannerTone: this.voice.tone,
+      bannerSeq: this.voice.seq,
+      fighting: this.fighting,
       fps,
     };
   }

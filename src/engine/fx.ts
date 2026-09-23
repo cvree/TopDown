@@ -48,6 +48,12 @@ export interface FloatText {
   color: string;
   size: number;
   weight: number;
+  /** What the word is attached to, for the budget's one-word-per-beat rule. */
+  src?: object;
+  tier?: 'result' | 'flavour';
+  /** The word before any ×n was added to it, and how many times it has been said. */
+  base?: string;
+  n?: number;
 }
 
 export interface Trace {

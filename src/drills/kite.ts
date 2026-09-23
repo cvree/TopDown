@@ -96,6 +96,7 @@ export class KiteDrill extends Drill {
     this.s.setBanner(
       next === 'chased' ? 'THEY COME TO YOU' : next === 'chasing' ? 'THEY RUN — KEEP ATTACKING' : 'NEITHER',
       1.5,
+      { tone: 'critical', key: 'phase' },
     );
     const p = this.s.world.player;
     if (p) this.s.fx.ring(p.pos.x, p.pos.y, p.radius + 8, p.radius + 90, 0.5, PALETTE.warn, 2.4, 'pulse');

@@ -353,7 +353,7 @@ export class LanePhaseDrill extends VayneDrill {
       if (this.s.world.time - this.lastWaveBanner < 0.5) continue;
       this.lastWaveBanner = this.s.world.time;
       if (e.kind === 'cannon') {
-        this.s.setBanner(`WAVE ${e.wave} · CANNON · 60 GOLD`, 1.6);
+        this.s.setBanner(`WAVE ${e.wave} · CANNON · 60 GOLD`, 1.6, { key: 'wave' });
         audio.play('announce', { intensity: 0.5 });
       }
     }
@@ -440,7 +440,7 @@ export class LanePhaseDrill extends VayneDrill {
     const taken = this.spendPoints();
     this.applyPlayerLevel();
     const name = taken ? ABILITY_NAMES[taken] : '';
-    this.s.setBanner(`LEVEL ${this.level}${name ? ` · ${name}` : ''}`, 1.6);
+    this.s.setBanner(`LEVEL ${this.level}${name ? ` · ${name}` : ''}`, 1.6, { key: 'level' });
     audio.play('abilityReady');
     const p = this.s.world.player;
     if (p) this.s.fx.ring(p.pos.x, p.pos.y, p.radius, p.radius + 190, 0.5, PALETTE.good, 4, 'shock');
@@ -509,7 +509,7 @@ export class LanePhaseDrill extends VayneDrill {
     p.rootedFor = 0;
     p.slowFor = 0;
     this.s.world.place(p, 60, this.lane.laneY);
-    this.s.setBanner('BACK IN THE LANE', 1.4);
+    this.s.setBanner('BACK IN THE LANE', 1.4, { key: 'base' });
   }
 
   private waitForRival(dt: number, her: Actor): void {
@@ -561,7 +561,7 @@ export class LanePhaseDrill extends VayneDrill {
     p.order = null;
     p.targetId = null;
     this.s.world.place(p, 60, this.lane.laneY);
-    this.s.setBanner('BASE · FULL HEALTH', 1.3);
+    this.s.setBanner('BASE · FULL HEALTH', 1.3, { key: 'base' });
     audio.play('resultsReveal', 0.6);
   }
 
@@ -575,7 +575,7 @@ export class LanePhaseDrill extends VayneDrill {
     if (p && p.alive && dist(p.pos, her.pos) < 1000) return;
     if (dist(her.pos, this.lane.enemyTurret.pos) > this.lane.enemyTurret.attack.range) return;
     this.rivalRecallLeft = RECALL_CHANNEL;
-    this.s.setBanner('CAITLYN IS RECALLING', 1.4);
+    this.s.setBanner('CAITLYN IS RECALLING', 1.4, { tone: 'critical', key: 'her-recall' });
   }
 
   private stepRivalRecall(dt: number, her: Actor): void {
@@ -899,13 +899,13 @@ export class LanePhaseDrill extends VayneDrill {
       this.minionHitsTaken++;
       if (!this.taughtAggro) {
         this.taughtAggro = true;
-        this.s.setBanner('MINION AGGRO · THEY ANSWER WHEN YOU TOUCH A CHAMPION', 2.6);
+        this.s.setBanner('MINION AGGRO · THEY ANSWER WHEN YOU TOUCH A CHAMPION', 2.6, { tone: 'teaching', key: 'aggro-minion' });
       }
     } else if (src.unitKind === 'turret') {
       this.turretHitsTaken++;
       if (!this.taughtTurret) {
         this.taughtTurret = true;
-        this.s.setBanner('TURRET AGGRO · EVERY SHOT HURTS MORE THAN THE LAST', 2.6);
+        this.s.setBanner('TURRET AGGRO · EVERY SHOT HURTS MORE THAN THE LAST', 2.6, { tone: 'teaching', key: 'aggro-turret' });
       }
     }
   }
@@ -952,7 +952,7 @@ export class LanePhaseDrill extends VayneDrill {
         this.bot.ledger.gold += this.bountyForKill();
         this.herXp(table(CHAMPION_KILL_XP, this.level));
       }
-      this.s.setBanner(`KILLED · BACK IN ${this.deadFor.toFixed(0)}s`, 2.2);
+      this.s.setBanner(`KILLED · BACK IN ${this.deadFor.toFixed(0)}s`, 2.2, { tone: 'critical', key: 'death' });
       return;
     }
 
@@ -965,7 +965,7 @@ export class LanePhaseDrill extends VayneDrill {
         const bounty = this.bountyForKill();
         this.gold += bounty;
         this.gainXp(table(CHAMPION_KILL_XP, this.bot.ledger.level));
-        this.s.setBanner(bounty > KILL_GOLD ? `FIRST BLOOD · ${bounty} GOLD` : `KILL · ${bounty} GOLD`, 1.8);
+        this.s.setBanner(bounty > KILL_GOLD ? `FIRST BLOOD · ${bounty} GOLD` : `KILL · ${bounty} GOLD`, 1.8, { tone: 'critical', key: 'kill' });
       }
       return;
     }

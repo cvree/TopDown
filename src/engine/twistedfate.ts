@@ -728,7 +728,9 @@ export class TwistedKit {
       }
     }
 
-    this.s.micro(CARD_NAME[card], target.pos, colour);
+    // The card was named when you locked it; landing it is the ring and the
+    // sound. The word again over the target is only for a quiet moment.
+    this.s.micro(CARD_NAME[card], target.pos, colour, 'flavour');
     audio.play(card === 'gold' ? 'perfect' : 'castW', { pan: this.s.panOf(target.pos) });
   }
 

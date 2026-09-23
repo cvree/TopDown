@@ -75,7 +75,7 @@ export class WasdStrafeDrill extends WasdDrill {
   }
 
   onStart(): void {
-    this.s.setBanner('STRAFE ACROSS ITS LINE · CHANGE ON NO RHYTHM', 2.6);
+    this.s.setBanner('STRAFE ACROSS ITS LINE · CHANGE ON NO RHYTHM', 2.6, { tone: 'teaching', key: 'intro-strafe' });
   }
 
   /** Seconds between shots. Tightens with difficulty and with your own flow. */

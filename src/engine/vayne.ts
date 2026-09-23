@@ -686,7 +686,7 @@ export class VayneKit {
     if (this.hourLeft > 0) {
       this.hourLeft = Math.max(0, this.hourLeft - dt);
       this.stats.finalHourSeconds += dt;
-      if (this.hourLeft === 0) this.s.setBanner('FINAL HOUR OVER', 1);
+      if (this.hourLeft === 0) this.s.setBanner('FINAL HOUR OVER', 1, { key: 'final-hour' });
     }
 
     // Stacks are a memory of a target, and memories fade.
@@ -1243,7 +1243,7 @@ export class VayneKit {
     // The shorter cooldown applies at once rather than at the next cast, so
     // the ultimate does not feel like it starts one tumble late.
     this.tumbleCd = Math.min(this.tumbleCd, this.tumbleCdTotal);
-    this.s.setBanner('FINAL HOUR', 1.4);
+    this.s.setBanner('FINAL HOUR', 1.4, { key: 'final-hour' });
     this.s.fx.ring(p.pos.x, p.pos.y, p.radius, p.radius + 260, 0.6, VAYNE_COLOR, 5, 'shock');
     this.s.fx.addFlash(0.1, VAYNE_COLOR);
     return 'cast';

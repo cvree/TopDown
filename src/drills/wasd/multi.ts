@@ -78,7 +78,7 @@ export class WasdMultiDrill extends WasdDrill {
   }
 
   onStart(): void {
-    this.s.setBanner('ALL OF IT AT ONCE · THE CARET IS THE TARGET', 2.8);
+    this.s.setBanner('ALL OF IT AT ONCE · THE CARET IS THE TARGET', 2.8, { tone: 'teaching', key: 'intro-multi' });
     this.callPriority();
   }
 
@@ -95,7 +95,7 @@ export class WasdMultiDrill extends WasdDrill {
     this.awaitingSwitch = true;
     this.tasks++;
     audio.play('tick', { intensity: 1 });
-    this.s.setBanner(`PRIORITY · ${pick.label ?? 'TARGET'}`, 1.2);
+    this.s.setBanner(`PRIORITY · ${pick.label ?? 'TARGET'}`, 1.2, { tone: 'critical', key: 'priority' });
   }
 
   private priorityActor(): Actor | null {

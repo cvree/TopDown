@@ -114,7 +114,7 @@ export class ApmUpkeepDrill extends LabDrill {
     w.touchedWhileLocked = false;
     this.locked = w;
     this.lockUntil = this.s.elapsed + clamp(2.8 - this.d * 0.8, 1.6, 2.8);
-    this.s.setBanner(`${this.glyph(w.slot)} LOCKED`, 1);
+    this.s.setBanner(`${this.glyph(w.slot)} LOCKED`, 1, { tone: 'critical', key: 'upkeep' });
     audio.play('castRefuse', { intensity: 0.7, pan: this.s.panOf(w.pad.pos) });
   }
 

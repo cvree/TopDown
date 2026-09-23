@@ -62,7 +62,7 @@ export class WasdAimMoveDrill extends WasdDrill {
   }
 
   onStart(): void {
-    this.s.setBanner('TAKE THEM ALL — AND NEVER STOP TO DO IT', 2.6);
+    this.s.setBanner('TAKE THEM ALL — AND NEVER STOP TO DO IT', 2.6, { tone: 'teaching', key: 'intro-aimmove' });
     for (let i = 0; i < 2; i++) this.spawn();
   }
 

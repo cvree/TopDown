@@ -131,7 +131,7 @@ export class DodgeDrill extends Drill {
     if (this.waveTime > 15) {
       this.waveTime = 0;
       this.wave++;
-      this.s.setBanner(`WAVE ${this.wave}`, 1.2);
+      this.s.setBanner(`WAVE ${this.wave}`, 1.2, { key: 'wave' });
       this.s.fx.addFlash(0.06, PALETTE.warn);
       audio.play('countdown');
       // From the third wave something starts walking at you as well, so the

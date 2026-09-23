@@ -102,7 +102,7 @@ export class WasdMovementDrill extends WasdDrill {
   }
 
   onStart(): void {
-    this.s.setBanner(`${PHASES[0].name} · ${PHASES[0].brief}`, 2.6);
+    this.s.setBanner(`${PHASES[0].name} · ${PHASES[0].brief}`, 2.6, { tone: 'critical', key: 'phase' });
     this.lightNode();
   }
 
@@ -117,7 +117,7 @@ export class WasdMovementDrill extends WasdDrill {
     let acc = 0;
     for (let i = 0; i <= this.phaseIndex; i++) acc += PHASES[i].share;
     this.phaseEnd = this.s.config.duration * acc;
-    this.s.setBanner(`${p.name} · ${p.brief}`, 2.4);
+    this.s.setBanner(`${p.name} · ${p.brief}`, 2.4, { tone: 'critical', key: 'phase' });
     audio.play('flowTier', { intensity: 0.7 });
     this.node = null;
     this.call = null;

@@ -320,6 +320,12 @@ export interface Profile {
    * being behind: everything is new to a new player, so nothing is marked.
    */
   seenVersion: string | null;
+  /**
+   * The in-run rules this player has already been told — minion aggro, the
+   * turret's ramp, what a mode wants. A teaching banner is said once per
+   * player rather than once per run; this is where "once" is remembered.
+   */
+  taught: string[];
   ratings: Record<SkillAxis, number>;
   samples: Record<SkillAxis, number>;
   overall: number;
@@ -443,6 +449,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   // A new profile has read nothing and is behind on nothing: it starts on the
   // current version so its first session is not decorated with "NEW" marks.
   seenVersion: VERSION,
+  taught: [],
   ratings: zeroAxis(0),
   samples: zeroAxis(0),
   overall: 0,
@@ -565,6 +572,11 @@ export const loadProfile = (): Profile => {
       // unknowable, so the notes screen highlights the current one rather than
       // inventing a history for it.
       seenVersion: parsed.seenVersion ?? null,
+      // Anything but a list of short strings is dropped rather than trusted:
+      // at worst a rule gets explained one more time.
+      taught: Array.isArray(parsed.taught)
+        ? parsed.taught.filter((k: unknown): k is string => typeof k === 'string' && k.length < 64).slice(0, 200)
+        : [],
       // Today's completed list is a list of drill ids like any other, and a
       // stale one in it would strike the plan's ticks out against nothing.
       daily: {

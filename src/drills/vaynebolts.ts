@@ -102,7 +102,8 @@ export class VayneBoltsDrill extends VayneDrill {
       this.stacksAtSwitch = this.kit.stacks;
     }
     this.priorityId = next.id;
-    this.s.setBanner('NEW MARK', 0.9);
+    // No banner: the mark is on the floor under its target, and under a
+    // second of relevance is not something to put in the middle of the screen.
     this.s.fx.ring(next.pos.x, next.pos.y, 10, 150, 0.5, VAYNE_SILVER, 3, 'shock');
   }
 

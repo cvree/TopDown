@@ -107,7 +107,7 @@ export class LastHitDrill extends Drill {
 
     for (const e of this.lane.drainEvents()) {
       if (e.kind === 'cannon') {
-        this.s.setBanner(`WAVE ${e.wave} · CANNON`, 1.6);
+        this.s.setBanner(`WAVE ${e.wave} · CANNON`, 1.6, { key: 'wave' });
         audio.play('announce', { intensity: 0.5 });
       }
     }
@@ -328,13 +328,13 @@ export class LastHitDrill extends Drill {
       this.minionHitsTaken++;
       if (!this.taughtAggro) {
         this.taughtAggro = true;
-        this.s.setBanner('MINION AGGRO · THEY ANSWER WHEN YOU TOUCH A CHAMPION', 2.6);
+        this.s.setBanner('MINION AGGRO · THEY ANSWER WHEN YOU TOUCH A CHAMPION', 2.6, { tone: 'teaching', key: 'aggro-minion' });
       }
     } else if (src.unitKind === 'turret') {
       this.turretHitsTaken++;
       if (!this.taughtTurret) {
         this.taughtTurret = true;
-        this.s.setBanner('TURRET AGGRO · IT RAMPS EVERY SHOT', 2.6);
+        this.s.setBanner('TURRET AGGRO · IT RAMPS EVERY SHOT', 2.6, { tone: 'teaching', key: 'aggro-turret' });
       }
     }
   }

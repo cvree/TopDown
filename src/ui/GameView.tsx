@@ -65,6 +65,9 @@ interface Props {
   rewind?: { tape: Tape; steps: number } | null;
   /** The player asked to go back. The shell remounts the run with `rewind` set. */
   onRewind?: (tape: Tape, steps: number) => void;
+  /** The rules this profile has already been told, so a teaching banner is said once per player. */
+  taught?: readonly string[];
+  onTaught?: (key: string) => void;
 }
 
 /**
@@ -323,6 +326,8 @@ export function GameView({
   onRetry,
   rewind = null,
   onRewind,
+  taught,
+  onTaught,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -348,6 +353,8 @@ export function GameView({
   const rewindRef = useRef<((seconds: number) => void) | null>(null);
   const onRewindRef = useRef(onRewind);
   onRewindRef.current = onRewind;
+  const onTaughtRef = useRef(onTaught);
+  onTaughtRef.current = onTaught;
   /** Rebuild progress while a rewind replays, 0..1, or null when live. */
   const [rebuilding, setRebuilding] = useState<number | null>(rewind ? 0 : null);
   const inputRef = useRef<InputSystem | null>(null);
@@ -477,6 +484,8 @@ export function GameView({
         hero: settings.hero,
         fogOfWar: settings.fogOfWar !== false,
         negativeFeedback: settings.negativeFeedback === true,
+        taught: new Set(taught ?? []),
+        onTaught: (key) => onTaughtRef.current?.(key),
       },
       tin,
       view,
@@ -565,6 +574,9 @@ export function GameView({
 
     const abilityCd: number[] = [];
     let lastCount = '';
+    let lastBannerSeq = -1;
+    let lastBanner: string | null = null;
+    let lastFighting = false;
     let lastHudWrite = 0;
     let lastPhase: string = session.phase;
     let endedAt = 0;
@@ -691,8 +703,29 @@ export function GameView({
         elCheckFill.style.width = `${Math.round(burn * 100)}%`;
       }
       elCam.classList.toggle('unlocked', !renderer.cameraLocked);
-      elBanner.textContent = snap.banner ?? '';
-      elBanner.style.opacity = snap.banner ? '1' : '0';
+      // One voice. A new banner is struck in rather than swapped: the
+      // element is restarted so the entrance plays for every arrival, and
+      // its tone decides how loud it is allowed to be.
+      if (snap.bannerSeq !== lastBannerSeq || snap.banner !== lastBanner) {
+        const arriving = snap.banner !== null && (snap.bannerSeq !== lastBannerSeq || lastBanner === null);
+        lastBannerSeq = snap.bannerSeq;
+        lastBanner = snap.banner;
+        if (snap.banner) {
+          elBanner.textContent = snap.banner;
+          elBanner.dataset.tone = snap.bannerTone;
+        }
+        elBanner.classList.toggle('on', snap.banner !== null);
+        if (arriving) {
+          elBanner.classList.remove('arrive');
+          void elBanner.offsetWidth;
+          elBanner.classList.add('arrive');
+        }
+      }
+      // The HUD steps back while you fight and comes back when it is quiet.
+      if (snap.fighting !== lastFighting) {
+        lastFighting = snap.fighting;
+        hud.classList.toggle('hud-fight', snap.fighting);
+      }
       const countText = snap.phase === 'countdown' ? (snap.countdown > 0 ? `${snap.countdown}` : 'GO') : '';
       if (countText !== lastCount) {
         lastCount = countText;
@@ -880,6 +913,7 @@ export function GameView({
         silenced = false;
         view.quiet = false;
         session.fx.clear();
+        session.clearBanners();
         tin.goLive(input, toWorld);
         input.drain();
         holdLeft = 1.5;

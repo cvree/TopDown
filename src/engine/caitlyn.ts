@@ -1005,7 +1005,7 @@ export class CaitlynKit {
       free: false,
     };
     audio.play('castR', { intensity: 1.1, pan: this.s.panOf(me.pos) });
-    this.s.setBanner('ACE IN THE HOLE', 1.1);
+    this.s.setBanner('ACE IN THE HOLE', 1.1, { tone: 'critical', key: 'ace' });
     this.s.fx.addFlash(0.05, CAITLYN_ACE);
     return true;
   }

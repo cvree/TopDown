@@ -634,6 +634,8 @@ export abstract class ApmDrill extends Drill {
         ? `${f.name}  ×${f.mult.toFixed(2).replace(/0$/, '')}  ·  THE BENCH SPEEDS UP`
         : `${f.name}  ×${f.mult.toFixed(2).replace(/0$/, '')}`,
       1.5,
+      // In SURGE it is news about the task; everywhere else it is applause.
+      { tone: this.surging ? 'critical' : 'flavour', key: 'flow' },
     );
     this.s.fx.addFlash(0.05 + this.tier * 0.015, color);
     this.s.fx.ring(pos.x, pos.y, 20, 240 + this.tier * 60, 0.6, color, 4, 'shock');
@@ -722,7 +724,7 @@ export abstract class ApmDrill extends Drill {
     const c = this.tide?.takeCrossing();
     if (!c) return;
     const color = c.up ? PALETTE.warn : PALETTE.accent;
-    this.s.setBanner(c.up ? `LEVEL ${c.level}  ▲ HARDER` : `LEVEL ${c.level}  ▼ EASED`, 1.6);
+    this.s.setBanner(c.up ? `LEVEL ${c.level}  ▲ HARDER` : `LEVEL ${c.level}  ▼ EASED`, 1.6, { tone: 'critical', key: 'level' });
     audio.play(c.up ? 'flowTier' : 'abilityReady', { intensity: c.up ? 0.85 : 0.55 });
     this.s.fx.addFlash(c.up ? 0.09 : 0.05, color);
     const p = this.s.world.player;

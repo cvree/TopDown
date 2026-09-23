@@ -132,7 +132,7 @@ export class SkillshotDrill extends Drill {
     if (this.waveTime > 18) {
       this.waveTime = 0;
       this.wave++;
-      this.s.setBanner(`WAVE ${this.wave}`, 1.2);
+      this.s.setBanner(`WAVE ${this.wave}`, 1.2, { key: 'wave' });
       audio.play('countdown');
     }
 

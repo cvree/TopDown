@@ -527,6 +527,11 @@ export function App() {
     };
   }, []);
 
+  /** A rule was explained in a run; it will not be explained again. */
+  const onTaught = useCallback((key: string) => {
+    setProfile((p) => (p.taught.includes(key) ? p : { ...p, taught: [...p.taught, key] }));
+  }, []);
+
   /** Go back inside this run: remount it rebuilt to `steps`, same seed. */
   const onRewind = useCallback((tape: Tape, steps: number) => {
     setResults(null);
@@ -757,6 +762,8 @@ export function App() {
           key={`${flow.drill}-${flow.mode}-${flow.seed}-${flow.rewinds ?? 0}`}
           rewind={flow.rewind ?? null}
           onRewind={onRewind}
+          taught={profile.taught}
+          onTaught={onTaught}
           drill={flow.drill}
           mode={flow.mode}
           difficulty={difficulty}

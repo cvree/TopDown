@@ -578,7 +578,7 @@ export class TwistedDrill extends Drill {
     // catch up, and at the top there is not: the only way to keep pace is to
     // take the card the first time it comes round, every single time.
     this.askCd = this.def.askEvery * (1 - 0.32 * this.s.config.difficulty);
-    this.s.setBanner(CARD_NAME[want], 1.1);
+    this.s.setBanner(CARD_NAME[want], 1.1, { tone: 'critical', key: 'ask' });
     const p = this.s.world.player;
     if (p) this.s.fx.ring(p.pos.x, p.pos.y, p.radius + 10, p.radius + 90, 0.4, CARD_COLOR[want], 3, 'pulse');
   }
@@ -591,7 +591,7 @@ export class TwistedDrill extends Drill {
   // ---------------------------------------------------------------- runtime
 
   onStart(): void {
-    this.s.setBanner(this.def.stage, 1.2);
+    this.s.setBanner(this.def.stage, 1.2, { key: 'stage' });
   }
 
   update(dt: number): void {
@@ -733,7 +733,8 @@ export class TwistedDrill extends Drill {
       card: false,
       auto: false,
     });
-    this.s.setBanner('STUNNED', 0.8);
+    // No banner: the card's own word lands on the target, and a stun is
+    // over before a banner could have been read.
   }
 
   private expireSetups(): void {
@@ -771,7 +772,7 @@ export class TwistedDrill extends Drill {
     this.contactCd -= dt;
     if (!this.contactWarned && this.contactCd <= 2.5) {
       this.contactWarned = true;
-      this.s.setBanner('INCOMING', 1);
+      this.s.setBanner('INCOMING', 1, { tone: 'critical', key: 'incoming' });
       audioSafeTelegraph(this.s);
     }
     if (this.contactCd > 0) return;
@@ -810,7 +811,7 @@ export class TwistedDrill extends Drill {
       // The moment it lights. Announced, because a window you cannot see
       // coming is a reaction test and this is a planning one.
       if (this.s.elapsed >= zone.opensAt && this.s.elapsed - dt < zone.opensAt) {
-        this.s.setBanner('GATE OPEN', 1);
+        this.s.setBanner('GATE OPEN', 1, { tone: 'critical', key: 'gate' });
         this.s.fx.ring(zone.pos.x, zone.pos.y, 20, zone.radius, 0.5, TF_DESTINY, 4, 'shock');
       }
       if (this.s.elapsed > zone.until) this.gateZone = null;
@@ -829,7 +830,7 @@ export class TwistedDrill extends Drill {
     // One ring per ultimate, near enough, so the question the stage asks is
     // *when* rather than *which*.
     this.gateCd = TWISTED_STATS.rCd + GATE_TELEGRAPH - this.s.config.difficulty * 3;
-    this.s.setBanner('GATE OPENING', 1.1);
+    this.s.setBanner('GATE OPENING', 1.1, { tone: 'critical', key: 'gate' });
     this.s.fx.ring(pos.x, pos.y, 20, 210, 0.6, TF_DESTINY, 3, 'pulse');
   }
 

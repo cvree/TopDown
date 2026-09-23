@@ -601,14 +601,14 @@ export abstract class LabDrill extends ApmDrill {
     // a second screen nobody looks at.
     if (!this.mapOn && mapAtLevel(this.rung)) {
       this.mapOn = true;
-      this.s.setBanner('THE MAP IS LIVE', 1.6);
+      this.s.setBanner('THE MAP IS LIVE', 1.6, { tone: 'critical', key: 'map-live' });
     }
     if (this.mapOn) this.map.update(dt);
     // Same again for the strip along the bottom: INFINITE can climb into an
     // order's half of the ladder mid-run, and an order that simply turned up
     // is an order nobody would look for.
     const gained = this.orderLine.update(dt);
-    if (gained) this.s.setBanner(`${ORDER_LABEL[gained]} · ${this.orderGlyph(gained)}`, 1.8);
+    if (gained) this.s.setBanner(`${ORDER_LABEL[gained]} · ${this.orderGlyph(gained)}`, 1.8, { tone: 'critical', key: 'order' });
   }
 
   /**
@@ -649,7 +649,7 @@ export abstract class LabDrill extends ApmDrill {
       // time has to explain itself rather than simply decline. Three is enough
       // to have been read; a fourth would be nagging.
       if (this.refusals <= 3) {
-        this.s.setBanner('POINT AT THE LIT PAD — A PRESS FROM ANYWHERE ELSE SCORES NOTHING', 1.6);
+        this.s.setBanner('POINT AT THE LIT PAD — A PRESS FROM ANYWHERE ELSE SCORES NOTHING', 1.6, { tone: 'teaching', key: 'lab-point' });
       }
       this.stray(want?.pos ?? at);
       return;

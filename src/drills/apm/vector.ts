@@ -90,7 +90,7 @@ export class ApmVectorDrill extends LabDrill {
     this.call = this.s.rng.pick(options.length ? options : HEADINGS.map((_, i) => i));
     this.calledAt = this.s.elapsed;
     this.window = clamp((1.7 - this.d * 0.6) / this.tempo, 0.45, 1.8);
-    this.s.setBanner(HEADINGS[this.call].name, 0.6);
+    this.s.setBanner(HEADINGS[this.call].name, 0.6, { tone: 'critical', key: 'call' });
     audio.play('tick', { intensity: 0.7 });
   }
 

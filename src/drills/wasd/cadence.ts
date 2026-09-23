@@ -82,7 +82,7 @@ export class WasdCadenceDrill extends WasdDrill {
   }
 
   onStart(): void {
-    this.s.setBanner(`${STAGES[0].name} · ${STAGES[0].brief}`, 3);
+    this.s.setBanner(`${STAGES[0].name} · ${STAGES[0].brief}`, 3, { tone: 'critical', key: 'phase' });
   }
 
   private get stage() {
@@ -95,7 +95,7 @@ export class WasdCadenceDrill extends WasdDrill {
     let acc = 0;
     for (let i = 0; i <= this.stageIndex; i++) acc += STAGES[i].share;
     this.stageEnd = this.s.config.duration * acc;
-    this.s.setBanner(`${this.stage.name} · ${this.stage.brief}`, 2.6);
+    this.s.setBanner(`${this.stage.name} · ${this.stage.brief}`, 2.6, { tone: 'critical', key: 'phase' });
     audio.play('flowTier', { intensity: 0.7 });
     // The last stage puts the dummy on its feet, so range has to be kept as
     // well as timed — which is the whole of module 06 in miniature.

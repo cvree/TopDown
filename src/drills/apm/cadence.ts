@@ -256,7 +256,7 @@ export class ApmSustainDrill extends LabDrill {
    */
   private collapse(): void {
     if (this.s.mode === 'infinite') {
-      this.s.setBanner(`BROKE AT ${Math.round(this.rate)} APM — EASING`, 1.8);
+      this.s.setBanner(`BROKE AT ${Math.round(this.rate)} APM — EASING`, 1.8, { tone: 'critical', key: 'cadence' });
       this.s.fx.badFlash(0.1, PALETTE.danger);
       audio.play('fail', 0.7);
       this.step = Math.max(0, this.step - 2);
@@ -264,7 +264,7 @@ export class ApmSustainDrill extends LabDrill {
       this.missesThisStep = 0;
       return;
     }
-    this.s.setBanner(`BROKE AT ${Math.round(this.rate)} APM`, 2.2);
+    this.s.setBanner(`BROKE AT ${Math.round(this.rate)} APM`, 2.2, { tone: 'critical', key: 'cadence' });
     this.s.fx.badFlash(0.14, PALETTE.danger);
     audio.play('fail');
     this.endReason = 'complete';
@@ -276,7 +276,7 @@ export class ApmSustainDrill extends LabDrill {
       this.stepAt = this.s.elapsed;
       this.step++;
       this.missesThisStep = 0;
-      this.s.setBanner(`STEP ${this.step + 1} · ${Math.round(this.rate)} APM`, 1.2);
+      this.s.setBanner(`STEP ${this.step + 1} · ${Math.round(this.rate)} APM`, 1.2, { tone: 'critical', key: 'cadence' });
       audio.play('flowTier', { intensity: 0.6 });
     }
     if (this.s.elapsed - this.beatAt >= this.beat) this.nextBeat();

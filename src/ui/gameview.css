@@ -245,8 +245,8 @@
 .hud-banner {
   position: absolute;
   top: 21%;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
   font-family: var(--display);
   font-size: 30px;
   font-weight: 700;
@@ -257,9 +257,36 @@
      slab lying on the arena, which is exactly what it looks like. */
   text-shadow: 0 0 34px rgba(200, 170, 110, 0.5), 0 2px 6px rgba(2, 5, 11, 0.85), 0 6px 46px rgba(2, 5, 11, 0.6);
   opacity: 0;
-  transition: opacity var(--dur-3) var(--ease-out);
+  transition: opacity var(--dur-2) var(--ease-exit);
   white-space: nowrap;
   text-align: center;
+}
+.hud-banner.on {
+  opacity: 1;
+}
+/* Struck in: it arrives a touch large and settles, fast, then leaves softly. */
+.hud-banner.arrive {
+  animation: bannerIn var(--dur-3) var(--ease-out) both;
+}
+@keyframes bannerIn {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--rise) * -0.5)) scale(calc(2 - var(--pop)));
+  }
+}
+/* A rule of the mode, said once: quieter than news, in the interface's voice. */
+.hud-banner[data-tone='teaching'] {
+  font-family: var(--ui);
+  font-size: 15px;
+  letter-spacing: 0.24em;
+  color: var(--gold);
+  text-shadow: 0 2px 6px rgba(2, 5, 11, 0.9), 0 6px 30px rgba(2, 5, 11, 0.7);
+}
+/* Colour on something the arena already shows. */
+.hud-banner[data-tone='flavour'] {
+  font-size: 22px;
+  color: var(--gold-lit);
+  text-shadow: 0 2px 6px rgba(2, 5, 11, 0.85), 0 6px 40px rgba(2, 5, 11, 0.6);
 }
 .hud-count {
   position: absolute;
@@ -1042,4 +1069,53 @@
 }
 .rewind-card span {
   font-size: 11px;
+}
+
+/* ============================================================
+   The HUD steps back in a fight.
+
+   While you are trading, the numbers that exist to be read *between*
+   fights — the lane's figures, the brief, the difficulty, the frame
+   counter — drop to a whisper, quickly, and come back gently once it has
+   been quiet for a couple of seconds. The clock, your health, your
+   abilities and the one banner never move.
+   ============================================================ */
+.hud-stats,
+.hud-objective,
+.hud-diff,
+.hud-fps,
+.hud-check,
+.hud-cam {
+  transition: opacity var(--dur-5) var(--ease-out);
+}
+.hud-fight .hud-stats,
+.hud-fight .hud-objective,
+.hud-fight .hud-diff,
+.hud-fight .hud-fps,
+.hud-fight .hud-check,
+.hud-fight .hud-cam {
+  opacity: 0.3;
+  transition-duration: var(--dur-3);
+}
+
+/* The brief is read at the start line. Once the run is under way it folds
+   away — it is on the pause screen for anybody who wants it again — and the
+   objective is just the name of the thing you are doing. */
+.hud-brief,
+.hud-tag {
+  overflow: hidden;
+  animation: briefFold 0.9s var(--ease-out) 12s both;
+}
+@keyframes briefFold {
+  70% {
+    opacity: 0;
+    max-height: 180px;
+  }
+  100% {
+    opacity: 0;
+    max-height: 0;
+    margin-top: 0;
+    padding-top: 0;
+    border-top-width: 0;
+  }
 }

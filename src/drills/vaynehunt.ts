@@ -123,7 +123,7 @@ export class VayneHuntDrill extends VayneDrill {
     // Who is coming, never where from. In the fog the roster is the only free
     // information a Vayne gets, and it is the same information the loading
     // screen gives you in a real game.
-    this.s.setBanner(this.s.world.enemies().map((e) => e.label ?? '').join('  ·  '), 1.8);
+    this.s.setBanner(this.s.world.enemies().map((e) => e.label ?? '').join('  ·  '), 1.8, { key: 'wave' });
   }
 
   update(dt: number): void {
@@ -136,7 +136,7 @@ export class VayneHuntDrill extends VayneDrill {
     // through" is a better question than "did you get through two".
     if (this.s.world.enemies().length === 0) {
       this.sendWave();
-      this.s.setBanner(`WAVE ${this.waves}`, 1.4);
+      this.s.setBanner(`WAVE ${this.waves}`, 1.4, { key: 'wave' });
     }
   }
 
@@ -146,7 +146,7 @@ export class VayneHuntDrill extends VayneDrill {
       if (e.type !== 'death' || !e.byPlayer) continue;
       this.killed++;
       const left = this.s.world.enemies().length;
-      if (left > 0) this.s.setBanner(`${left} LEFT`, 1);
+      if (left > 0) this.s.setBanner(`${left} LEFT`, 1, { key: 'left' });
       this.s.fx.addFlash(0.1, VAYNE_COLOR);
     }
   }

@@ -407,7 +407,7 @@ export class EzrealDrill extends Drill {
   // ---------------------------------------------------------------- runtime
 
   onStart(): void {
-    this.s.setBanner(this.def.stage, 1.2);
+    this.s.setBanner(this.def.stage, 1.2, { key: 'stage' });
   }
 
   update(dt: number): void {

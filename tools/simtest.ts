@@ -7,6 +7,8 @@
  */
 import { GameLoop, SIM_DT } from '../src/engine/loop';
 import { Session, type TumbleAim, type ViewProjection } from '../src/engine/session';
+import { BannerVoice, FLOAT_MAX_LIVE, FloatBudget } from '../src/engine/calm';
+import { FxSystem } from '../src/engine/fx';
 import { createDrill, arenaFor } from '../src/drills';
 import {
   APM_DRILL_IDS,
@@ -224,6 +226,9 @@ interface RunOpts {
    * and fingerprint the world after each of these recorded steps.
    */
   record?: number[];
+  /** The rules the profile has been taught, and what to do when it is taught another. */
+  taught?: ReadonlySet<string>;
+  onTaught?: (key: string) => void;
 }
 
 const runDrill = (
@@ -256,6 +261,8 @@ const runDrill = (
       abilities: meta.abilities,
       scheme,
       tumbleAim,
+      taught: opts.taught,
+      onTaught: opts.onTaught,
     },
     tapeIn ?? (input as unknown as InputSystem),
     tapeIn ? new TapeView(fakeRenderer) : fakeRenderer,
@@ -5442,21 +5449,80 @@ line('\n=== CALM: what a run puts on screen, per minute ===');
   // amount of text a run throws over the fight is a property worth holding
   // to a number. Counted from the session's own tally of what it showed —
   // presentation only; none of this reaches a score.
-  const calm: [string, DrillId, Policy, MovementScheme, number, RunOpts][] = [
-    ['lane', 'lanePhase', 'laneFarm', 'click', LANE_TIERS[4].difficulty, { seconds: 150 }],
-    ['sheriff', 'caitlynDodge', 'caitlyn', 'click', 0.35, {}],
-    ['card wheel', 'tfPick', 'twisted', 'wasd', 0.5, {}],
-    ['tumble', 'vayneTumble', 'vayneTumble', 'click', 0.5, {}],
+  //
+  // The ceilings are v2.24's numbers with a little room. v2.23 showed, on the
+  // same seeds: lane 3.6 banners and 50.4 floats a minute with 15 at once;
+  // Sheriff 4.0 and 107.0; card wheel 18.7 and 128.0; tumble 0 and 48.0.
+  const calm: [string, DrillId, Policy, MovementScheme, number, RunOpts, number, number][] = [
+    ['lane', 'lanePhase', 'laneFarm', 'click', LANE_TIERS[4].difficulty, { seconds: 150 }, 5, 20],
+    ['sheriff', 'caitlynDodge', 'caitlyn', 'click', 0.35, {}, 5, 50],
+    ['card wheel', 'tfPick', 'twisted', 'wasd', 0.5, {}, 15, 45],
+    ['tumble', 'vayneTumble', 'vayneTumble', 'click', 0.5, {}, 1, 35],
   ];
-  for (const [label, id, pol, sch, diff, opts] of calm) {
+  for (const [label, id, pol, sch, diff, opts, maxBanners, maxFloats] of calm) {
     const r = runDrill(id, pol, diff, 7, sch, 'hands', opts);
     const mins = Math.max(1 / 60, r.session.elapsed / 60);
     const sh = r.session.shown;
+    const bpm = sh.banners / mins;
+    const fpm = sh.floats / mins;
     line(
-      `  ${label.padEnd(10)} ${(sh.banners / mins).toFixed(1).padStart(5)} banners/min  ${(sh.floats / mins).toFixed(1).padStart(6)} floats/min  peak ${sh.peakFloats} at once  (${r.session.elapsed.toFixed(0)}s)`,
+      `  ${label.padEnd(10)} ${bpm.toFixed(1).padStart(5)} banners/min  ${fpm.toFixed(1).padStart(6)} floats/min  peak ${sh.peakFloats} at once  (${r.session.elapsed.toFixed(0)}s)`,
     );
-    expect(`${label}: the tally is counting`, sh.banners + sh.floats > 0, 'nothing shown at all');
+    expect(`${label}: at most ${maxBanners} banners a minute`, bpm <= maxBanners, bpm.toFixed(1));
+    expect(`${label}: at most ${maxFloats} floating words a minute`, fpm <= maxFloats, fpm.toFixed(1));
+    expect(`${label}: never more than ${FLOAT_MAX_LIVE} words over the arena at once`, sh.peakFloats <= FLOAT_MAX_LIVE, `${sh.peakFloats}`);
   }
+
+  // A rule is taught once per player, not once per run: the second lane on
+  // the same profile does not explain minion aggro again.
+  const taught = new Set<string>();
+  const teach = (key: string) => taught.add(key);
+  const first = runDrill('lanePhase', 'laneFarm', LANE_TIERS[4].difficulty, 7, 'click', 'hands', { seconds: 150, taught, onTaught: teach });
+  const learnt = taught.size;
+  const second = runDrill('lanePhase', 'laneFarm', LANE_TIERS[4].difficulty, 7, 'click', 'hands', { seconds: 150, taught, onTaught: teach });
+  expect('a lane teaches something the first time', learnt >= 1, `${learnt}`);
+  expect(
+    'and nothing it already taught the second time',
+    second.session.shown.banners === first.session.shown.banners - learnt,
+    `${first.session.shown.banners} then ${second.session.shown.banners} (${learnt} taught)`,
+  );
+  expect('and the voice changes no score', second.out.score === first.out.score, `${first.out.score} vs ${second.out.score}`);
+
+  // The voice itself: one banner, in order of what it is for.
+  const v = new BannerVoice();
+  v.say('WAVE 3', 1.6, { key: 'wave' }, 0, false);
+  v.say('2 LEFT', 1.6, { key: 'left' }, 0.1, false);
+  expect('flavour waits behind flavour', v.text === 'WAVE 3', `${v.text}`);
+  v.say('ONE STRIKE LEFT', 1.3, { tone: 'critical', key: 'strike' }, 0.2, false);
+  expect('a critical banner interrupts at once', v.text === 'ONE STRIKE LEFT', `${v.text}`);
+  v.tick(0.3, 0.5, false);
+  v.say('RED CARD', 1.1, { tone: 'critical', key: 'ask' }, 0.5, false);
+  expect('an equal one waits out the dwell', v.text === 'ONE STRIKE LEFT', `${v.text}`);
+  v.tick(0.4, 0.9, false);
+  expect('then takes over', v.text === 'RED CARD', `${v.text}`);
+  v.say('BLUE CARD', 1.1, { tone: 'critical', key: 'ask' }, 1.0, false);
+  expect('the same subject updates in place', v.text === 'BLUE CARD', `${v.text}`);
+  v.tick(3, 4, false);
+  expect('stale flavour is never said late', v.text === null, `${v.text}`);
+  v.say('WAVE 4', 1.6, { key: 'wave' }, 5, true);
+  expect('flavour is dropped in a fight', v.text === null, `${v.text}`);
+  v.say('NEW MARK', 0.9, { key: 'mark' }, 5, false);
+  expect('under a second is not a banner', v.text === null, `${v.text}`);
+
+  // The budget: repeats merge rather than stack.
+  const fx = new FxSystem();
+  const words = new FloatBudget(fx);
+  const minionA = { x: 100, y: 100 };
+  const minionB = { x: 150, y: 110 };
+  words.add('+20', minionA, '#fff', 'result', 0, false);
+  words.add('+21', minionB, '#fff', 'result', 0.2, false);
+  words.add('+20', { x: 130, y: 90 }, '#fff', 'result', 0.4, false);
+  expect('+20 +21 +20 is one +61', fx.texts.length === 1 && fx.texts[0].text === '+61', fx.texts.map((t) => t.text).join(' '));
+  const body = { x: 900, y: 900 };
+  words.add('PERFECT', body, '#fff', 'result', 1, false);
+  words.add('PERFECT', body, '#fff', 'result', 1.5, false);
+  expect('a repeat on the same body counts up', fx.texts.some((t) => t.text === 'PERFECT ×2'), fx.texts.map((t) => t.text).join(' '));
+  expect('flavour waits out a fight', words.add('TOO EARLY', { x: 0, y: 0 }, '#888', 'flavour', 2, true) === 'dropped', 'shown');
 }
 
 line(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}\n`);

@@ -201,7 +201,7 @@ export class CaitlynDodgeDrill extends VayneDrill {
         e.moveSpeed = 175 + this.s.liveDifficulty * 70;
         e.attack.damage = 20 + this.s.liveDifficulty * 18;
         e.label = 'DEPUTY';
-        this.s.setBanner('DEPUTY', 1);
+        this.s.setBanner('DEPUTY', 1, { key: 'deputy' });
       }
     }
   }
@@ -224,7 +224,7 @@ export class CaitlynDodgeDrill extends VayneDrill {
       this.takedowns++;
       this.reloadCd = RELOAD_SECONDS;
       this.sheriff.retire();
-      this.s.setBanner('RELOADING', 1.2);
+      this.s.setBanner('RELOADING', 1.2, { tone: 'critical', key: 'reload' });
       return;
     }
     if (this.reloadCd <= 0) return;

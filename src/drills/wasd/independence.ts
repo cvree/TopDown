@@ -86,7 +86,7 @@ export class WasdIndependenceDrill extends WasdDrill {
   }
 
   onStart(): void {
-    this.s.setBanner(`${PHASES[0].name} · ${PHASES[0].brief}`, 2.6);
+    this.s.setBanner(`${PHASES[0].name} · ${PHASES[0].brief}`, 2.6, { tone: 'critical', key: 'phase' });
     this.newZone();
   }
 
@@ -100,7 +100,7 @@ export class WasdIndependenceDrill extends WasdDrill {
     let acc = 0;
     for (let i = 0; i <= this.phaseIndex; i++) acc += PHASES[i].share;
     this.phaseEnd = this.s.config.duration * acc;
-    this.s.setBanner(`${this.phase.name} · ${this.phase.brief}`, 2.4);
+    this.s.setBanner(`${this.phase.name} · ${this.phase.brief}`, 2.4, { tone: 'critical', key: 'phase' });
     audio.play('flowTier', { intensity: 0.7 });
     this.zone = null;
     this.lastAngle = null;
