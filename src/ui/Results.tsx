@@ -1,5 +1,5 @@
 import { LaneReportPanel } from './LaneReportPanel';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
 import { clamp } from '../engine/math';
 import { DRILLS, type DrillId } from '../drills/catalog';
@@ -15,6 +15,7 @@ import { VAYNE_STAGES } from '../progression/vayne';
 import { WASD_MODULES } from '../progression/wasd';
 import { ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
 import { Replay } from './Replay';
+import { isCalm } from './motion';
 import './results.css';
 
 /** mm:ss, for how long a survive run lasted. */
@@ -35,25 +36,94 @@ interface Props {
   code?: string | null;
   /** A line of context above the buttons: which warm-up step, which benchmark. */
   banner?: { eyebrow: string; line: string; tone?: 'good' | 'warn' } | null;
+  /** This drill's score the run before this one, for the line under the number. */
+  lastScore?: number | null;
 }
 
-const REVEAL = [0, 220, 520, 900, 1250, 1600];
+/** The count-up of the number, and when it starts. Everything else is timed off these. */
+const COUNT_MS = 1100;
+const COUNT_DELAY = 140;
 
-export function Results({ result, report, bounds, onRetry, onExit, onNext, nextLabel, code, banner }: Props) {
+/** Whether the evidence was left open last time — a per-viewer convenience, nothing more. */
+const EVIDENCE_KEY = 'apex.results.evidence';
+const readOpen = (): boolean => {
+  try {
+    return localStorage.getItem(EVIDENCE_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+const writeOpen = (v: boolean): void => {
+  try {
+    localStorage.setItem(EVIDENCE_KEY, v ? '1' : '0');
+  } catch {
+    /* private window: it simply starts folded */
+  }
+};
+
+/**
+ * When an ease-out count reaches `r` of its way, as a fraction of its time —
+ * the inverse of `easeOut`. It is how the personal-best line is struck on the
+ * frame the rolling number passes the old record, not a beat before or after.
+ */
+const crossing = (r: number): number => 1 - Math.pow(1 - clamp(r, 0, 1), 1 / 4);
+
+/**
+ * THE RESULTS SCREEN, in three acts.
+ *
+ * It used to be up to nineteen panels arriving on a timer, and the one number
+ * that mattered competed with eighteen others. Now it is a ceremony:
+ *
+ *  1. **The number.** The score rolls up, fast and then gently; if it beats
+ *     your best, a line is drawn through the old record on the frame the
+ *     count passes it, with the chime; under it, what it was against your last
+ *     run.
+ *  2. **The verdict.** One sentence, the one thing that held the run back,
+ *     where the rating went, and one button.
+ *  3. **The evidence.** Everything else — every panel this screen has ever
+ *     shown, nothing deleted — folded behind one disclosure.
+ *
+ * Space, R and Escape work from the first frame; nothing waits on the show.
+ */
+export function Results({ result, report, bounds, onRetry, onExit, onNext, nextLabel, code, banner, lastScore = null }: Props) {
   const [copied, setCopied] = useState(false);
   const meta = DRILLS[result.drill];
-  const [stage, setStage] = useState(0);
-  const score = useCountUp(result.score, 1100, 150);
+  const [act, setAct] = useState(isCalm() ? 3 : 0);
+  const [struck, setStruck] = useState(false);
+  const [open, setOpen] = useState(readOpen);
+  const evidenceRef = useRef<HTMLDivElement>(null);
+  const score = useCountUp(result.score, COUNT_MS, COUNT_DELAY);
+  const prevBest = report.previousBestScore;
+  const pbIds = new Set(report.personalBests.map((p) => p.id));
+  // A best that rounds to the same displayed value is still a best, but
+  // announcing "82% was 82%" reads as a bug rather than an improvement.
+  const visibleBests = report.personalBests.filter(
+    (pb) => pb.previous === null || formatMetric(pb.value, pb.format) !== formatMetric(pb.previous, pb.format),
+  );
+  const anyBest = report.newBestScore || visibleBests.length > 0;
 
   useEffect(() => {
-    const timers = REVEAL.map((ms, i) => window.setTimeout(() => setStage(i + 1), ms));
-    const pb = window.setTimeout(() => {
-      if (report.personalBests.length || report.newBestScore) audio.play('personalBest');
-    }, 900);
-    return () => {
-      timers.forEach(clearTimeout);
-      clearTimeout(pb);
-    };
+    const calm = isCalm();
+    // Sound and motion land together: the reveal swell under the number, and
+    // the chime on the frame the old record is struck through.
+    const at = (ms: number, fn: () => void) => window.setTimeout(fn, calm ? 0 : ms);
+    const strikeAt =
+      report.newBestScore && prevBest && result.score > 0
+        ? COUNT_DELAY + COUNT_MS * crossing(prevBest / result.score)
+        : COUNT_DELAY + COUNT_MS * 0.82;
+    const t = [
+      at(0, () => setAct((a) => Math.max(a, 1))),
+      at(30, () => audio.play('resultsReveal')),
+      at(clamp(strikeAt, 420, COUNT_DELAY + COUNT_MS), () => {
+        if (!anyBest) return;
+        setStruck(true);
+        audio.play('personalBest');
+      }),
+      at(COUNT_DELAY + COUNT_MS + 40, () => setAct((a) => Math.max(a, 2))),
+      at(COUNT_DELAY + COUNT_MS + 360, () => setAct(3)),
+    ];
+    return () => t.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [report]);
 
   useEffect(() => {
@@ -73,11 +143,29 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
     return () => window.removeEventListener('keydown', onKey);
   }, [onRetry, onExit, onNext]);
 
+  const toggleEvidence = () => {
+    const next = !open;
+    setOpen(next);
+    writeOpen(next);
+    audio.play(next ? 'uiTab' : 'uiBack');
+    // Opening it moves you to it: the click is the cause, the panels arriving
+    // where you are looking is the result.
+    if (next) {
+      window.requestAnimationFrame(() =>
+        evidenceRef.current?.scrollIntoView({ behavior: isCalm() ? 'auto' : 'smooth', block: 'start' }),
+      );
+    }
+  };
+
   const runRating = expectedRating(result.performance, result.difficulty);
   const topPct = 1 - percentileForRating(runRating);
   const head = result.keyMetrics[0];
   const improvement = report.improvements[0];
   const overallDelta = report.overallAfter - report.overallBefore;
+  const vsLast = lastScore === null ? null : result.score - lastScore;
+  // One thing that held the run back: the detector's limiter, in its own words
+  // with this run's numbers in it; failing that, the worst line of the read.
+  const limiter = report.limiter?.detail ?? result.hurt[0] ?? null;
 
   const outcomeLabel = useMemo(() => {
     // A survive run always ends the same way, so "ELIMINATED" is not news; how
@@ -89,22 +177,117 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
     return 'COMPLETE';
   }, [result.endReason, result.mode, result.seconds]);
 
-  const pbIds = new Set(report.personalBests.map((p) => p.id));
-  // A best that rounds to the same displayed value is still a best, but
-  // announcing "82% was 82%" reads as a bug rather than an improvement.
-  const visibleBests = report.personalBests.filter(
-    (pb) => pb.previous === null || formatMetric(pb.value, pb.format) !== formatMetric(pb.previous, pb.format),
-  );
+  const shown = open;
 
   return (
     <div className="results scroll">
       <div className="results-inner">
-        <header className={`res-head ${stage >= 1 ? 'in' : ''}`}>
-          <div>
-            <div className="eyebrow" style={{ color: meta.accent }}>
-              {meta.name} · {outcomeLabel}
+        {/* ------------------------------------------------ act one: the number */}
+        <header className={`res-number${act >= 1 ? ' in' : ''}`}>
+          <div className="eyebrow" style={{ color: meta.accent }}>
+            {meta.name} · {outcomeLabel}
+          </div>
+          <h1 className="display res-score num">{Math.round(score).toLocaleString()}</h1>
+          <div className="res-line">
+            {prevBest !== null && (
+              <span className={`res-best${struck && report.newBestScore ? ' struck' : ''}`}>
+                <span className="res-best-old">
+                  BEST <b className="mono">{prevBest.toLocaleString()}</b>
+                  <i className="res-best-rule" aria-hidden />
+                </span>
+                {report.newBestScore && <em className="res-best-new">NEW BEST</em>}
+              </span>
+            )}
+            {prevBest === null && <span className="res-best first">FIRST RUN</span>}
+            {vsLast !== null && (
+              <span className={`res-vs ${vsLast > 0 ? 'up' : vsLast < 0 ? 'down' : ''}`}>
+                {vsLast === 0 ? 'level with' : `${vsLast > 0 ? '+' : '−'}${Math.abs(vsLast).toLocaleString()} on`} your last run
+              </span>
+            )}
+          </div>
+        </header>
+
+        {/* ----------------------------------------------- act two: the verdict */}
+        <section className={`res-verdict${act >= 2 ? ' in' : ''}`}>
+          <div className="rvd-metric">
+            <div className="eyebrow">{head?.label ?? meta.keyMetric}</div>
+            <div className="rvd-value display">{head ? formatMetric(head.value, head.format) : '—'}</div>
+            {improvement &&
+              (() => {
+                const same =
+                  formatMetric(improvement.current, improvement.format) ===
+                  formatMetric(improvement.previous, improvement.format);
+                const better =
+                  improvement.direction === 'higher'
+                    ? improvement.current > improvement.previous
+                    : improvement.current < improvement.previous;
+                return (
+                  <div className={`hero-delta ${same ? '' : better ? 'up' : 'down'}`}>
+                    {same
+                      ? `held at ${formatMetric(improvement.previous, improvement.format)} from last run`
+                      : `${better ? '▲' : '▼'} from ${formatMetric(improvement.previous, improvement.format)} last run`}
+                  </div>
+                );
+              })()}
+          </div>
+          <div className="rvd-words">
+            <p className="rvd-sentence">{result.advice}</p>
+            {limiter && (
+              <p className="rvd-limiter">
+                <span className="eyebrow">Held it back</span>
+                {limiter}
+              </p>
+            )}
+            <div className="rvd-rating mono">
+              <b>{report.rankAfter.label}</b> · {Math.round(report.overallAfter)} rating{' '}
+              <span className={overallDelta >= 0 ? 'good' : 'bad'}>
+                {overallDelta >= 0 ? '+' : '−'}
+                {Math.abs(Math.round(overallDelta))}
+              </span>
             </div>
-            <h1 className="display res-score num">{Math.round(score).toLocaleString()}</h1>
+          </div>
+        </section>
+
+        {banner && (
+          <div className={`res-context${act >= 2 ? ' in' : ''}`}>
+            <div className={`res-banner${banner.tone ? ` ${banner.tone}` : ''}`}>
+              <span className="eyebrow">{banner.eyebrow}</span>
+              <b>{banner.line}</b>
+            </div>
+          </div>
+        )}
+
+        <div className={`res-actions${act >= 2 ? ' in' : ''}`}>
+          <button className="btn primary lg" onClick={onRetry}>
+            Run again <span className="kbd">R</span>
+          </button>
+          {onNext && (
+            <button className="btn ghost lg" onClick={onNext}>
+              {nextLabel ?? 'Next'} <span className="kbd">Space</span>
+            </button>
+          )}
+          <button className="btn ghost lg" onClick={onExit}>
+            Back <span className="kbd">Esc</span>
+          </button>
+        </div>
+
+        {/* --------------------------------------------- act three: the evidence */}
+        <button
+          type="button"
+          className={`res-why${act >= 3 ? ' in' : ''}${open ? ' open' : ''}`}
+          aria-expanded={open}
+          onClick={toggleEvidence}
+        >
+          <span className="res-why-mark" aria-hidden>
+            ?
+          </span>
+          <span>{open ? 'Fold the evidence away' : 'Why — the evidence'}</span>
+        </button>
+
+        <div ref={evidenceRef} className={`res-evidence${open ? ' open' : ''}`} hidden={!open}>
+        <header className={`res-head ${shown ? 'in' : ''}`}>
+          <div>
+            <div className="eyebrow">The run</div>
             <div className="res-sub">
               <span className="mono">{result.metrics.duration.toFixed(1)}s</span>
               {result.mode === 'survive' && (
@@ -118,9 +301,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
               <span className="sep" />
               <span className="mono">DIFFICULTY {Math.round(result.difficulty * 100)}</span>
               <span className="sep" />
-              <span className="mono">
-                RUN LEVEL {rankFromRating(runRating).label}
-              </span>
+              <span className="mono">RUN LEVEL {rankFromRating(runRating).label}</span>
             </div>
           </div>
 
@@ -146,9 +327,8 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
           </div>
         </header>
 
-        {(report.newBestScore || visibleBests.length > 0) && stage >= 3 && (
-          <div className="pb-strip scale-in">
-            <div className="pb-flash" />
+        {anyBest && (
+          <div className="pb-strip">
             <span className="pb-tag">NEW BEST</span>
             <div className="pb-items">
               {report.newBestScore && (
@@ -169,29 +349,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
           </div>
         )}
 
-        <div className={`res-hero ${stage >= 2 ? 'in' : ''}`}>
-          <div className="hero-metric">
-            <div className="eyebrow">{head?.label ?? meta.keyMetric}</div>
-            <div className="hero-value display">{head ? formatMetric(head.value, head.format) : '—'}</div>
-            {improvement &&
-              (() => {
-                const same =
-                  formatMetric(improvement.current, improvement.format) ===
-                  formatMetric(improvement.previous, improvement.format);
-                const better =
-                  improvement.direction === 'higher'
-                    ? improvement.current > improvement.previous
-                    : improvement.current < improvement.previous;
-                return (
-                  <div className={`hero-delta ${same ? '' : better ? 'up' : 'down'}`}>
-                    {same
-                      ? `held at ${formatMetric(improvement.previous, improvement.format)} from last run`
-                      : `${better ? '▲' : '▼'} from ${formatMetric(improvement.previous, improvement.format)} last run`}
-                  </div>
-                );
-              })()}
-          </div>
-
+        <div className={`res-hero ${shown ? 'in' : ''}`}>
           <div className="metric-grid">
             {result.keyMetrics.slice(1, 5).map((m) => (
               <div className={`metric-cell ${pbIds.has(m.id) ? 'pb' : ''}`} key={m.id}>
@@ -203,7 +361,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
           </div>
         </div>
 
-        <div className={`res-rating ${stage >= 3 ? 'in' : ''}`}>
+        <div className={`res-rating ${shown ? 'in' : ''}`}>
           <div className="panel pad rating-panel">
             <div className="panel-title">Mechanical rating</div>
             <div className="rating-rows">
@@ -305,7 +463,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
         </div>
 
         {report.lane && (
-          <div className={`res-vayne ${stage >= 3 ? 'in' : ''}`}>
+          <div className={`res-vayne ${shown ? 'in' : ''}`}>
             <div className="panel pad">
               <div className="panel-title">The lane, against {laneTierOf(result.difficulty).label}</div>
               <div className="rv-grid">
@@ -347,7 +505,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
             be three copies of the same forty lines, which is how two of them
             came to have subtly different wording for the same event. */}
         <LadderPanel
-          shown={stage >= 3}
+          shown={shown}
           label="The Vayne path"
           noun="Stage"
           total={VAYNE_STAGES.length}
@@ -366,7 +524,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
         />
 
         <LadderPanel
-          shown={stage >= 3}
+          shown={shown}
           label="The card path"
           noun="Stage"
           total={TWISTED_STAGES.length}
@@ -386,7 +544,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
         />
 
         <LadderPanel
-          shown={stage >= 3}
+          shown={shown}
           label="The WASD academy"
           noun="Module"
           total={WASD_MODULES.length}
@@ -406,7 +564,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
         />
 
         {report.apm?.infinite && (
-          <div className={`res-apm ${stage >= 3 ? 'in' : ''}`}>
+          <div className={`res-apm ${shown ? 'in' : ''}`}>
             <div className="panel pad">
               <div className="panel-title">The tide</div>
               <div className="ra-grid">
@@ -463,7 +621,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
         )}
 
         {report.apm?.surge && (
-          <div className={`res-apm ${stage >= 3 ? 'in' : ''}`}>
+          <div className={`res-apm ${shown ? 'in' : ''}`}>
             <div className="panel pad">
               <div className="panel-title">The surge</div>
               <div className="ra-grid">
@@ -509,7 +667,7 @@ SURGE keeps its own record. The difficulty moved while you played, so this does
         )}
 
         {report.apm && !report.apm.infinite && !report.apm.surge && (
-          <div className={`res-apm ${stage >= 3 ? 'in' : ''}`}>
+          <div className={`res-apm ${shown ? 'in' : ''}`}>
             <div className="panel pad">
               <div className="panel-title">Your level</div>
               <div className="ra-grid">
@@ -587,9 +745,9 @@ SURGE keeps its own record. The difficulty moved while you played, so this does
           </div>
         )}
 
-        {result.lane && <LaneReportPanel report={result.lane} visible={stage >= 4} />}
+        {result.lane && <LaneReportPanel report={result.lane} visible={shown} />}
 
-        <div className={`res-viz ${stage >= 4 ? 'in' : ''}`}>
+        <div className={`res-viz ${shown ? 'in' : ''}`}>
           <div className="panel pad">
             <div className="panel-title">Replay</div>
             <Replay
@@ -634,46 +792,25 @@ SURGE keeps its own record. The difficulty moved while you played, so this does
           </div>
         </div>
 
-        {(banner || code) && (
-          <div className={`res-context ${stage >= 5 ? 'in' : ''}`}>
-            {banner && (
-              <div className={`res-banner${banner.tone ? ` ${banner.tone}` : ''}`}>
-                <span className="eyebrow">{banner.eyebrow}</span>
-                <b>{banner.line}</b>
-              </div>
-            )}
-            {code && (
-              <button
-                type="button"
-                className="res-code"
-                title="Copy this scenario code — the same start for anybody who pastes it into WARM UP"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(code).then(
-                    () => setCopied(true),
-                    () => setCopied(false),
-                  );
-                  audio.play('uiClick');
-                }}
-              >
-                <span className="eyebrow">{copied ? 'Copied' : 'Scenario code'}</span>
-                <code className="mono">{code}</code>
-              </button>
-            )}
+        {code && (
+          <div className="res-context in">
+            <button
+              type="button"
+              className="res-code"
+              title="Copy this scenario code — the same start for anybody who pastes it into WARM UP"
+              onClick={() => {
+                void navigator.clipboard?.writeText(code).then(
+                  () => setCopied(true),
+                  () => setCopied(false),
+                );
+                audio.play('uiClick');
+              }}
+            >
+              <span className="eyebrow">{copied ? 'Copied' : 'Scenario code'}</span>
+              <code className="mono">{code}</code>
+            </button>
           </div>
         )}
-
-        <div className={`res-actions ${stage >= 5 ? 'in' : ''}`}>
-          <button className="btn primary lg" onClick={onRetry}>
-            Run again <span className="kbd">R</span>
-          </button>
-          {onNext && (
-            <button className="btn lg" onClick={onNext}>
-              {nextLabel ?? 'Next'} <span className="kbd">Space</span>
-            </button>
-          )}
-          <button className="btn ghost lg" onClick={onExit}>
-            Back <span className="kbd">Esc</span>
-          </button>
         </div>
       </div>
     </div>

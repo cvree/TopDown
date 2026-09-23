@@ -182,7 +182,15 @@ interface ResultState {
   result: RunResult;
   report: ProgressReport;
   bounds: { w: number; h: number };
+  /** This drill's score the run before, for the line under the number. */
+  lastScore: number | null;
 }
+
+/** The most recent score of a drill in the history, before the run being shown. */
+const lastScoreOf = (p: Profile, drill: DrillId): number | null => {
+  for (let i = p.history.length - 1; i >= 0; i--) if (p.history[i].drill === drill) return p.history[i].score;
+  return null;
+};
 
 export function App() {
   const [profile, setProfile] = useState<Profile>(() => {
@@ -416,7 +424,8 @@ export function App() {
       // copy is thrown away, so no record, ladder, rating or benchmark moves.
       if (flow.rewinds) {
         const report = applyRun(structuredClone(profileRef.current), result, flow.level ? { level: flow.level } : {});
-        window.setTimeout(() => setResults({ result, report, bounds }), 0);
+        const lastScore = lastScoreOf(profileRef.current, result.drill);
+        window.setTimeout(() => setResults({ result, report, bounds, lastScore }), 0);
         return;
       }
 
@@ -493,7 +502,7 @@ export function App() {
 
       window.setTimeout(() => {
         const rep = report;
-        setResults({ result, report: rep, bounds });
+        setResults({ result, report: rep, bounds, lastScore: lastScoreOf(prev, result.drill) });
         if (rep.promoted) {
           const driver = rep.axisChanges.reduce<{ axis: SkillAxis; delta: number } | null>(
             (acc, c) => (!acc || c.delta > acc.delta ? { axis: c.axis, delta: c.delta } : acc),
@@ -797,6 +806,7 @@ export function App() {
             result={results.result}
             report={results.report}
             bounds={results.bounds}
+            lastScore={results.lastScore}
             onRetry={retry}
             onExit={exitToMenu}
             onNext={switchMode}
