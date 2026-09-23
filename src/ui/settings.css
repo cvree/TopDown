@@ -27,7 +27,7 @@
   padding: 9px 12px;
   border: 1px solid var(--stroke);
   background: rgba(4, 9, 17, 0.72);
-  transition: border-color 0.18s;
+  transition: border-color var(--dur-2) var(--ease-out);
 }
 .set-search:focus-within {
   border-color: var(--gold-deep);
@@ -92,7 +92,7 @@
   border: 1px solid transparent;
   border-left: 2px solid var(--stroke);
   background: rgba(4, 9, 17, 0.4);
-  transition: color 0.16s, background 0.16s, border-color 0.16s;
+  transition: color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out);
 }
 .sn-item:hover {
   color: var(--gold-hot);
@@ -133,7 +133,7 @@
   border-left: 3px solid var(--c);
   background: linear-gradient(90deg, color-mix(in srgb, var(--c) 16%, transparent), rgba(4, 9, 17, 0.6) 70%);
   color: var(--c);
-  transition: border-color 0.16s, background 0.16s;
+  transition: border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
 }
 .sn-hero-card:hover {
   border-color: var(--c);
@@ -272,7 +272,7 @@
   font-family: var(--mono);
   font-size: 11.5px;
   color: var(--text);
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
 }
 .bind-key:hover {
   border-color: var(--stroke-hot);
@@ -318,7 +318,7 @@
   color: var(--text-4);
   font-size: 13px;
   line-height: 1;
-  transition: color 0.2s, border-color 0.2s, opacity 0.2s;
+  transition: color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
 }
 .bind-restore:hover:not(:disabled) {
   color: var(--gold-lit);
@@ -403,7 +403,7 @@
   border: 1px solid var(--stroke-2);
   position: relative;
   flex: none;
-  transition: background 0.22s, border-color 0.22s;
+  transition: background var(--dur-3) var(--ease-out), border-color var(--dur-3) var(--ease-out);
 }
 .switch span {
   position: absolute;
@@ -413,7 +413,7 @@
   height: 18px;
   border-radius: 99px;
   background: var(--text-3);
-  transition: transform 0.22s var(--ease), background 0.22s;
+  transition: transform var(--dur-3) var(--ease), background var(--dur-3) var(--ease-out);
 }
 .switch.on {
   background: rgba(88, 224, 255, 0.28);
@@ -496,7 +496,7 @@ input[type='range']::-moz-range-thumb {
   background: rgba(4, 8, 16, 0.6);
   color: var(--text-2);
   cursor: pointer;
-  transition: border-color 0.18s var(--ease), background 0.18s var(--ease);
+  transition: border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
 }
 .scheme-card:hover {
   border-color: var(--stroke-2);
@@ -551,7 +551,7 @@ input[type='range']::-moz-range-thumb {
   background: rgba(4, 8, 16, 0.6);
   color: var(--text-2);
   cursor: pointer;
-  transition: border-color 0.18s var(--ease), background 0.18s var(--ease);
+  transition: border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
 }
 .aim-card:hover {
   border-color: var(--stroke-2);
@@ -605,7 +605,7 @@ input[type='range']::-moz-range-thumb {
   background: rgba(4, 8, 16, 0.6);
   color: var(--text-2);
   cursor: pointer;
-  transition: border-color 0.18s var(--ease), background 0.18s var(--ease);
+  transition: border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
 }
 .hero-card:hover {
   border-color: var(--stroke-2);

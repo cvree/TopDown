@@ -101,7 +101,7 @@
   border-left: 1px solid rgba(120, 90, 40, 0.22);
   background: none;
   cursor: pointer;
-  transition: color 0.18s ease, background 0.2s var(--ease);
+  transition: color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease);
 }
 .pr-tab:first-child {
   border-left: 0;
@@ -114,7 +114,7 @@
   inset: 0;
   background: linear-gradient(180deg, color-mix(in srgb, var(--c) 20%, transparent), transparent 78%);
   opacity: 0;
-  transition: opacity 0.22s var(--ease);
+  transition: opacity var(--dur-3) var(--ease);
   pointer-events: none;
 }
 .pr-tab:hover::before {
@@ -131,7 +131,7 @@
   font-size: 10px;
   letter-spacing: 0.14em;
   color: var(--text-4);
-  transition: color 0.18s ease;
+  transition: color var(--dur-2) var(--ease-out);
 }
 .pr-tab.on .pr-tab-no {
   color: var(--c);
@@ -150,7 +150,7 @@
   color: var(--text-2);
   line-height: 1.15;
   white-space: nowrap;
-  transition: color 0.18s ease, text-shadow 0.22s ease;
+  transition: color var(--dur-2) var(--ease-out), text-shadow var(--dur-3) var(--ease-out);
 }
 .pr-tab-text i {
   font-style: normal;
@@ -210,7 +210,7 @@
   box-shadow: 0 0 14px color-mix(in srgb, var(--c) 85%, transparent);
   transform: scaleX(0);
   opacity: 0;
-  transition: transform 0.26s var(--ease), opacity 0.2s ease;
+  transition: transform var(--dur-3) var(--ease), opacity var(--dur-2) var(--ease-out);
 }
 .pr-tab.on .pr-tab-rule {
   transform: scaleX(1);
@@ -250,7 +250,7 @@
   letter-spacing: 0.2em;
   color: var(--text-3);
   cursor: pointer;
-  transition: color 0.16s ease;
+  transition: color var(--dur-2) var(--ease-out);
 }
 .pr-explain-toggle:hover,
 .pr-explain-toggle:focus-visible {
@@ -260,7 +260,7 @@
   display: inline-block;
   font-size: 9px;
   color: var(--text-4);
-  transition: transform 0.22s var(--ease), color 0.16s ease;
+  transition: transform var(--dur-3) var(--ease), color var(--dur-2) var(--ease-out);
 }
 .pr-explain.open .pr-explain-chevron {
   transform: rotate(90deg);
@@ -269,7 +269,7 @@
 .pr-explain-panel {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.32s var(--ease);
+  transition: grid-template-rows var(--dur-4) var(--ease);
 }
 .pr-explain-inner {
   overflow: hidden;
@@ -401,7 +401,7 @@
   padding: 10px 22px 9px;
   text-align: left;
   border-left: 1px solid rgba(120, 90, 40, 0.28);
-  transition: background 0.18s ease;
+  transition: background var(--dur-2) var(--ease-out);
 }
 .pr-seg-btn:first-child {
   border-left: 0;
@@ -410,7 +410,7 @@
   font-size: 13px;
   letter-spacing: 0.16em;
   color: var(--text-2);
-  transition: color 0.18s ease;
+  transition: color var(--dur-2) var(--ease-out);
 }
 .pr-seg-btn i {
   font-style: normal;
@@ -507,7 +507,7 @@
   /* The card is lit from its own accent, so four cards on one page read as
      four different things before a single word has been read. */
   box-shadow: 0 0 0 0 transparent, 0 -1px 22px -6px color-mix(in srgb, var(--c) 55%, transparent);
-  transition: transform 0.18s var(--ease), box-shadow 0.22s var(--ease), border-color 0.18s ease;
+  transition: transform var(--dur-2) var(--ease), box-shadow var(--dur-3) var(--ease), border-color var(--dur-2) var(--ease-out);
 }
 .pr-card:hover {
   transform: translateY(-2px);
@@ -598,7 +598,7 @@
   border: 1px solid var(--stroke);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012));
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease, box-shadow 0.18s ease;
+  transition: border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out), transform var(--dur-1) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
 .pr-go:hover {
   transform: translateY(-1px);
@@ -733,7 +733,7 @@
   border: 1px solid var(--stroke);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.008));
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+  transition: border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
 .pr-tier:hover {
   transform: translateY(-1px);
@@ -816,7 +816,7 @@
   background:
     radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--c) 14%, transparent), transparent 64%),
     linear-gradient(180deg, rgba(10, 16, 28, 0.66), rgba(4, 9, 18, 0.6));
-  transition: transform 0.16s var(--ease), box-shadow 0.2s var(--ease);
+  transition: transform var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
 }
 .pr-lab-mode:hover {
   transform: translateY(-2px);
@@ -863,7 +863,7 @@
   color: var(--text-2);
   font-size: 9px;
   cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition: border-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
 }
 .pr-lab-step:hover:not(:disabled) {
   border-color: var(--c);
@@ -939,7 +939,7 @@
 .pr-rung {
   height: 3px;
   background: rgba(255, 255, 255, 0.07);
-  transition: background 0.2s ease, box-shadow 0.2s ease;
+  transition: background var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
 .pr-rung.open {
   background: color-mix(in srgb, var(--c) 42%, transparent);
@@ -978,7 +978,7 @@
   color: var(--text-2);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.16s var(--ease), background 0.16s var(--ease), transform 0.16s var(--ease);
+  transition: border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
 }
 .pr-lab-surge {
   /* Its own accent rather than the bench's: SURGE is a different question
@@ -1041,7 +1041,7 @@
     radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--c) 14%, transparent), transparent 64%),
     linear-gradient(180deg, rgba(10, 16, 28, 0.78), rgba(4, 9, 18, 0.72));
   box-shadow: 0 0 0 0 transparent, 0 -1px 22px -6px color-mix(in srgb, var(--c) 55%, transparent);
-  transition: transform 0.2s var(--ease), box-shadow 0.24s var(--ease);
+  transition: transform var(--dur-2) var(--ease), box-shadow var(--dur-3) var(--ease);
 }
 .pr-tile:hover,
 .pr-tile:focus-within {
@@ -1151,7 +1151,7 @@
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--text-3);
-  transition: color 0.15s ease;
+  transition: color var(--dur-2) var(--ease-out);
 }
 .pr-why:hover,
 .pr-why:focus-visible {
@@ -1160,7 +1160,7 @@
 .pr-why-chevron {
   display: inline-block;
   font-size: 9px;
-  transition: transform 0.2s var(--ease);
+  transition: transform var(--dur-2) var(--ease);
 }
 .pr-tile.open .pr-why-chevron {
   transform: rotate(90deg);
@@ -1171,7 +1171,7 @@
 .pr-why-panel {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.26s var(--ease);
+  transition: grid-template-rows var(--dur-3) var(--ease);
 }
 .pr-tile.open .pr-why-panel {
   grid-template-rows: 1fr;
@@ -1358,7 +1358,7 @@
   color: inherit;
   opacity: 0.92;
   transform: scale(0.94);
-  transition: opacity 0.18s ease, transform 0.24s var(--ease);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-3) var(--ease);
   filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.75));
   -webkit-tap-highlight-color: transparent;
 }
@@ -1401,7 +1401,7 @@
   fill: rgba(3, 7, 14, 0.78);
   stroke: rgba(255, 255, 255, 0.3);
   stroke-width: 1.5;
-  transition: fill 0.2s ease, stroke 0.2s ease;
+  transition: fill var(--dur-2) var(--ease-out), stroke var(--dur-2) var(--ease-out);
 }
 .pv:hover .pv-play-disc {
   fill: rgba(3, 7, 14, 0.9);
@@ -1436,12 +1436,12 @@
 }
 .pv-play-glyph {
   fill: #ffffff;
-  transition: opacity 0.14s ease;
+  transition: opacity var(--dur-2) var(--ease-out);
 }
 .pv-play-stop {
   fill: #ffffff;
   opacity: 0;
-  transition: opacity 0.14s ease;
+  transition: opacity var(--dur-2) var(--ease-out);
 }
 .pv.is-live .pv-play-glyph {
   opacity: 0;
@@ -1491,7 +1491,7 @@
   letter-spacing: 0.16em;
   cursor: pointer;
   opacity: 0.75;
-  transition: opacity 0.18s ease;
+  transition: opacity var(--dur-2) var(--ease-out);
   -webkit-tap-highlight-color: transparent;
 }
 .pv-clip svg {
@@ -1521,7 +1521,7 @@
   transform-origin: left;
   background: linear-gradient(90deg, transparent, var(--c));
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--dur-2) var(--ease-out);
 }
 .pv.is-live .pv-bar {
   opacity: 0.85;
@@ -1545,7 +1545,7 @@
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95);
   opacity: 0;
   transform: translateY(-3px);
-  transition: opacity 0.24s ease, transform 0.28s var(--ease);
+  transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease);
   pointer-events: none;
 }
 .pv.is-live .pv-cap {

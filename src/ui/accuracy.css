@@ -29,7 +29,7 @@
   cursor: pointer;
   font: 600 11px/1 var(--ui);
   letter-spacing: 0.12em;
-  transition: background 0.18s var(--ease), border-color 0.18s var(--ease);
+  transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
 }
 .acc-chip b {
   color: var(--t);

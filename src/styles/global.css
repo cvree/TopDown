@@ -61,7 +61,35 @@
   --shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.95);
   --glow: 0 0 40px -8px rgba(200, 170, 110, 0.45);
 
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* ---------------------------------------------------------- motion
+     One language for everything that moves. Five durations, three curves
+     and a stagger; nothing in the client picks its own speed any more.
+
+     Fast in, gentle out: an entrance is a strong ease-out between 180 and
+     320ms, an exit is shorter and softer, and anything that has to *land*
+     — a rank, a record — settles on a spring rather than a curve. The
+     springs are sampled from `src/ui/motion.ts`, so the CSS and the code
+     that animates numbers are the same physics. */
+  --dur-1: 120ms; /* a press, a tick, a number changing */
+  --dur-2: 180ms; /* a hover, an exit, a colour */
+  --dur-3: 240ms; /* an entrance */
+  --dur-4: 320ms; /* a screen, a panel, a larger entrance */
+  --dur-5: 560ms; /* a ceremony beat */
+  --stagger: 45ms;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 0.84, 0.36);
+  /* A settle with a hair of overshoot (1%): things arrive, they do not bounce. */
+  --ease-spring: linear(0, 0.041, 0.134, 0.251, 0.376, 0.497, 0.597, 0.693, 0.773, 0.839, 0.89, 0.927, 0.957, 0.978, 0.993, 1.002, 1.008, 1.011, 1.012, 1.011, 1.008, 1.005, 1.003, 1.001, 1);
+  /* The one spring allowed to overshoot visibly (5%): metal being struck. */
+  --ease-forge: linear(0, 0.059, 0.192, 0.356, 0.522, 0.661, 0.789, 0.889, 0.962, 1.01, 1.037, 1.052, 1.055, 1.052, 1.045, 1.036, 1.027, 1.019, 1.012, 1.006, 1.002, 1, 0.998, 0.997, 0.998, 0.999, 1);
+
+  /* How far things travel on the way in. Calm mode sets both to nothing,
+     which turns every entrance into a plain fade rather than a jump cut. */
+  --rise: 12px;
+  --pop: 0.96;
+
+  --ease: var(--ease-out);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-metal: cubic-bezier(0.16, 1.1, 0.3, 1);
 
@@ -357,6 +385,7 @@ h3 {
   display: flex;
   gap: 0;
   align-self: stretch;
+  position: relative;
 }
 .nav button {
   padding: 0 22px;
@@ -365,7 +394,7 @@ h3 {
   letter-spacing: 0.22em;
   font-family: var(--ui);
   color: var(--text-2);
-  transition: color 0.18s, background 0.18s;
+  transition: color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
   position: relative;
   text-transform: uppercase;
   /* Two-word tabs (WARM UP) stay on one line; the bar wraps, a label does not. */
@@ -377,7 +406,7 @@ h3 {
   inset: 0;
   background: linear-gradient(180deg, rgba(200, 170, 110, 0.16), transparent 70%);
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity var(--dur-2) var(--ease-out);
 }
 .nav button:hover {
   color: var(--gold-hot);
@@ -391,15 +420,19 @@ h3 {
 .nav button.on::before {
   opacity: 1;
 }
-.nav button.on::after {
-  content: '';
+/* One line of gold under the open tab, and it travels between them. */
+.nav-ink {
   position: absolute;
-  left: 14px;
-  right: 14px;
+  left: 0;
   bottom: 0;
+  width: 100px;
   height: 2px;
+  transform-origin: 0 50%;
   background: linear-gradient(90deg, transparent, var(--gold-lit), transparent);
   box-shadow: 0 0 12px rgba(200, 170, 110, 0.9);
+  pointer-events: none;
+  transition:
+    transform var(--dur-4) var(--ease-out), opacity var(--dur-2) var(--ease-out);
 }
 
 /* ---------------------------------------------------------- panels */
@@ -479,7 +512,7 @@ h3 {
   border: 1px solid var(--gold-deep);
   background: linear-gradient(180deg, #16283a, #08131f);
   color: var(--gold);
-  transition: transform 0.09s var(--ease), background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+  transition: transform var(--dur-1) var(--ease), background var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
   position: relative;
   overflow: hidden;
   white-space: nowrap;
@@ -494,7 +527,7 @@ h3 {
   width: 40%;
   background: linear-gradient(90deg, transparent, rgba(240, 230, 210, 0.18), transparent);
   transform: translateX(-160%);
-  transition: transform 0.5s var(--ease);
+  transition: transform var(--dur-5) var(--ease);
 }
 .btn:hover {
   border-color: var(--gold);
@@ -620,7 +653,7 @@ h3 {
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(var(--rise));
   }
   to {
     opacity: 1;
@@ -638,7 +671,7 @@ h3 {
 @keyframes scaleIn {
   from {
     opacity: 0;
-    transform: scale(0.94);
+    transform: scale(var(--pop));
   }
   to {
     opacity: 1;
@@ -697,22 +730,107 @@ h3 {
 }
 
 .fade-up {
-  animation: fadeUp 0.6s var(--ease) both;
+  animation: fadeUp var(--dur-4) var(--ease-out) both;
 }
 .fade-in {
-  animation: fadeIn 0.5s var(--ease) both;
+  animation: fadeIn var(--dur-3) var(--ease-out) both;
 }
 .scale-in {
-  animation: scaleIn 0.5s var(--ease) both;
+  animation: scaleIn var(--dur-3) var(--ease-out) both;
 }
 
+/* ----------------------------------------------------- screen changes
+   A tab is a place, so changing tabs is a short move between two places
+   rather than a reload: the old screen steps back the way you left it
+   and the new one comes in from the side its tab is on. Only the screen
+   moves — the top bar and the arena behind it hold still, which is what
+   makes it read as one client rather than a new page. Driven by the View
+   Transitions API (see `motion.ts`); browsers without it get the plain
+   `fade-up` every screen already has. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+/* Input goes straight through: nothing blocks a click while it animates. */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-group(screen) {
+  animation-duration: var(--dur-4);
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-old(screen) {
+  animation: vtOut var(--dur-2) var(--ease-exit) both;
+}
+::view-transition-new(screen) {
+  animation: vtIn var(--dur-4) var(--ease-out) both;
+}
+@keyframes vtOut {
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--nav-dir, 0) * -18px));
+  }
+}
+@keyframes vtIn {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--nav-dir, 0) * 26px));
+  }
+}
+.shell > .scroll {
+  view-transition-name: screen;
+}
+/* The screen is what arrives, so its own contents do not arrive a second
+   time inside it. Where the browser has no view transitions (or motion is
+   calm) the screen itself fades up instead — the same entrance, once. */
+.shell > .scroll > .wrap.fade-up {
+  animation: none;
+}
+:root:not(.vt-ok) .shell > .scroll {
+  animation: fadeUp var(--dur-4) var(--ease-out) both;
+}
+
+/* ------------------------------------------------------- calm motion
+   Two ways to ask for less: the operating system's reduced-motion switch,
+   and the client's own Reduced effects setting (which puts
+   data-motion="calm" on the root). Both get the same answer — a calm but
+   complete client, not a broken one. Nothing travels; fades stay, short;
+   ceremonies still happen, as a change of state rather than a show.
+   Decorative animation stops outright, and every animation still ends on
+   its final frame, so nothing is left half-drawn. */
+:root[data-motion='calm'] {
+  --rise: 0px;
+  --pop: 1;
+  --dur-4: 200ms;
+  --dur-5: 240ms;
+  --stagger: 0ms;
+}
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --rise: 0px;
+    --pop: 1;
+    --dur-4: 200ms;
+    --dur-5: 240ms;
+    --stagger: 0ms;
+  }
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  /* The primitives, given back as plain fades. */
+  .fade-up,
+  .fade-in,
+  .scale-in,
+  .calm-fade {
+    animation-duration: var(--dur-2) !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
 
@@ -951,7 +1069,7 @@ h3 {
   position: absolute;
   inset: 0 auto 0 0;
   background: var(--c, var(--gold));
-  transition: width 0.5s var(--ease);
+  transition: width var(--dur-5) var(--ease);
 }
 .meter.tall {
   height: 6px;
@@ -968,7 +1086,7 @@ h3 {
   border: 0;
   padding: 4px 0;
   cursor: pointer;
-  transition: color 0.15s;
+  transition: color var(--dur-2) var(--ease-out);
 }
 .link:hover {
   color: var(--gold-hot);

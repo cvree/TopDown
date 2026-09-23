@@ -70,7 +70,7 @@
   background: linear-gradient(160deg, var(--panel-2), var(--panel));
   clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
   padding: 0 22px 16px;
-  transition: border-color 0.18s;
+  transition: border-color var(--dur-2) var(--ease-out);
 }
 .patch-entry.open {
   border-color: var(--stroke-2);
@@ -127,7 +127,7 @@
   border-right: 1.5px solid var(--gold);
   border-bottom: 1.5px solid var(--gold);
   transform: rotate(45deg) translateY(-2px);
-  transition: transform 0.22s var(--ease);
+  transition: transform var(--dur-3) var(--ease);
 }
 .patch-entry.open .pe-chev {
   transform: rotate(225deg) translateY(-2px);
@@ -149,7 +149,7 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-  animation: fadeIn 0.28s var(--ease) both;
+  animation: fadeIn var(--dur-3) var(--ease) both;
 }
 
 .pe-sec-title {
@@ -232,7 +232,7 @@
   font-size: 10.5px;
   letter-spacing: 0.04em;
   white-space: nowrap;
-  transition: color 0.18s, border-color 0.18s, background 0.18s;
+  transition: color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
   clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
 }
 .ver-chip:hover {
@@ -251,7 +251,6 @@
   border-radius: 99px;
   background: var(--accent);
   box-shadow: 0 0 9px var(--accent);
-  animation: pulseGlow 2.2s infinite;
 }
 
 /* The chips share the bar with six nav tabs, a champion and a rank. The

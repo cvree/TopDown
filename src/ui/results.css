@@ -12,7 +12,7 @@
     radial-gradient(760px 520px at 82% 108%, rgba(10, 200, 185, 0.08), transparent 70%),
     linear-gradient(180deg, rgba(3, 10, 18, 0.94), rgba(3, 10, 18, 0.97) 45%, rgba(3, 10, 18, 0.99));
   overflow-y: auto;
-  animation: fadeIn 0.4s var(--ease) both;
+  animation: fadeIn var(--dur-4) var(--ease) both;
 }
 
 .results-inner {
@@ -29,7 +29,7 @@
 .res-actions {
   opacity: 0;
   transform: translateY(18px);
-  transition: opacity 0.55s var(--ease), transform 0.55s var(--ease);
+  transition: opacity var(--dur-5) var(--ease), transform var(--dur-5) var(--ease);
 }
 .res-head.in,
 .res-hero.in,
@@ -245,7 +245,7 @@
   bottom: 0;
   min-width: 2px;
   opacity: 0.9;
-  animation: pulseGlow 1.4s ease-in-out 3;
+  animation: pulseGlow 1.4s var(--ease-out) 3;
 }
 .rr-rank {
   font-family: var(--display);
@@ -399,7 +399,7 @@
   margin-top: 14px;
   opacity: 0;
   transform: translateY(12px);
-  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
+  transition: opacity var(--dur-5) var(--ease), transform var(--dur-5) var(--ease);
 }
 .res-vayne.in {
   opacity: 1;
@@ -497,7 +497,7 @@
   margin-top: 14px;
   opacity: 0;
   transform: translateY(12px);
-  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
+  transition: opacity var(--dur-5) var(--ease), transform var(--dur-5) var(--ease);
 }
 .res-apm.in {
   opacity: 1;
@@ -640,7 +640,7 @@
   margin-bottom: 14px;
   opacity: 0;
   transform: translateY(18px);
-  transition: opacity 0.55s var(--ease), transform 0.55s var(--ease);
+  transition: opacity var(--dur-5) var(--ease), transform var(--dur-5) var(--ease);
 }
 .res-context.in {
   opacity: 1;

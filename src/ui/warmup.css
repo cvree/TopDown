@@ -253,7 +253,7 @@
   background: var(--panel-2);
   color: var(--text);
   cursor: pointer;
-  transition: border-color 0.18s var(--ease), transform 0.18s var(--ease);
+  transition: border-color var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
 }
 .wu-rx-card:hover {
   border-color: var(--c);

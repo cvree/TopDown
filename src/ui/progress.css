@@ -161,7 +161,7 @@
   display: block;
   height: 100%;
   background: linear-gradient(90deg, var(--accent-deep), var(--accent-2));
-  transition: width 0.6s var(--ease);
+  transition: width var(--dur-5) var(--ease);
 }
 .tr-row.done .tr-track > span {
   background: linear-gradient(90deg, rgba(79, 212, 124, 0.4), var(--good));
@@ -206,7 +206,7 @@
   width: 100%;
   padding: 12px 2px;
   text-align: left;
-  transition: background 0.16s;
+  transition: background var(--dur-2) var(--ease-out);
 }
 .err-head:hover {
   background: rgba(200, 170, 110, 0.045);
@@ -249,7 +249,7 @@
 }
 .err-body {
   padding: 4px 2px 20px 36px;
-  animation: fadeUp 0.3s var(--ease) both;
+  animation: fadeUp var(--dur-4) var(--ease) both;
 }
 .err-cols {
   display: grid;

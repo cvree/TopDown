@@ -127,7 +127,7 @@
   border-radius: 2px;
   background: var(--danger);
   box-shadow: 0 0 8px rgba(255, 95, 168, 0.5);
-  transition: background 0.18s ease, box-shadow 0.18s ease;
+  transition: background var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
 .hud-strikes i.spent {
   background: rgba(255, 255, 255, 0.12);
@@ -143,8 +143,10 @@
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.8);
 }
 .hud-time.urgent {
+  /* Red is the whole message. It no longer pulses: the last five seconds
+     are when the fight needs your eyes most, not the clock. */
   color: var(--danger);
-  animation: pulseGlow 0.7s infinite;
+  transition: color var(--dur-3) var(--ease-out);
 }
 .hud-score-row {
   display: flex;
@@ -207,7 +209,7 @@
   line-height: 1;
   margin-top: 3px;
   color: var(--text-1);
-  transition: color 0.4s ease, text-shadow 0.4s ease;
+  transition: color var(--dur-4) var(--ease-out), text-shadow var(--dur-4) var(--ease-out);
 }
 .hud-rung::after {
   display: inline-block;
@@ -255,7 +257,7 @@
      slab lying on the arena, which is exactly what it looks like. */
   text-shadow: 0 0 34px rgba(200, 170, 110, 0.5), 0 2px 6px rgba(2, 5, 11, 0.85), 0 6px 46px rgba(2, 5, 11, 0.6);
   opacity: 0;
-  transition: opacity 0.25s;
+  transition: opacity var(--dur-3) var(--ease-out);
   white-space: nowrap;
   text-align: center;
 }
@@ -274,7 +276,7 @@
   color: var(--gold-hot);
   text-shadow: 0 0 60px rgba(200, 170, 110, 0.6), 0 3px 8px rgba(2, 5, 11, 0.9), 0 10px 54px rgba(2, 5, 11, 0.6);
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity var(--dur-2) var(--ease-out);
 }
 /* A ring struck outward on every tick. A countdown that only swaps a glyph
    reads as a clock; one that hits the screen reads as a start line. */
@@ -294,7 +296,7 @@
   animation: countRing 0.85s var(--ease) 0.09s both;
 }
 .hud-count.tick {
-  animation: countStrike 0.5s var(--ease-in-out) both;
+  animation: countStrike var(--dur-5) var(--ease-in-out) both;
 }
 .hud-count.go {
   font-size: 84px;
@@ -335,7 +337,7 @@
   gap: 8px;
   opacity: 0;
   transform: translateX(14px);
-  transition: opacity 0.2s, transform 0.2s;
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
 }
 .hud-chain.on {
   opacity: calc(0.55 + var(--intensity, 0) * 0.45);
@@ -405,7 +407,7 @@
   height: 100%;
   background: currentColor;
   color: var(--gold);
-  transition: width 0.16s linear;
+  transition: width var(--dur-2) linear;
 }
 
 /* ---------------------------------------------------------- champion frame */
@@ -501,7 +503,7 @@
   width: 100%;
   background: linear-gradient(180deg, #7ef7ac, #3ddc84 48%, #17864b);
   box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.35);
-  transition: width 0.1s linear;
+  transition: width var(--dur-1) linear;
 }
 .cf-hp span.low {
   background: linear-gradient(180deg, #ff9d9d, #e84057 48%, #8d1c2c);
@@ -559,7 +561,7 @@
   height: 100%;
   width: 0;
   background: rgba(160, 155, 140, 0.35);
-  transition: width 0.05s linear;
+  transition: width var(--dur-1) linear;
 }
 .cf-cycle[data-state='windup'] .cf-cycle-fill {
   background: linear-gradient(180deg, #ffe08c, #f0a92c);
@@ -613,7 +615,7 @@
     inset 0 -8px 14px rgba(0, 0, 0, 0.5),
     0 4px 12px -6px #000;
   clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
-  transition: border-color 0.18s, box-shadow 0.18s;
+  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
 .ab-glyph {
   display: grid;
@@ -638,7 +640,7 @@
     transparent calc(var(--cd, 0) * 1turn)
   );
   opacity: 0;
-  transition: opacity 0.1s;
+  transition: opacity var(--dur-1) var(--ease-out);
 }
 .ability.cooling .ab-sweep {
   opacity: 1;
@@ -656,7 +658,7 @@
   opacity: 0;
 }
 .ability.ready .ab-shine {
-  animation: abReady 0.5s var(--ease) both;
+  animation: abReady var(--dur-5) var(--ease) both;
 }
 @keyframes abReady {
   0% {
@@ -669,7 +671,7 @@
   }
 }
 .ability.ready .ab-face {
-  animation: abReadyEdge 0.5s var(--ease) both;
+  animation: abReadyEdge var(--dur-5) var(--ease) both;
 }
 @keyframes abReadyEdge {
   0% {
@@ -800,7 +802,7 @@
   font-weight: 700;
   letter-spacing: 0.2em;
   color: var(--text-3);
-  transition: color 0.2s;
+  transition: color var(--dur-2) var(--ease-out);
 }
 .hud-cam svg {
   width: 13px;
@@ -808,7 +810,7 @@
 }
 .hud-cam .shackle {
   transform-origin: 8px 7px;
-  transition: transform 0.2s var(--ease);
+  transition: transform var(--dur-2) var(--ease);
 }
 .hud-cam.unlocked {
   color: var(--warn);
@@ -918,7 +920,7 @@
 .hud-focus .hud-minimap,
 .hud-focus .hud-cam {
   opacity: 0.55;
-  transition: opacity 0.3s var(--ease);
+  transition: opacity var(--dur-4) var(--ease);
 }
 .hud-focus .hud-minimap:hover {
   opacity: 1;
@@ -940,7 +942,7 @@
   color: var(--gold-hot);
   background: rgba(3, 8, 16, 0.85);
   border: 1px solid var(--stroke);
-  animation: fadeIn 0.16s var(--ease) both;
+  animation: fadeIn var(--dur-2) var(--ease) both;
   pointer-events: none;
 }
 .hud-focus-toast span {
@@ -967,7 +969,7 @@
   font-weight: 700;
   letter-spacing: 0.2em;
   color: var(--text-3);
-  transition: color 0.18s;
+  transition: color var(--dur-2) var(--ease-out);
 }
 .hud-check .kbd {
   font-size: 9px;
@@ -1036,7 +1038,7 @@
   display: block;
   height: 100%;
   background: var(--accent-2);
-  transition: width 0.08s linear;
+  transition: width var(--dur-1) linear;
 }
 .rewind-card span {
   font-size: 11px;

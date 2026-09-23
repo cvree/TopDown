@@ -23,7 +23,7 @@
   letter-spacing: 0.14em;
   margin: 0;
   cursor: text;
-  transition: color 0.2s;
+  transition: color var(--dur-2) var(--ease-out);
 }
 .prof-name:hover {
   color: var(--accent);
@@ -182,7 +182,7 @@
   border-radius: var(--r);
   border: 1px solid var(--stroke);
   background: rgba(255, 255, 255, 0.018);
-  transition: border-color 0.2s, transform 0.15s var(--ease);
+  transition: border-color var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease);
 }
 .best-card:hover {
   border-color: color-mix(in srgb, var(--c) 45%, transparent);

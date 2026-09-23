@@ -41,7 +41,7 @@
   background: linear-gradient(90deg, transparent, var(--rk-glow), transparent);
   transform: translateX(-50%);
   box-shadow: 0 0 30px var(--rk-glow);
-  transition: width 1.1s var(--ease), opacity 0.6s var(--ease);
+  transition: width 1.1s var(--ease), opacity var(--dur-5) var(--ease);
   opacity: 0;
 }
 .rankup.stage-1 .ru-line,
@@ -105,7 +105,7 @@
   color: var(--text-3);
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+  transition: opacity var(--dur-5) var(--ease), transform var(--dur-5) var(--ease);
   margin-bottom: 26px;
 }
 .rankup.stage-1 .ru-eyebrow,
@@ -121,7 +121,7 @@
   opacity: 0;
   transform: scale(0.55) translateY(20px);
   filter: blur(14px);
-  transition: opacity 0.75s var(--ease), transform 0.9s cubic-bezier(0.16, 1.2, 0.3, 1), filter 0.7s var(--ease);
+  transition: opacity 0.75s var(--ease), transform 0.9s cubic-bezier(0.16, 1.2, 0.3, 1), filter var(--dur-5) var(--ease);
 }
 .rankup.stage-3 .ru-emblem,
 .rankup.stage-4 .ru-emblem,
@@ -153,7 +153,7 @@
   color: var(--text-3);
   letter-spacing: 0.14em;
   opacity: 0;
-  transition: opacity 0.7s var(--ease) 0.2s;
+  transition: opacity var(--dur-5) var(--ease) 0.2s;
 }
 .ru-from b {
   color: var(--text-2);
@@ -172,7 +172,7 @@
   gap: 9px;
   opacity: 0;
   transform: translateY(12px);
-  transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+  transition: opacity var(--dur-5) var(--ease), transform var(--dur-5) var(--ease);
 }
 .rankup.stage-4 .ru-details,
 .rankup.stage-5 .ru-details {
@@ -206,7 +206,7 @@
   margin-top: 32px;
   opacity: 0;
   transform: translateY(10px);
-  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+  transition: opacity var(--dur-5) var(--ease), transform var(--dur-5) var(--ease);
   pointer-events: none;
 }
 .rankup.stage-5 .ru-continue {

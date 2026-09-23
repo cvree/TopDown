@@ -4,10 +4,10 @@ import { PALETTE } from '../../engine/palette';
 import { AXIS_SHORT, SKILL_AXES, type SkillAxis } from '../../progression/skills';
 import { rankFromRating, RATING_MAX } from '../../progression/ranks';
 import type { Vec2 } from '../../engine/types';
+import { easeOut, isCalm } from '../motion';
 
-/** True when the viewer has asked their system for less motion. */
-const prefersReducedMotion = (): boolean =>
-  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+/** Calm motion — the OS switch or Reduced effects — gets the number, immediately. */
+const prefersReducedMotion = isCalm;
 
 /** Counts a number up when it enters, because numbers arriving feel earned. */
 export function useCountUp(target: number, duration = 900, delay = 0): number {
@@ -24,7 +24,7 @@ export function useCountUp(target: number, duration = 900, delay = 0): number {
     const tick = (t: number) => {
       if (!start) start = t + delay;
       const p = clamp((t - start) / duration, 0, 1);
-      const eased = 1 - Math.pow(1 - p, 4);
+      const eased = easeOut(p);
       setV(target * eased);
       if (p < 1) raf = requestAnimationFrame(tick);
     };
@@ -243,7 +243,7 @@ export function RankMeter({ progress, label, sub }: { progress: number; label: s
               borderRadius: 2,
               background: i < filled ? 'var(--accent)' : 'rgba(140,190,240,.12)',
               boxShadow: i < filled ? '0 0 10px rgba(88,224,255,.5)' : 'none',
-              transition: `background .4s var(--ease) ${i * 22}ms, box-shadow .4s ${i * 22}ms`,
+              transition: `background var(--dur-4) var(--ease-out) ${i * 22}ms, box-shadow var(--dur-4) var(--ease-out) ${i * 22}ms`,
             }}
           />
         ))}

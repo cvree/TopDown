@@ -18,7 +18,7 @@
   border-left: 2px solid var(--c);
   background: linear-gradient(90deg, color-mix(in srgb, var(--c) 15%, transparent), rgba(6, 13, 24, 0.85) 78%);
   color: var(--c);
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
 }
 .hero-chip:hover {
@@ -46,7 +46,7 @@
   border: 1px solid var(--stroke);
   background: linear-gradient(160deg, var(--panel-2), var(--panel));
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
   clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
 }
 .rank-chip:hover {
@@ -79,11 +79,11 @@
   background:
     radial-gradient(900px 520px at 50% 46%, color-mix(in srgb, var(--c, #c8aa6e) 12%, transparent), transparent 70%),
     rgba(3, 5, 10, 0.96);
-  animation: fadeIn 0.25s var(--ease) both;
+  animation: fadeIn var(--dur-3) var(--ease) both;
 }
 .int-inner {
   text-align: center;
-  animation: fadeUp 0.5s var(--ease) both;
+  animation: fadeUp var(--dur-4) var(--ease) both;
   width: min(560px, 84vw);
 }
 .int-step {
@@ -113,7 +113,7 @@
   text-shadow:
     0 2px 0 rgba(0, 0, 0, 0.8),
     0 0 52px color-mix(in srgb, var(--c, #c8aa6e) 60%, transparent);
-  animation: strike 0.6s var(--ease-in-out) both;
+  animation: strike var(--dur-5) var(--ease-in-out) both;
 }
 .int-inner .ornament {
   margin: 14px auto 16px;
@@ -162,7 +162,7 @@
   margin: 4px auto 0;
   padding: 14px 18px;
   border-left: 3px solid var(--warn, #ffcf6b);
-  animation: fadeUp 0.4s var(--ease) both;
+  animation: fadeUp var(--dur-4) var(--ease) both;
 }
 .gn-mark {
   flex: none;
@@ -229,7 +229,7 @@
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.2em;
-  transition: color 0.16s, border-color 0.16s, background 0.16s;
+  transition: color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
 }
 .gear-chip:hover,
 .gear-chip.on {
@@ -255,7 +255,7 @@
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.2em;
-  transition: color 0.16s, border-color 0.16s, background 0.16s;
+  transition: color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
 }
 .pal-chip:hover {
   color: var(--gold-hot);
@@ -421,7 +421,7 @@
   font-size: 15px;
   font-weight: 700;
   line-height: 1;
-  transition: color 0.16s, border-color 0.16s, background 0.16s, box-shadow 0.16s;
+  transition: color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
 .help-chip:hover {
   color: var(--gold-hot);

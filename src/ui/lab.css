@@ -213,7 +213,7 @@
   letter-spacing: 0.16em;
   color: #ffe7c8;
   cursor: pointer;
-  transition: background 0.15s var(--ease);
+  transition: background var(--dur-2) var(--ease);
 }
 .lab-binds-fix:hover,
 .pr-lab-blocked button:hover {

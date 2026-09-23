@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
 import { newSeed } from '../engine/rng';
 import type { Tape } from '../engine/tape';
@@ -40,6 +40,7 @@ import { Results } from './Results';
 import { Settings } from './Settings';
 import { Welcome, type WelcomeResult } from './Welcome';
 import { WarmUp, type WarmupSummary } from './WarmUp';
+import { setCalm, viewTransition } from './motion';
 import {
   BENCH_DIFFICULTY,
   BENCH_SCENARIOS,
@@ -194,7 +195,22 @@ export function App() {
   profileRef.current = profile;
   // A returning player opens on the warm-up; a new one on the champion, which
   // the walkthrough is about to send them past anyway.
-  const [route, setRoute] = useState<Route>(() => (profile.onboarded ? 'warmup' : 'practice'));
+  const [route, setRouteNow] = useState<Route>(() => (profile.onboarded ? 'warmup' : 'practice'));
+  const routeRef = useRef(route);
+  routeRef.current = route;
+  /**
+   * Go somewhere, as a move rather than a swap: the new screen comes in from
+   * the side its tab is on. Screens outside the tab order (setup, the patch
+   * notes) simply cross-fade.
+   */
+  const setRoute = useCallback((next: Route | ((r: Route) => Route)) => {
+    const to = typeof next === 'function' ? next(routeRef.current) : next;
+    const from = routeRef.current;
+    if (to === from) return;
+    const a = NAV.findIndex((n) => n.route === from);
+    const b = NAV.findIndex((n) => n.route === to);
+    viewTransition(() => setRouteNow(to), a >= 0 && b >= 0 ? Math.sign(b - a) : 0);
+  }, []);
   const [warmSummary, setWarmSummary] = useState<WarmupSummary | null>(null);
   const [benchNote, setBenchNote] = useState<{ eyebrow: string; line: string; tone?: 'good' | 'warn' } | null>(null);
   const [flow, setFlow] = useState<Flow | null>(null);
@@ -246,6 +262,9 @@ export function App() {
     audio.negativeSfx = profile.settings.negativeFeedback === true;
     audio.applyVolumes();
   }, [profile.settings]);
+
+  // Reduced effects is also a request for calm motion; so is the OS switch.
+  useEffect(() => setCalm(profile.settings.lowFx), [profile.settings.lowFx]);
 
   // Opened once, on the frame the client is entered, and never again — the
   // profile is marked the moment it is dismissed either way.
@@ -540,7 +559,7 @@ export function App() {
     setResults(null);
     setRankUp(null);
     setFlow(null);
-    setRoute('warmup');
+    setRouteNow('warmup');
     audio.play('personalBest');
   }, []);
 
@@ -703,7 +722,7 @@ export function App() {
       return next;
     });
     setTour(null);
-    setRoute('lab');
+    setRouteNow('lab');
   }, []);
 
   const skipTour = useCallback(() => {
@@ -715,7 +734,7 @@ export function App() {
   const doReset = useCallback(() => {
     resetProfile();
     setProfile(newProfile());
-    setRoute('practice');
+    setRouteNow('practice');
     // A wiped profile has never been onboarded, so the walkthrough is the
     // right first screen again — the same one a new player gets.
     setTour('first');
@@ -867,6 +886,7 @@ export function App() {
                   {n.label}
                 </button>
               ))}
+              <NavInk index={NAV.findIndex((n) => n.route === route)} />
             </nav>
 
             <div className="topbar-right">
@@ -985,6 +1005,39 @@ export function App() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The line under the open tab, as one piece of gold that travels.
+ *
+ * It used to be drawn by each tab for itself, so changing tabs was one line
+ * vanishing and another appearing somewhere else. One line that slides from
+ * the tab you left to the tab you chose says where you went. Transform only:
+ * it is positioned with a translate and sized with a scale off a 100px base.
+ */
+function NavInk({ index }: { index: number }) {
+  const ref = useRef<HTMLElement>(null);
+  const [box, setBox] = useState<{ x: number; w: number } | null>(null);
+  useLayoutEffect(() => {
+    const nav = ref.current?.parentElement;
+    if (!nav) return;
+    const measure = () => {
+      const b = index >= 0 ? nav.querySelectorAll('button')[index] : null;
+      setBox(b ? { x: b.offsetLeft + 14, w: Math.max(0, b.offsetWidth - 28) } : null);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(nav);
+    return () => ro.disconnect();
+  }, [index]);
+  return (
+    <i
+      ref={ref}
+      className="nav-ink"
+      aria-hidden
+      style={box ? { transform: `translateX(${box.x}px) scaleX(${box.w / 100})` } : { opacity: 0 }}
+    />
   );
 }
 
