@@ -182,6 +182,19 @@ const hostileProfile = (): Record<string, unknown> => ({
   dailyMarks: null,
   errorLog: [{ code: 'NOT_A_CODE', drill: 'movement', t: Date.now(), count: 1, rate: 0.5 }, null],
   recentBests: null,
+  // The warm-up ledger, wrong in every way it can be: a streak as text, a
+  // freeze bank past its cap, a reaction record with junk runs, sessions with
+  // a date that is not one and a drill that does not exist.
+  warmup: {
+    streak: 'seven',
+    bestStreak: -3,
+    freezes: 9,
+    lastDate: 'yesterday',
+    frozen: ['2026-01-01', 12],
+    reaction: { visual: { best: 'fast', runs: [null, { median: 'x' }, { median: 250, t: 1 }] }, choice: null, nope: { best: 1 } },
+    sessions: [null, { date: 'monday' }, { date: '2026-09-01', focus: 'notADrill', reps: [{ drill: 'vayneTumble', score: '9', performance: 4 }, null], day: 'weird' }],
+  },
+  bench: { range: { best: 'lots' }, tumble: { best: 50000, runs: 'two' }, notABench: { best: 1 } },
 });
 
 /* ---------------------------------------------------------------- helpers */
@@ -545,6 +558,23 @@ section('A lane run is recorded against the opponent it was played against', () 
   expect('nothing lands on a tier that was not played', p.lane.tiers.iron.runs === 0, `${p.lane.tiers.iron.runs}`);
 });
 
+section('The warm-up ledger survives a profile that is wrong about it', () => {
+  const p = load(hostileProfile());
+  const w = p.warmup;
+  expect('a streak stored as a word comes back as zero', w.streak === 0, `${w.streak}`);
+  expect('the freeze bank is capped', w.freezes === 2, `${w.freezes}`);
+  expect('a last date that is not a date is dropped', w.lastDate === null, `${w.lastDate}`);
+  expect('only real dates survive in the freeze list', w.frozen.length === 1, w.frozen.join());
+  expect('junk reaction runs are dropped and the best rebuilt', w.reaction.visual.runs.length === 1 && w.reaction.visual.best === 250, `${w.reaction.visual.best}`);
+  expect('a missing reaction record comes back empty', w.reaction.choice.runs.length === 0 && w.reaction.choice.best === null, 'choice');
+  expect('sessions without a real date are dropped', w.sessions.length === 1, `${w.sessions.length}`);
+  expect('a session keeps its real reps and clamps them', w.sessions[0].reps.length === 1 && w.sessions[0].reps[0].performance === 1 && w.sessions[0].reps[0].score === 9, JSON.stringify(w.sessions[0].reps));
+  expect('and a focus that is not a mode is forgotten', w.sessions[0].focus === null && w.sessions[0].day === 'unknown', `${w.sessions[0].focus}`);
+  expect('benchmark junk is dropped and good records kept', p.bench.range === undefined && p.bench.tumble?.best === 50000 && p.bench.tumble?.runs === 1, JSON.stringify(p.bench));
+  expect('a new profile has an empty warm-up', newProfile().warmup.streak === 0 && newProfile().warmup.sessions.length === 0, 'not empty');
+  expect('a profile from before the warm-up gets one', load(legacyProfile()).warmup.reaction.visual.runs.length === 0, 'legacy');
+});
+
 line('\n=== Every screen that reads a profile draws it, on every profile ===');
 
 // The screens are imported lazily and typed loosely on purpose: this is a
@@ -552,13 +582,32 @@ line('\n=== Every screen that reads a profile draws it, on every profile ===');
 // different set of callbacks it never calls here.
 const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
   const noop = () => undefined;
-  const [{ Practice, SECTION_IDS }, { Lab }, { Progress }] =
+  const [{ Practice, SECTION_IDS }, { Lab }, { Progress }, { WarmUp }, { AccuracyReport }] =
     await Promise.all([
       import('../src/ui/Practice'),
       import('../src/ui/Lab'),
       import('../src/ui/Progress'),
+      import('../src/ui/WarmUp'),
+      import('../src/ui/AccuracyReport'),
     ]);
   return [
+    // The screen a returning player opens on: the routine, the reaction
+    // records, the benchmark sheet — all three read the warm-up ledger.
+    [
+      'WARM UP',
+      (profile) =>
+        createElement(WarmUp as any, {
+          profile,
+          settings: profile.settings,
+          summary: null,
+          onDismissSummary: noop,
+          onStart: noop,
+          onReaction: noop,
+          onBench: noop,
+          onCode: noop,
+        }),
+    ],
+    ['THE CODEX · ACCURACY', () => createElement(AccuracyReport as any, {})],
     // Every tab, not only the one a fresh mount opens on. Each section reads a
     // different corner of a stored profile and is only rendered while its own
     // tab is open — so a check that drew the default tab would be checking the

@@ -27,11 +27,19 @@ interface Props {
   onExit: () => void;
   onNext?: () => void;
   nextLabel?: string;
+  /**
+   * The run's scenario code, or null for a run that cannot have one. Printed
+   * so a minute worth sending to somebody is one copy away from being sent.
+   */
+  code?: string | null;
+  /** A line of context above the buttons: which warm-up step, which benchmark. */
+  banner?: { eyebrow: string; line: string; tone?: 'good' | 'warn' } | null;
 }
 
 const REVEAL = [0, 220, 520, 900, 1250, 1600];
 
-export function Results({ result, report, bounds, onRetry, onExit, onNext, nextLabel }: Props) {
+export function Results({ result, report, bounds, onRetry, onExit, onNext, nextLabel, code, banner }: Props) {
+  const [copied, setCopied] = useState(false);
   const meta = DRILLS[result.drill];
   const [stage, setStage] = useState(0);
   const score = useCountUp(result.score, 1100, 150);
@@ -622,6 +630,34 @@ SURGE keeps its own record. The difficulty moved while you played, so this does
             )}
           </div>
         </div>
+
+        {(banner || code) && (
+          <div className={`res-context ${stage >= 5 ? 'in' : ''}`}>
+            {banner && (
+              <div className={`res-banner${banner.tone ? ` ${banner.tone}` : ''}`}>
+                <span className="eyebrow">{banner.eyebrow}</span>
+                <b>{banner.line}</b>
+              </div>
+            )}
+            {code && (
+              <button
+                type="button"
+                className="res-code"
+                title="Copy this scenario code — the same start for anybody who pastes it into WARM UP"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(code).then(
+                    () => setCopied(true),
+                    () => setCopied(false),
+                  );
+                  audio.play('uiClick');
+                }}
+              >
+                <span className="eyebrow">{copied ? 'Copied' : 'Scenario code'}</span>
+                <code className="mono">{code}</code>
+              </button>
+            )}
+          </div>
+        )}
 
         <div className={`res-actions ${stage >= 5 ? 'in' : ''}`}>
           <button className="btn primary lg" onClick={onRetry}>

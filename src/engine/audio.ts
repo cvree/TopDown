@@ -209,6 +209,38 @@ export class AudioEngine {
     this.ensure();
   }
 
+  /**
+   * The reaction test's tone, and the moment it will actually be heard.
+   *
+   * Scheduled a little ahead on the audio clock rather than played "now",
+   * because "now" on the audio thread is a buffer away from "now" on the
+   * page. The returned time is in `performance.now()` terms and includes the
+   * output latency the browser admits to, so a reaction is measured from the
+   * sound rather than from the line of code that asked for it. Null when there
+   * is no audio, or the player has muted it — a hearing test with the sound
+   * off would measure nothing.
+   */
+  reactionCue(): number | null {
+    if (this.muted) return null;
+    const ctx = this.ensure();
+    if (!ctx || !this.sfxBus) return null;
+    const lead = 0.05;
+    const t0 = ctx.currentTime + lead;
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(880, t0);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0 - 0.001);
+    g.gain.setValueAtTime(0.16, t0);
+    g.gain.setValueAtTime(0.16, t0 + 0.14);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
+    osc.connect(g).connect(this.sfxBus);
+    osc.start(t0 - 0.002);
+    osc.stop(t0 + 0.22);
+    const latency = (ctx as AudioContext & { outputLatency?: number }).outputLatency || ctx.baseLatency || 0;
+    return performance.now() + (lead + latency) * 1000;
+  }
+
   applyVolumes(): void {
     if (this.master) this.master.gain.value = this.muted ? 0 : this.masterVolume;
     if (this.sfxBus) this.sfxBus.gain.value = this.sfxVolume;
