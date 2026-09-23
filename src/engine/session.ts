@@ -229,6 +229,16 @@ export class Session {
   banner: string | null = null;
   bannerTime = 0;
 
+  /**
+   * What this run actually put in front of the player, counted.
+   *
+   * Presentation only — nothing reads it back into the simulation. It exists
+   * so the harness can hold the arena to a budget: a banner a minute and a
+   * number over every fight are the two ways a trainer turns into a
+   * notification feed, and neither is visible in a score.
+   */
+  readonly shown = { banners: 0, floats: 0, peakFloats: 0 };
+
   cursorWorld: Vec2 = { x: 0, y: 0 };
   hoverTargetId: number | null = null;
   pathTrail: Vec2[] = [];
@@ -1058,11 +1068,14 @@ export class Session {
 
   micro(text: Micro | string, at: Vec2, color: string = PALETTE.playerCore): void {
     this.fx.text(at.x, at.y - 52, text, color, 19, 700);
+    this.shown.floats++;
+    this.shown.peakFloats = Math.max(this.shown.peakFloats, this.fx.texts.length);
   }
 
   setBanner(text: string, seconds = 1.4): void {
     this.banner = text;
     this.bannerTime = seconds;
+    this.shown.banners++;
   }
 
   // -------------------------------------------------------------------- hud

@@ -5436,6 +5436,29 @@ line('\n=== LANE REPORT: every trade, the level race, and why she did it ===');
   expect('and a plan held for under a second is left out', !spans.some((x) => x.plan === 'allIn'), 'kept');
 }
 
+line('\n=== CALM: what a run puts on screen, per minute ===');
+{
+  // The arena is the product and the HUD is the frame around it, so the
+  // amount of text a run throws over the fight is a property worth holding
+  // to a number. Counted from the session's own tally of what it showed —
+  // presentation only; none of this reaches a score.
+  const calm: [string, DrillId, Policy, MovementScheme, number, RunOpts][] = [
+    ['lane', 'lanePhase', 'laneFarm', 'click', LANE_TIERS[4].difficulty, { seconds: 150 }],
+    ['sheriff', 'caitlynDodge', 'caitlyn', 'click', 0.35, {}],
+    ['card wheel', 'tfPick', 'twisted', 'wasd', 0.5, {}],
+    ['tumble', 'vayneTumble', 'vayneTumble', 'click', 0.5, {}],
+  ];
+  for (const [label, id, pol, sch, diff, opts] of calm) {
+    const r = runDrill(id, pol, diff, 7, sch, 'hands', opts);
+    const mins = Math.max(1 / 60, r.session.elapsed / 60);
+    const sh = r.session.shown;
+    line(
+      `  ${label.padEnd(10)} ${(sh.banners / mins).toFixed(1).padStart(5)} banners/min  ${(sh.floats / mins).toFixed(1).padStart(6)} floats/min  peak ${sh.peakFloats} at once  (${r.session.elapsed.toFixed(0)}s)`,
+    );
+    expect(`${label}: the tally is counting`, sh.banners + sh.floats > 0, 'nothing shown at all');
+  }
+}
+
 line(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}\n`);
 void GameLoop;
 process.exit(failures === 0 ? 0 : 1);

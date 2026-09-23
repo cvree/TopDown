@@ -488,6 +488,26 @@ export function App() {
     [flow],
   );
 
+  // The ceremony, on demand — for the recorder and nobody else. Off unless
+  // ?debug is present, exactly like the arena's own handle, so it never ships
+  // as a stray global and never touches a record: it only puts the overlay up.
+  useEffect(() => {
+    if (typeof location === 'undefined' || !location.search.includes('debug')) return;
+    const w = window as unknown as { __apexShow?: unknown };
+    w.__apexShow = {
+      rankUp: (fromRating: number, toRating: number) =>
+        setRankUp({
+          from: rankFromRating(fromRating),
+          to: rankFromRating(toRating),
+          driver: { axis: 'movement', delta: Math.round(toRating - fromRating) },
+          headline: null,
+        }),
+    };
+    return () => {
+      delete w.__apexShow;
+    };
+  }, []);
+
   /** Go back inside this run: remount it rebuilt to `steps`, same seed. */
   const onRewind = useCallback((tape: Tape, steps: number) => {
     setResults(null);
