@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { audio } from '../engine/audio';
 import { CONFIDENCES, FACTS, FACT_GROUPS, PATCH, factTally, type Confidence } from '../engine/patch';
+import { LegalNotice } from './components/LegalNotice';
 import './accuracy.css';
 
 /**
@@ -125,6 +126,7 @@ export function AccuracyReport() {
         threshold needs one Practice Tool lane logged minion by minion. Until then they say NOT FOUND,
         because a plausible number printed as a fact is worse than a gap.
       </p>
+      <LegalNotice />
     </section>
   );
 }

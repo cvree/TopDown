@@ -35,6 +35,7 @@ import {
   type WarmupSession,
 } from '../progression/warmup';
 import { ReactionTest } from './ReactionTest';
+import { LegalNotice } from './components/LegalNotice';
 import './warmup.css';
 
 /**
@@ -196,6 +197,7 @@ export function WarmUp({ profile, settings, summary, onDismissSummary, onStart, 
         <BenchSheet profile={profile} onBench={onBench} onTest={(t) => setTesting({ test: t, calibrate: false })} />
 
         <CodeBox onCode={onCode} />
+        <LegalNotice />
       </div>
 
       {testing && (
