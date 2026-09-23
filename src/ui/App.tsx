@@ -40,7 +40,7 @@ import { Results } from './Results';
 import { Settings } from './Settings';
 import { Welcome, type WelcomeResult } from './Welcome';
 import { WarmUp, type WarmupSummary } from './WarmUp';
-import { setCalm, viewTransition } from './motion';
+import { isCalm, setCalm, viewTransition } from './motion';
 import { launch, trackLaunches } from './launch';
 import {
   BENCH_DIFFICULTY,
@@ -251,6 +251,8 @@ export function App() {
    * a grid of thirteen cards written in a vocabulary they have not been given.
    */
   const [tour, setTour] = useState<'first' | 'replay' | null>(null);
+  /** Moves whenever the results on screen are left, so a pending rank-up knows it is stale. */
+  const rankToken = useRef(0);
   const saveTimer = useRef(0);
 
   // Persist, but never on the frame a run ends — writes are debounced so a
@@ -474,6 +476,10 @@ export function App() {
         bench: Object.fromEntries(Object.entries(prev.bench).map(([k, v]) => [k, v && { ...v }])),
       };
       const report: ProgressReport = applyRun(next, result, flow.level ? { level: flow.level } : {});
+      // A new record is shown landing in its row the next time PROGRESS is
+      // opened, once. Remembered by the run's own timestamp.
+      const newest = next.history[next.history.length - 1];
+      if (report.newBestScore && newest) next.freshRecords = [...prev.freshRecords.slice(-9), newest.t];
       // A benchmark is only a benchmark on its own terms: its seed, its
       // difficulty, one minute. A run that was re-rolled or reset is not.
       const b = flow.bench ? benchFor(result.drill, result.seed) : null;
@@ -509,14 +515,24 @@ export function App() {
             null,
           );
           const head = result.keyMetrics[0];
-          setRankUp({
-            from: rep.rankBefore,
-            to: rep.rankAfter,
-            driver,
-            headline: head
-              ? { label: `Best ${head.label.toLowerCase()}`, value: formatHead(head.value, head.format) }
-              : null,
-          });
+          // After the number has landed, not over it: one voice at a time.
+          // Anything that leaves these results first — a retry, the next
+          // run, the menu — cancels it.
+          const token = rankToken.current;
+          window.setTimeout(
+            () => {
+              if (rankToken.current !== token) return;
+              setRankUp({
+                from: rep.rankBefore,
+                to: rep.rankAfter,
+                driver,
+                headline: head
+                  ? { label: `Best ${head.label.toLowerCase()}`, value: formatHead(head.value, head.format) }
+                  : null,
+              });
+            },
+            isCalm() ? 0 : 1300,
+          );
         }
       }, 0);
     },
@@ -552,6 +568,7 @@ export function App() {
   const onRewind = useCallback((tape: Tape, steps: number, still: string | null) => {
     setResults(null);
     setRankUp(null);
+    rankToken.current++;
     setFlow((f) => (f ? { ...f, rewind: { tape, steps, still }, rewinds: (f.rewinds ?? 0) + 1 } : f));
   }, []);
 
@@ -559,6 +576,7 @@ export function App() {
     if (!flow) return;
     setResults(null);
     setRankUp(null);
+    rankToken.current++;
     setBenchNote(null);
     setFlow({ ...fresh(flow), seed: flow.fixedSeed ? flow.seed : newSeed() });
   }, [flow]);
@@ -579,6 +597,7 @@ export function App() {
     setWarmSummary({ session: done.session, ...done.streak, streak: next.warmup.streak, previous });
     setResults(null);
     setRankUp(null);
+    rankToken.current++;
     setFlow(null);
     setRouteNow('warmup');
     audio.play('personalBest');
@@ -593,6 +612,7 @@ export function App() {
     }
     setResults(null);
     setRankUp(null);
+    rankToken.current++;
     setFlow(null);
     audio.play('uiBack');
   }, [flow, finishWarm]);
@@ -618,6 +638,7 @@ export function App() {
       const step = w.plan.steps[next];
       setResults(null);
       setRankUp(null);
+      rankToken.current++;
       setFlow({
         drill: step.drill ?? w.plan.focus,
         mode: 'play',
@@ -635,6 +656,7 @@ export function App() {
       if (nb?.drill && nb.seed !== undefined) {
         setResults(null);
         setRankUp(null);
+        rankToken.current++;
         setBenchNote(null);
         setFlow({ drill: nb.drill, mode: 'play', seed: nb.seed, fixedSeed: true, difficulty: BENCH_DIFFICULTY, bench: nb.id });
         return;
@@ -642,6 +664,7 @@ export function App() {
     }
     setResults(null);
     setRankUp(null);
+    rankToken.current++;
     if (flow.drill === 'lanePhase') {
       const i = LANE_TIERS.findIndex((t) => t.id === laneTierOf(flow.difficulty ?? 0.32).id);
       const next = LANE_TIERS[Math.min(LANE_TIERS.length - 1, i + 1)];
@@ -1011,6 +1034,9 @@ export function App() {
             {route === 'progress' && (
               <Progress
                 profile={profile}
+                onRecordsSeen={(seen: number[]) =>
+                  setProfile((p) => ({ ...p, freshRecords: p.freshRecords.filter((t) => !seen.includes(t)) }))
+                }
                 onRename={(name: string) => setProfile((p) => ({ ...p, name }))}
                 onReset={doReset}
                 // Progress still diagnoses in terms of the whole catalogue of

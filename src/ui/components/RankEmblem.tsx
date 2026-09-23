@@ -6,6 +6,12 @@ interface Props {
   size?: number;
   /** Adds the light sweep and glow used in the rank-up moment. */
   animated?: boolean;
+  /**
+   * Struck rather than shown: the plate, the bevel, the sigil and the crown
+   * each arrive a hair out of place and settle into it on a spring, a stagger
+   * apart, as the edge light crosses — metal finding its shape.
+   */
+  forging?: boolean;
   dim?: boolean;
 }
 
@@ -14,7 +20,7 @@ interface Props {
  * cleanly, tints per tier, and can be animated for the promotion moment.
  * Complexity increases with class: Foundation is a bare plate, Apex is crowned.
  */
-export function RankEmblem({ tier, size = 120, animated = false, dim = false }: Props) {
+export function RankEmblem({ tier, size = 120, animated = false, forging = false, dim = false }: Props) {
   const c = RANK_COLORS[tier] ?? RANK_COLORS.FOUNDATION;
   const idx = [
     'FOUNDATION',
@@ -39,6 +45,7 @@ export function RankEmblem({ tier, size = 120, animated = false, dim = false }: 
       width={size}
       height={size}
       viewBox="0 0 120 120"
+      className={forging ? 'rk-forging' : undefined}
       style={{
         overflow: 'visible',
         opacity: dim ? 0.55 : 1,
@@ -68,13 +75,14 @@ export function RankEmblem({ tier, size = 120, animated = false, dim = false }: 
       <circle cx="60" cy="60" r="58" fill={`url(#${uid}-halo)`} />
 
       {winged && (
-        <g opacity="0.85">
+        <g opacity="0.85" className="rk-wings">
           <path d="M14 44 L2 52 L14 58 Z" fill={c.base} opacity="0.8" />
           <path d="M106 44 L118 52 L106 58 Z" fill={c.base} opacity="0.8" />
         </g>
       )}
 
       {/* Plate */}
+      <g className="rk-plate">
       <path
         d="M60 6 L104 30 L104 74 L60 114 L16 74 L16 30 Z"
         fill={`url(#${uid}-body)`}
@@ -90,9 +98,11 @@ export function RankEmblem({ tier, size = 120, animated = false, dim = false }: 
         strokeLinejoin="round"
         opacity="0.25"
       />
+      </g>
 
       {/* Inner bevel */}
       <path
+        className="rk-bevel"
         d="M60 18 L94 37 L94 70 L60 101 L26 70 L26 37 Z"
         fill="rgba(0,0,0,.34)"
         stroke={c.glow}
@@ -101,7 +111,7 @@ export function RankEmblem({ tier, size = 120, animated = false, dim = false }: 
       />
 
       {/* Sigil: a rising chevron stack. */}
-      <g clipPath={`url(#${uid}-clip)`}>
+      <g clipPath={`url(#${uid}-clip)`} className="rk-sigil">
         {Array.from({ length: chevrons + 1 }).map((_, i) => (
           <path
             key={i}
@@ -121,13 +131,14 @@ export function RankEmblem({ tier, size = 120, animated = false, dim = false }: 
             height="120"
             fill="rgba(255,255,255,.5)"
             transform="skewX(-18)"
-            style={{ animation: 'sweep 1.6s var(--ease) 0.35s both' }}
+            style={{ animation: 'sweep 0.9s var(--ease-out) 0.12s both' }}
           />
         )}
       </g>
 
       {crowned && (
         <path
+          className="rk-crown"
           d="M42 20 L50 10 L60 18 L70 10 L78 20 Z"
           fill={c.glow}
           stroke={c.metal}

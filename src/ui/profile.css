@@ -285,3 +285,66 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ------------------------------------------------------ a record, landing
+   A run that set a new best is shown arriving in its row the first time the
+   row is on screen after the run: the number drops in from above, a size
+   too large, and rings into place on the forge spring; a thread of gold
+   runs under it once; the tag says what it was. Then never again. */
+.rec-cell {
+  position: relative;
+}
+.rec-score {
+  display: inline-block;
+}
+.rec-tag {
+  margin-left: 10px;
+  font-style: normal;
+  font-family: var(--display);
+  font-size: 8.5px;
+  letter-spacing: 0.22em;
+  color: var(--warn);
+  opacity: 0;
+}
+.run-table tr.fresh.land .rec-score {
+  color: var(--gold-hot);
+  animation: recordLand var(--dur-5) var(--ease-forge) both;
+}
+.run-table tr.fresh.land .rec-tag {
+  animation: fadeIn var(--dur-3) var(--ease-out) var(--dur-4) both;
+}
+.run-table tr.fresh.land .rec-cell::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-lit), transparent);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  animation: recordThread 1.2s var(--ease-out) var(--dur-3) both;
+}
+@keyframes recordLand {
+  from {
+    opacity: 0;
+    transform: translate(calc(var(--rise) * -2), calc(var(--rise) * -2.4)) scale(calc(1 + (1 - var(--pop)) * 16));
+  }
+  35% {
+    opacity: 1;
+  }
+}
+@keyframes recordThread {
+  0% {
+    opacity: 1;
+    transform: scaleX(0);
+  }
+  55% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}

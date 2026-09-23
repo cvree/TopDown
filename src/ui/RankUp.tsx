@@ -21,6 +21,12 @@ interface Props {
  * Restraint is the whole design: the arena freezes, the light drains out of
  * the frame, and one object arrives. No coins, no confetti — the feeling
  * should be that something was certified, not that a slot machine paid out.
+ *
+ * And it is *struck*, not faded in. The rank you had sits in the light while
+ * the build rises; on the hit it breaks in two and falls away, and the new
+ * one is forged where it stood — an edge of light crossing it, its plate,
+ * bevel, sigil and crown settling into place a stagger apart on a spring.
+ * Every beat is timed to the two sounds that were already here.
  */
 export function RankUp({ from, to, driver, headline, onDone }: Props) {
   const [stage, setStage] = useState(0);
@@ -63,15 +69,27 @@ export function RankUp({ from, to, driver, headline, onDone }: Props) {
       }
       onClick={() => stage >= 4 && onDone()}
     >
+      <div className="ru-dark" />
       <div className="ru-vignette" />
       <div className="ru-line" />
-      <div className="ru-rays" />
+      <div className="ru-flare" />
 
       <div className="ru-stack">
         <div className="ru-eyebrow">{demotion ? 'RANK ADJUSTED' : 'RANK ACHIEVED'}</div>
 
-        <div className="ru-emblem">
-          <RankEmblem tier={to.tier} size={190} animated={stage >= 3} />
+        <div className="ru-forge">
+          {/* The rank you had, until the hit — then it breaks and falls away. */}
+          <div className="ru-old" aria-hidden>
+            <span className="ru-half l">
+              <RankEmblem tier={from.tier} size={190} dim />
+            </span>
+            <span className="ru-half r">
+              <RankEmblem tier={from.tier} size={190} dim />
+            </span>
+          </div>
+          <div className="ru-emblem">
+            {stage >= 3 && <RankEmblem tier={to.tier} size={190} animated forging />}
+          </div>
         </div>
 
         <div className="ru-tier display">{to.label}</div>

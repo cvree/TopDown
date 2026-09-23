@@ -326,6 +326,12 @@ export interface Profile {
    * player rather than once per run; this is where "once" is remembered.
    */
   taught: string[];
+  /**
+   * Runs that set a new best score and have not yet been seen landing in
+   * PROGRESS, by their history timestamp. Each is shown arriving in its row
+   * once, the next time the screen is opened, and then forgotten.
+   */
+  freshRecords: number[];
   ratings: Record<SkillAxis, number>;
   samples: Record<SkillAxis, number>;
   overall: number;
@@ -450,6 +456,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   // current version so its first session is not decorated with "NEW" marks.
   seenVersion: VERSION,
   taught: [],
+  freshRecords: [],
   ratings: zeroAxis(0),
   samples: zeroAxis(0),
   overall: 0,
@@ -576,6 +583,9 @@ export const loadProfile = (): Profile => {
       // at worst a rule gets explained one more time.
       taught: Array.isArray(parsed.taught)
         ? parsed.taught.filter((k: unknown): k is string => typeof k === 'string' && k.length < 64).slice(0, 200)
+        : [],
+      freshRecords: Array.isArray(parsed.freshRecords)
+        ? parsed.freshRecords.filter((t: unknown): t is number => typeof t === 'number' && Number.isFinite(t)).slice(-10)
         : [],
       // Today's completed list is a list of drill ids like any other, and a
       // stale one in it would strike the plan's ticks out against nothing.

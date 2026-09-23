@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { formatMetric, type Profile } from '../progression/profile';
@@ -38,9 +38,11 @@ interface Props {
   onRename: (name: string) => void;
   onReset: () => void;
   onPlay: (id: DrillId) => void;
+  /** Records that have now been seen landing, so they never land again. */
+  onRecordsSeen?: (seen: number[]) => void;
 }
 
-export function Progress({ profile, onRename, onReset, onPlay }: Props) {
+export function Progress({ profile, onRename, onReset, onPlay, onRecordsSeen }: Props) {
   const rank = rankFromRating(profile.overall);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(profile.name);
@@ -80,6 +82,38 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
   }, [profile]);
 
   const sessions = useMemo(() => sessionHistory(profile, 8), [profile]);
+
+  // New records land in their rows — once, when the row is first on screen,
+  // and never again. Read at open, so marking them seen does not cancel the
+  // animation that is playing.
+  const recentRef = useRef<HTMLTableSectionElement>(null);
+  const [fresh] = useState(() => new Set(profile.freshRecords));
+  const seenRef = useRef(onRecordsSeen);
+  seenRef.current = onRecordsSeen;
+  useEffect(() => {
+    if (!fresh.size) return;
+    const shown = new Set(profile.history.slice(-12).map((h) => h.t));
+    // A record already too far down the list to be drawn will never land.
+    const lost = [...fresh].filter((t) => !shown.has(t));
+    if (lost.length) seenRef.current?.(lost);
+    const rows = recentRef.current?.querySelectorAll<HTMLTableRowElement>('tr.fresh');
+    if (!rows?.length || typeof IntersectionObserver !== 'function') return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          const row = e.target as HTMLTableRowElement;
+          io.unobserve(row);
+          row.classList.add('land');
+          seenRef.current?.([Number(row.dataset.t)]);
+        }
+      },
+      { threshold: 0.9 },
+    );
+    rows.forEach((r) => io.observe(r));
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const topPct = 1 - percentileForRating(profile.overall);
 
   return (
@@ -501,14 +535,17 @@ export function Progress({ profile, onRename, onReset, onPlay }: Props) {
                   <th>When</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody ref={recentRef}>
                 {[...profile.history]
                   .reverse()
                   .slice(0, 12)
                   .map((h, i) => (
-                    <tr key={i}>
+                    <tr key={i} className={fresh.has(h.t) ? 'fresh' : undefined} data-t={h.t}>
                       <td style={{ color: DRILLS[h.drill].accent }}>{DRILLS[h.drill].name}</td>
-                      <td className="mono">{h.score.toLocaleString()}</td>
+                      <td className="mono rec-cell">
+                        <span className="rec-score">{h.score.toLocaleString()}</span>
+                        {fresh.has(h.t) && <em className="rec-tag">NEW BEST</em>}
+                      </td>
                       <td>
                         <div className="tiny-bar">
                           <span style={{ width: `${Math.round(h.performance * 100)}%` }} />
