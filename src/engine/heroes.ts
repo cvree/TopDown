@@ -21,7 +21,7 @@ import type { Build, HeadKind, WeaponKind } from '../gfx/champions';
  *    does.
  *  - The modes that field a *named* champion are the exception, and they
  *    override in the other direction: the Vayne path, the card path, the
- *    Sheriff and the duels are about specific champions with specific numbers
+ *    dagger path, the Sheriff and the duels are about specific champions with specific numbers
  *    and a specific kit on the bar, so they spawn that champion whatever the
  *    roster says. A silhouette you picked doing Condemn's animation — or
  *    fanning three cards out of a hand that is holding a longbow — would be
@@ -43,6 +43,7 @@ export type HeroId =
   | 'berserker'
   | 'nightHunter'
   | 'twistedFate'
+  | 'katarina'
   | 'caitlyn';
 
 /** The subset of `RigSpec` that is the champion rather than the situation. */
@@ -263,6 +264,32 @@ export const HEROES: Record<HeroId, HeroDef> = {
       weapon: 'cards',
       headgear: 'widebrim',
       cape: true,
+    },
+    championPath: true,
+  },
+  // The dagger path's own body. Daggers are Revenant's weapon too, so she is
+  // told apart by her head: no hat and no hood, just her red, with a long
+  // tail of it swept back — the one head on the roster that is a colour
+  // before it is a shape, which at this camera height is exactly what the
+  // brightest thing on a Katarina is.
+  katarina: {
+    id: 'katarina',
+    name: 'KATARINA',
+    title: 'The Sinister Blade',
+    role: 'Assassin',
+    accent: '#ff4057',
+    blurb:
+      'Red hair swept back, a blade in each hand, nothing else. The body that is never where you last saw it — which is fitting, because everything she does is decided by where she is going to be a second from now.',
+    silhouette: 'Lean, bare-headed, red ponytail, twin daggers',
+    look: {
+      build: 'lean',
+      primary: '#4a1820',
+      secondary: '#1a0a0e',
+      accent: '#ff4057',
+      skin: '#e8c3a6',
+      weapon: 'daggers',
+      headgear: 'ponytail',
+      cape: false,
     },
     championPath: true,
   },

@@ -476,6 +476,7 @@ export function App() {
         // cannot tell you what changed.
         vayne: { ...prev.vayne, stages: copyRungs(prev.vayne.stages) },
         twisted: { ...prev.twisted, stages: copyRungs(prev.twisted.stages) },
+        katarina: { ...prev.katarina, stages: copyRungs(prev.katarina.stages) },
         ezreal: { ...prev.ezreal, stages: copyRungs(prev.ezreal.stages) },
         recentBests: [...prev.recentBests],
         bench: Object.fromEntries(Object.entries(prev.bench).map(([k, v]) => [k, v && { ...v }])),

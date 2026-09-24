@@ -10,6 +10,8 @@ import { CAITLYN_STATS } from '../engine/caitlyn';
 import { FLASH_LEAGUE_CD, FLASH_PRACTICE_CD, FLASH_RANGE } from '../engine/summoners';
 import { VAYNE_STATS, tumbleCdAt, tumblePracticeCdAt, condemnCdAt, condemnPracticeCdAt } from '../engine/vayne';
 import { TWISTED_STATS } from '../engine/twistedfate';
+import { KATARINA_STATS } from '../engine/katarina';
+import { katarinaStage } from '../drills/katarina';
 import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from '../engine/input';
 import type { AppSettings, Profile } from '../progression/profile';
 import { Explainer } from './components/Explainer';
@@ -66,7 +68,15 @@ const TWISTED_KIT: { slot: AbilitySlot; name: string }[] = [
   { slot: 'r', name: 'DESTINY' },
 ];
 
-const kitOrderFor = (id: DrillId) => (DRILLS[id].group === 'TWISTED' ? TWISTED_KIT : VAYNE_KIT);
+const KATARINA_KIT: { slot: AbilitySlot; name: string }[] = [
+  { slot: 'q', name: 'BOUNCING BLADE' },
+  { slot: 'w', name: 'PREPARATION' },
+  { slot: 'e', name: 'SHUNPO' },
+  { slot: 'r', name: 'DEATH LOTUS' },
+];
+
+const kitOrderFor = (id: DrillId) =>
+  DRILLS[id].group === 'TWISTED' ? TWISTED_KIT : DRILLS[id].group === 'KATARINA' ? KATARINA_KIT : VAYNE_KIT;
 
 /**
  * The keys this profile plays on.
@@ -103,16 +113,16 @@ const bindingsOf = (settings: AppSettings | undefined): Bindings => {
  * Three sections now, and every one of them is a champion:
  *
  *  - **PRACTICE** is a champion in pieces, grouped by how much of one a mode
- *    hands you — and there are two champions on it now, behind a switch at the
- *    top rather than a tab of their own, because "which piece of a champion"
- *    is one question asked twice and not two different kinds of question. It
+ *    hands you — and there are three champions on it now, behind a switch at
+ *    the top rather than a tab each, because "which piece of a champion" is
+ *    one question asked three times and not three different kinds of one. It
  *    is first because it is where a player can actually start. THE LANE is the
  *    game and it is also ten minutes against somebody who is better than you;
  *    opening on it asked a player to be ready before the client had taught
  *    them anything. A menu should open on the thing you can do now.
  *  - **THE LANE** is the game, and everything in PRACTICE exists to make it go
  *    better — so it is second, where it reads as what the pieces add up to.
- *  - **CHARACTER** is the reading: every figure all three champions are built
+ *  - **CHARACTER** is the reading: every figure all four champions are built
  *    from, so a claim the trainer makes about transfer is one you can check.
  *
  * The fourth used to be the lab, and the lab is not this screen's business.
@@ -256,10 +266,10 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
       <div className="wrap practice fade-up">
         <header className="pr-head one-line">
           <h1 className="display pr-h1">CHAMPIONS</h1>
-          <div className="eyebrow">Play as · Vayne or Twisted Fate</div>
+          <div className="eyebrow">Play as · Vayne, Twisted Fate or Katarina</div>
           <Why label="What is here">
             <p className="dim pr-lead">
-              Two of them, three tabs — the pieces of each, the lane one of them plays for real,
+              Three of them, three tabs — the pieces of each, the lane one of them plays for real,
               and every number behind all of it.
             </p>
           </Why>
@@ -543,11 +553,13 @@ function LaneCard({
  * The champions, in pieces, grouped by how much of one a mode hands you.
  *
  * The list itself lives in `modes.ts` — this is a reading of it, not a second
- * copy — and the groups are per champion because the two of them are not built
- * the same way. Hers climbs by *how much kit*: a body, then one ability, then
- * all four. His climbs by *how much is taken away*: the wheel on an empty
- * floor, the wheel with the rest of the deck attached, the wheel with people
- * shooting at you.
+ * copy — and the groups are per champion because the three of them are not
+ * built the same way. Vayne's climbs by *how much kit*: a body, then one
+ * ability, then all four. His climbs by *how much is taken away*: the wheel on
+ * an empty floor, the wheel with the rest of the deck attached, the wheel with
+ * people shooting at you. Katarina's climbs by *how far ahead you have to
+ * think*: one dagger, then two ways of getting to one, then a whole fight
+ * routed through them.
  *
  * Anything added to a champion's list that no group here claims still appears,
  * under a group of its own — a mode that exists and is not on the menu is a
@@ -600,6 +612,32 @@ const PRACTICE_GROUPS: Record<string, { id: string; label: string; note: string;
       members: ['tfPressure', 'tfCombo', 'tfFight'],
     },
   ],
+  katarina: [
+    {
+      id: 'foundation',
+      label: 'FOUNDATION',
+      note: 'no abilities — she is melee, and a hundred and twenty-five units is all of her until a dagger lands',
+      members: ['rangecheck'],
+    },
+    {
+      id: 'dagger',
+      label: 'THE DAGGER',
+      note: 'one dagger, then the two ways of getting one somewhere — the blade and the blink',
+      members: ['katPrep', 'katBlade', 'katShunpo'],
+    },
+    {
+      id: 'route',
+      label: 'THE ROUTE',
+      note: 'the daggers chained: throw and blink, drop and take, kill and go again',
+      members: ['katBlink', 'katDance', 'katReset'],
+    },
+    {
+      id: 'fight',
+      label: 'THE FIGHT',
+      note: 'the spin you lose by moving, the moment to join, and all of it at once',
+      members: ['katLotus', 'katEntry', 'katFight'],
+    },
+  ],
 };
 
 /**
@@ -644,7 +682,7 @@ function PracticePanel({
     <>
       <Explainer title="HOW THIS SCREEN WORKS">
         <p className="dim pr-lead pr-panel-lead">
-          Two champions, three tabs. <b>PRACTICE</b> — this one — is each champion taken apart:
+          Three champions, three tabs. <b>PRACTICE</b> — this one — is each champion taken apart:
           every mode is a single piece of a lane rehearsed on its own. <b>THE LANE</b> is all of it
           at once: a real game of League, farming minions while somebody tries to stop you.{' '}
           <b>CHARACTER</b> is the reference behind both. Want something shorter? <b>TRAIN</b> in the
@@ -663,8 +701,8 @@ function PracticePanel({
       </Explainer>
 
       {/* The switch, and the reason it is a switch rather than a fourth tab:
-          both sides of it are the same question — which piece of a champion —
-          asked about two champions. A tab would have said they were two
+          every side of it is the same question — which piece of a champion —
+          asked about three champions. A tab would have said they were three
           different kinds of thing. */}
       <div className="pr-seg" role="tablist" aria-label="Which champion">
         {PRACTICE_CHAMPIONS.map((c) => {
@@ -884,18 +922,19 @@ function ModeCard({
 /**
  * The reading.
  *
- * Three kits, and they used to sit in the middle of the screen between the
+ * Four kits, and they used to sit in the middle of the screen between the
  * champion cards and the lab — a thousand words of reference wedged between
  * two things you were there to click. They are here instead, together, behind
  * one switch, because they are the same kind of object pointed at three
  * champions: every number a mode is built from, printed, so a claim about
  * transfer is one the player can check rather than take.
  */
-type CodexId = 'vayne' | 'twisted' | 'sheriff' | 'accuracy';
+type CodexId = 'vayne' | 'twisted' | 'katarina' | 'sheriff' | 'accuracy';
 
 const CODEX: { id: CodexId; label: string; sub: string; accent: string }[] = [
   { id: 'vayne', label: 'VAYNE', sub: 'the one you play', accent: '#c86bff' },
-  { id: 'twisted', label: 'TWISTED FATE', sub: 'the other one you play', accent: '#ffcf5c' },
+  { id: 'twisted', label: 'TWISTED FATE', sub: 'the card one you play', accent: '#ffcf5c' },
+  { id: 'katarina', label: 'KATARINA', sub: 'the dagger one you play', accent: '#ff4057' },
   { id: 'sheriff', label: 'CAITLYN', sub: 'the one shooting at you', accent: '#ffb02e' },
   // Not a kit: the receipt for all three. Every League figure the lane runs,
   // the patch it was checked against and where each one came from.
@@ -942,6 +981,8 @@ function CodexPanel() {
           <KitReference />
         ) : who === 'twisted' ? (
           <TwistedReference />
+        ) : who === 'katarina' ? (
+          <KatarinaReference />
         ) : who === 'sheriff' ? (
           <SheriffReference />
         ) : (
@@ -1086,6 +1127,74 @@ function TwistedReference() {
         anecdote. The wheel's half a second, its order, the fan's spread, the stun's second and a
         half and the count of four are all League's exactly — and all five of them are the
         champion.
+      </p>
+    </section>
+  );
+}
+
+/**
+ * The daggers, in figures.
+ *
+ * The same contract as the other two tables, and it matters for her in a
+ * particular way: every number she is built from is a *delay* or a *distance
+ * from somewhere else*. A second and a quarter until Preparation lands, three
+ * hundred and fifty units past the first body for the blade, four seconds on
+ * the floor, three hundred and forty around her for the slash. The whole
+ * champion is doing arithmetic on those five figures faster than the fight
+ * changes, so they are printed next to each other.
+ */
+function KatarinaReference() {
+  const K = KATARINA_STATS;
+  const rows = [
+    {
+      slot: 'P',
+      name: 'VORACITY · SINISTER STEEL',
+      body: `The passive, and most of the champion. A dagger on the floor lasts ${K.daggerLife}s; walk within ${K.pickupRadius} units of it and she takes it, slashing everything within ${K.slashRadius} of her — not of the dagger — for ${K.slashDamage}. Taking one also takes ${Math.round(K.pickupRefund * 100)}% off Shunpo's remaining cooldown, League's figure at level six. And a champion who dies within ${K.voracityWindow}s of her touching them takes ${K.voracityRefund}s off every basic ability, which in practice is all of it.`,
+    },
+    {
+      slot: 'Q',
+      name: 'BOUNCING BLADE',
+      body: `Targeted, ${K.qRange} range: the body nearest the cursor, and it does not miss. It bounces to ${K.qBounces} more within ${K.qBounceRange} units of the last, and the dagger comes down ${K.qLandBehind} units past the first body, along the line she threw it, ${K.qLandAfter}s after it hit. Cooldown ${K.qCd}s — League's maxed, and it is the one every Katarina maxes first; ${K.qLeagueCd}s at rank one.`,
+    },
+    {
+      slot: 'W',
+      name: 'PREPARATION',
+      body: `A dagger straight up from where she stands, landing ${K.wDaggerAfter}s later on the same spot, and ${Math.round(K.wHaste * 100)}% bonus speed that decays to nothing over ${K.wHasteFor}s — exactly long enough to carry her out of reach of the thing she meant to slash with it. Cooldown ${K.wCd}s maxed, ${K.wLeagueCd}s at rank one; the two stages about it charge ${katarinaStage('katPrep').practice?.w}s and ${katarinaStage('katDance').practice?.w}s, because a minute of eleven-second gaps is four attempts.`,
+    },
+    {
+      slot: 'E',
+      name: 'SHUNPO',
+      body: `A blink of up to ${K.eRange} units onto whatever is nearest the cursor: a landed dagger, a minion or a champion. Onto an enemy she arrives on the side you pointed at and strikes them for ${K.eDamage}; onto a dagger she takes it and strikes whoever is within ${K.eStrikeRange}. ${K.eCd}s cooldown, League's at rank three (${K.eLeagueCd}s at rank one) — and rarely the number that matters, because a dagger taken is most of it back.`,
+    },
+    {
+      slot: 'R',
+      name: 'DEATH LOTUS',
+      body: `${K.rChannel}s of daggers at the ${K.rTargets} nearest champions within ${K.rRange} units, six a second, ${K.rDamage} each. A move command ends it — under WASD a held key does, after ${Math.round(K.rMoveGrace * 1000)}ms to let go — and so does Shunpo, which is the one way to leave it on purpose. League charges it at ${K.rLeagueCd}s; here it is ${K.rCd}s, and ${katarinaStage('katLotus').practice?.r}s on the stage about it, because a minute has to hold more than one.`,
+    },
+    {
+      slot: 'F',
+      name: 'FLASH',
+      body: `The same object everybody else's is. ${FLASH_RANGE} units toward the cursor, instantly, over terrain, on ${FLASH_PRACTICE_CD}s rather than League's ${FLASH_LEAGUE_CD}.`,
+    },
+  ];
+
+  return (
+    <section className="panel pad pr-kit" style={{ ['--c' as string]: '#ff4057' }}>
+      <div className="panel-title">Katarina's abilities, in full</div>
+      <div className="pr-kit-rows">
+        {rows.map((r) => (
+          <div className="pr-kit-row" key={r.name}>
+            <i className="pr-kit-slot">{r.slot}</i>
+            <b className="pr-kit-name">{r.name}</b>
+            <span className="pr-kit-body">{r.body}</span>
+          </div>
+        ))}
+      </div>
+      <p className="set-note">
+        Three cooldowns here are shorter than League's, and all three for the reason Condemn's is:
+        the ultimate, and Preparation on the two stages that are about nothing else. Every delay
+        and every distance — the second and a quarter, the three hundred and fifty units, the four
+        seconds, the slash — is League's exactly, because those five figures are the champion.
       </p>
     </section>
   );

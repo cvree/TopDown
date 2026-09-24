@@ -835,6 +835,27 @@
   border-left-color: #ffcf5c;
 }
 
+/* And the dagger path's, in her red. Four ladders, one shape. */
+.res-katarina .panel {
+  border-color: rgba(220, 60, 80, 0.42);
+}
+.res-katarina .rv-stars .on,
+.res-katarina .rv-title b,
+.res-katarina .rv-num {
+  color: #ff4057;
+}
+.res-katarina .rv-stars .on {
+  text-shadow: 0 0 14px rgba(255, 64, 87, 0.45);
+}
+.res-katarina .rv-gain,
+.res-katarina .rv-new {
+  background: #ff4057;
+  color: #1a0408;
+}
+.res-katarina .rv-unlock {
+  border-left-color: #ff4057;
+}
+
 /* The academy's block reuses the champion path's layout — same kind of
    progress, same shape — and only recolours it: cyan for the scheme, as
    everywhere else in the client. */

@@ -1,10 +1,11 @@
 # APEX — MOBA Mechanics Trainer
 
 A browser-based MOBA mechanics trainer, built around one idea: the thing that
-feels rewarding should be the thing that actually makes you better. Two
-champions, chosen because they ask opposite questions — Vayne grades a
-*distance* from perfect on everything she does, and Twisted Fate grades a
-*choice* you either made in time or did not.
+feels rewarding should be the thing that actually makes you better. Three
+champions, chosen because they ask different questions — Vayne grades a
+*distance* from perfect on everything she does, Twisted Fate grades a *choice*
+you either made in time or did not, and Katarina grades a *place* you either
+reached before the dagger did or did not.
 
 It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
@@ -16,8 +17,9 @@ the first ten minutes of a game of League, at League's own numbers, against an
 enemy laner farming and trading on the other side of the wave. You pick the
 opponent and the length; everything else is the game. The second is
 **PRACTICE** — the parts of that lane, rehearsed one at a time, behind a switch
-between the two champions: one distance, four pieces of Vayne and the opponent
-who shoots at her on one side; nine stages of Twisted Fate's wheel on the other.
+between the three champions: one distance, four pieces of Vayne and the opponent
+who shoots at her; nine stages of Twisted Fate's wheel; and nine stages of
+Katarina's daggers.
 Each mode has two ways to play it:
 
 - **PLAY** — one minute. The same minute every time, so a score means something
@@ -26,7 +28,7 @@ Each mode has two ways to play it:
   when you have made that mode's own mistake three times. The result is how
   long you lasted.
 
-The third is **THE CODEX** — every figure both champions are built from,
+The third is **THE CODEX** — every figure all three champions are built from,
 printed, so a claim about transfer is one you can check.
 
 **THE LAB** is the other section in the top bar, and it is not a champion at
@@ -57,7 +59,7 @@ That is the whole menu. There is no calibration to sit through and no course
 to unlock — the ladder places you from your first three runs, and every mode with a champion in it puts you behind the same one,
 because the quarter of a second at the end of a tumble is not a thing you can
 practise in the abstract. The roster in Settings is a silhouette and nothing else: not one
-number in the simulation moves behind any of the eight bodies on it.
+number in the simulation moves behind any of the ten bodies on it.
 
 Behind it is a ranked mechanical skill system driven by measured performance
 rather than time played, and a results screen designed so you can see exactly
@@ -99,12 +101,12 @@ npm run build      # production bundle
 
 ## What it trains
 
-One lane, and fifteen modes made out of the pieces of it — six on Vayne and
-nine on Twisted Fate, with the distance both of them assume at the top of each
-list.
+One lane, and twenty-four modes made out of the pieces of it — six on Vayne,
+nine on Twisted Fate and nine on Katarina, with the distance all three of them
+assume at the top of each list.
 
-The two champions are not two flavours of the same trainer, and that is the
-reason there are two. Everything Vayne asks is *analogue*: the roll a little
+The three champions are not three flavours of the same trainer, and that is the
+reason there are three. Everything Vayne asks is *analogue*: the roll a little
 early, the wall a little off the angle, the third bolt a little stale, and
 every one of her modes grades one of those distances. Everything Twisted Fate
 asks is *discrete*: Pick a Card is showing exactly one of three faces at any
@@ -112,7 +114,11 @@ instant, you take the one you needed or you do not, and the price of not is
 counted in whole revolutions of a wheel that turns at two cards a second
 whether or not you have decided. There is nowhere in that for a bad habit to
 hide, which is what makes it the sharpest thing here to practise and the one
-thing none of her six can teach.
+thing none of her six can teach. And everything Katarina asks is *in the
+future*: a dagger thrown now lands a second from now somewhere else, lies there
+for four seconds, and is worth nothing unless you are standing on it — with
+somebody inside the slash — when it does. Neither of the others can ask where
+you are going to be.
 
 ### Lane phase
 
@@ -296,6 +302,53 @@ second, and the spin window draining above his head. The ability bar
 deliberately does not track the spinning face — it is drawn from a HUD snapshot
 and the wheel turns twice a second, so a bar that tried would spend half its
 life telling you GOLD while the floor said BLUE.
+
+### The dagger path
+
+Nine stages, each gated on the one before it, and every one of them is a dagger
+you have to meet.
+
+| Stage | Keys | Measures | The habit it builds |
+| --- | --- | --- | --- |
+| **Preparation** | W F | Daggers taken, how long each lay on the floor, slashes that reached the target | Being where the dagger lands rather than where you were when you dropped it |
+| **Bouncing Blade** | Q F | Slashes on the champion, bodies per throw | Choosing the first bounce for where the dagger will fall |
+| **Shunpo** | E F | Daggers taken, and taken by blinking | The blink as a route between daggers, not a gap-closer you wait fourteen seconds on |
+| **Blade, then Blink** | Q E F | Blade daggers taken by Shunpo on the beat they land | Katarina's short trade — all timing, no aim |
+| **The Dance** | W E F | Trades completed: in, drop, take, with them still in the slash | Not letting the haste carry you away from your own dagger |
+| **Reset** | Q W E F | Resets, against three fragile champions who hit back | Arriving at the next target with the kit already back |
+| **Death Lotus** | E R F | Lotuses kept, champions per tick, lotuses cancelled by moving | Letting go of the mouse for two and a half seconds |
+| **The Entry** | Q W E R F | Fights joined under half health rather than at full | Joining a fight rather than starting one |
+| **The Spin** | Q W E R F | All of it, against a hunter, a duelist and a wave | Playing Katarina rather than owning her abilities |
+
+**The number the path leads with is DAGGERS TAKEN**: of the daggers that
+reached the floor, the share you were standing on in time. Picking one up is
+the slash, most of Shunpo's cooldown back and the reason she has a combo at all,
+so a dagger nobody takes is a cast that did nothing. A player who routes reads
+close to 100% on every stage; a player who fights the body — throws at the
+champion, blinks at the champion, follows them with the haste — reads well
+under that, and the gap between their scores is the claim the path rests on.
+The headless suite plays every stage both ways and checks it.
+
+Her delays and distances are League's exactly, because they are the champion:
+the second and a quarter before Preparation lands, the three hundred and fifty
+units past the first body that a Bouncing Blade comes down, the four seconds a
+dagger lies there, the hundred and fifty units you have to get within, the
+three hundred and forty around *her* — not the dagger — that the slash
+reaches, and the three seconds Voracity allows. Bouncing Blade is League's
+seven seconds maxed, Shunpo League's ten at rank three and a taken dagger
+removes 84% of whatever is left on it. The discounts are Death Lotus (twenty
+seconds rather than ninety, fourteen on its own stage) and Preparation on the
+two stages that are about nothing else, for the reason Condemn is discounted: a
+minute has to hold enough attempts to be a rep.
+
+Daggers are drawn where they are rather than counted in a corner: a ring closing
+on the spot while one is in the air, then the blade and the pickup reach with
+its four seconds running down. On the early stages the spot a Bouncing Blade
+would land on is drawn under the cursor before you throw, and the slash's reach
+is drawn around you whenever a dagger is close enough that taking it is the next
+thing you do. Death Lotus ends on a move command — under WASD a held key ends it
+after a hundred and fifty milliseconds to let go — and Shunpo is the one way out
+of it that is not a mistake.
 
 ### The Sheriff
 
@@ -497,10 +550,10 @@ screen says exactly that.
 
 KovaaK's answer to "is my score good" is a benchmark: fixed scenarios at fixed
 settings with published thresholds. This is that, for the pieces of a lane.
-Six one-minute runs — RANGE, TUMBLE, SILVER BOLTS, CONDEMN, SHERIFF, PICK A
-CARD — each on one seed at difficulty 0.5, plus SEE IT and CHOOSE IT. Six tiers,
-ROOKIE to APEX; you hold one once six of the eight rows reach it, and a points
-total out of 48 moves with every row.
+Seven one-minute runs — RANGE, TUMBLE, SILVER BOLTS, CONDEMN, SHERIFF, PICK A
+CARD, PREPARATION — each on one seed at difficulty 0.5, plus SEE IT and CHOOSE
+IT. Six tiers, ROOKIE to APEX; you hold one once six of the nine rows reach it,
+and a points total out of 54 moves with every row.
 
 The thresholds are **provisional** and the sheet says so. MASTER is exactly what
 the trainer's scripted reference player scores on each scenario, pinned in
@@ -827,6 +880,18 @@ depends on:
   hands the card back, so the suite asserts that a run never locks more cards
   than it started wheels — the state where one sits on your hand while another
   turns is one League does not have.
+- **The dagger path is measured by the daggers taken.** Every one of the nine
+  stages is played three ways: routed, chased, and not at all. The router and
+  the chaser press the same buttons on the same timer; the chaser simply fights
+  the body instead of the floor, and on every stage she scores at least five
+  points less. Underneath that: a dagger dropped where you stand is taken the
+  moment it lands, throwing the blade at the wave puts more slashes on the
+  champion than throwing it at the champion, a route of daggers buys more than
+  twice the blinks the cooldown alone allows and every blink onto a dagger takes
+  it, in-drop-take trades are completable and chasing does not complete them, a
+  kill within the window resets the kit and never more than once, a lotus is
+  kept by standing still and lost by walking, and waiting for a fight to bleed
+  is an entry on time where diving it at full health is not.
 - **Every drill's drawing pass runs in the suite.** The one part of a mode that
   only executes in a browser used to have no proof behind it, and a throw there
   is a black screen rather than a wrong number. The lane additionally asserts
@@ -926,7 +991,7 @@ Several of those checks name drills the menu does not offer. The engine still
 carries the whole catalogue the ratings, the coach and the error log were built
 on — the foundation drills, the WASD academy, the APM lab and the Ezreal path —
 and the harness still holds all of it to the same standard; the client simply
-does not put them in front of you, because it puts two champions in front of
+does not put them in front of you, because it puts three champions in front of
 you instead. A diagnosis
 that names one of them is translated into the mode that trains the same thing
 (`practiceFor`, in `src/drills/modes.ts`), so a "fix this" button always starts
@@ -1045,7 +1110,7 @@ other end of a telegraph in SHERIFF.
 
 | Setting | What it does |
 | --- | --- |
-| **Champion** | Which of the eight bodies you wear. A silhouette and nothing else |
+| **Champion** | Which of the ten bodies you wear. A silhouette and nothing else |
 | **Movement scheme** | Click to move, or WASD |
 | **Dash aim** | WASD only: a dash goes where your keys are held, or to the cursor |
 | **Bindings** | Every action, per scheme — one key to one action, conflicts resolved as you make them |
@@ -1145,8 +1210,8 @@ of the whole trainer: a champion, and the bench underneath every champion.
 The menu is the whole of the first screen, and it is three sections behind one
 sticky rail rather than one column two thousand pixels long. Every tab prints
 how much is inside it and how far through it you are — five opponents and the
-lanes you have played, fifteen modes and how many are on the board, three kits
-to read — so the shape of the screen is readable before you open any of it. The rail walks under the
+lanes you have played, twenty-four modes and how many are on the board, four
+kits to read — so the shape of the screen is readable before you open any of it. The rail walks under the
 arrow keys, and the tab you were last on survives a run. Every section on it is
 the champion; the bench moved out to its own screen, because as a fourth tab
 here it read as one more thing about Vayne.
@@ -1155,12 +1220,14 @@ here it read as one more thing about Vayne.
 answer, and three lengths under theirs. The record it prints is per opponent,
 because that is the only way a creep score means anything.
 
-**PRACTICE** is a card per part of a champion, behind a switch between the two
+**PRACTICE** is a card per part of a champion, behind a switch between the three
 of them. Her groups climb by *how much kit*: FOUNDATION, which hands you a body
 and no abilities; THE KIT, one ability at a time; and ALL OF IT, which is the
 whole champion and then the whole champion with somebody shooting back. His
 climb by *how much is taken away*: FOUNDATION again, then THE WHEEL, THE REST
-OF THE DECK, and WITH SOMEBODY THERE. Each card carries what the mode asks of
+OF THE DECK, and WITH SOMEBODY THERE. Katarina's climb by *how far ahead you
+have to think*: FOUNDATION, then THE DAGGER — one dagger and the two ways of
+getting one somewhere — THE ROUTE, the daggers chained, and THE FIGHT. Each card carries what the mode asks of
 you, the League habit it builds, the slice of the bar it hands you drawn as four
 keys — the ones you do not get are shown greyed rather than hidden, so the cards
 read as slices of one champion, and the names under those keys are that
@@ -1174,13 +1241,14 @@ still mean what they say. On the lane card it starts the quick lane against
 the opponent picked on it. Resting on a card still plays its clip, and a small
 CLIP chip in the corner plays it on a screen with no cursor to rest.
 
-**THE CODEX** is the reading: all three kits in numbers behind one switch — the
+**THE CODEX** is the reading: all four kits in numbers behind one switch — the
 roll's distance and how long it takes, the bolt count and what the third one
 does, Flash's range and what it crosses, Condemn's cast time, knockback and both
 of its cooldowns, the trinket, Final Hour and the passive on the first; the
 wheel's half-second, the fan's spread, the stun's second and a half and the two
-channels of Destiny on the second; every window the Sheriff expects you to beat
-on the third. It also says which Vayne
+channels of Destiny on the second; the dagger's delays and distances, the
+slash, Voracity's window and the lotus on the third; every window the Sheriff
+expects you to beat on the fourth. It also says which Vayne
 each mode hands you and why — one point in Q where the rhythm is the lesson, a
 maxed E where the reps are — because a trainer claiming to feel like the
 champion owes you the figures it is claiming it with.

@@ -18,6 +18,7 @@ import { percentileForRating, rankFromRating } from '../progression/ranks';
 import { AXIS_BLURB, AXIS_LABEL, SKILL_AXES, type SkillAxis } from '../progression/skills';
 import { apmTitleFor } from '../progression/apm';
 import { tfTitleFor } from '../progression/twistedfate';
+import { katTitleFor } from '../progression/katarina';
 import { titleFor } from '../progression/vayne';
 import { RankEmblem } from './components/RankEmblem';
 import { SkillRadar, Sparkline } from './components/charts';
@@ -578,8 +579,9 @@ export function Progress({ profile, onRename, onReset, onPlay, onRecordsSeen }: 
         {/* -------------------------------------------------- other tracks */}
         <section className="prof-tracks">
           {/* One card per champion path. They are separate ladders on purpose
-              — a title earned on her hands is not a title earned on his — so
-              they are two cards rather than a number that averages them. */}
+              — a title earned on Vayne's hands is not a title earned on his or
+              on Katarina's — so they are three cards rather than a number that
+              averages them. */}
           <div className="panel pad">
             <span className="eyebrow">Vayne</span>
             <b className="display" style={{ color: '#e7c8ff' }}>
@@ -593,6 +595,13 @@ export function Progress({ profile, onRename, onReset, onPlay, onRecordsSeen }: 
               {tfTitleFor(profile.twisted.peak).name}
             </b>
             <span className="faint mono">{Math.round(profile.twisted.mastery)} mastery</span>
+          </div>
+          <div className="panel pad">
+            <span className="eyebrow">Katarina</span>
+            <b className="display" style={{ color: '#ff4057' }}>
+              {katTitleFor(profile.katarina.peak).name}
+            </b>
+            <span className="faint mono">{Math.round(profile.katarina.mastery)} mastery</span>
           </div>
           <div className="panel pad">
             <span className="eyebrow">Hand speed</span>

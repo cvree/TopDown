@@ -412,12 +412,33 @@ export const focusError = (p: Profile): ErrorCode | null => errorRollup(p, 2)[0]
  * The rotation a profile with nothing to fix walks through.
  *
  * Range first because every other mode assumes it, then each piece of Vayne,
- * then the wheel — one a day, so a week of warm-ups touches all of them.
+ * the wheel and the dagger — one a day, so a week and a bit of warm-ups
+ * touches all of them.
  */
-const ROTATION: DrillId[] = ['rangecheck', 'vayneTumble', 'vayneBolts', 'tfPick', 'vayneCondemn', 'tfGold', 'rangecheck'];
+const ROTATION: DrillId[] = [
+  'rangecheck',
+  'vayneTumble',
+  'vayneBolts',
+  'tfPick',
+  'katPrep',
+  'vayneCondemn',
+  'tfGold',
+  'katBlade',
+  'rangecheck',
+];
 
 /** The pressure mode that follows a focus: the same champion, with somebody against you. */
-const pressureFor = (focus: DrillId): DrillId => (championOf(focus)?.id === 'twisted' && focus !== 'rangecheck' ? 'tfPressure' : 'caitlynDodge');
+const pressureFor = (focus: DrillId): DrillId => {
+  if (focus === 'rangecheck') return 'caitlynDodge';
+  switch (championOf(focus)?.id) {
+    case 'twisted':
+      return 'tfPressure';
+    case 'katarina':
+      return 'katReset';
+    default:
+      return 'caitlynDodge';
+  }
+};
 
 export const buildWarmup = (p: Profile, today: string): WarmupPlan => {
   const n = dayNumber(today);
@@ -516,7 +537,9 @@ export const intentionFor = (err: ErrorCode | null, focus: DrillId): string =>
       ? INTENTIONS.RANGE_LOSS
       : championOf(focus)?.id === 'twisted'
         ? 'Lock the card the first time it comes round. Waiting for the second pass is a second and a half standing still.'
-        : INTENTIONS.OVERSTEP;
+        : championOf(focus)?.id === 'katarina'
+          ? 'Before you throw a dagger, know where you will be standing when it lands.'
+          : INTENTIONS.OVERSTEP;
 
 /** Close a routine into a session record and extend the streak. */
 export const finishWarmup = (

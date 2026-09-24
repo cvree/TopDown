@@ -18,6 +18,7 @@ import { SkillshotDrill } from './skillshot';
 import { SpacingDrill } from './spacing';
 import { TargetSwitchDrill } from './targetswitch';
 import { TwistedDrill, isTwistedDrill } from './twistedfate';
+import { KatarinaDrill, isKatarinaDrill } from './katarina';
 import { VayneBoltsDrill } from './vaynebolts';
 import { VayneCondemnDrill } from './vaynecondemn';
 import { VayneHuntDrill } from './vaynehunt';
@@ -34,6 +35,8 @@ export const createDrill = (id: DrillId, session: Session): Drill => {
   if (isEzrealDrill(id)) return new EzrealDrill(session, id);
   // The Twisted Fate path owns nine more, from another.
   if (isTwistedDrill(id)) return new TwistedDrill(session, id);
+  // And the Katarina path nine of its own.
+  if (isKatarinaDrill(id)) return new KatarinaDrill(session, id);
   switch (id) {
     case 'movement':
       return new MovementDrill(session);
@@ -133,6 +136,26 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
       return { w: 2500, h: 1400 };
     case 'tfGate':
       return { w: 2800, h: 1560 };
+    // Katarina's floors.
+    //
+    // Smaller than his on the dagger stages, because every one of them is a
+    // route between places a few hundred units apart and a big floor is only
+    // somewhere for the target to wander off to. The fights get room: the
+    // entry has to hold a fight far enough away that joining it is a choice.
+    case 'katPrep':
+    case 'katDance':
+      return { w: 1800, h: 1050 };
+    case 'katBlade':
+    case 'katShunpo':
+    case 'katBlink':
+      return { w: 2100, h: 1200 };
+    case 'katReset':
+    case 'katLotus':
+      return { w: 2200, h: 1250 };
+    case 'katFight':
+      return { w: 2500, h: 1400 };
+    case 'katEntry':
+      return { w: 2600, h: 1460 };
     // The lab is a bench, not a battlefield. A field the cursor can cross
     // without the camera moving, and no more floor than the console needs.
     case 'apmPulse':

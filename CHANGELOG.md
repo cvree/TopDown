@@ -6,10 +6,30 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.24.0**.
+Currently shipping **v2.25.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.25.0 — SINISTER STEEL
+
+*2026-09-24*
+
+A third champion, and the one thing neither of the others can teach: being in the right place a second from now.
+
+### Added
+
+- Katarina. Nine modes, and every one of them is a dagger you have to meet. PREPARATION is one dagger straight up from where you stand, landing a second and a quarter later — take it with the target inside the slash. BOUNCING BLADE lands three hundred and fifty units past the first body it hits, so throwing at the minion in front of a champion puts the dagger on the champion. SHUNPO is a floor of daggers and one blink: land on a dagger and you take it, and taking it hands most of the blink back. BLADE, THEN BLINK is the lane trade — throw, then be there on the beat it lands. THE DANCE is in, drop, take, without letting the haste carry you away from your own dagger. RESET is three fragile champions and Voracity: a kill within three seconds of touching them hands every basic ability back. DEATH LOTUS is the one ability you lose by moving. THE ENTRY is a fight already happening, bleeding on its own, and the moment to join it. THE SPIN is all of it, against people.
+- The number her path leads with is DAGGERS TAKEN — of the daggers that reached the floor, the share you were standing on in time — because every dagger nobody picks up is a cast that did nothing.
+- Daggers are drawn where they are: a ring closing on the spot while one is in the air, then the blade and the reach you have to get inside, with its four seconds running down. On the early stages the spot a Bouncing Blade would land on is drawn before you throw it.
+- PRACTICE has a third champion on its switch, with her own groups and records. CHARACTER has her page — the second and a quarter, the three hundred and fifty units, the four seconds, the slash — and the roster has her body: red hair swept back and a blade in each hand.
+- A ninth benchmark, PREPARATION: being there when it lands, on a pinned seed like the rest.
+
+### Changed
+
+- The results screen draws her ladder in her red, next to the other three. PROGRESS shows her title beside Vayne’s and Twisted Fate’s.
+- The warm-up rotation visits her first two modes, and a warm-up that focuses on her follows up with RESET rather than the Sheriff.
+- The switches on PRACTICE and CHARACTER wrap onto a second row on a phone instead of running off the side of it.
 
 ## v2.24.0 — ONE VOICE
 

@@ -54,6 +54,16 @@ export type DrillId =
   | 'tfCombo'
   | 'tfGate'
   | 'tfFight'
+  /* --- the Katarina path. Nine stages of being somewhere a second from now --- */
+  | 'katPrep'
+  | 'katBlade'
+  | 'katShunpo'
+  | 'katBlink'
+  | 'katDance'
+  | 'katReset'
+  | 'katLotus'
+  | 'katEntry'
+  | 'katFight'
   /* --- the APM lab. One engine, thirteen ways of measuring a press --- */
   | 'apmPulse'
   | 'apmSequence'
@@ -78,6 +88,7 @@ export type DrillGroup =
   | 'VAYNE'
   | 'EZREAL'
   | 'TWISTED'
+  | 'KATARINA'
   | 'CAITLYN'
   | 'LANE';
 
@@ -982,6 +993,148 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     keyMetric: 'WASTED CARD-SLOTS',
     order: 68,
   },
+  // ----------------------------------------------------------------------
+  // THE KATARINA PATH
+  //
+  // Nine stages of the one mechanic nothing else in this client can teach:
+  // being in the right place a second from now. Every dagger lands on its own
+  // clock, and every one of these grades whether you were standing on it.
+  // ----------------------------------------------------------------------
+  katPrep: {
+    id: 'katPrep',
+    name: 'PREPARATION',
+    tagline: 'Drop it, then meet it',
+    brief:
+      'A dagger goes straight up from where you stand and lands a second and a quarter later. Take it with the target inside the slash — which means being where they will be, not where you were.',
+    transfers: 'Every Katarina combo ends on a dagger she has to be standing on. This is the smallest version of that appointment.',
+    group: 'KATARINA',
+    axes: { movement: 0.6, spacing: 0.4 },
+    duration: 45,
+    abilities: ['w', 'f'],
+    accent: '#ff4057',
+    keyMetric: 'DAGGERS TAKEN',
+    order: 70,
+  },
+  katBlade: {
+    id: 'katBlade',
+    name: 'BOUNCING BLADE',
+    tagline: 'It lands behind what it hits',
+    brief:
+      'The blade comes down three hundred and fifty units past the first body, along the line you threw it. Aimed at the champion it lands behind them; aimed at the minion in front of them, it lands on them.',
+    transfers: 'Choosing the first bounce for where the dagger will fall, which is most of what separates a Katarina who trades from one who throws knives.',
+    group: 'KATARINA',
+    axes: { targeting: 0.45, movement: 0.3, spacing: 0.25 },
+    duration: 55,
+    abilities: ['q', 'f'],
+    accent: '#ff5a5f',
+    keyMetric: 'SLASHES ON A CHAMPION',
+    order: 71,
+  },
+  katShunpo: {
+    id: 'katShunpo',
+    name: 'SHUNPO',
+    tagline: 'Blink onto the floor',
+    brief:
+      'Daggers drop around the target, two at a time. Shunpo onto one and you take it — and taking it hands back most of Shunpo. Run the floor on one cooldown.',
+    transfers: 'Treating the blink as a route between daggers rather than a gap-closer you press once and then wait fourteen seconds on.',
+    group: 'KATARINA',
+    axes: { movement: 0.5, tempo: 0.3, spacing: 0.2 },
+    duration: 55,
+    abilities: ['e', 'f'],
+    accent: '#ff3f6e',
+    keyMetric: 'TAKEN BY SHUNPO',
+    order: 72,
+  },
+  katBlink: {
+    id: 'katBlink',
+    name: 'BLADE, THEN BLINK',
+    tagline: 'Be there when it lands',
+    brief:
+      'Throw the blade, then Shunpo onto its dagger the moment it touches the floor. Early and there is nothing to land on; late and they have walked out of the slash.',
+    transfers: 'Katarina’s short trade in lane — Q, then E onto the dagger — which is all timing and no aim.',
+    group: 'KATARINA',
+    axes: { tempo: 0.4, movement: 0.35, targeting: 0.25 },
+    duration: 60,
+    abilities: ['q', 'e', 'f'],
+    accent: '#ff6a4f',
+    keyMetric: 'TAKEN BY SHUNPO',
+    order: 73,
+  },
+  katDance: {
+    id: 'katDance',
+    name: 'THE DANCE',
+    tagline: 'In, drop, take',
+    brief:
+      'Shunpo onto them, drop Preparation at once, and be on it when it lands with them still inside the slash. The haste will try to carry you after them. Do not let it.',
+    transfers: 'The all-in that wins her lane: blink in, dagger down, pick it up on top of somebody who thought the fight was over.',
+    group: 'KATARINA',
+    axes: { tempo: 0.4, spacing: 0.35, combat: 0.25 },
+    duration: 60,
+    abilities: ['w', 'e', 'f'],
+    accent: '#ff7a8a',
+    keyMetric: 'TRADES COMPLETED',
+    order: 74,
+  },
+  katReset: {
+    id: 'katReset',
+    name: 'RESET',
+    tagline: 'A kill is a cooldown',
+    brief:
+      'Three fragile champions who hit back. Any of them dying within three seconds of you touching them hands every basic ability back — so arrive at the next one with the kit up.',
+    transfers: 'Voracity: the reason Katarina teamfights, and the reason she loses them when she kills one person and walks to the next.',
+    group: 'KATARINA',
+    axes: { targeting: 0.45, combat: 0.35, movement: 0.2 },
+    duration: 60,
+    abilities: ['q', 'w', 'e', 'f'],
+    accent: '#ff4f7b',
+    keyMetric: 'RESETS',
+    order: 75,
+  },
+  katLotus: {
+    id: 'katLotus',
+    name: 'DEATH LOTUS',
+    tagline: 'Stand still, for once',
+    brief:
+      'Three hunters close from three sides. Spin when they are all inside — and do not move, because moving ends it. Leave by Shunpo, never by walking.',
+    transfers: 'The one ability in her kit your hands will ruin by doing what they always do.',
+    group: 'KATARINA',
+    axes: { combat: 0.45, spacing: 0.3, dodging: 0.25 },
+    duration: 60,
+    abilities: ['e', 'r', 'f'],
+    accent: '#ff6f9c',
+    keyMetric: 'LOTUSES KEPT',
+    order: 76,
+  },
+  katEntry: {
+    id: 'katEntry',
+    name: 'THE ENTRY',
+    tagline: 'Join a fight, not start one',
+    brief:
+      'Three champions are already fighting somebody else, and bleeding for it. Go in at full health and they turn on you; go in under half and the fight finishes itself around your resets.',
+    transfers: 'The hardest thing about Katarina, and the only one no amount of mechanics fixes: when.',
+    group: 'KATARINA',
+    axes: { targeting: 0.4, combat: 0.35, movement: 0.25 },
+    duration: 65,
+    abilities: ['q', 'w', 'e', 'r', 'f'],
+    accent: '#c86bff',
+    keyMetric: 'ENTRIES ON TIME',
+    order: 77,
+  },
+  katFight: {
+    id: 'katFight',
+    name: 'THE SPIN',
+    tagline: 'All of it, at once',
+    brief:
+      'A hunter, a duelist, a wave, terrain and the whole kit. Throw, drop, blink, take, spin and reset — simultaneously, against people trying to kill you.',
+    transfers: 'Playing Katarina, rather than owning her abilities.',
+    group: 'KATARINA',
+    axes: { combat: 0.45, movement: 0.2, targeting: 0.15, spacing: 0.1, tempo: 0.1 },
+    duration: 0,
+    abilities: ['q', 'w', 'e', 'r', 'f'],
+    accent: '#ff5fa8',
+    keyMetric: 'DAGGERS TAKEN',
+    order: 78,
+  },
   vayneTumble: {
     id: 'vayneTumble',
     name: 'TUMBLE',
@@ -1130,6 +1283,29 @@ export const TWISTED_SEQUENCE: DrillId[] = [
 
 export const isTwistedPathDrill = (id: DrillId): boolean => DRILLS[id].group === 'TWISTED';
 
+/**
+ * The Katarina path, in the order it has to be learned.
+ *
+ * One dagger first, because nothing else on the list means anything until a
+ * dagger is a thing you meet rather than a thing you throw. Then the two ways
+ * a dagger gets somewhere — the blade and the blink — and the two ways they
+ * combine. Then the fight: resets, the lotus, the moment to join, and all of
+ * it at once.
+ */
+export const KATARINA_SEQUENCE: DrillId[] = [
+  'katPrep',
+  'katBlade',
+  'katShunpo',
+  'katBlink',
+  'katDance',
+  'katReset',
+  'katLotus',
+  'katEntry',
+  'katFight',
+];
+
+export const isKatarinaPathDrill = (id: DrillId): boolean => DRILLS[id].group === 'KATARINA';
+
 export const isVayneDrill = (id: DrillId): boolean => DRILLS[id].group === 'VAYNE';
 
 /**
@@ -1206,6 +1382,16 @@ export const PRESSURE_TIER: Record<DrillId, PressureTier> = {
   tfCombo: 'applied',
   tfGate: 'applied',
   tfFight: 'live',
+  // And hers: one dagger on a bench, then daggers in a fight, then a fight.
+  katPrep: 'isolated',
+  katBlade: 'isolated',
+  katShunpo: 'isolated',
+  katBlink: 'applied',
+  katDance: 'applied',
+  katReset: 'applied',
+  katLotus: 'applied',
+  katEntry: 'applied',
+  katFight: 'live',
   apmPulse: 'isolated',
   apmSequence: 'isolated',
   apmChord: 'isolated',

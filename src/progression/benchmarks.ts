@@ -94,6 +94,7 @@ export const BENCH_REFERENCE: Record<string, number> = {
   condemn: 51876,
   sheriff: 33079,
   pick: 19844,
+  dagger: 16390,
 };
 
 export const BENCH_SCENARIOS: BenchScenario[] = [
@@ -103,6 +104,7 @@ export const BENCH_SCENARIOS: BenchScenario[] = [
   { id: 'condemn', label: 'CONDEMN', skill: 'angles before fights', kind: 'drill', drill: 'vayneCondemn', seed: 26180004, lowerIsBetter: false, thresholds: cut(BENCH_REFERENCE.condemn), unit: 'pts' },
   { id: 'sheriff', label: 'SHERIFF', skill: 'reading an opponent', kind: 'drill', drill: 'caitlynDodge', seed: 26180005, lowerIsBetter: false, thresholds: cut(BENCH_REFERENCE.sheriff), unit: 'pts' },
   { id: 'pick', label: 'PICK A CARD', skill: 'choosing on a clock', kind: 'drill', drill: 'tfPick', seed: 26180006, lowerIsBetter: false, thresholds: cut(BENCH_REFERENCE.pick * PICK_MASTER, 1 / PICK_MASTER), unit: 'pts' },
+  { id: 'dagger', label: 'PREPARATION', skill: 'being there when it lands', kind: 'drill', drill: 'katPrep', seed: 26180007, lowerIsBetter: false, thresholds: cut(BENCH_REFERENCE.dagger), unit: 'pts' },
   // Browser, screen and mouse included — so these two compare you with
   // yourself far better than with anybody else, and the screen says so.
   { id: 'see', label: 'SEE IT', skill: 'raw reaction', kind: 'reaction', test: 'visual', lowerIsBetter: true, thresholds: [420, 350, 300, 265, 240, 220], unit: 'ms' },
@@ -185,8 +187,8 @@ export interface BenchSummary {
   points: number;
   max: number;
   /**
-   * The overall tier: the highest one reached on at least six of the eight
-   * scenarios. Six rather than all eight so one row you have never played
+   * The overall tier: the highest one reached on at least six of the nine
+   * scenarios. Six rather than all nine so a row or two you have never played
    * does not hold the rest hostage, and rather than a mean so the badge
    * cannot be bought with two extraordinary rows.
    */

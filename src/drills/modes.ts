@@ -166,15 +166,21 @@ export const isOpenEnded = (mode: RunMode): boolean => mode !== 'play' && mode !
  *    There is nowhere in that for a bad habit to hide, which makes it the
  *    sharpest thing in the client to practise and the one thing none of
  *    Vayne's six can teach.
+ *  - **Katarina** is a *future* one. Nothing she does pays out where it is
+ *    pressed: a dagger lands a second from now somewhere else, and the damage,
+ *    the cooldown and the combo are all in being there when it does. Vayne
+ *    grades where you are and Twisted Fate grades what you took; she grades
+ *    where you are going to be, which neither of them can ask.
  *
- * RANGE sits at the top of both, unchanged, because it hands you no kit at all
- * and it is the one thing every other mode on either list already assumes you
- * know: tumbling to a good position, condemning from one, and walking a gold
- * card into somebody are the same sentence with the same missing word in it —
- * *how far away is far enough*.
+ * RANGE sits at the top of all three, unchanged, because it hands you no kit at
+ * all and it is the one thing every other mode on every list already assumes
+ * you know: tumbling to a good position, condemning from one, walking a gold
+ * card into somebody and meeting a dagger with somebody inside the slash are
+ * the same sentence with the same missing word in it — *how far away is far
+ * enough*.
  */
 export interface PracticeChampion {
-  id: 'vayne' | 'twisted';
+  id: 'vayne' | 'twisted' | 'katarina';
   /** As printed on the switch. */
   label: string;
   /** The line under it. */
@@ -227,6 +233,29 @@ export const PRACTICE_CHAMPIONS: PracticeChampion[] = [
       'tfFight',
     ],
   },
+  {
+    id: 'katarina',
+    label: 'KATARINA',
+    sub: 'be there when it lands',
+    blurb:
+      'Daggers that land a second after you throw them, somewhere other than where you threw them, and a blink that comes back every time you meet one. Nothing she does pays out where it is pressed — every mode below is a route through places that do not exist yet.',
+    accent: '#ff4057',
+    modes: [
+      // The same opening as theirs, and for a sharper reason: she is melee,
+      // and a hundred and twenty-five units is the whole of her reach until a
+      // dagger is on the floor.
+      'rangecheck',
+      'katPrep',
+      'katBlade',
+      'katShunpo',
+      'katBlink',
+      'katDance',
+      'katReset',
+      'katLotus',
+      'katEntry',
+      'katFight',
+    ],
+  },
 ];
 
 /**
@@ -245,7 +274,7 @@ export const isPracticeMode = (id: DrillId): boolean => PRACTICE_MODES.includes(
 /**
  * The champion whose list contains a mode, if any does.
  *
- * RANGE is on both lists — it hands you no kit, so it belongs to neither — and
+ * RANGE is on every list — it hands you no kit, so it belongs to none — and
  * this returns the first, which is the honest answer to "whose screen did this
  * come from" for everything that is not RANGE and a harmless one for RANGE.
  */
