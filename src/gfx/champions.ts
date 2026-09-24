@@ -26,7 +26,7 @@ export type WeaponKind =
   | 'rifle'
   | 'cards'
   | 'none';
-export type HeadKind = 'hood' | 'helm' | 'horns' | 'crown' | 'tophat' | 'widebrim' | 'none';
+export type HeadKind = 'hood' | 'helm' | 'horns' | 'crown' | 'tophat' | 'widebrim' | 'ponytail' | 'none';
 export type Build = 'lean' | 'medium' | 'heavy' | 'small';
 
 export interface RigSpec {
@@ -356,8 +356,8 @@ export class ChampionRig {
         // than a disc, so from overhead it is an oval with a *tilt* to it —
         // which is what keeps it from reading as the Sheriff's top hat at the
         // one distance both of them have to be told apart at. The plume is a
-        // long accent-coloured spike coming off the back: it is the only
-        // silhouette on the roster with something pointing backwards, and at
+        // long accent-coloured spike coming off the back, pointing *up* as it
+        // goes — her ponytail points back and down — and at
         // this camera height a backward point is unmistakable.
         const brim = add(parent, new THREE.ConeGeometry(headR * 2.05, headR * 0.34, 18, 1, true), secondary, 0, headR * 1.3, 0);
         brim.rotation.x = 0.16;
@@ -369,6 +369,31 @@ export class ChampionRig {
         const plume = add(parent, new THREE.ConeGeometry(headR * 0.16, headR * 1.5, 5), accent, 0, headR * 1.9, -headR * 1.0);
         plume.rotation.x = 1.15;
         plume.castShadow = false;
+        break;
+      }
+      case 'ponytail': {
+        // No hat at all — hair, in her colour, and a long tail of it. The cap
+        // is a squashed sphere sitting close on the skull, so from overhead
+        // the head is *red* where every other head is a hat or a hood; the
+        // tail is three tapering pieces swept back and down. It points the
+        // way she has just come from, which on a champion who blinks is the
+        // one direction that says she moved.
+        const cap = add(parent, new THREE.SphereGeometry(headR * 1.08, 10, 7), accent, 0, headR * 1.02, -headR * 0.06);
+        cap.scale.set(1, 0.9, 1.08);
+        cap.castShadow = false;
+        const tail: [number, number, number, number][] = [
+          [headR * 0.42, headR * 1.34, -headR * 1.02, 0.9],
+          [headR * 0.32, headR * 0.86, -headR * 1.72, 1.2],
+          [headR * 0.2, headR * 0.28, -headR * 2.24, 1.45],
+        ];
+        for (const [r, y, z, lean] of tail) {
+          const piece = add(parent, new THREE.ConeGeometry(r, headR * 1.1, 6), accent, 0, y, z);
+          piece.rotation.x = -lean;
+          piece.castShadow = false;
+        }
+        // The scar over one eye is a line of the secondary colour: too small
+        // to read from the camera, and the only face detail on the roster.
+        add(parent, box(headR * 0.08, headR * 0.6, headR * 0.06), secondary, headR * 0.34, headR * 1.0, headR * 1.0);
         break;
       }
       case 'crown': {

@@ -153,8 +153,8 @@ const SECTIONS: Section[] = [
       {
         kind: 'hero',
         label: 'Playing as',
-        hint: 'Your outline, your livery and your weapon in every mode that does not name its own champion. The Vayne modes always spawn her and the card modes always spawn him, because those are about their specific numbers.',
-        terms: 'champion hero skin body silhouette roster caitlyn vayne look appearance',
+        hint: 'Your outline, your livery and your weapon in every mode that does not name its own champion. The Vayne modes always spawn her, the card modes him and the dagger modes Katarina, because those are about their specific numbers.',
+        terms: 'champion hero skin body silhouette roster caitlyn vayne katarina twisted fate look appearance',
       },
     ],
   },

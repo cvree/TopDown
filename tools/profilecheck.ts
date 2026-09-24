@@ -176,6 +176,7 @@ const hostileProfile = (): Record<string, unknown> => ({
   // written, one written as the wrong type, one that no longer exists, a
   // mastery above the scale and a peak below zero.
   twisted: { stages: { tfPick: null, tfGold: { best: 'gold' }, notAStage: { best: 1 } }, mastery: 400, peak: -9 },
+  katarina: { stages: { katPrep: null, katBlade: { best: 'dagger', runs: '9' }, notAStage: { best: 1 } }, mastery: 250, peak: -2 },
   apm: { modes: null },
   wasd: null,
   lane: { tiers: { gold: { runs: 'lots', bestCsPerMin: null }, notATier: { runs: 4 } } },
@@ -412,6 +413,16 @@ section('A profile that is wrong in every way still loads', () => {
     'the card path comes back whole',
     Object.keys(p.twisted.stages).length === 9 && p.twisted.stages.tfPick.best === 0 && p.twisted.stages.tfGold.best === 0,
     JSON.stringify(p.twisted.stages.tfGold),
+  );
+  expect(
+    'the dagger path comes back whole',
+    Object.keys(p.katarina.stages).length === 9 && p.katarina.stages.katPrep.best === 0 && p.katarina.stages.katBlade.best === 0 && p.katarina.stages.katBlade.runs === 0,
+    JSON.stringify(p.katarina.stages.katBlade),
+  );
+  expect(
+    'nor is a mastery of 250',
+    p.katarina.mastery <= 100 && p.katarina.peak >= 0,
+    `${p.katarina.mastery}/${p.katarina.peak}`,
   );
   expect(
     'a mastery of 400 is not a mastery either',

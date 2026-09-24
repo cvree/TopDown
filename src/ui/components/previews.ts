@@ -4153,6 +4153,520 @@ const tfFight: PreviewScene = {
   },
 };
 
+// ===========================================================================
+// KATARINA
+// ===========================================================================
+
+const KAT_REDC = '#ff4057';
+const KAT_STEELC = '#dfe8f5';
+const KAT_PINK = '#ff6f9c';
+
+/**
+ * A dagger: a short blade and a crossguard. The one shape that is only hers,
+ * and at this size it has to read as a blade rather than an arrow — so the
+ * guard is drawn wider than the blade is thick.
+ */
+function blade(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  ang: number,
+  color: string,
+  alpha: number,
+  scale = 1,
+) {
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(ang);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = rgba(color, 0.95);
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(-3.5, -1.4);
+  ctx.lineTo(6.5, 0);
+  ctx.lineTo(-3.5, 1.4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = rgba(color, 1);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-3.8, -3.2);
+  ctx.lineTo(-3.8, 3.2);
+  ctx.moveTo(-3.8, 0);
+  ctx.lineTo(-7, 0);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * A dagger on its way down: the ring closing on the spot it will land, and
+ * the blade itself above it, dropping. The same reading the arena draws —
+ * a place first, a thing second.
+ */
+function falling(ctx: CanvasRenderingContext2D, x: number, y: number, p: number, alpha = 1) {
+  const q = clamp01(p);
+  ring(ctx, x, y, 4 + 16 * (1 - q), rgba(KAT_STEELC, 1), alpha * (0.35 + 0.5 * q), 1.2);
+  blade(ctx, x, y - (1 - q) * 22, Math.PI / 2, KAT_STEELC, alpha * 0.9, 0.9);
+}
+
+/** A dagger on the floor, and the reach you have to get inside to take it. */
+function grounded(ctx: CanvasRenderingContext2D, x: number, y: number, alpha = 1) {
+  ring(ctx, x, y, 18, rgba(KAT_REDC, 1), alpha * 0.45, 1, [3, 3]);
+  blade(ctx, x, y, -0.6, KAT_REDC, alpha, 1);
+}
+
+/** A blink, fading: the line from where she was to where she is. */
+function blinkTrace(ctx: CanvasRenderingContext2D, a: Pt, b: Pt, p: number) {
+  if (p <= 0 || p >= 1) return;
+  ctx.save();
+  ctx.globalAlpha = (1 - p) * 0.8;
+  ctx.strokeStyle = rgba(KAT_REDC, 1);
+  ctx.lineWidth = 2.4 * (1 - p) + 0.6;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * PREPARATION — drop it, then meet it.
+ *
+ * The dagger goes up where she stands and she spends its second and a quarter
+ * doing what everybody does with the haste — following the target. Then the
+ * step back, onto the spot, on the beat, with them still inside the slash.
+ * The step back is the mode.
+ */
+const katPrep: PreviewScene = {
+  length: 3.2,
+  poster: 0.58,
+  caption: 'drop it, then meet it',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 150, 100);
+    const drop = { x: 144, y: 102 };
+    const dropAt = 0.4;
+    const landAt = dropAt + 1.25;
+    const foe0 = { x: 192 + 10 * Math.sin(t * 2.2), y: 92 + 8 * Math.cos(t * 1.7) };
+
+    // Out with the haste, and back onto the spot as it lands.
+    const out = at(t, dropAt + 0.1, 0.55);
+    const back = at(t, dropAt + 0.75, 0.45);
+    const hx = lerp(drop.x, 170, smooth(out) - smooth(back)) + (t >= landAt ? 8 * smooth(at(t, landAt + 0.4, 0.8)) : 0);
+    const hy = lerp(drop.y, 96, smooth(out) - smooth(back));
+
+    if (t >= dropAt && t < landAt) falling(ctx, drop.x, drop.y, (t - dropAt) / 1.25);
+    if (t >= landAt) {
+      burst(ctx, hx, hy, at(t, landAt, 0.45), KAT_REDC, 44, 10);
+      ring(ctx, foe0.x, foe0.y, 12, rgba(KAT_REDC, 1), 0.8 * (1 - at(t, landAt + 0.3, 0.6)), 2);
+      tag(ctx, hx, hy - 30, 'TAKEN', GOOD, at(t, landAt, 0.2) * 0.95, 9);
+    } else if (t >= dropAt) {
+      tag(ctx, drop.x - 30, drop.y - 20, `${Math.max(0, landAt - t).toFixed(1)}s`, KAT_STEELC, 0.8, 8);
+    }
+    foe(ctx, foe0.x, foe0.y, 5.6, 1);
+    hero(ctx, hx, hy, accent, Math.atan2(foe0.y - hy, foe0.x - hx));
+    vignette(f);
+  },
+};
+
+/**
+ * BOUNCING BLADE — it lands behind what it hits.
+ *
+ * The same throw twice, as a comparison rather than a sentence: at the
+ * champion, and the dagger comes down past them where nobody is; at the minion
+ * in front of them, and it comes down on them. One body of difference, which
+ * is the whole of the mode.
+ */
+const katBlade: PreviewScene = {
+  length: 4,
+  poster: 0.86,
+  caption: 'throw at what is in front',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    const t = f.t % 4;
+    stage(f, 70, 100);
+    const hx = 58;
+    const hy = 104;
+    const champ = { x: 208, y: 92 };
+    const wave: Pt[] = [
+      { x: 160, y: 70 },
+      { x: 164, y: 97 },
+      { x: 158, y: 124 },
+    ];
+    const bad = t < 2;
+    const first = bad ? champ : wave[1];
+    const p = bad ? t / 2 : (t - 2) / 2;
+    const fly = at(p, 0.1, 0.22);
+    const fall = at(p, 0.32, 0.3);
+    const dir = { x: first.x - hx, y: first.y - hy };
+    const m = Math.hypot(dir.x, dir.y);
+    const land = { x: first.x + (dir.x / m) * 44, y: first.y + (dir.y / m) * 44 };
+
+    for (const w of wave) minion(ctx, w.x, w.y, RED, 1);
+    if (fly > 0 && fly < 1) {
+      lance(ctx, lerp(hx, first.x, fly), lerp(hy, first.y, fly), Math.atan2(dir.y, dir.x), 18, KAT_STEELC, 0.95, 2.2);
+    }
+    if (fly >= 1) {
+      // The line it will come down along, drawn from the first body.
+      ctx.save();
+      ctx.globalAlpha = 0.35 * (1 - at(p, 0.9, 0.1));
+      ctx.strokeStyle = rgba(KAT_STEELC, 1);
+      ctx.setLineDash([2, 3]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(first.x, first.y);
+      ctx.lineTo(land.x, land.y);
+      ctx.stroke();
+      ctx.restore();
+      if (fall < 1) falling(ctx, land.x, land.y, fall);
+      else grounded(ctx, land.x, land.y, 1 - at(p, 0.9, 0.1));
+    }
+    const onThem = !bad && fall >= 1;
+    if (onThem) ring(ctx, champ.x, champ.y, 40, rgba(KAT_REDC, 1), 0.45 * (1 - at(p, 0.9, 0.1)), 1.4, [4, 3]);
+    foe(ctx, champ.x, champ.y, 5.8, 1);
+    // Top left: the foot of the frame is the card's title, the top right its keys.
+    tag(ctx, 12, 20, bad ? 'AT THEM — LANDS BEHIND' : 'AT THE WAVE — LANDS ON THEM', bad ? WARN : GOOD, 0.95, 8.5, 'left');
+    hero(ctx, hx, hy, accent, Math.atan2(dir.y, dir.x));
+    pointer(ctx, first.x + 4, first.y + 4, accent, !bad);
+    vignette(f);
+  },
+};
+
+/**
+ * SHUNPO — one cooldown, three daggers.
+ *
+ * She blinks onto a dagger, takes it, and the blink is back before the next
+ * one needs it. Round a triangle, forever, which is the only honest way to
+ * draw a cooldown that a planned route keeps handing back.
+ */
+const katShunpo: PreviewScene = {
+  length: 3,
+  poster: 0.2,
+  caption: 'onto the dagger, and again',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    const t = f.t % 3;
+    stage(f, 160, 96);
+    const target = { x: 164 + 6 * Math.sin((t / 3) * TAU), y: 92 };
+    const pts: Pt[] = [
+      { x: 118, y: 120 },
+      { x: 164, y: 50 },
+      { x: 212, y: 120 },
+    ];
+    const k = Math.floor(t) % 3;
+    const tt = t - Math.floor(t);
+    const prev = pts[(k + 2) % 3];
+    for (let i = 0; i < 3; i++) {
+      if (i === k) continue;
+      // The one she has just left is dropped again, so there is always a
+      // route: it lands before she comes round to it.
+      if (i === (k + 2) % 3) falling(ctx, pts[i].x, pts[i].y, at(tt, 0.1, 0.7));
+      else grounded(ctx, pts[i].x, pts[i].y);
+    }
+    blinkTrace(ctx, prev, pts[k], at(tt, 0, 0.4));
+    burst(ctx, pts[k].x, pts[k].y, at(tt, 0, 0.45), KAT_REDC, 40, 10);
+    foe(ctx, target.x, target.y, 5.6, 1);
+    hero(ctx, pts[k].x, pts[k].y, accent, Math.atan2(target.y - pts[k].y, target.x - pts[k].x));
+    // The cooldown, as the arc it is: nearly all of it gone on every take.
+    const cd = 1 - at(tt, 0, 0.3);
+    // Top left, clear of the card's own keys in the other corner.
+    ring(ctx, 24, 24, 9, rgba(BONE, 1), 0.2, 1.4);
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = rgba(KAT_REDC, 1);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(24, 24, 9, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - cd));
+    ctx.stroke();
+    ctx.restore();
+    tag(ctx, 24, 24, 'E', BONE, 0.9, 8);
+    vignette(f);
+  },
+};
+
+/**
+ * BLADE, THEN BLINK — be there when it lands.
+ *
+ * Throw, wait for the ring to close, and blink onto the spot on the beat the
+ * dagger touches the floor. The clip holds on the wait, because the wait is
+ * the mode: early is nothing to land on.
+ */
+const katBlink: PreviewScene = {
+  length: 3,
+  poster: 0.5,
+  caption: 'throw it, then be there',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 120, 104);
+    const home = { x: 70, y: 116 };
+    const foe0 = { x: 170 + 6 * Math.sin(t * 2), y: 98 };
+    const dir = norm2(foe0.x - home.x, foe0.y - home.y);
+    const land = { x: 170 + dir.x * 44, y: 98 + dir.y * 44 };
+    const fly = at(t, 0.25, 0.22);
+    const landAt = 1.4;
+    const blinked = t >= landAt;
+    const hx = blinked ? land.x - 6 : home.x;
+    const hy = blinked ? land.y - 4 : home.y;
+
+    for (let i = 0; i < 3; i++) minion(ctx, 140 + i * 6, 132 + i * 12, RED, 1, 0.7);
+    if (fly > 0 && fly < 1) lance(ctx, lerp(home.x, foe0.x, fly), lerp(home.y, foe0.y, fly), Math.atan2(dir.y, dir.x), 18, KAT_STEELC, 0.95, 2.2);
+    if (fly >= 1 && !blinked) falling(ctx, land.x, land.y, (t - 0.47) / (landAt - 0.47));
+    if (blinked) {
+      blinkTrace(ctx, home, { x: hx, y: hy }, at(t, landAt, 0.5));
+      burst(ctx, hx, hy, at(t, landAt, 0.5), KAT_REDC, 44, 10);
+      tag(ctx, hx, hy - 30, 'ON THE BEAT', GOOD, at(t, landAt, 0.2) * 0.95, 8.5);
+    }
+    foe(ctx, foe0.x, foe0.y, 5.6, 1);
+    hero(ctx, hx, hy, accent, Math.atan2(foe0.y - hy, foe0.x - hx));
+    vignette(f);
+  },
+};
+
+/** Unit vector, for the few clips that aim along a line. */
+const norm2 = (x: number, y: number): Pt => {
+  const m = Math.hypot(x, y) || 1;
+  return { x: x / m, y: y / m };
+};
+
+/**
+ * THE DANCE — in, drop, take.
+ *
+ * Three words, printed as they happen, because the order is the mode: the
+ * blink first, the dagger at once, and the pickup on top of somebody who has
+ * started walking away from it.
+ */
+const katDance: PreviewScene = {
+  length: 3.4,
+  poster: 0.66,
+  caption: 'in, drop, take',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 100);
+    const start = { x: 70, y: 118 };
+    const inAt = 0.35;
+    const dropAt = 0.5;
+    const landAt = dropAt + 1.25;
+    const foe0 = { x: lerp(196, 218, smooth(at(t, 0.6, 1.4))), y: lerp(94, 86, smooth(at(t, 0.6, 1.4))) };
+    const spot = { x: 184, y: 100 };
+    const inside = t >= inAt;
+    // Haste pulls her after them; she comes back onto the spot on the beat.
+    const drift = smooth(at(t, dropAt + 0.1, 0.5)) - smooth(at(t, dropAt + 0.75, 0.45));
+    const hx = inside ? spot.x + drift * 22 : start.x;
+    const hy = inside ? spot.y - drift * 6 : start.y;
+
+    if (inside) blinkTrace(ctx, start, spot, at(t, inAt, 0.5));
+    if (t >= dropAt && t < landAt) falling(ctx, spot.x, spot.y, (t - dropAt) / 1.25);
+    if (t >= landAt) burst(ctx, hx, hy, at(t, landAt, 0.5), KAT_REDC, 44, 10);
+
+    const words = ['IN', 'DROP', 'TAKE'];
+    const times = [inAt, dropAt, landAt];
+    for (let i = 0; i < 3; i++) {
+      tag(ctx, 34 + i * 44, 24, words[i], t >= times[i] ? GOOD : BONE, t >= times[i] ? 0.95 : 0.25, 9.5);
+    }
+    foe(ctx, foe0.x, foe0.y, 5.6, 1);
+    hero(ctx, hx, hy, accent, Math.atan2(foe0.y - hy, foe0.x - hx));
+    vignette(f);
+  },
+};
+
+/**
+ * RESET — a kill is a cooldown.
+ *
+ * Three bodies, and she goes round them: arrive, kill, and the kit comes back
+ * lit before she has left. Each one is back on its feet by the time she is
+ * round to it again, so the loop is the fight rather than an ending.
+ */
+const katReset: PreviewScene = {
+  length: 3,
+  poster: 0.16,
+  caption: 'arrive at the next one ready',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    const t = f.t % 3;
+    stage(f, 160, 100);
+    const pts: Pt[] = [
+      { x: 110, y: 118 },
+      { x: 166, y: 56 },
+      { x: 220, y: 116 },
+    ];
+    const k = Math.floor(t) % 3;
+    const tt = t - Math.floor(t);
+    for (let i = 0; i < 3; i++) {
+      const alpha = i === k ? 1 - at(tt, 0.3, 0.3) : i === (k + 2) % 3 ? at(tt, 0.2, 0.6) : 1;
+      foe(ctx, pts[i].x, pts[i].y, 5.6, alpha);
+    }
+    const here = { x: pts[k].x - 12, y: pts[k].y + 6 };
+    const was = { x: pts[(k + 2) % 3].x - 12, y: pts[(k + 2) % 3].y + 6 };
+    blinkTrace(ctx, was, here, at(tt, 0, 0.35));
+    burst(ctx, pts[k].x, pts[k].y, at(tt, 0.28, 0.4), KAT_REDC, 26, 8);
+    tag(ctx, here.x, here.y - 26, 'RESET', KAT_REDC, at(tt, 0.4, 0.1) * (1 - at(tt, 0.85, 0.15)), 9);
+    // Q W E, dark while spent and lit the instant the kill lands.
+    for (let i = 0; i < 3; i++) {
+      const lit = at(tt, 0.4, 0.08);
+      ctx.save();
+      ctx.globalAlpha = 0.25 + 0.7 * lit;
+      ctx.fillStyle = rgba(lit > 0.5 ? KAT_REDC : BONE, 0.35);
+      ctx.strokeStyle = rgba(lit > 0.5 ? KAT_REDC : BONE, 0.9);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.rect(14 + i * 16, 16, 12, 12);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      tag(ctx, 20 + i * 16, 22, ['Q', 'W', 'E'][i], BONE, 0.9, 7.5);
+    }
+    hero(ctx, here.x, here.y, accent, Math.atan2(pts[k].y - here.y, pts[k].x - here.x));
+    vignette(f);
+  },
+};
+
+/**
+ * DEATH LOTUS — stand still, for once.
+ *
+ * They close from three sides, she spins, and she does not move — the clip
+ * prints the instruction while it happens, because it is the one moment in
+ * her kit where the right thing to do with your hands is nothing.
+ */
+const katLotus: PreviewScene = {
+  length: 3,
+  poster: 0.62,
+  caption: 'the spin you lose by moving',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    const t = f.t % 3;
+    stage(f, 160, 96);
+    const cx = 160;
+    const cy = 96;
+    const close = smooth(at(t, 0.1, 1));
+    const r = lerp(90, 36, close);
+    const alpha = at(t, 0, 0.2) * (1 - at(t, 2.75, 0.25));
+    const spinning = t >= 1.1 && t < 2.6;
+    const foes: Pt[] = [];
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI / 2 + (i / 3) * TAU;
+      foes.push({ x: cx + Math.cos(a) * r * 1.3, y: cy + Math.sin(a) * r });
+    }
+    if (spinning) {
+      const s = (t - 1.1) / 1.5;
+      ring(ctx, cx, cy, 66, rgba(KAT_PINK, 1), 0.4, 1.4, [5, 4]);
+      for (let i = 0; i < 3; i++) {
+        const k = (s * 9 + i / 3) % 1;
+        const fx = foes[i];
+        lance(ctx, lerp(cx, fx.x, k), lerp(cy, fx.y, k), Math.atan2(fx.y - cy, fx.x - cx), 12, KAT_PINK, 0.9 * alpha, 1.8);
+      }
+      tag(ctx, 12, 20, 'HANDS OFF', KAT_PINK, 0.95, 9, 'left');
+    }
+    for (const fx of foes) foe(ctx, fx.x, fx.y, 5.4, alpha);
+    hero(ctx, cx, cy, accent, spinning ? t * 12 : -Math.PI / 2);
+    vignette(f);
+  },
+};
+
+/**
+ * THE ENTRY — join a fight, not start one.
+ *
+ * The fight's health, draining while she waits outside it, and the word over
+ * it changing from WAIT to GO. Then in, and the fight finishes itself around
+ * her. The waiting is most of the clip because it is most of the skill.
+ */
+const katEntry: PreviewScene = {
+  length: 3.8,
+  poster: 0.74,
+  caption: 'go in when it is ready',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 200, 96);
+    const fight = { x: 222, y: 102 };
+    const hp = lerp(1, 0.42, smooth(at(t, 0.1, 2.1)));
+    const ready = hp <= 0.55;
+    const goAt = 2.35;
+    const inside = t >= goAt;
+    const orbit = t * 1.6;
+    const outside = { x: 86 + 10 * Math.cos(orbit), y: 110 + 12 * Math.sin(orbit) };
+    const hx = inside ? fight.x - 8 : outside.x;
+    const hy = inside ? fight.y + 6 : outside.y;
+
+    const members: Pt[] = [
+      { x: fight.x - 22, y: fight.y - 12 },
+      { x: fight.x + 20, y: fight.y - 14 },
+      { x: fight.x + 4, y: fight.y + 22 },
+    ];
+    ring(ctx, fight.x, fight.y, 44, rgba(ready ? GOOD : WARN, 1), ready ? 0.5 : 0.25, ready ? 1.8 : 1.1, [5, 4]);
+    // The fight's health, as one bar over it.
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(fight.x - 26, fight.y - 58, 52, 4);
+    ctx.fillStyle = rgba(ready ? GOOD : WARN, 0.95);
+    ctx.fillRect(fight.x - 26, fight.y - 58, 52 * hp, 4);
+    ctx.restore();
+    // Beside the bar rather than over it: above it is where the card's keys are.
+    if (!inside) tag(ctx, fight.x - 32, fight.y - 56, ready ? 'GO' : 'WAIT', ready ? GOOD : WARN, 0.95, 10, 'right');
+
+    if (inside) {
+      blinkTrace(ctx, { x: 86, y: 110 }, { x: hx, y: hy }, at(t, goAt, 0.5));
+      ring(ctx, hx, hy, 40, rgba(KAT_PINK, 1), 0.45 * (1 - at(t, 3.4, 0.4)), 1.4, [5, 4]);
+    }
+    for (let i = 0; i < 3; i++) {
+      const dies = goAt + 0.35 + i * 0.3;
+      const a = inside ? 1 - at(t, dies, 0.25) : 1;
+      foe(ctx, members[i].x, members[i].y, 5.2, a);
+      if (inside) burst(ctx, members[i].x, members[i].y, at(t, dies, 0.4), KAT_REDC, 22, 6);
+    }
+    hero(ctx, hx, hy, accent, Math.atan2(fight.y - hy, fight.x - hx));
+    vignette(f);
+  },
+};
+
+/**
+ * THE SPIN — all of it, at once.
+ *
+ * She moves on a loop and a dagger comes down on the loop ahead of her each
+ * second, landing exactly as she arrives. That is the whole of her drawn as a
+ * picture: a route with the daggers already on it.
+ */
+const katFight: PreviewScene = {
+  length: 3,
+  poster: 0.3,
+  caption: 'all of it, against people',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    const t = f.t % 3;
+    const u = t / 3;
+    stage(f, 140, 100);
+    wall(ctx, 206, 8, 52);
+    wall(ctx, 206, 134, 178);
+    const cx = 144;
+    const cy = 100;
+    const path = (v: number): Pt => ({ x: cx + Math.cos(v * TAU) * 58, y: cy + Math.sin(v * TAU) * 34 });
+    const me = path(u);
+    const hunter = { x: 150 + 14 * Math.cos(u * TAU * 2), y: 96 + 10 * Math.sin(u * TAU * 2) };
+    const duel = { x: 256, y: 128 + 8 * Math.sin(u * TAU) };
+    for (let i = 0; i < 3; i++) minion(ctx, 176 + i * 9, 64 + i * 14, RED, 1 - i * 0.25, 0.7);
+
+    // One dagger a second, dropped where she will be when it lands.
+    const k = Math.floor(t);
+    const tt = t - k;
+    const next = path((k + 1) / 3);
+    if (tt < 0.999) falling(ctx, next.x, next.y, tt);
+    const here = path(k / 3);
+    burst(ctx, here.x, here.y, at(tt, 0, 0.45), KAT_REDC, 40, 10);
+
+    foe(ctx, hunter.x, hunter.y, 5.6, 1);
+    foe(ctx, duel.x, duel.y, 5.6, 1);
+    hero(ctx, me.x, me.y, accent, u * TAU + Math.PI / 2);
+    vignette(f);
+  },
+};
+
 /**
  * EVERY ACTIVITY, AND ITS CLIP.
  *
@@ -4222,4 +4736,13 @@ export const PREVIEWS: Record<DrillId, PreviewScene> = {
   tfCombo,
   tfGate,
   tfFight,
+  katPrep,
+  katBlade,
+  katShunpo,
+  katBlink,
+  katDance,
+  katReset,
+  katLotus,
+  katEntry,
+  katFight,
 };

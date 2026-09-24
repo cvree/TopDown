@@ -59,6 +59,7 @@ import {
   normalizeBench,
   recordBench,
   type BenchRecords,
+  type BenchScenario,
 } from '../src/progression/benchmarks';
 import {
   INTENTIONS,
@@ -92,6 +93,16 @@ import { CAITLYN_MANA, CAITLYN_STATS, caitlynAtLevel, type CaitlynKit } from '..
 import { EZREAL_DRILL_IDS, ezrealStage, type EzrealDrillId } from '../src/drills/ezreal';
 import { CARD_ORDER, TWISTED_STATS, type CardColor, type TwistedKit } from '../src/engine/twistedfate';
 import { TWISTED_DRILL_IDS, twistedStage, type TwistedDrillId } from '../src/drills/twistedfate';
+import { KATARINA_STATS, type KatarinaKit } from '../src/engine/katarina';
+import { KATARINA_DRILL_IDS } from '../src/drills/katarina';
+import {
+  KATARINA_STAGES,
+  applyKatarinaRun,
+  computeKatarinaMastery,
+  emptyKatarinaProgress,
+  katStageUnlocked,
+  katTitleFor,
+} from '../src/progression/katarina';
 import {
   TWISTED_STAGES,
   applyTwistedRun,
@@ -156,6 +167,8 @@ type Policy =
   | 'ezStatic'
   | 'twisted'
   | 'tfReactive'
+  | 'katarina'
+  | 'katChase'
   | 'abilitySpam'
   | 'apmChaos'
   | 'holdOne'
@@ -1329,6 +1342,204 @@ const runDrill = (
             input.dir = { x: gxT, y: gyT };
             break;
           }
+          case 'katarina':
+          case 'katChase': {
+            // A Katarina who routes, and the same player who fights the body.
+            //
+            // Both use every button the stage hands them, attack on the timer
+            // and walk at the fight. They differ in exactly the habits the
+            // path is about:
+            //
+            //   1. The router goes to the dagger. She stands where it will land
+            //      before it lands, walks or blinks onto it once it has, and
+            //      throws the blade at whichever body puts the dagger on the
+            //      champion. The chaser throws at the champion, blinks at the
+            //      champion, and takes a dagger only when she happens to be
+            //      standing on it.
+            //   2. The router lets go of the keys when she spins. The chaser
+            //      keeps walking, because walking is what hands do.
+            //   3. The router waits for a fight to be ready. The chaser does
+            //      not wait for anything.
+            //
+            // So a gap between them is a gap the dagger weighting created,
+            // which is the single claim this path rests on.
+            reactTimer = 0.03;
+            const chase = policy === 'katChase';
+            const kit = (drill as unknown as { kit?: KatarinaKit }).kit;
+            if (!kit) break;
+            const KS = KATARINA_STATS;
+            const now = session.world.time;
+            const group = (drill as unknown as { group?: { ids: number[]; anchor: Vec2 } | null }).group ?? null;
+            const allChamps = session.world.enemies().filter((e) => !e.isMinion);
+            const groupHp = (() => {
+              if (!group) return 1;
+              let hp = 0;
+              let max = 0;
+              for (const id of group.ids) {
+                const a = session.world.byId(id);
+                if (!a) continue;
+                max += a.maxHp;
+                if (a.alive) hp += a.hp;
+              }
+              return max > 0 ? hp / max : 1;
+            })();
+            // On the entry stage the router holds off until the fight is ready.
+            const holding = !chase && group !== null && groupHp > 0.5;
+            const champs = holding ? [] : allChamps;
+            const want = champs.length
+              ? champs.reduce((a, b) =>
+                  a.hp / a.maxHp + dist(p.pos, a.pos) / 900 <= b.hp / b.maxHp + dist(p.pos, b.pos) / 900 ? a : b,
+                )
+              : null;
+            if (want) session.cursorWorld = { x: want.pos.x, y: want.pos.y };
+
+            // ---- The lotus. Hands off, and leave by blinking if it is empty.
+            if (kit.casting) {
+              if (chase && want) {
+                input.dir = norm(want.pos.x - p.pos.x, want.pos.y - p.pos.y);
+              } else {
+                input.dir = { x: 0, y: 0 };
+                const inside = allChamps.filter((e) => dist(e.pos, p.pos) <= KS.rRange).length;
+                const far = kit.daggerNear(p.pos, KS.eRange);
+                if (inside === 0 && kit.eCd <= 0.001 && kit.loadout.shunpo && far) {
+                  input.push({ kind: 'ability', slot: 'e', x: far.pos.x, y: far.pos.y, t: t * 1000 });
+                }
+              }
+              break;
+            }
+
+            const nearOf = (at: Vec2) =>
+              champs.reduce((acc, e) => Math.min(acc, dist(e.pos, at)), Infinity);
+            // The dagger worth going to: landed or about to, a champion near it,
+            // soonest first.
+            const route = chase
+              ? null
+              : kit.daggers
+                  .filter((d) => d.expiresAt - now > 0.15)
+                  .filter((d) => nearOf(d.pos) <= KS.slashRadius + 60 || champs.length === 0)
+                  .sort((a, b) => a.landsAt + dist(p.pos, a.pos) / 900 - (b.landsAt + dist(p.pos, b.pos) / 900))[0] ?? null;
+
+            // ---- E onto a landed dagger: the cheap blink.
+            if (route && kit.landed(route) && kit.loadout.shunpo && kit.eCd <= 0.001) {
+              const g = dist(p.pos, route.pos);
+              if (g > KS.pickupRadius && g <= KS.eRange) {
+                // Aimed a little past the dagger on the champion's side, so she
+                // arrives with them inside the slash.
+                const toward = want ? norm(want.pos.x - route.pos.x, want.pos.y - route.pos.y) : { x: 0, y: 0 };
+                input.push({ kind: 'ability', slot: 'e', x: route.pos.x + toward.x * 60, y: route.pos.y + toward.y * 60, t: t * 1000 });
+              }
+            }
+
+            // ---- R when the spin will catch more than one.
+            if (kit.loadout.deathLotus && kit.rCd <= 0.001 && !kit.casting) {
+              const inside = champs.filter((e) => dist(e.pos, p.pos) <= KS.rRange - 70).length;
+              if (inside >= 2 || (inside >= 1 && champs.length === 1 && want && want.hp / want.maxHp < 0.5)) {
+                input.dir = { x: 0, y: 0 };
+                input.push({ kind: 'ability', slot: 'r', x: p.pos.x, y: p.pos.y, t: t * 1000 });
+                break;
+              }
+            }
+
+            // ---- Q: at whichever body puts the dagger on the champion.
+            if (kit.loadout.bouncingBlade && kit.qCd <= 0.001 && want) {
+              const inQ = session.world.enemies().filter((e) => dist(e.pos, p.pos) <= KS.qRange + e.radius - 10);
+              let pick: Actor | null = null;
+              if (chase) {
+                pick = inQ.includes(want) ? want : null;
+              } else {
+                let best = Infinity;
+                for (const e of inQ) {
+                  const d = norm(e.pos.x - p.pos.x, e.pos.y - p.pos.y);
+                  const land = { x: e.pos.x + d.x * KS.qLandBehind, y: e.pos.y + d.y * KS.qLandBehind };
+                  const miss = dist(land, want.pos);
+                  if (miss < best) {
+                    best = miss;
+                    pick = e;
+                  }
+                }
+                if (best > KS.slashRadius + 120 && !inQ.includes(want)) pick = null;
+                else if (best > KS.slashRadius + 120) pick = want;
+              }
+              if (pick) input.push({ kind: 'ability', slot: 'q', x: pick.pos.x, y: pick.pos.y, t: t * 1000 });
+            }
+
+            // ---- E onto a champion: in, when the kit is ready to follow it.
+            //
+            // On the dance stage the router only goes in with Preparation ready
+            // to follow it — the blink is the first word of the trade, not the
+            // whole of it — and goes in even from melee, because the trade is
+            // the thing being practised. Everywhere else a blink is for closing.
+            const eOnBody = id !== 'katShunpo' && id !== 'katBlink' && id !== 'katPrep';
+            const dance = id === 'katDance' && !chase;
+            if (kit.loadout.shunpo && kit.eCd <= 0.001 && want && eOnBody && !(route && kit.landed(route))) {
+              const g = dist(p.pos, want.pos);
+              const far = g > p.attack.range + want.radius + 40;
+              const ready = !dance || kit.wCd <= 0.001;
+              if ((far || dance) && g <= KS.eRange && ready) {
+                input.push({ kind: 'ability', slot: 'e', x: want.pos.x, y: want.pos.y, t: t * 1000 });
+              }
+            }
+
+            // ---- W: drop it next to them — on the dance stage, only as the
+            // second word of a trade.
+            if (kit.loadout.preparation && kit.wCd <= 0.001 && want) {
+              const g = dist(p.pos, want.pos);
+              const justIn = kit.lastShunpo !== null && now - kit.lastShunpo.at < 0.4;
+              if (chase || (g <= 230 && (!dance || justIn))) {
+                input.push({ kind: 'ability', slot: 'w', x: p.pos.x, y: p.pos.y, t: t * 1000 });
+              }
+            }
+
+            // ---- The attack.
+            if (want) {
+              const dq = dist(p.pos, want.pos);
+              if (p.attackCd <= 0.001 && p.phase !== 'windup' && dq - want.radius <= p.attack.range) {
+                input.push({ kind: 'move', x: want.pos.x, y: want.pos.y, t: t * 1000 });
+              }
+            }
+            if (p.phase === 'windup') {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+
+            // ---- The feet.
+            if (route) {
+              // To the dagger — onto its landing spot, leaning to the side the
+              // champion is on so the slash reaches them.
+              const lean = want ? norm(want.pos.x - route.pos.x, want.pos.y - route.pos.y) : { x: 0, y: 0 };
+              const spot = { x: route.pos.x + lean.x * 70, y: route.pos.y + lean.y * 70 };
+              const g = dist(p.pos, spot);
+              input.dir = g > 18 ? norm(spot.x - p.pos.x, spot.y - p.pos.y) : { x: 0, y: 0 };
+              break;
+            }
+            if (holding && group) {
+              // Circle the fight from outside its reach until it is ready.
+              const radial = norm(p.pos.x - group.anchor.x, p.pos.y - group.anchor.y);
+              const tangent = { x: -radial.y, y: radial.x };
+              const corr = Math.max(-1, Math.min(1, (820 - dist(p.pos, group.anchor)) / 200));
+              input.dir = norm(radial.x * corr + tangent.x * orbitDir * 0.8, radial.y * corr + tangent.y * orbitDir * 0.8);
+              const m = 200;
+              if (p.pos.x < m || p.pos.x > bounds.w - m || p.pos.y < m || p.pos.y > bounds.h - m) orbitDir *= -1;
+              break;
+            }
+            if (!want) {
+              input.dir = { x: 0, y: 0 };
+              break;
+            }
+            // In to melee, circling a little so the feet are never still.
+            const dq = dist(p.pos, want.pos);
+            const desired = p.attack.range * 0.8 + want.radius;
+            const radialK = norm(p.pos.x - want.pos.x, p.pos.y - want.pos.y);
+            const tangentK = { x: -radialK.y, y: radialK.x };
+            const corrK = Math.max(-1, Math.min(1, (desired - dq) / 120));
+            input.dir = norm(radialK.x * corrK + tangentK.x * orbitDir * 0.5, radialK.y * corrK + tangentK.y * orbitDir * 0.5);
+            const marginK = 200;
+            if (p.pos.x < marginK || p.pos.x > bounds.w - marginK || p.pos.y < marginK || p.pos.y > bounds.h - marginK) {
+              const toCentre = norm(bounds.w / 2 - p.pos.x, bounds.h / 2 - p.pos.y);
+              orbitDir = tangentK.x * toCentre.x + tangentK.y * toCentre.y >= 0 ? 1 : -1;
+            }
+            break;
+          }
           case 'wasdMash': {
             // Never lets go of the keys and mashes the attack command.
             //
@@ -2012,6 +2223,8 @@ const runDrill = (
         policy === 'ezStatic' ||
         policy === 'twisted' ||
         policy === 'tfReactive' ||
+        policy === 'katarina' ||
+        policy === 'katChase' ||
         policy === 'vayneWasd' ||
         policy === 'vayneBolts' ||
         policy === 'vayneCondemn' ||
@@ -2633,6 +2846,8 @@ line('\n=== The score is a curve, not a coin flip ===');
     ['ezKite', 'ezreal', 'wasd'],
     ['tfPick', 'twisted', 'wasd'],
     ['tfCombo', 'twisted', 'wasd'],
+    ['katDance', 'katarina', 'wasd'],
+    ['katReset', 'katarina', 'wasd'],
     ['vayneTumble', 'vayneLateral', 'click'],
     ['caitlynDodge', 'caitlyn', 'click'],
   ];
@@ -2999,6 +3214,131 @@ line('\n=== TWISTED FATE: the path gets harder, not just longer ===');
   const learn = perf('tfPick');
   const test = perf('tfFight');
   line(`  tfPick (LEARN) ${pct(learn)}  →  tfFight (TEST) ${pct(test)}`);
+  expect('the same player finds the test harder than the first stage', test < learn, `${pct(test)} vs ${pct(learn)}`);
+}
+
+line('\n=== KATARINA: the path, stage by stage ===');
+{
+  // Every stage is played three ways: routed, chased, and not at all. The
+  // chaser uses every button the router does and attacks on the same timer;
+  // she simply fights the body instead of the floor — throws at the champion,
+  // blinks at the champion, walks during the lotus, dives the fight at full
+  // health. The path's whole claim is that this is a real player with a real
+  // habit and that the habit costs her, so that is the comparison that has to
+  // hold on every stage.
+  for (const id of KATARINA_DRILL_IDS as unknown as DrillId[]) {
+    const good = runDrill(id, 'katarina', 0.4, 4242, 'wasd');
+    const chase = runDrill(id, 'katChase', 0.4, 4242, 'wasd');
+    const idle = runDrill(id, 'idle', 0.4, 4242, 'wasd');
+    const kitOf = (r: ReturnType<typeof runDrill>) => (r.drill as unknown as { kit: KatarinaKit }).kit;
+    const gk = kitOf(good);
+    const ck = kitOf(chase);
+    line(
+      `  ${id.padEnd(10)} good ${pct(good.out.performance)} (taken ${gk.stats.daggersTaken}/${gk.stats.daggersTaken + gk.stats.daggersExpired} slash ${gk.stats.slashOnChampions} resets ${gk.stats.resets})  |  chase ${pct(chase.out.performance)} (taken ${ck.stats.daggersTaken}/${ck.stats.daggersTaken + ck.stats.daggersExpired})  |  idle ${pct(idle.out.performance)}`,
+    );
+    expect(`${id}: playing it properly scores well`, good.out.performance > 0.5, pct(good.out.performance));
+    expect(`${id}: doing nothing scores near zero`, idle.out.performance < 0.3, pct(idle.out.performance));
+    expect(
+      `${id}: fighting the body instead of the floor costs you`,
+      chase.out.performance < good.out.performance - 0.05,
+      `${pct(chase.out.performance)} vs ${pct(good.out.performance)}`,
+    );
+  }
+}
+
+line('\n=== KATARINA: the mechanics behind the score are real ===');
+{
+  const kitOf = (r: ReturnType<typeof runDrill>) => (r.drill as unknown as { kit: KatarinaKit }).kit;
+  const metric = (r: ReturnType<typeof runDrill>, id: string) => r.out.keyMetrics.find((m) => m.id === id)?.value ?? 0;
+
+  // Preparation. A dagger is met where it lands, on the beat it lands.
+  const prep = kitOf(runDrill('katPrep', 'katarina', 0.4, 606, 'wasd'));
+  const prepLate = kitOf(runDrill('katPrep', 'katChase', 0.4, 606, 'wasd'));
+  line(`  prep   : routed ${prep.stats.daggersTaken}/${prep.stats.daggersLanded} taken, ${prep.takeDelay.toFixed(2)}s on the floor  |  chased ${prepLate.stats.daggersTaken}/${prepLate.stats.daggersLanded}, ${prepLate.takeDelay.toFixed(2)}s`);
+  expect('standing where it lands takes it the moment it lands', prep.takeDelay < 0.3 && prep.takeRate > 0.85, `${prep.takeDelay.toFixed(2)}s, ${pct(prep.takeRate)}`);
+  expect('following the target leaves daggers on the floor', prepLate.takeRate < prep.takeRate, `${pct(prepLate.takeRate)} vs ${pct(prep.takeRate)}`);
+  expect('every dagger thrown is a dagger that lands', prep.stats.daggersLanded === prep.stats.daggersThrown, `${prep.stats.daggersLanded} of ${prep.stats.daggersThrown}`);
+
+  // Bouncing Blade. It lands behind the first body, so which body you name
+  // decides who is standing in the slash.
+  const blade = runDrill('katBlade', 'katarina', 0.4, 313, 'wasd');
+  const bladeAt = runDrill('katBlade', 'katChase', 0.4, 313, 'wasd');
+  const bk = kitOf(blade);
+  line(`  blade  : ${bk.stats.qCasts} throws, ${bk.bladeHitsPerCast.toFixed(2)} bodies each, slashes on the champion — at the wave ${metric(blade, 'katSlash')}, at the champion ${metric(bladeAt, 'katSlash')}`);
+  expect('the blade bounces', bk.bladeHitsPerCast > 1.2, bk.bladeHitsPerCast.toFixed(2));
+  expect('throwing at the wave lands the dagger on the champion', metric(blade, 'katSlash') > metric(bladeAt, 'katSlash'), `${metric(blade, 'katSlash')} vs ${metric(bladeAt, 'katSlash')}`);
+
+  // Shunpo. A dagger taken hands most of the blink back, so a route of
+  // daggers is many more blinks than the cooldown alone allows.
+  const sh = runDrill('katShunpo', 'katarina', 0.4, 909, 'wasd');
+  const sk = kitOf(sh);
+  const plain = Math.floor(sh.session.elapsed / KATARINA_STATS.eCd) + 1;
+  line(`  shunpo : ${sk.stats.eCasts} blinks in ${sh.session.elapsed.toFixed(0)}s (${plain} on the cooldown alone), ${sk.stats.takenByShunpo} daggers taken by blinking`);
+  expect('a dagger taken hands the blink back', sk.stats.eCasts > plain * 2, `${sk.stats.eCasts} vs ${plain}`);
+  expect('a blink onto a dagger takes it', sk.stats.takenByShunpo === sk.stats.eToDagger, `${sk.stats.takenByShunpo} vs ${sk.stats.eToDagger}`);
+
+  // The dance. In, drop, take — and the chaser, who drops it and follows,
+  // never completes one.
+  const dance = runDrill('katDance', 'katarina', 0.4, 171, 'wasd');
+  const danceLate = runDrill('katDance', 'katChase', 0.4, 171, 'wasd');
+  line(`  dance  : trades completed — routed ${pct(metric(dance, 'katTrade'))}, chased ${pct(metric(danceLate, 'katTrade'))}`);
+  expect('in, drop, take is a trade a player can complete', metric(dance, 'katTrade') > 0.6, pct(metric(dance, 'katTrade')));
+  expect('dropping it and chasing is not', metric(danceLate, 'katTrade') < metric(dance, 'katTrade'), pct(metric(danceLate, 'katTrade')));
+
+  // Voracity. A champion she touched dying hands the kit back.
+  const reset = kitOf(runDrill('katReset', 'katarina', 0.4, 55, 'wasd'));
+  line(`  reset  : ${reset.stats.takedowns} takedowns, ${reset.stats.resets} resets`);
+  expect('a kill is a cooldown', reset.stats.resets > 5, `${reset.stats.resets}`);
+  expect('and never more than one per takedown', reset.stats.resets <= reset.stats.takedowns, `${reset.stats.resets} of ${reset.stats.takedowns}`);
+
+  // Death Lotus. Moving ends it.
+  const lotus = kitOf(runDrill('katLotus', 'katarina', 0.4, 8080, 'wasd'));
+  const lotusWalk = kitOf(runDrill('katLotus', 'katChase', 0.4, 8080, 'wasd'));
+  line(`  lotus  : still — ${lotus.stats.rCasts} spun, ${lotus.stats.rCompleted} kept, ${lotus.lotusSpread.toFixed(2)} champions a tick  |  walking — ${lotusWalk.stats.rCasts} spun, ${lotusWalk.stats.rMoved} cancelled`);
+  expect('the lotus is reachable inside a rep', lotus.stats.rCasts > 2, `${lotus.stats.rCasts}`);
+  expect('standing still keeps the lotus', lotus.stats.rMoved === 0 && lotus.stats.rCompleted + lotus.stats.rShunpoOut === lotus.stats.rCasts, `${lotus.stats.rMoved} moved`);
+  expect('walking ends it', lotusWalk.stats.rMoved > 0 && lotusWalk.stats.rCompleted === 0, `${lotusWalk.stats.rMoved} moved, ${lotusWalk.stats.rCompleted} kept`);
+  expect('a lotus spun among three catches more than one', lotus.lotusSpread > 1.5, lotus.lotusSpread.toFixed(2));
+
+  // The entry. Waiting for the fight is scored as the thing it is.
+  const entry = runDrill('katEntry', 'katarina', 0.4, 4242, 'wasd');
+  const dive = runDrill('katEntry', 'katChase', 0.4, 4242, 'wasd');
+  line(`  entry  : on time — waited ${pct(metric(entry, 'katEntry'))}, dived ${pct(metric(dive, 'katEntry'))}; health kept ${pct(entry.d.hpRetained)} vs ${pct(dive.d.hpRetained)}`);
+  expect('waiting for the fight is an entry on time', metric(entry, 'katEntry') > 0.6, pct(metric(entry, 'katEntry')));
+  expect('diving it at full health is not', metric(dive, 'katEntry') < 0.3, pct(metric(dive, 'katEntry')));
+}
+
+line('\n=== KATARINA: the path is gated, and mastery only ever climbs ===');
+{
+  const p = emptyKatarinaProgress();
+  expect('the first stage is open and the second is not', katStageUnlocked(p, KATARINA_STAGES[0]) && !katStageUnlocked(p, KATARINA_STAGES[1]), 'gating');
+  expect('nothing is mastered to start with', computeKatarinaMastery(p) === 0, `${computeKatarinaMastery(p)}`);
+
+  applyKatarinaRun(p, 'katPrep', 0.8, 0.5, 1000);
+  expect('clearing a stage opens the next one', katStageUnlocked(p, KATARINA_STAGES[1]), 'stage 2 still locked');
+  expect('and only the next one', !katStageUnlocked(p, KATARINA_STAGES[2]), 'stage 3 opened early');
+
+  const after = computeKatarinaMastery(p);
+  applyKatarinaRun(p, 'katPrep', 0.2, 0.5, 10);
+  expect('a worse run cannot take mastery away', computeKatarinaMastery(p) === after, `${computeKatarinaMastery(p)} vs ${after}`);
+
+  for (const st of KATARINA_STAGES) applyKatarinaRun(p, st.id, 0.95, 1, 5000);
+  const top = computeKatarinaMastery(p);
+  expect('a perfect path at full difficulty reaches the last title', katTitleFor(top).name === 'SINISTER BLADE', `${top.toFixed(0)} → ${katTitleFor(top).name}`);
+
+  const easy = emptyKatarinaProgress();
+  for (const st of KATARINA_STAGES) applyKatarinaRun(easy, st.id, 0.95, 0, 5000);
+  const low = computeKatarinaMastery(easy);
+  line(`  mastery: perfect@1.0 ${top.toFixed(0)}  perfect@0.0 ${low.toFixed(0)}  title ${katTitleFor(low).name}`);
+  expect('the last title cannot be bought at the lowest difficulty', katTitleFor(low).name !== 'SINISTER BLADE', `${low.toFixed(0)} → ${katTitleFor(low).name}`);
+}
+
+line('\n=== KATARINA: the path gets harder, not just longer ===');
+{
+  const perf = (id: DrillId) => runDrill(id, 'katarina', 0.45, 8080, 'wasd').out.performance;
+  const learn = perf('katPrep');
+  const test = perf('katFight');
+  line(`  katPrep (LEARN) ${pct(learn)}  →  katFight (TEST) ${pct(test)}`);
   expect('the same player finds the test harder than the first stage', test < learn, `${pct(test)} vs ${pct(learn)}`);
 }
 
@@ -5200,6 +5540,7 @@ line('\n=== BENCHMARKS: the reference player is MASTER, and nobody gets there st
     vayneCondemn: ['vayneCondemn', 'click'],
     caitlynDodge: ['caitlyn', 'click'],
     tfPick: ['twisted', 'wasd'],
+    katPrep: ['katarina', 'wasd'],
   };
   for (const b of BENCH_SCENARIOS) {
     if (b.kind !== 'drill' || !b.drill || b.seed === undefined) continue;
@@ -5238,8 +5579,10 @@ line('\n=== BENCHMARKS: the reference player is MASTER, and nobody gets there st
   expect('six rows at VETERAN are a VETERAN', benchSummary(recs, w).tier === 2, `${benchSummary(recs, w).tier}`);
   expect('a record is only replaced by a better one', !recordBench(recs, 'range', 1) && recs.range?.best === BENCH_SCENARIOS[0].thresholds[2] && recs.range?.runs === 2, 'overwritten');
   w.reaction.visual.best = 200;
-  expect('a reaction row counts lower as better', benchPlace(BENCH_SCENARIOS[6], 200).tier === 5, `${benchPlace(BENCH_SCENARIOS[6], 200).tier}`);
-  expect('and a slow one below ROOKIE still has progress', benchPlace(BENCH_SCENARIOS[6], 600).toNext > 0 && benchPlace(BENCH_SCENARIOS[6], 600).tier === -1, 'no progress');
+  // By id rather than by position: the sheet grows a row whenever a champion does.
+  const see = BENCH_SCENARIOS.find((x) => x.id === 'see') as BenchScenario;
+  expect('a reaction row counts lower as better', benchPlace(see, 200).tier === 5, `${benchPlace(see, 200).tier}`);
+  expect('and a slow one below ROOKIE still has progress', benchPlace(see, 600).toNext > 0 && benchPlace(see, 600).tier === -1, 'no progress');
   expect('normalising drops junk', Object.keys(normalizeBench({ range: { best: 'x' }, nope: { best: 5 }, tumble: { best: 900, runs: '3' } })).join() === 'tumble', 'junk kept');
 }
 
@@ -5335,6 +5678,9 @@ line('\n=== REWIND: a run rebuilt from its tape is the same run ===');
     ['vayneCondemn', 'vayneCondemn', 'click', 0.5],
     ['caitlynDodge', 'caitlyn', 'click', 0.5],
     ['tfPick', 'twisted', 'wasd', 0.4],
+    // Daggers are world state the kit owns — thrown, in the air, on the
+    // floor — so a mode made of them is a mode a rewind can get wrong.
+    ['katBlink', 'katarina', 'wasd', 0.4],
     ['wasdKite', 'wasd', 'wasd', 0.5],
     ['lanePhase', 'laneFarm', 'click', 0.32],
   ];

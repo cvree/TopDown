@@ -1528,3 +1528,21 @@
 .pr-lab-mode :is(p, span, b, i) {
   cursor: inherit;
 }
+
+/* Five kits and three champions do not fit side by side on a phone. The
+   switch wraps rather than scrolls: every option stays visible, which is the
+   whole reason it is a switch and not a menu. */
+@media (max-width: 560px) {
+  .pr-seg {
+    flex-wrap: wrap;
+  }
+  .pr-seg-btn {
+    flex: 1 1 30%;
+    padding: 9px 12px 8px;
+    border-bottom: 1px solid rgba(120, 90, 40, 0.28);
+  }
+  .pr-seg-btn b {
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+}

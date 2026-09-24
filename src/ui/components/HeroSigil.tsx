@@ -42,6 +42,9 @@ const HEAD: Record<string, string> = {
   // A brim with a tilt to it, a low crown, and a plume off the back. Wide like
   // the top hat and unmistakably not it, which is the only job it has.
   widebrim: 'M8 22 Q32 30 56 22 M20 22 Q22 8 32 8 Q42 8 44 22 M44 14 Q54 6 58 2',
+  // A close cap of hair and a tail swept off the back of it. The only head
+  // here with nothing on it but itself.
+  ponytail: 'M20 24 Q20 8 32 8 Q44 8 44 24 M42 12 Q54 16 56 30 Q57 40 52 48',
   none: '',
 };
 

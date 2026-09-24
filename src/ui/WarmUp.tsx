@@ -431,8 +431,8 @@ function BenchSheet({
           <div className="panel-title">Benchmarks · provisional</div>
           <Why>
             <p className="dim wu-sub">
-              Eight fixed scenarios — same seed, same difficulty ({BENCH_DIFFICULTY}), same minute for everybody — so
-              a score here means the same thing on anybody’s screen. You hold a tier once {BENCH_QUORUM} of the eight
+              Nine fixed scenarios — same seed, same difficulty ({BENCH_DIFFICULTY}), same minute for everybody — so
+              a score here means the same thing on anybody’s screen. You hold a tier once {BENCH_QUORUM} of the nine
               reach it. MASTER is exactly what the trainer’s scripted reference player scores; the lines will be
               re-cut from real players once there are enough of them. An APEX benchmark, not a League rank.
             </p>
@@ -443,7 +443,7 @@ function BenchSheet({
           <span className="mono">
             {sum.points} / {sum.max} pts
           </span>
-          <i className="mono dim">{sum.played}/8 played</i>
+          <i className="mono dim">{sum.played}/{BENCH_SCENARIOS.length} played</i>
         </div>
       </div>
 

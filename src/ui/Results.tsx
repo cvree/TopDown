@@ -11,6 +11,7 @@ import { AXIS_LABEL } from '../progression/skills';
 import { APM_LEVELS, CLEAR_AT } from '../progression/apm';
 import { laneTierOf } from '../progression/lane';
 import { TWISTED_STAGES } from '../progression/twistedfate';
+import { KATARINA_STAGES } from '../progression/katarina';
 import { VAYNE_STAGES } from '../progression/vayne';
 import { WASD_MODULES } from '../progression/wasd';
 import { ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
@@ -497,7 +498,7 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
           </div>
         )}
 
-        {/* Three ladders, one panel.
+        {/* Four ladders, one panel.
             The champion paths and the academy report the same three facts —
             where you stand on the ladder, what mastery did, and what opened —
             because they are the same kind of progress and a player who has
@@ -538,6 +539,26 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
               unlocked: report.twisted.unlocked && {
                 step: report.twisted.unlocked.step,
                 title: report.twisted.unlocked.title,
+              },
+            }
+          }
+        />
+
+        <LadderPanel
+          shown={shown}
+          label="The dagger path"
+          noun="Stage"
+          total={KATARINA_STAGES.length}
+          className="res-katarina"
+          runPerformance={result.performance}
+          report={
+            report.katarina && {
+              ...report.katarina,
+              step: report.katarina.stage.step,
+              name: report.katarina.stage.title,
+              unlocked: report.katarina.unlocked && {
+                step: report.katarina.unlocked.step,
+                title: report.katarina.unlocked.title,
               },
             }
           }
