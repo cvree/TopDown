@@ -23,6 +23,22 @@ import {
   type LabSolution,
 } from '../src/drills/apm';
 import { WASD_DRILL_IDS } from '../src/drills/wasd';
+import { ROSTER, SPELL_KEYS, champ as studyChamp, names as namesChamp, redact, secs, spellOf } from '../src/study/roster';
+import {
+  KIND_IDS,
+  TOPICS,
+  allFacts,
+  factId,
+  isRight,
+  kindFact,
+  makeKind,
+  nextQuestion,
+  parseFact,
+  questionFor,
+  randomFactOf,
+  type Question,
+} from '../src/study/questions';
+import { BOX_DAYS, TOP_BOX, answer as studyAnswer } from '../src/progression/study';
 import { PREVIEWS, type PreviewScene } from '../src/ui/components/previews';
 import { contextFault } from '../src/gfx/glcheck';
 import { DRILLS, WASD_SEQUENCE, type DrillId } from '../src/drills/catalog';
@@ -5869,6 +5885,95 @@ line('\n=== CALM: what a run puts on screen, per minute ===');
   words.add('PERFECT', body, '#fff', 'result', 1.5, false);
   expect('a repeat on the same body counts up', fx.texts.some((t) => t.text === 'PERFECT ×2'), fx.texts.map((t) => t.text).join(' '));
   expect('flavour waits out a fight', words.add('TOO EARLY', { x: 0, y: 0 }, '#888', 'flavour', 2, true) === 'dropped', 'shown');
+}
+
+line('\n=== STUDY: the roster, the questions, and the schedule ===');
+{
+  const studyRng = new Rng(20260925);
+  expect('the whole roster is here', ROSTER.length >= 170, `${ROSTER.length}`);
+  expect(
+    'every champion has a passive and four abilities',
+    ROSTER.every((c) => c.passive.text.length > 0 && c.spells.length === 4 && c.spells.every((x, i) => x.key === SPELL_KEYS[i] && x.text.length > 0)),
+    ROSTER.filter((c) => c.spells.length !== 4).map((c) => c.name).join(', '),
+  );
+  const leaky = ROSTER.filter((c) => namesChamp(redact(c.passive.text, c), c) || c.enemy.some((t) => namesChamp(redact(t, c), c)));
+  expect('redaction removes every way a champion is named', leaky.length === 0, leaky.map((c) => c.name).join(', '));
+
+  const facts = allFacts();
+  const roundTrip = facts.filter((f) => parseFact(factId(f)) === null || factId(parseFact(factId(f))!) !== factId(f));
+  expect('every fact id reads back as the same fact', roundTrip.length === 0, roundTrip.slice(0, 5).map(factId).join(', '));
+  const allTopics = TOPICS.map((t) => t.id);
+  const unaskable = facts.filter((f) => !questionFor({ rng: studyRng, pool: ROSTER }, factId(f), allTopics)).map(factId);
+  expect('every fact the roster holds can be asked', unaskable.length === 0, `${unaskable.length}: ${unaskable.slice(0, 8).join(', ')}`);
+
+  // Every kind, many times: a well-formed question whose marked answer is true.
+  const bad: string[] = [];
+  const check = (q: Question, why: string) => bad.push(`${q.kind} ${q.fact}: ${why}`);
+  let made = 0;
+  for (const kind of KIND_IDS) {
+    for (let i = 0; i < 300; i++) {
+      const f = randomFactOf({ rng: studyRng, pool: ROSTER }, kindFact(kind));
+      if (!f) continue;
+      const q = makeKind({ rng: studyRng, pool: ROSTER }, kind, f);
+      if (!q) continue;
+      made++;
+      const subject = studyChamp(q.fact.split(':')[1])!;
+      if (q.stem && namesChamp(q.stem, subject)) check(q, 'the stem names the answer');
+      if (q.format === 'place') {
+        if (!(q.range >= 350 && q.range <= 1600 && q.tolerance >= 60)) check(q, `range ${q.range} ±${q.tolerance}`);
+        if (!isRight(q, q.range) || isRight(q, q.range + q.tolerance + 1)) check(q, 'tolerance');
+        continue;
+      }
+      if (q.answer < 0 || q.answer >= q.options.length) check(q, 'answer out of range');
+      if (new Set(q.options.map((o) => o.label)).size !== q.options.length) check(q, 'duplicate options');
+      const a = q.options[q.answer]?.label ?? '';
+      const s = f.key ? spellOf(subject, f.key) : null;
+      if (q.kind === 'cd-value' && a !== secs(s!.cd[0])) check(q, `${a} is not ${s!.cd[0]}`);
+      if (q.kind === 'range-value' && Number(a) !== s!.range[0]) check(q, `${a} is not ${s!.range[0]}`);
+      if (q.kind === 'ar-value' && Number(a) !== subject.ar) check(q, `${a} is not ${subject.ar}`);
+      if (['passive-whose', 'passive-name', 'spell-whose', 'tip-whose'].includes(q.kind) && a !== subject.name) check(q, `${a} is not ${subject.name}`);
+      if (q.kind === 'range-compare' || q.kind === 'cd-compare') {
+        const read = (label: string) => {
+          const [, name, key] = /^(.*) ([QWER]) — /.exec(label)!;
+          const c = ROSTER.find((x) => x.name === name)!;
+          return spellOf(c, key as never);
+        };
+        const [x, y] = q.options.map((o) => read(o.label));
+        const pick = q.answer === 0 ? x : y;
+        const other = q.answer === 0 ? y : x;
+        if (q.kind === 'range-compare' && !(pick.range[0] > other.range[0])) check(q, 'the farther one is not marked');
+        if (q.kind === 'cd-compare' && !(pick.cd[0] < other.cd[0])) check(q, 'the sooner one is not marked');
+      }
+      if (q.kind === 'outrange') {
+        const you = ROSTER.find((c) => q.prompt.startsWith(`You are ${c.name} (`))!;
+        if ((q.answer === 0) !== s!.range[0] > you.ar) check(q, 'the outrange verdict is backwards');
+      }
+    }
+  }
+  expect(`${made} generated questions are well formed and marked true`, bad.length === 0, bad.slice(0, 6).join(' | '));
+
+  const solo = { rng: studyRng, pool: [ROSTER[0]] };
+  let soloWho = 0;
+  for (let i = 0; i < 200; i++) {
+    const q = nextQuestion(solo, allTopics);
+    if (q && ['passive-whose', 'passive-name', 'spell-whose', 'tip-whose'].includes(q.kind)) soloWho++;
+  }
+  expect('drilling one champion never asks who it is', soloWho === 0, `${soloWho}`);
+  const oneFact = { rng: studyRng, pool: ROSTER.filter((c) => c.id === 'Qiyana') };
+  const again = nextQuestion(oneFact, ['passives'], new Set(['P:Qiyana']));
+  expect('one champion and one topic asks its one fact again rather than stopping', again?.fact === 'P:Qiyana', `${again?.fact}`);
+
+  // The schedule.
+  const t0 = 1_000_000_000_000;
+  const DAY = 86_400_000;
+  const miss = studyAnswer(undefined, false, t0);
+  expect('a miss is due again now', miss.box === 0 && miss.due === t0 && miss.wrong === 1, JSON.stringify(miss));
+  const first = studyAnswer(undefined, true, t0);
+  expect('right the first time waits three days', first.box === 2 && first.due === t0 + BOX_DAYS[2] * DAY, JSON.stringify(first));
+  let card = miss;
+  for (let i = 0; i < 10; i++) card = studyAnswer(card, true, t0);
+  expect('boxes climb and stop at the top', card.box === TOP_BOX && card.due === t0 + BOX_DAYS[TOP_BOX] * DAY, JSON.stringify(card));
+  expect('a miss from the top goes back to the bottom', studyAnswer(card, false, t0).box === 0, '');
 }
 
 line(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}\n`);

@@ -308,6 +308,12 @@ function Tour() {
       b: 'One minute each. A target lights up, you press the right key. That is the whole idea.',
     },
     {
+      c: '#c8aa6e',
+      k: 'STUDY',
+      t: 'Every champion',
+      b: 'What their passive does, how long their abilities are down, how far they reach. Asked until you know it.',
+    },
+    {
       c: '#c58bff',
       k: 'PROGRESS',
       t: 'The numbers',
@@ -317,8 +323,8 @@ function Tour() {
   return (
     <div className="wc-step">
       <div className="eyebrow">what is in here</div>
-      <h1 className="display wc-h1">FOUR PLACES, THAT IS ALL</h1>
-      <p className="wc-lead">They are the four words in the top bar. Nothing else is hiding.</p>
+      <h1 className="display wc-h1">FIVE PLACES, THAT IS ALL</h1>
+      <p className="wc-lead">They are the five words in the top bar. Nothing else is hiding.</p>
       <div className="wc-cards">
         {cards.map((c) => (
           <div className="wc-card" key={c.k} style={{ ['--c' as string]: c.c }}>

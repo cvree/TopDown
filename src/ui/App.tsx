@@ -39,6 +39,7 @@ import { Ticker } from './components/Ticker';
 import { RankUp } from './RankUp';
 import { Results } from './Results';
 import { Settings } from './Settings';
+import { Study } from './Study';
 import { Welcome, type WelcomeResult } from './Welcome';
 import { WarmUp, type WarmupSummary } from './WarmUp';
 import { isCalm, setCalm } from './motion';
@@ -85,14 +86,20 @@ import './app.css';
  * your hands are actually right, which is the layer underneath every champion
  * anyone will ever add. The lab spent a release as the third tab of the
  * champion screen and read, from there, as one more thing about Vayne.
+ *
+ * **STUDY** is neither hands nor one champion: it is every champion in the
+ * game, as knowledge — what their passive does, how long their abilities are
+ * down, how far they reach. It gets a tab of its own for the same reason the
+ * lab does: inside PLAY it would read as more about the three champions there.
  */
-type Route = 'warmup' | 'practice' | 'lab' | 'progress' | 'settings' | 'patch';
+type Route = 'warmup' | 'practice' | 'lab' | 'study' | 'progress' | 'settings' | 'patch';
 
 /** The top bar, in order. Setup and the patch notes live in the corner. */
 const NAV: { route: Route; label: string; hint: string }[] = [
   { route: 'warmup', label: 'WARM UP', hint: 'Ten minutes a day: reaction check, your mistake twice, hands, pressure' },
   { route: 'practice', label: 'PLAY', hint: 'Lane against somebody, or rehearse one piece of the champion' },
   { route: 'lab', label: 'TRAIN', hint: 'One-minute drills for your hands' },
+  { route: 'study', label: 'STUDY', hint: 'Every champion in League: passives, abilities, cooldowns, ranges, matchups' },
   { route: 'progress', label: 'PROGRESS', hint: 'Your scores, and whether they are going up' },
 ];
 
@@ -1039,6 +1046,7 @@ export function App() {
                 onFixControls={() => setRoute('settings')}
               />
             )}
+            {route === 'study' && <Study />}
             {route === 'progress' && (
               <Progress
                 profile={profile}
