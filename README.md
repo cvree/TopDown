@@ -47,6 +47,16 @@ command the bench can grade is being asked for. The floor that used to move
 with your streak has a mode of its own, **SURGE**, where moving it is the
 point.
 
+**STUDY** is the fourth tab, and the only one that asks nothing of your
+hands. It is every champion in League — all of them, straight from Riot's
+Data Dragon — as the things League never prints where you can see them
+mid-game: what each passive does, what each ability does, how long it is down
+once you have watched it go, how far it reaches, and Riot's own tips for
+playing against them. It asks until you know them. A fact you miss comes back
+a few questions later; a fact you know waits a day, then three, then a week,
+then longer. Behind the quiz is the reference: every champion's card, so a
+question you got wrong can be looked up instead of guessed at again.
+
 **WARM UP** is the first tab, and the one a returning player opens on. It is
 one button: ten minutes, built fresh each day out of your own mistakes, ending
 on one sentence to take into your next ranked game. It shares the screen with
@@ -1292,6 +1302,55 @@ own screen:
   you can just hold. Neither writes the rung's record, because a run whose
   difficulty moved is not a rep of the rung it opened on.
 
+### Study
+
+A quiz about every champion in the game, and the reference behind it.
+
+**What it asks about** is five topics, each switchable: **PASSIVES** (whose
+is this, what does it do), **ABILITIES** (which button is this, whose is it,
+what does it do), **COOLDOWNS** (rank one, as a number or as "which comes back
+sooner"), **RANGES** (as a number, as "which reaches farther", and on the
+floor — a top-down field where you click where the ability stops, with a
+distance you already know by eye drawn for scale) and **MATCHUPS** (Riot's
+"playing against" tips with the name blacked out, whose basic attack reaches
+farther, and whether an enemy ability outranges yours). **About who** is
+everyone, one class, or your own list — the champions you face most. Wrong
+answers always come from the whole roster, and lean towards champions of the
+same class so they are ones you could believe.
+
+**How it plays** is the client's own three ways:
+
+- **PLAY** — one minute of questions. The clock only runs while a question is
+  open: the answer, with the champion's card, stays up until you move on, and
+  reading it is free.
+- **SURVIVE** — no clock, three wrong and it is over.
+- **REVIEW** — only what is due.
+
+**What it remembers** is facts, not questions. Get Thresh's hook cooldown
+wrong and the fact goes to the bottom box of a Leitner schedule: it is due
+again at once, so it comes back a few questions later — while anything is
+due, about a third of every PLAY and SURVIVE is spent on it. Each right answer moves it up a
+box — a day, three days, a week, sixteen days, five weeks — and a fact
+answered right the first time it is ever seen starts three days out, because
+asking tomorrow about something you already knew wastes your time. It may come
+back asked another way: "which comes back sooner, Thresh's hook or
+Blitzcrank's?" rather than the same four numbers.
+
+**Where the numbers come from** is Data Dragon, rebuilt with
+`npm run champdata`, rank one unless a question says otherwise. Some of Data
+Dragon's figures are placeholders — 25000 means "global" on Ezreal's ultimate
+and "cast on yourself" on Hecarim's, a cooldown of 0 is a passive riding in an
+ability slot, and a champion with two forms has one number standing in for
+two abilities — and the quiz never asks about those. Their cards print "—"
+instead. A name is blacked out of its own champion's text before that text is
+asked about, and the test suite checks every champion for leaks.
+
+The reference is every champion as a card: passive, four abilities with their
+cooldown ladders and ranges, attack range and move speed, and the tips for
+playing against them — with a button that drills that one champion for a
+minute. Study keeps its own record under `apex.study.v1`; it moves no rating
+and is untouched by a profile reset.
+
 ### Progress
 
 The other screen, and the only one that is a page of content: your rating and
@@ -1373,10 +1432,13 @@ src/progression/ rating maths, rank ladder, champion path, coach, error log,
                 persistence
 src/progression/warmup.ts      the daily routine, reaction stats, streak and stop rule
 src/progression/benchmarks.ts  benchmark scenarios, tiers and scenario codes
+src/study/      STUDY's roster (Data Dragon, trimmed by tools/champdata.mjs), what is
+                fit to be asked, redaction, and the question generators
+src/progression/study.ts       STUDY's memory: the Leitner schedule, bests, choices
 src/patchnotes/ the release history: the client, the version number and CHANGELOG.md
 src/ui/         React shell, HUD, Warm up, reaction tests, Practice, accuracy report,
                 results, profile, rank-up, settings
-tools/          headless test harnesses
+tools/          headless test harnesses, and champdata.mjs, which rebuilds the roster
 docs/           research notes: the out-of-game practice landscape
 ```
 
@@ -1405,8 +1467,10 @@ during play: the game loop owns the canvas, and the HUD is written to through
 DOM refs at ~24Hz, so a React render can never sit between your click and the
 game reacting to it.
 
-Progress is stored in `localStorage` under `apex.profile.v1` — no account, no
-server, no network calls during play.
+Progress is stored in `localStorage` under `apex.profile.v1`, and STUDY's
+facts under `apex.study.v1` — no account, no server, no network calls during
+play. The roster ships inside the bundle rather than being fetched from Riot,
+so STUDY works offline and from the single-file build.
 
 ## Deployment
 

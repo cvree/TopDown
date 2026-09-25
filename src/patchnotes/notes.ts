@@ -41,6 +41,27 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.26.0',
+    name: 'KNOW THEM ALL',
+    date: '2026-09-25',
+    headline:
+      'The half of League nobody teaches: every champion’s passive, abilities, cooldowns and ranges, asked until you know them.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'STUDY, a new tab. Every champion in League — all 173, from Riot’s Data Dragon 16.19.1 — as a quiz in five topics you can switch on and off: PASSIVES, ABILITIES, COOLDOWNS, RANGES and MATCHUPS. Whose passive is this, which of Thresh’s buttons does that, how long is his hook down, which reaches farther, and whether an enemy’s ability outranges your basic attack.',
+          'Ranges on the floor. Some range questions are a top-down field: your champion, a distance you already know by eye — your own attack range, or Flash — and a click where you think the ability stops. The answer is drawn as a ring with the band that counts as right, next to yours.',
+          'Riot’s tips for playing against each champion, with the name blacked out: who is this advice about?',
+          'PLAY is a minute of questions, and the clock only runs while a question is open — reading the answer is free. SURVIVE has no clock and ends on the third wrong answer. REVIEW asks only what is due.',
+          'Spaced review. A fact you miss comes back a few questions later and is waiting in REVIEW; a fact you know waits a day, then three, then a week, then longer. While anything is due, about a third of every PLAY and SURVIVE is spent on it. It comes back asked a different way when it can.',
+          'Ask about everyone, one class, or your own list of champions — the ones you keep laning against.',
+          'CHAMPIONS, the reference behind the quiz: every champion’s passive, abilities, cooldowns by rank, ranges and tips on one card, with a button that drills just that champion for a minute. Every fact you got wrong links straight to its card from the results.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.25.0',
     name: 'SINISTER STEEL',
     date: '2026-09-24',
