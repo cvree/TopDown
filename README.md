@@ -11,11 +11,12 @@ It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
 drawn on the ground where the thing it is about actually is.
 
-The client is two places to play and one place to read about it. **PRACTICE**
-is the champions, in three sections behind one rail. The first is **THE LANE**:
+The top bar is four words: **HOME**, **PLAY**, **STUDY** and **PROGRESS**.
+**PLAY** is every card you can start, in four sections behind one rail —
+**DRILLS**, then the three that are a champion. One of those is **THE LANE**:
 the first ten minutes of a game of League, at League's own numbers, against an
 enemy laner farming and trading on the other side of the wave. You pick the
-opponent and the length; everything else is the game. The second is
+opponent and the length; everything else is the game. Another is
 **PRACTICE** — the parts of that lane, rehearsed one at a time, behind a switch
 between the three champions: one distance, four pieces of Vayne and the opponent
 who shoots at her; nine stages of Twisted Fate's wheel; and nine stages of
@@ -28,10 +29,10 @@ Each mode has two ways to play it:
   when you have made that mode's own mistake three times. The result is how
   long you lasted.
 
-The third is **THE CODEX** — every figure all three champions are built from,
+The last is **CHARACTER** — every figure all three champions are built from,
 printed, so a claim about transfer is one you can check.
 
-**THE LAB** is the other section in the top bar, and it is not a champion at
+**DRILLS**, the first section of PLAY, is not a champion at
 all: thirteen benches of drifting pads, ten levels each, measuring correct
 commands a minute and nothing else. It is separate because it is the layer
 underneath every champion there will ever be. Every level of every bench is
@@ -47,7 +48,7 @@ command the bench can grade is being asked for. The floor that used to move
 with your streak has a mode of its own, **SURGE**, where moving it is the
 point.
 
-**STUDY** is the fourth tab, and the only one that asks nothing of your
+**STUDY** is the third tab, and the only one that asks nothing of your
 hands. It is every champion in League — all of them, straight from Riot's
 Data Dragon — as the things League never prints where you can see them
 mid-game: what each passive does, what each ability does, how long it is down
@@ -57,13 +58,17 @@ a few questions later; a fact you know waits a day, then three, then a week,
 then longer. Behind the quiz is the reference: every champion's card, so a
 question you got wrong can be looked up instead of guessed at again.
 
-**WARM UP** is the first tab, and the one a returning player opens on. It is
-one button: ten minutes, built fresh each day out of your own mistakes, ending
+**HOME** is the first tab, and the one a returning player opens on. It is the
+warm-up — one button, ten minutes, built fresh each day out of your own mistakes, ending
 on one sentence to take into your next ranked game. It shares the screen with
 the four reaction tests, the benchmark sheet and a box for pasting a scenario
 code — the measurements the routine is built on. It is a button rather than a
 plan: nothing in the client waits on it, and skipping it costs nothing but the
 streak.
+
+A new player gets one question first — mouse or W A S D — and a twenty-second
+hand test that sets the level every drill card opens on. Its last button starts
+the first run: PULSE at level 1, two keys and one lit square.
 
 That is the whole menu. There is no calibration to sit through and no course
 to unlock — the ladder places you from your first three runs, and every mode with a champion in it puts you behind the same one,
@@ -578,7 +583,7 @@ rank.
 
 Every results screen prints a code for the minute just played —
 `vayneTumble-P50-fl4ma-J`: the mode, PLAY or SURVIVE with its difficulty, the
-seed, and a check letter. Paste it into WARM UP and you get the same start: the
+seed, and a check letter. Paste it on HOME and you get the same start: the
 same spawns, the same wave, the same opening move from whoever is on the other
 side. After that they answer what *you* do, so two players on one code are on
 the same course rather than watching the same recording. A benchmark's code is

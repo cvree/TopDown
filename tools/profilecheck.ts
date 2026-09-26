@@ -593,10 +593,9 @@ line('\n=== Every screen that reads a profile draws it, on every profile ===');
 // different set of callbacks it never calls here.
 const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
   const noop = () => undefined;
-  const [{ Practice, SECTION_IDS }, { Lab }, { Progress }, { WarmUp }, { AccuracyReport }] =
+  const [{ Practice, SECTION_IDS }, { Progress }, { WarmUp }, { AccuracyReport }] =
     await Promise.all([
       import('../src/ui/Practice'),
-      import('../src/ui/Lab'),
       import('../src/ui/Progress'),
       import('../src/ui/WarmUp'),
       import('../src/ui/AccuracyReport'),
@@ -605,7 +604,7 @@ const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
     // The screen a returning player opens on: the routine, the reaction
     // records, the benchmark sheet — all three read the warm-up ledger.
     [
-      'WARM UP',
+      'HOME',
       (profile) =>
         createElement(WarmUp as any, {
           profile,
@@ -619,35 +618,24 @@ const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
         }),
     ],
     ['THE CODEX · ACCURACY', () => createElement(AccuracyReport as any, {})],
-    // Every tab, not only the one a fresh mount opens on. Each section reads a
+    // Every tab, not only the one a fresh mount opens on — DRILLS included, whose
+    // cards read further into a saved record than anything else. Each section reads a
     // different corner of a stored profile and is only rendered while its own
     // tab is open — so a check that drew the default tab would be checking the
     // least of the screen.
     ...SECTION_IDS.map(
       (id): [string, (p: Profile) => unknown] => [
-        `PRACTICE · ${id.toUpperCase()}`,
+        `PLAY · ${id.toUpperCase()}`,
         (profile) =>
           createElement(Practice as any, {
             profile,
             settings: profile.settings,
             onPlay: noop,
+            onFixControls: noop,
             initialSection: id,
           }),
       ],
     ),
-    // The lab is its own screen now, and its cards still read further into a
-    // saved record than anything else in the client: thirteen modes, ten level
-    // records each, and an infinite ledger under every one of them.
-    [
-      'THE LAB',
-      (profile) =>
-        createElement(Lab as any, {
-          profile,
-          settings: profile.settings,
-          onPlay: noop,
-          onFixControls: noop,
-        }),
-    ],
     ['PROGRESS', (profile) => createElement(Progress as any, { profile, onRename: noop, onReset: noop, onPlay: noop })],
   ];
 };

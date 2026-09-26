@@ -1,33 +1,14 @@
-/* THE LAB.
+/* DRILLS.
 
-   The bench, as its own section of the client. It borrows the practice
-   screen's furniture on purpose — the same cards, the same group heads, the
-   same PLAY button — because a bench and a champion mode are two things you
-   start the same way, and the client should not have two grammars for one
-   gesture. What is here is only what the lab needs and the champion screen
-   does not: its own colour at the top, a line of tallies under the header in
-   place of a tab rail, and one mark on the level ladder for the rung the map
-   turns up on. */
+   The first segment of PLAY. It borrows the practice screen's furniture on
+   purpose — the same cards, the same group heads, the same PLAY button —
+   because a drill and a champion mode are two things you start the same way,
+   and the client should not have two grammars for one gesture. What is here
+   is only what the drills need and the champion segments do not, and one mark
+   on the level ladder for the rung the map turns up on. */
 
-.lab-screen {
-  padding-top: 46px;
-  padding-bottom: 64px;
-  max-width: 1180px;
-}
-
-/* Cyan rather than the champion's violet: the two sections should not be
-   mistaken for one another at a glance, and this is the colour the lab has
-   worn on its tab and its cards since it was built. */
-.lab-h1 {
-  background: linear-gradient(180deg, #e8fbff 0%, #7ceaff 52%, #2b7f99 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-/* What the section can say about itself before you read any of it. It sits
-   where the tab rail's meta line sat on the old screen, and it says the one
-   thing the ladder change made worth saying out loud: every level is open. */
+/* A line of tallies under a header. The drills wore one when they were a tab
+   of their own; STUDY still does. */
 .lab-tally {
   display: flex;
   flex-wrap: wrap;

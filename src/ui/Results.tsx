@@ -818,7 +818,7 @@ SURGE keeps its own record. The difficulty moved while you played, so this does
             <button
               type="button"
               className="res-code"
-              title="Copy this scenario code — the same start for anybody who pastes it into WARM UP"
+              title="Copy this scenario code — the same start for anybody who pastes it on HOME"
               onClick={() => {
                 void navigator.clipboard?.writeText(code).then(
                   () => setCopied(true),

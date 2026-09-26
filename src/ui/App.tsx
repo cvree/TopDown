@@ -30,8 +30,7 @@ import { Crest } from './components/Crest';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
 import { GameView } from './GameView';
 import { ErrorBoundary } from './ErrorBoundary';
-import { Lab } from './Lab';
-import { Practice } from './Practice';
+import { Practice, openSection } from './Practice';
 import { Progress } from './Progress';
 import { PatchNotes } from './PatchNotes';
 import { RankEmblem } from './components/RankEmblem';
@@ -74,31 +73,29 @@ import './app.css';
 /**
  * The sections.
  *
- * Four, and one of them is setup. The client used to have seven tabs, four
- * ladders, a daily plan and a calibration sequence, which between them meant a
- * player had to learn the *client* before they could practise; everything that
- * was really a way of choosing a run is now two buttons on a card.
+ * Four in the bar, and setup in the corner. The client used to have seven
+ * tabs, four ladders, a daily plan and a calibration sequence, which between
+ * them meant a player had to learn the *client* before they could practise;
+ * everything that was really a way of choosing a run is now two buttons on a
+ * card.
  *
- * The split between the first two is the whole shape of the trainer, so it is
- * made in the top bar rather than inside a screen. **PRACTICE** is a champion:
- * her lane, her kit in pieces, and every number both are built from. **THE
- * LAB** is not a champion at all — it is thirteen benches measuring how fast
- * your hands are actually right, which is the layer underneath every champion
- * anyone will ever add. The lab spent a release as the third tab of the
- * champion screen and read, from there, as one more thing about Vayne.
+ * **HOME** is where a returning player lands: the day's warm-up, the reaction
+ * checks and the benchmark sheet. **PLAY** is every card you can start — the
+ * one-minute drills for your hands, and the three champions. The drills spent
+ * a release as a tab of their own, TRAIN, and that was two places in the bar
+ * that did the same thing: pick a card, play a minute.
  *
  * **STUDY** is neither hands nor one champion: it is every champion in the
  * game, as knowledge — what their passive does, how long their abilities are
- * down, how far they reach. It gets a tab of its own for the same reason the
- * lab does: inside PLAY it would read as more about the three champions there.
+ * down, how far they reach. Inside PLAY it would read as more about the three
+ * champions there.
  */
-type Route = 'warmup' | 'practice' | 'lab' | 'study' | 'progress' | 'settings' | 'patch';
+type Route = 'warmup' | 'practice' | 'study' | 'progress' | 'settings' | 'patch';
 
 /** The top bar, in order. Setup and the patch notes live in the corner. */
 const NAV: { route: Route; label: string; hint: string }[] = [
-  { route: 'warmup', label: 'WARM UP', hint: 'Ten minutes a day: reaction check, your mistake twice, hands, pressure' },
-  { route: 'practice', label: 'PLAY', hint: 'Lane against somebody, or rehearse one piece of the champion' },
-  { route: 'lab', label: 'TRAIN', hint: 'One-minute drills for your hands' },
+  { route: 'warmup', label: 'HOME', hint: 'The daily warm-up: reaction check, your mistake twice, hands, pressure' },
+  { route: 'practice', label: 'PLAY', hint: 'One-minute drills for your hands, a champion in pieces, or a whole lane' },
   { route: 'study', label: 'STUDY', hint: 'Every champion in League: passives, abilities, cooldowns, ranges, matchups' },
   { route: 'progress', label: 'PROGRESS', hint: 'Your scores, and whether they are going up' },
 ];
@@ -761,26 +758,37 @@ export function App() {
   /**
    * What the walkthrough hands back.
    *
-   * Three things, and each of them is an ordinary setting somebody could have
-   * reached themselves: their name, the way they move, and the level every
-   * drill card opens on. Nothing here is a gate and nothing is awarded — the
-   * measured level only moves where the arrows start.
+   * Two things, and each of them is an ordinary setting somebody could have
+   * reached themselves: the way they move, and the level every drill card
+   * opens on. Nothing here is a gate and nothing is awarded — the measured
+   * level only moves where the arrows start.
+   *
+   * On a first run it also starts the first run: PULSE at level one, the
+   * simplest thing in the client — two keys, one lit square — so the rule
+   * every drill shares (cursor on the square, then the key) is learned where
+   * nothing else is asking for attention. Whatever the test measured is where
+   * every card opens afterwards. Leaving that run lands on PLAY's drills.
    */
-  const finishTour = useCallback((r: WelcomeResult) => {
-    setProfile((p) => {
-      const next: Profile = {
-        ...p,
-        name: r.name,
-        onboarded: true,
-        settings: { ...p.settings, movementScheme: r.scheme },
-        apm: { ...p.apm, modes: { ...p.apm.modes } },
-      };
-      openApmLadderAt(next.apm, r.level);
-      return next;
-    });
-    setTour(null);
-    setRouteNow('lab');
-  }, []);
+  const finishTour = useCallback(
+    (r: WelcomeResult) => {
+      setProfile((p) => {
+        const next: Profile = {
+          ...p,
+          onboarded: true,
+          settings: { ...p.settings, movementScheme: r.scheme },
+          apm: { ...p.apm, modes: { ...p.apm.modes } },
+        };
+        openApmLadderAt(next.apm, r.level);
+        return next;
+      });
+      const first = tour === 'first';
+      setTour(null);
+      openSection('drills');
+      setRouteNow('practice');
+      if (first) startRun('apmPulse', 'play', { difficulty: levelDifficulty(1), level: 1 });
+    },
+    [tour, startRun],
+  );
 
   const skipTour = useCallback(() => {
     setProfile((p) => (p.onboarded ? p : { ...p, onboarded: true }));
@@ -912,7 +920,6 @@ export function App() {
       {booted && tour && (
         <Welcome
           key={tour}
-          name={profile.name}
           scheme={profile.settings.movementScheme}
           replay={tour === 'replay'}
           onDone={finishTour}
@@ -922,12 +929,9 @@ export function App() {
       {booted && (
         <div className="shell">
           <header className="topbar">
-            <div className="logo" onClick={() => setRoute('practice')}>
+            <div className="logo">
               <Crest size={26} />
               APEX
-              {/* The subtitle used to be one champion's name, from when there
-                  was one. It is what the client trains, which is now a pair. */}
-              <span className="logo-sub">THE RIFT</span>
             </div>
 
             <nav className="nav">
@@ -1036,10 +1040,7 @@ export function App() {
               />
             )}
             {route === 'practice' && (
-              <Practice profile={profile} settings={profile.settings} onPlay={startRun} />
-            )}
-            {route === 'lab' && (
-              <Lab
+              <Practice
                 profile={profile}
                 settings={profile.settings}
                 onPlay={startRun}

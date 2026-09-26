@@ -41,6 +41,24 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.27.0',
+    name: 'FEWER DOORS',
+    date: '2026-09-26',
+    headline:
+      'One place to pick a card and play a minute, one question before your first run, and a top bar with four words in it.',
+    sections: [
+      {
+        tag: 'changed',
+        items: [
+          'TRAIN is gone from the top bar. The thirteen one-minute drills are DRILLS, the first segment of PLAY, next to PRACTICE, THE LANE and CHARACTER — the same cards, the same levels, the same records. There used to be two places in the bar where you pick a card and play a minute.',
+          'WARM UP is now HOME. It is the same screen — the day’s routine, the reaction tests, the benchmark sheet and the box for scenario codes — and still the one a returning player opens on.',
+          'The first-time walkthrough asks one question — mouse or W A S D — then the twenty-second hand test, and its last button starts your first run: PULSE at level 1, two keys and one lit square. Leaving it lands you on PLAY’s drills. It no longer asks for a name (it is still on PROGRESS), walks you through five cards of the top bar, or asks how much League you have played, which only ever moved your starting level by one.',
+          'The logo in the top bar is only a logo: no subtitle, and clicking it no longer jumps to PLAY.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.26.0',
     name: 'KNOW THEM ALL',
     date: '2026-09-25',

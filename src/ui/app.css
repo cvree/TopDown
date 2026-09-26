@@ -308,9 +308,6 @@
   }
 }
 @media (max-width: 1240px) {
-  .logo-sub {
-    display: none;
-  }
   .nav button {
     padding: 0 11px;
     letter-spacing: 0.14em;

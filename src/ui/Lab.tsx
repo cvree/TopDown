@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import type { RunMode } from '../drills/modes';
@@ -8,7 +8,6 @@ import {
   levelDifficulty,
   levelStars,
   recommendedLevel,
-  starsOn,
   type ApmLevelRecord,
   type ApmMode,
   type ApmModeKind,
@@ -27,8 +26,6 @@ import { defaultsFor, resolveBindings, type Bindings } from '../engine/input';
 import type { AppSettings, Profile } from '../progression/profile';
 import { Explainer } from './components/Explainer';
 import { ModePreview } from './components/ModePreview';
-import { Why } from './components/Why';
-import { Ticker } from './components/Ticker';
 import { cardClickStarts } from './components/cardStart';
 import './practice.css';
 import './lab.css';
@@ -41,22 +38,29 @@ interface Props {
     mode: RunMode,
     opts?: { difficulty?: number; duration?: number; level?: number },
   ) => void;
-  /** Opens the controls screen. The lab is the one section that can need it. */
+  /** Opens the controls screen. The drills are the one section that can need it. */
   onFixControls: () => void;
 }
 
 type PlayFn = Props['onPlay'];
 
 // ===========================================================================
-// THE LAB
+// DRILLS
 // ===========================================================================
 
 /**
- * THE LAB — thirteen drills for your hands, and nothing else.
+ * DRILLS — thirteen drills for your hands, and nothing else.
  *
- * PLAY is the champion: her lane, her kit, the numbers behind both. This is
- * the layer under every champion — a floor of squares that light up, and one
- * question: how many of them did you answer correctly in a minute.
+ * The first segment of PLAY. The other three are a champion: her kit in
+ * pieces, her lane, the numbers behind both. This is the layer under every
+ * champion — a floor of squares that light up, and one question: how many of
+ * them did you answer correctly in a minute.
+ *
+ * It spent a release as a tab of its own in the top bar, TRAIN, and that was
+ * a second place to go for the same gesture — pick a card, play a minute. It
+ * is one segment of the screen every other card lives on now, and the file
+ * keeps its old name because the ladder, the binds and the benches under it
+ * are all still called the lab.
  *
  * Two rules run the whole section, and they are the only two anybody needs.
  *
@@ -102,7 +106,7 @@ const labBindings = (settings: AppSettings | undefined): Bindings => {
   }
 };
 
-export function Lab({ profile, settings, onPlay, onFixControls }: Props) {
+export function DrillsPanel({ profile, settings, onPlay, onFixControls }: Props) {
   // Which rung each mode is showing. Empty means "whatever the ladder
   // suggests", so a mode the player has not touched this session always opens
   // on the rung they have not beaten rather than on the one they last looked at.
@@ -113,53 +117,15 @@ export function Lab({ profile, settings, onPlay, onFixControls }: Props) {
     setPicked((prev) => ({ ...prev, [m.id]: Math.max(1, Math.min(level + by, APM_LEVELS)) }));
   };
 
-  // What the section can say about itself before you read any of it: how many
-  // benches there are, and how far through them you have got.
-  const stars = useMemo(
-    () => APM_MODES.reduce((n, m) => n + starsOn(profile.apm, m.id), 0),
-    [profile],
-  );
-
   return (
-    <div className="scroll">
-      <div className="wrap practice lab-screen fade-up">
-        <header className="pr-head one-line">
-          <h1 className="display pr-h1 lab-h1">THE LAB</h1>
-          <div className="eyebrow">Train · one minute at a time</div>
-          <div className="lab-tally mono">
-            <span>
-              <b>{APM_MODES.length}</b> DRILLS
-            </span>
-            <span>
-              <b>{APM_LEVELS}</b> LEVELS EACH · NOTHING LOCKED
-            </span>
-            <span>
-              <b>
-                <Ticker value={stars} />
-              </b>
-              /{APM_MODES.length * APM_LEVELS * 3} STARS
-            </span>
-          </div>
-          <Why label="What is here">
-            <p className="dim pr-lead">
-              Squares light up. Put your cursor on the one that is lit and hit its key — misses
-              and mashing score nothing.
-            </p>
-          </Why>
-        </header>
-
-        <div className="pr-panel fade-up" style={{ ['--c' as string]: '#7ceaff' }}>
-          <LabPanel
-            profile={profile}
-            settings={settings}
-            picked={picked}
-            onStep={step}
-            onPlay={onPlay}
-            onFixControls={onFixControls}
-          />
-        </div>
-      </div>
-    </div>
+    <LabPanel
+      profile={profile}
+      settings={settings}
+      picked={picked}
+      onStep={step}
+      onPlay={onPlay}
+      onFixControls={onFixControls}
+    />
   );
 }
 
@@ -210,7 +176,7 @@ function BindWarning({
     <div className="lab-binds" role="alert">
       <div className="lab-binds-head">
         <b className="display">
-          {ceiling === 0 ? 'THE LAB CANNOT RUN ON THIS LAYOUT' : 'SOME LEVELS CANNOT BE PLAYED'}
+          {ceiling === 0 ? 'THE DRILLS CANNOT RUN ON THIS LAYOUT' : 'SOME LEVELS CANNOT BE PLAYED'}
         </b>
         <button
           type="button"
@@ -330,7 +296,7 @@ function LabPanel({
           onFixControls={onFixControls}
         />
       )}
-      <Explainer title="HOW THE LAB WORKS">
+      <Explainer title="HOW THE DRILLS WORK">
         <p className="dim pr-lead pr-panel-lead">
           Each run lasts one minute and counts the presses you got <i>right</i> — a wrong key or
           a wasted one scores nothing, so hammering the keyboard gives you the worst score here,

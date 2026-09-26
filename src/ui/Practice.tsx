@@ -17,6 +17,8 @@ import type { AppSettings, Profile } from '../progression/profile';
 import { Explainer } from './components/Explainer';
 import { ModePreview } from './components/ModePreview';
 import { Why } from './components/Why';
+import { DrillsPanel } from './Lab';
+import { APM_MODES } from '../progression/apm';
 import './practice.css';
 
 interface Props {
@@ -28,11 +30,13 @@ interface Props {
     mode: RunMode,
     opts?: { difficulty?: number; duration?: number; level?: number },
   ) => void;
+  /** Opens the controls screen, for a drill that needs a key the layout lacks. */
+  onFixControls: () => void;
   /**
    * Which section to open on, overriding the one the player was last reading.
    *
    * Nothing in the client passes it. The headless profile check does, so that
-   * a hostile stored profile is still drawn through all three sections rather
+   * a hostile stored profile is still drawn through all four sections rather
    * than only the one a fresh mount happens to open on — every one of them
    * reads a different corner of a saved record, and each is only rendered
    * while its own tab is open.
@@ -96,7 +100,7 @@ const bindingsOf = (settings: AppSettings | undefined): Bindings => {
 };
 
 // ===========================================================================
-// THE THREE SECTIONS
+// THE FOUR SECTIONS
 // ===========================================================================
 
 /**
@@ -110,32 +114,30 @@ const bindingsOf = (settings: AppSettings | undefined): Bindings => {
  * of the screen you read rather than click, sat directly between the champion
  * and the lab like a wall.
  *
- * Three sections now, and every one of them is a champion:
+ * Four sections now, and three of them are a champion:
  *
+ *  - **DRILLS** is not a champion: thirteen one-minute drills for the hands
+ *    under every champion. It was a tab of this screen once, then a tab of the
+ *    top bar (TRAIN) — which put two places in the bar where you pick a card
+ *    and play a minute. It is back as a segment, and first, because it is the
+ *    shortest thing on the screen and the first run anybody plays.
  *  - **PRACTICE** is a champion in pieces, grouped by how much of one a mode
  *    hands you — and there are three champions on it now, behind a switch at
  *    the top rather than a tab each, because "which piece of a champion" is
  *    one question asked three times and not three different kinds of one. It
- *    is first because it is where a player can actually start. THE LANE is the
+ *    comes before the lane because it is where a player can actually start. THE LANE is the
  *    game and it is also ten minutes against somebody who is better than you;
  *    opening on it asked a player to be ready before the client had taught
  *    them anything. A menu should open on the thing you can do now.
  *  - **THE LANE** is the game, and everything in PRACTICE exists to make it go
- *    better — so it is second, where it reads as what the pieces add up to.
+ *    better — so it comes after them, where it reads as what the pieces add up to.
  *  - **CHARACTER** is the reading: every figure all four champions are built
  *    from, so a claim the trainer makes about transfer is one you can check.
  *
- * The fourth used to be the lab, and the lab is not this screen's business.
- * Everything here is a champion — a lane, a kit, the numbers under both — and
- * a bench with no champion on it was being read as one more thing about Vayne
- * when it is the layer underneath every champion there will ever be. It is a
- * section of the client now, next to this one in the top bar, and this screen
- * is exactly the three things that are about the people in the title.
- *
- * The tab rail is sticky, so the three are one keystroke apart from anywhere on
+ * The tab rail is sticky, so the four are one keystroke apart from anywhere on
  * any of them, and the section you are in is never more than a glance away.
  */
-type SectionId = 'lane' | 'practice' | 'codex';
+export type SectionId = 'drills' | 'lane' | 'practice' | 'codex';
 
 interface SectionMeta {
   id: SectionId;
@@ -150,7 +152,7 @@ interface SectionMeta {
 /**
  * The tab the player was last on.
  *
- * Module-level rather than stored on the profile: which of three sections you
+ * Module-level rather than stored on the profile: which of four sections you
  * are reading is session state, not a preference worth writing to disk — but
  * it does have to survive the screen being unmounted, which it is every time a
  * run starts. Coming back from a bench in the lab and landing on the lane is
@@ -158,13 +160,19 @@ interface SectionMeta {
  */
 let lastSection: SectionId = 'practice';
 
+/** Open PLAY on this section the next time it mounts — after a first run, say. */
+export const openSection = (id: SectionId): void => {
+  lastSection = id;
+};
+
 const SECTIONS: SectionMeta[] = [
-  { id: 'practice', no: '01', label: 'PRACTICE', sub: 'one skill at a time', accent: '#c86bff' },
-  { id: 'lane', no: '02', label: 'THE LANE', sub: 'play a real lane', accent: '#ffd166' },
-  { id: 'codex', no: '03', label: 'CHARACTER', sub: 'what everything does', accent: '#e0b05c' },
+  { id: 'drills', no: '01', label: 'DRILLS', sub: 'one minute, your hands', accent: '#7ceaff' },
+  { id: 'practice', no: '02', label: 'PRACTICE', sub: 'one skill at a time', accent: '#c86bff' },
+  { id: 'lane', no: '03', label: 'THE LANE', sub: 'play a real lane', accent: '#ffd166' },
+  { id: 'codex', no: '04', label: 'CHARACTER', sub: 'what everything does', accent: '#e0b05c' },
 ];
 
-/** The three, in order — for anything that has to walk all of them. */
+/** The four, in order — for anything that has to walk all of them. */
 export const SECTION_IDS: SectionId[] = SECTIONS.map((s) => s.id);
 
 /**
@@ -192,7 +200,7 @@ export const SECTION_IDS: SectionId[] = SECTIONS.map((s) => s.id);
  *    in the codex exactly as the champions' own are, because a window you are
  *    expected to beat has to be a number you can check.
  */
-export function Practice({ profile, settings, onPlay, initialSection }: Props) {
+export function Practice({ profile, settings, onPlay, onFixControls, initialSection }: Props) {
   const bound = bindingsOf(settings);
   const [section, setSection] = useState<SectionId>(initialSection ?? lastSection);
   const railRef = useRef<HTMLDivElement>(null);
@@ -229,7 +237,12 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
   const counts = useMemo(() => {
     const lanes = LANE_TIERS.reduce((n, t) => n + (profile.lane?.tiers?.[t.id]?.runs ?? 0), 0);
     const played = PRACTICE_MODES.filter((id) => profile.bests[id] || profile.survive[id]).length;
+    const drilled = APM_MODES.filter((m) => (profile.apm?.modes?.[m.id]?.runs ?? 0) > 0).length;
     return {
+      drills: {
+        count: `${APM_MODES.length} DRILLS`,
+        note: drilled > 0 ? `${drilled}/${APM_MODES.length} tried` : 'none tried yet',
+      },
       lane: {
         count: `${LANE_TIERS.length} OPPONENTS`,
         note: lanes > 0 ? `${lanes} lane${lanes > 1 ? 's' : ''} played` : 'never played',
@@ -265,12 +278,12 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
     <div className="scroll">
       <div className="wrap practice fade-up">
         <header className="pr-head one-line">
-          <h1 className="display pr-h1">CHAMPIONS</h1>
-          <div className="eyebrow">Play as · Vayne, Twisted Fate or Katarina</div>
+          <h1 className="display pr-h1">PLAY</h1>
+          <div className="eyebrow">Drills for your hands · Vayne, Twisted Fate or Katarina</div>
           <Why label="What is here">
             <p className="dim pr-lead">
-              Three of them, three tabs — the pieces of each, the lane one of them plays for real,
-              and every number behind all of it.
+              Four tabs — one-minute drills with no champion at all, then the pieces of each
+              champion, the lane one of them plays for real, and every number behind all of it.
             </p>
           </Why>
         </header>
@@ -328,6 +341,9 @@ export function Practice({ profile, settings, onPlay, initialSection }: Props) {
           aria-labelledby={`pr-tab-${section}`}
           style={{ ['--c' as string]: active.accent }}
         >
+          {section === 'drills' && (
+            <DrillsPanel profile={profile} settings={settings} onPlay={onPlay} onFixControls={onFixControls} />
+          )}
           {section === 'lane' && (
             <LanePanel profile={profile} settings={settings} bound={bound} onPlay={onPlay} />
           )}
@@ -682,11 +698,11 @@ function PracticePanel({
     <>
       <Explainer title="HOW THIS SCREEN WORKS">
         <p className="dim pr-lead pr-panel-lead">
-          Three champions, three tabs. <b>PRACTICE</b> — this one — is each champion taken apart:
-          every mode is a single piece of a lane rehearsed on its own. <b>THE LANE</b> is all of it
-          at once: a real game of League, farming minions while somebody tries to stop you.{' '}
-          <b>CHARACTER</b> is the reference behind both. Want something shorter? <b>TRAIN</b> in the
-          top bar is one-minute drills with no champion at all.
+          <b>PRACTICE</b> — this tab — is each champion taken apart: every mode is a single piece
+          of a lane rehearsed on its own. <b>THE LANE</b> is all of it at once: a real game of
+          League, farming minions while somebody tries to stop you. <b>CHARACTER</b> is the
+          reference behind both. Want something shorter? <b>DRILLS</b>, the first tab, is
+          one-minute drills with no champion at all.
         </p>
         <p className="dim pr-lead pr-panel-lead">
           Every mode has two buttons. <b>PLAY</b> is one minute, always the same, so you can

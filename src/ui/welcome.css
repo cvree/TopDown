@@ -196,70 +196,6 @@
   color: var(--text-3);
 }
 
-/* ---------------------------------------------------------- the name */
-.wc-input {
-  width: min(420px, 100%);
-  margin-top: 6px;
-  padding: 14px 18px;
-  font-family: var(--display);
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--gold-hot);
-  background: rgba(4, 10, 18, 0.75);
-  border: 1px solid var(--stroke);
-  border-bottom: 2px solid var(--gold-deep);
-  outline: none;
-  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
-}
-.wc-input::placeholder {
-  color: var(--text-4);
-}
-.wc-input:focus {
-  border-color: var(--gold);
-  border-bottom-color: var(--gold-hot);
-  box-shadow: 0 0 30px -10px rgba(200, 170, 110, 0.8);
-}
-
-/* ---------------------------------------------------------- three cards */
-.wc-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 12px;
-  width: 100%;
-  margin-top: 8px;
-}
-.wc-card {
-  padding: 16px 18px 18px;
-  background: linear-gradient(165deg, rgba(255, 255, 255, 0.035), transparent 70%),
-    rgba(4, 10, 18, 0.6);
-  border: 1px solid var(--line);
-  border-top: 2px solid var(--c);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
-}
-.wc-card b {
-  display: block;
-  font-size: 16px;
-  letter-spacing: 0.2em;
-  color: var(--c);
-}
-.wc-card i {
-  display: block;
-  margin-top: 2px;
-  font-style: normal;
-  font-family: var(--ui);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--text);
-}
-.wc-card p {
-  margin: 9px 0 0;
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--text-2);
-}
-
 /* ---------------------------------------------------------- two picks */
 .wc-picks {
   display: grid;
@@ -305,62 +241,6 @@
   font-size: 12.5px;
   line-height: 1.55;
   color: var(--text-2);
-}
-
-/* ---------------------------------------------------------- the list */
-.wc-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  margin-top: 4px;
-}
-.wc-row {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  text-align: left;
-  padding: 13px 18px;
-  background: rgba(4, 10, 18, 0.5);
-  border: 1px solid var(--line);
-  transition: border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out), transform var(--dur-1) var(--ease);
-}
-.wc-row:hover {
-  border-color: var(--stroke);
-  background: rgba(200, 170, 110, 0.05);
-  transform: translateX(3px);
-}
-.wc-row.on {
-  border-color: var(--gold);
-  background: linear-gradient(90deg, rgba(200, 170, 110, 0.16), transparent 70%);
-}
-.wc-row-dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  transform: rotate(45deg);
-  border: 1px solid rgba(120, 90, 40, 0.7);
-  transition: background var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
-}
-.wc-row.on .wc-row-dot {
-  background: var(--gold-lit);
-  box-shadow: 0 0 12px rgba(200, 170, 110, 0.9);
-}
-.wc-row b {
-  font-family: var(--ui);
-  font-size: 12.5px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--text);
-  white-space: nowrap;
-}
-.wc-row.on b {
-  color: var(--gold-hot);
-}
-.wc-row i {
-  font-style: normal;
-  font-size: 12.5px;
-  color: var(--text-3);
 }
 
 /* ---------------------------------------------------------- the keys */
@@ -583,7 +463,6 @@
     clip-path: none;
     border: 0;
   }
-  .wc-cards,
   .wc-picks {
     grid-template-columns: 1fr;
   }

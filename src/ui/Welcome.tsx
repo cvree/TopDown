@@ -16,11 +16,17 @@ import './welcome.css';
  *   what is this, how do I move, how hard should it be, and what do I press
  *   first.
  *
- * So this is the first thing anybody ever sees, it asks exactly those four
- * things, and the third one it answers *for* them by measuring their hands
- * for twenty seconds rather than asking them to guess a difficulty. The test
- * is not decoration — the number it produces is the level every drill in the
- * client will open on afterwards.
+ * So this is the first thing anybody ever sees. It asks one question — how
+ * you move — and answers the difficulty *for* them by measuring their hands
+ * for twenty seconds rather than asking them to guess. The test is not
+ * decoration — the number it produces is the level every drill in the client
+ * will open on afterwards — and the last button starts the first run, which
+ * answers "what do I press first" by pressing it.
+ *
+ * It used to ask for a name, walk five cards of the top bar, and ask how much
+ * League you had played. The name is on PROGRESS for anybody who wants one,
+ * the top bar explains itself, and the League question only ever moved the
+ * starting level by one either way — a thing the arrows on every card do.
  *
  * It can be replayed at any time from the "?" in the top bar, and skipped at
  * any point with a single button. Nothing it collects is unrecoverable: every
@@ -28,7 +34,6 @@ import './welcome.css';
  */
 
 export interface WelcomeResult {
-  name: string;
   scheme: 'click' | 'wasd';
   /** The level the ladder should open on, 1..10. */
   level: number;
@@ -40,8 +45,6 @@ export interface WelcomeResult {
 }
 
 interface Props {
-  /** The name to start the field on. */
-  name: string;
   scheme: 'click' | 'wasd';
   /** True when replayed from the top bar rather than shown on a first run. */
   replay?: boolean;
@@ -50,28 +53,15 @@ interface Props {
   onSkip: () => void;
 }
 
-type StepId = 'hail' | 'name' | 'tour' | 'scheme' | 'played' | 'brief' | 'test' | 'verdict';
+type StepId = 'hail' | 'scheme' | 'brief' | 'test' | 'verdict';
 
 const STEPS: { id: StepId; label: string }[] = [
   { id: 'hail', label: 'HELLO' },
-  { id: 'name', label: 'YOU' },
-  { id: 'tour', label: 'THE PLACE' },
   { id: 'scheme', label: 'MOVING' },
-  { id: 'played', label: 'EXPERIENCE' },
   { id: 'brief', label: 'THE TEST' },
   { id: 'test', label: 'HANDS' },
   { id: 'verdict', label: 'YOUR LEVEL' },
 ];
-
-/** How much League is behind these hands. Only ever nudges the result. */
-const PLAYED = [
-  { id: 'never', label: 'NEVER PLAYED IT', note: "I'm here for the reflexes, not the game.", bias: -1 },
-  { id: 'some', label: 'A LITTLE', note: 'I know what a minion is.', bias: 0 },
-  { id: 'lots', label: 'A LOT', note: 'Hundreds of games. Unranked or low ranked.', bias: 1 },
-  { id: 'ranked', label: 'I CLIMB', note: 'I play ranked and I care about the number.', bias: 2 },
-] as const;
-
-type PlayedId = (typeof PLAYED)[number]['id'];
 
 /** How many lights the test asks for. Twenty seconds, near enough. */
 const ROUNDS = 12;
@@ -83,11 +73,9 @@ interface Shot {
 
 // ===========================================================================
 
-export function Welcome({ name: name0, scheme: scheme0, replay, onDone, onSkip }: Props) {
+export function Welcome({ scheme: scheme0, replay, onDone, onSkip }: Props) {
   const [step, setStep] = useState<StepId>('hail');
-  const [name, setName] = useState(name0 === 'PLAYER' ? '' : name0);
   const [scheme, setScheme] = useState<'click' | 'wasd'>(scheme0);
-  const [played, setPlayed] = useState<PlayedId>('some');
   const [shots, setShots] = useState<Shot[]>([]);
   const [measured, setMeasured] = useState(false);
 
@@ -130,19 +118,18 @@ export function Welcome({ name: name0, scheme: scheme0, replay, onDone, onSkip }
     return [...abilities, ...spare].slice(0, 4);
   }, [scheme]);
 
-  const verdict = useMemo(() => readHands(shots, PLAYED.find((p) => p.id === played)!.bias), [shots, played]);
+  const verdict = useMemo(() => readHands(shots), [shots]);
 
   const finish = useCallback(() => {
     audio.play('uiClick');
     onDone({
-      name: name.trim() || 'PLAYER',
       scheme,
       level: verdict.level,
       reaction: verdict.reaction,
       accuracy: verdict.accuracy,
       measured,
     });
-  }, [name, scheme, verdict, measured, onDone]);
+  }, [scheme, verdict, measured, onDone]);
 
   // Enter is "yes, next" on every step that is only reading. The test owns its
   // own keys, and the verdict's Enter is the one that starts the client.
@@ -179,10 +166,7 @@ export function Welcome({ name: name0, scheme: scheme0, replay, onDone, onSkip }
 
         <div key={step} className="wc-stage fade-up">
           {step === 'hail' && <Hail replay={replay} />}
-          {step === 'name' && <NameStep name={name} onName={setName} />}
-          {step === 'tour' && <Tour />}
           {step === 'scheme' && <SchemeStep scheme={scheme} onPick={setScheme} />}
-          {step === 'played' && <PlayedStep played={played} onPick={setPlayed} />}
           {step === 'brief' && <Brief keys={keys} rounds={ROUNDS} />}
           {step === 'test' && (
             <HandTest
@@ -195,7 +179,7 @@ export function Welcome({ name: name0, scheme: scheme0, replay, onDone, onSkip }
               }}
             />
           )}
-          {step === 'verdict' && <Verdict v={verdict} name={name.trim() || 'PLAYER'} measured={measured} />}
+          {step === 'verdict' && <Verdict v={verdict} measured={measured} replay={replay} />}
         </div>
 
         {/* -------------------------------------------------------- the foot */}
@@ -229,7 +213,7 @@ export function Welcome({ name: name0, scheme: scheme0, replay, onDone, onSkip }
             )}
             {step === 'verdict' && (
               <button className="btn primary" onMouseEnter={() => audio.play('uiHover')} onClick={finish}>
-                LET'S GO
+                {replay ? 'DONE' : 'PLAY PULSE'}
                 <em className="wc-enter mono">ENTER</em>
               </button>
             )}
@@ -259,84 +243,7 @@ function Hail({ replay }: { replay?: boolean }) {
         got right, and it tells you whether you are getting faster.
       </p>
       <p className="wc-lead">
-        Three questions, one short test, and then you are playing. It takes about a minute.
-      </p>
-    </div>
-  );
-}
-
-function NameStep({ name, onName }: { name: string; onName: (s: string) => void }) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => ref.current?.focus(), []);
-  return (
-    <div className="wc-step">
-      <div className="eyebrow">question one</div>
-      <h1 className="display wc-h1">WHAT DO WE CALL YOU?</h1>
-      <p className="wc-lead">Goes on your scores. Nothing leaves this browser.</p>
-      <input
-        ref={ref}
-        className="wc-input"
-        value={name}
-        maxLength={18}
-        placeholder="PLAYER"
-        aria-label="Your name"
-        onChange={(e) => onName(e.target.value)}
-      />
-      <p className="wc-note">You can change it later on the PROGRESS screen.</p>
-    </div>
-  );
-}
-
-function Tour() {
-  const cards = [
-    {
-      c: '#4fd47c',
-      k: 'WARM UP',
-      t: 'Ten minutes a day',
-      b: 'One button. A reaction check, your mistake from yesterday twice, then pressure — and one thing to do in your next game.',
-    },
-    {
-      c: '#ffd166',
-      k: 'PLAY',
-      t: 'A real lane',
-      b: 'Farm minions against somebody who is trying to stop you. This is the game itself.',
-    },
-    {
-      c: '#7ceaff',
-      k: 'TRAIN',
-      t: 'Short drills',
-      b: 'One minute each. A target lights up, you press the right key. That is the whole idea.',
-    },
-    {
-      c: '#c8aa6e',
-      k: 'STUDY',
-      t: 'Every champion',
-      b: 'What their passive does, how long their abilities are down, how far they reach. Asked until you know it.',
-    },
-    {
-      c: '#c58bff',
-      k: 'PROGRESS',
-      t: 'The numbers',
-      b: 'Every run is saved. Come back tomorrow and see whether the line went up.',
-    },
-  ];
-  return (
-    <div className="wc-step">
-      <div className="eyebrow">what is in here</div>
-      <h1 className="display wc-h1">FIVE PLACES, THAT IS ALL</h1>
-      <p className="wc-lead">They are the five words in the top bar. Nothing else is hiding.</p>
-      <div className="wc-cards">
-        {cards.map((c) => (
-          <div className="wc-card" key={c.k} style={{ ['--c' as string]: c.c }}>
-            <b className="display">{c.k}</b>
-            <i>{c.t}</i>
-            <p>{c.b}</p>
-          </div>
-        ))}
-      </div>
-      <p className="wc-note">
-        Start anywhere. If you have no idea, start with TRAIN — it is one minute and it explains
-        itself as you go. From tomorrow, WARM UP is the button to press first.
+        One question, one short test, and then you are playing. It takes about a minute.
       </p>
     </div>
   );
@@ -365,7 +272,7 @@ function SchemeStep({
   ];
   return (
     <div className="wc-step">
-      <div className="eyebrow">question two</div>
+      <div className="eyebrow">one question</div>
       <h1 className="display wc-h1">HOW DO YOU WANT TO MOVE?</h1>
       <p className="wc-lead">Either is fine, and you can switch whenever you like.</p>
       <div className="wc-picks">
@@ -386,36 +293,6 @@ function SchemeStep({
         ))}
       </div>
       <p className="wc-note">SETUP, top right, has this and every key on it.</p>
-    </div>
-  );
-}
-
-function PlayedStep({ played, onPick }: { played: PlayedId; onPick: (p: PlayedId) => void }) {
-  return (
-    <div className="wc-step">
-      <div className="eyebrow">question three</div>
-      <h1 className="display wc-h1">HOW MUCH LEAGUE HAVE YOU PLAYED?</h1>
-      <p className="wc-lead">
-        Only used to pick your starting difficulty. There is no wrong answer and nothing is locked
-        either way.
-      </p>
-      <div className="wc-list">
-        {PLAYED.map((p) => (
-          <button
-            key={p.id}
-            className={`wc-row${played === p.id ? ' on' : ''}`}
-            onMouseEnter={() => audio.play('uiHover')}
-            onClick={() => {
-              audio.play('uiClick');
-              onPick(p.id);
-            }}
-          >
-            <span className="wc-row-dot" aria-hidden />
-            <b>{p.label}</b>
-            <i>{p.note}</i>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -600,18 +477,18 @@ interface Reading {
  * somebody starts, and accuracy only ever pulls the answer *down* — a fast
  * hand that presses the wrong key is not ready for a faster floor.
  */
-function readHands(shots: Shot[], bias: number): Reading {
+function readHands(shots: Shot[]): Reading {
   const hits = shots.filter((s) => s.hit);
   const accuracy = shots.length ? hits.length / shots.length : 0;
   if (hits.length < 4) {
-    // Skipped, or barely attempted. Fall back to what they told us, gently.
-    const level = clamp(3 + bias, 1, 6);
+    // Skipped, or barely attempted: the level most people start on.
+    const level = 3;
     return {
       level,
       reaction: 0,
       accuracy,
       title: 'LEVEL ' + level,
-      line: 'We went with what you told us. Nudge it up or down on any drill card whenever you like.',
+      line: 'No test, so you start where most people do. Nudge it up or down on any drill card whenever you like.',
     };
   }
   const sorted = [...hits].map((s) => s.ms).sort((a, b) => a - b);
@@ -622,7 +499,7 @@ function readHands(shots: Shot[], bias: number): Reading {
   // dial and the mapping onto it should be too.
   const raw = 1 + ((620 - reaction) / (620 - 240)) * 7;
   const penalty = accuracy >= 0.92 ? 0 : accuracy >= 0.8 ? 1 : 2;
-  const level = clamp(Math.round(raw + bias * 0.5 - penalty), 1, 8);
+  const level = clamp(Math.round(raw - penalty), 1, 8);
 
   const title =
     reaction <= 260
@@ -649,12 +526,12 @@ function readHands(shots: Shot[], bias: number): Reading {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-function Verdict({ v, name, measured }: { v: Reading; name: string; measured: boolean }) {
+function Verdict({ v, measured, replay }: { v: Reading; measured: boolean; replay?: boolean }) {
   return (
     <div className="wc-step wc-verdict">
       <div className="eyebrow">{measured ? 'twelve lights, one number' : 'no test taken'}</div>
       <h1 className="display wc-h1">
-        {name}, YOU START AT <span className="foil">LEVEL {v.level}</span>
+        YOU START AT <span className="foil">LEVEL {v.level}</span>
       </h1>
 
       <div className="wc-scores">
@@ -688,6 +565,12 @@ function Verdict({ v, name, measured }: { v: Reading; name: string; measured: bo
 
       <p className="wc-lead">{v.line}</p>
       <p className="wc-note">
+        {replay ? null : (
+          <>
+            Your first run is <b>PULSE</b> at level 1 — two keys, one lit square — to learn the one
+            rule every drill shares.{' '}
+          </>
+        )}
         Nothing is locked. Every level of every drill is playable right now — this is only where
         the arrows start. Too easy, press ▶. Too hard, press ◀.
       </p>
