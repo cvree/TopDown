@@ -6,18 +6,23 @@ import { DRILLS, type DrillId } from '../drills/catalog';
 import { RUN_MODES, practiceFor, type RunMode } from '../drills/modes';
 import {
   applyRun,
+  createPlaylist,
+  deletePlaylist,
   drillDifficulty,
   loadProfile,
   newProfile,
+  renamePlaylist,
   resetProfile,
   rollDaily,
   saveProfile,
+  setPlaylistItems,
+  toggleStarred,
   type AppSettings,
   type Profile,
   type ProgressReport,
   type RunResult,
 } from '../progression/profile';
-import { LANE_TIERS, laneTierOf } from '../progression/lane';
+import { LANE_LENGTHS, LANE_TIERS, laneTierOf } from '../progression/lane';
 import { APM_LEVELS, levelDifficulty, openApmLadderAt } from '../progression/apm';
 import { clamp } from '../engine/math';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
@@ -73,17 +78,24 @@ import './app.css';
 /**
  * The sections.
  *
- * Four in the bar, and setup in the corner. The client used to have seven
- * tabs, four ladders, a daily plan and a calibration sequence, which between
- * them meant a player had to learn the *client* before they could practise;
- * everything that was really a way of choosing a run is now two buttons on a
- * card.
+ * Three in the bar now, and setup in the corner. The client used to have
+ * seven tabs, four ladders, a daily plan and a calibration sequence, which
+ * between them meant a player had to learn the *client* before they could
+ * practise; everything that was really a way of choosing a run is now two
+ * buttons on a card.
  *
- * **HOME** is where a returning player lands: the day's warm-up, the reaction
- * checks and the benchmark sheet. **PLAY** is every card you can start — the
- * one-minute drills for your hands, and the three champions. The drills spent
- * a release as a tab of their own, TRAIN, and that was two places in the bar
- * that did the same thing: pick a card, play a minute.
+ * There used to be a fourth tab, HOME, where a returning player landed for
+ * the day's warm-up, the reaction checks and the benchmark sheet. It is gone
+ * from the bar: the whole point of this client is the drills and the
+ * champions, and a tab that opened *before* them said otherwise every time
+ * somebody signed in. The warm-up itself is not gone — it is one button at
+ * the top of **PLAY**, which is where the client opens now, always.
+ *
+ * **PLAY** is every card you can start — the one-minute drills for your
+ * hands, the three champions, the lane, and a favourites shelf of whatever
+ * you have starred. The drills spent a release as a tab of their own, TRAIN,
+ * and that was two places in the bar that did the same thing: pick a card,
+ * play a minute.
  *
  * **STUDY** is neither hands nor one champion: it is every champion in the
  * game, as knowledge — what their passive does, how long their abilities are
@@ -92,9 +104,15 @@ import './app.css';
  */
 type Route = 'warmup' | 'practice' | 'study' | 'progress' | 'settings' | 'patch';
 
-/** The top bar, in order. Setup and the patch notes live in the corner. */
+/**
+ * The top bar, in order. Setup and the patch notes live in the corner.
+ *
+ * `warmup` is a real route still — the routine, the reaction tests, the
+ * benchmark sheet all live there exactly as before — it is simply not a tab
+ * here any more. It is reached from a button at the top of PLAY instead, so
+ * it never has to compete with the drills for the first click of a session.
+ */
 const NAV: { route: Route; label: string; hint: string }[] = [
-  { route: 'warmup', label: 'HOME', hint: 'The daily warm-up: reaction check, your mistake twice, hands, pressure' },
   { route: 'practice', label: 'PLAY', hint: 'One-minute drills for your hands, a champion in pieces, or a whole lane' },
   { route: 'study', label: 'STUDY', hint: 'Every champion in League: passives, abilities, cooldowns, ranges, matchups' },
   { route: 'progress', label: 'PROGRESS', hint: 'Your scores, and whether they are going up' },
@@ -157,6 +175,13 @@ interface Flow {
   /** The warm-up this run is a step of, if it is one. */
   warm?: WarmState;
   /**
+   * The playlist this run is a step of, if it is one: a player's own queue,
+   * played through in order and looping back to its first item once the last
+   * one finishes — the same "run it again" shape a benchmark sheet has, for a
+   * list somebody built rather than one this client shipped with.
+   */
+  playlist?: { name: string; items: DrillId[]; index: number };
+  /**
    * Where a rewind asked this run to restart: the tape so far and the step to
    * rebuild to. Set by the rewind key, cleared by anything that starts a new
    * attempt.
@@ -207,9 +232,10 @@ export function App() {
   // the next one synchronously: a run finishing and a warm-up closing.
   const profileRef = useRef(profile);
   profileRef.current = profile;
-  // A returning player opens on the warm-up; a new one on the champion, which
-  // the walkthrough is about to send them past anyway.
-  const [route, setRouteNow] = useState<Route>(() => (profile.onboarded ? 'warmup' : 'practice'));
+  // Every session opens on PLAY — the drills and the champions are the
+  // client now, and a screen that opened somewhere else first said otherwise
+  // on every single sign-in.
+  const [route, setRouteNow] = useState<Route>('practice');
   const routeRef = useRef(route);
   routeRef.current = route;
   /**
@@ -389,6 +415,7 @@ export function App() {
         seed?: number;
         bench?: string;
         warm?: WarmState;
+        playlist?: { name: string; items: DrillId[]; index: number };
       } = {},
     ) => {
       audio.unlock();
@@ -406,11 +433,38 @@ export function App() {
           level: opts.level,
           bench: opts.bench,
           warm: opts.warm,
+          playlist: opts.playlist,
         });
       });
     },
     [],
   );
+
+  /**
+   * The lane's own quick opts, for a playlist item that lands on it: the same
+   * tier and length the lane card opens on, since a queue that stops to ask
+   * "who, and how long" would not be a queue at all.
+   */
+  const laneQuickOpts = { difficulty: LANE_TIERS[1].difficulty, duration: LANE_LENGTHS[0].seconds };
+
+  /** Start a playlist from its first item — FAVORITES' one PLAY button. */
+  const playPlaylist = useCallback(
+    (name: string, items: DrillId[]) => {
+      if (!items.length) return;
+      const first = items[0];
+      startRun(first, 'play', {
+        ...(first === 'lanePhase' ? laneQuickOpts : {}),
+        playlist: { name, items, index: 0 },
+      });
+    },
+    [startRun],
+  );
+
+  const toggleStar = useCallback((id: DrillId) => setProfile((p) => toggleStarred(p, id)), []);
+  const addPlaylist = useCallback((name: string, items: DrillId[]) => setProfile((p) => createPlaylist(p, name, items)), []);
+  const removePlaylist = useCallback((id: string) => setProfile((p) => deletePlaylist(p, id)), []);
+  const relabelPlaylist = useCallback((id: string, name: string) => setProfile((p) => renamePlaylist(p, id, name)), []);
+  const editPlaylist = useCallback((id: string, items: DrillId[]) => setProfile((p) => setPlaylistItems(p, id, items)), []);
 
   const difficulty = useMemo(
     () => (flow ? flow.difficulty ?? drillDifficulty(profile, flow.drill) : 0.35),
@@ -638,6 +692,27 @@ export function App() {
    */
   const switchMode = useCallback(() => {
     if (!flow) return;
+    // A playlist's "next" is the next item in the queue, always PLAY, looping
+    // back to the first item once the last one finishes — the same shape as
+    // running the benchmark sheet start to finish, for a list the player built
+    // rather than one this client shipped with.
+    if (flow.playlist) {
+      const pl = flow.playlist;
+      const index = (pl.index + 1) % pl.items.length;
+      const id = pl.items[index];
+      setResults(null);
+      setRankUp(null);
+      rankToken.current++;
+      setBenchNote(null);
+      setFlow({
+        drill: id,
+        mode: 'play',
+        seed: newSeed(),
+        ...(id === 'lanePhase' ? laneQuickOpts : {}),
+        playlist: { ...pl, index },
+      });
+      return;
+    }
     if (flow.warm) {
       const w = flow.warm;
       const next = warmNext(w);
@@ -839,6 +914,7 @@ export function App() {
                 : flow.mode === 'surge'
                   ? `${DRILLS[flow.drill].name} · SURGE · from level ${flow.level ?? 1}`
                   : `${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`) +
+            (flow.playlist ? ` · ${flow.playlist.name} · ${flow.playlist.index + 1}/${flow.playlist.items.length}` : '') +
             (flow.rewinds ? ` · REWOUND ×${flow.rewinds} · PRACTICE ONLY` : '')
           }
           onComplete={handleComplete}
@@ -855,7 +931,7 @@ export function App() {
             onExit={exitToMenu}
             onNext={switchMode}
             code={
-              flow.warm || flow.mode === 'infinite' || flow.mode === 'surge'
+              flow.warm || flow.mode === 'infinite' || flow.mode === 'surge' || flow.playlist
                 ? null
                 : encodeScenario({ drill: flow.drill, mode: flow.mode, difficulty, seed: flow.seed })
             }
@@ -868,11 +944,15 @@ export function App() {
                   }
                 : flow.warm
                   ? warmBanner(flow.warm)
-                  : benchNote
+                  : flow.playlist
+                    ? playlistBanner(flow.playlist)
+                    : benchNote
             }
             nextLabel={
               flow.warm
                 ? warmNextLabel(flow.warm)
+                : flow.playlist
+                  ? `Next: ${DRILLS[flow.playlist.items[(flow.playlist.index + 1) % flow.playlist.items.length]].name}`
                 : flow.bench && nextBench(flow.bench)
                   ? `Next benchmark: ${nextBench(flow.bench)?.label}`
                 : flow.drill === 'lanePhase'
@@ -1037,6 +1117,7 @@ export function App() {
                 onReaction={onReaction}
                 onBench={playBench}
                 onCode={playCode}
+                onBack={() => setRoute('practice')}
               />
             )}
             {route === 'practice' && (
@@ -1045,6 +1126,13 @@ export function App() {
                 settings={profile.settings}
                 onPlay={startRun}
                 onFixControls={() => setRoute('settings')}
+                onOpenWarmup={() => setRoute('warmup')}
+                onToggleStar={toggleStar}
+                onPlayPlaylist={playPlaylist}
+                onCreatePlaylist={addPlaylist}
+                onDeletePlaylist={removePlaylist}
+                onRenamePlaylist={relabelPlaylist}
+                onSetPlaylistItems={editPlaylist}
               />
             )}
             {route === 'study' && <Study />}
@@ -1116,6 +1204,12 @@ const formatHead = (v: number, f: string): string => {
   if (f === 'rate') return v.toFixed(1);
   return `${Math.round(v)}`;
 };
+
+/** The banner a playlist run shows: which queue, and where in it. */
+const playlistBanner = (pl: NonNullable<Flow['playlist']>): { eyebrow: string; line: string } => ({
+  eyebrow: `Playlist · ${pl.name}`,
+  line: `${pl.index + 1} of ${pl.items.length} — ${DRILLS[pl.items[pl.index]].name}`,
+});
 
 /** The benchmark row after this one, wrapping, skipping the reaction rows. */
 const nextBench = (id: string): BenchScenario | null => {

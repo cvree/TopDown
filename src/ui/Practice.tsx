@@ -3,7 +3,7 @@ import { AccuracyReport } from './AccuracyReport';
 import { cardClickStarts } from './components/cardStart';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { audio } from '../engine/audio';
-import { DRILLS, type DrillId } from '../drills/catalog';
+import { DRILLS, DRILL_LIST, type DrillId, type DrillMeta } from '../drills/catalog';
 import { PRACTICE_CHAMPIONS, PRACTICE_MODES, RUN_MODE_LIST, type RunMode } from '../drills/modes';
 import { LANE_LENGTHS, LANE_TIERS, type LaneTier } from '../progression/lane';
 import { CAITLYN_STATS } from '../engine/caitlyn';
@@ -13,9 +13,11 @@ import { TWISTED_STATS } from '../engine/twistedfate';
 import { KATARINA_STATS } from '../engine/katarina';
 import { katarinaStage } from '../drills/katarina';
 import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from '../engine/input';
-import type { AppSettings, Profile } from '../progression/profile';
+import type { AppSettings, Playlist, Profile } from '../progression/profile';
+import { streakState } from '../progression/warmup';
 import { Explainer } from './components/Explainer';
 import { ModePreview } from './components/ModePreview';
+import { StarButton } from './components/StarButton';
 import { Why } from './components/Why';
 import { DrillsPanel } from './Lab';
 import { APM_MODES } from '../progression/apm';
@@ -32,11 +34,21 @@ interface Props {
   ) => void;
   /** Opens the controls screen, for a drill that needs a key the layout lacks. */
   onFixControls: () => void;
+  /** Opens the warm-up routine — its own screen now that HOME is gone from the bar. */
+  onOpenWarmup: () => void;
+  /** Stars or unstars a drill, a practice mode or the lane for quick access. */
+  onToggleStar: (id: DrillId) => void;
+  /** Starts a playlist from its first item. */
+  onPlayPlaylist: (name: string, items: DrillId[]) => void;
+  onCreatePlaylist: (name: string, items: DrillId[]) => void;
+  onDeletePlaylist: (id: string) => void;
+  onRenamePlaylist: (id: string, name: string) => void;
+  onSetPlaylistItems: (id: string, items: DrillId[]) => void;
   /**
    * Which section to open on, overriding the one the player was last reading.
    *
    * Nothing in the client passes it. The headless profile check does, so that
-   * a hostile stored profile is still drawn through all four sections rather
+   * a hostile stored profile is still drawn through all five sections rather
    * than only the one a fresh mount happens to open on — every one of them
    * reads a different corner of a saved record, and each is only rendered
    * while its own tab is open.
@@ -133,11 +145,16 @@ const bindingsOf = (settings: AppSettings | undefined): Bindings => {
  *    better — so it comes after them, where it reads as what the pieces add up to.
  *  - **CHARACTER** is the reading: every figure all four champions are built
  *    from, so a claim the trainer makes about transfer is one you can check.
+ *  - **FAVORITES** is the one section nobody wrote: whatever you have starred
+ *    across the other four, plus any playlist you have built out of them. It
+ *    is last because it starts empty — there is nothing to favourite before
+ *    you have played something — and it is the one section this client did
+ *    not choose the shape of.
  *
- * The tab rail is sticky, so the four are one keystroke apart from anywhere on
+ * The tab rail is sticky, so the five are one keystroke apart from anywhere on
  * any of them, and the section you are in is never more than a glance away.
  */
-export type SectionId = 'drills' | 'lane' | 'practice' | 'codex';
+export type SectionId = 'drills' | 'lane' | 'practice' | 'codex' | 'favorites';
 
 interface SectionMeta {
   id: SectionId;
@@ -170,6 +187,7 @@ const SECTIONS: SectionMeta[] = [
   { id: 'practice', no: '02', label: 'PRACTICE', sub: 'one skill at a time', accent: '#c86bff' },
   { id: 'lane', no: '03', label: 'THE LANE', sub: 'play a real lane', accent: '#ffd166' },
   { id: 'codex', no: '04', label: 'CHARACTER', sub: 'what everything does', accent: '#e0b05c' },
+  { id: 'favorites', no: '05', label: 'FAVORITES', sub: 'yours — starred, and queued up', accent: '#ffe066' },
 ];
 
 /** The four, in order — for anything that has to walk all of them. */
@@ -200,10 +218,24 @@ export const SECTION_IDS: SectionId[] = SECTIONS.map((s) => s.id);
  *    in the codex exactly as the champions' own are, because a window you are
  *    expected to beat has to be a number you can check.
  */
-export function Practice({ profile, settings, onPlay, onFixControls, initialSection }: Props) {
+export function Practice({
+  profile,
+  settings,
+  onPlay,
+  onFixControls,
+  onOpenWarmup,
+  onToggleStar,
+  onPlayPlaylist,
+  onCreatePlaylist,
+  onDeletePlaylist,
+  onRenamePlaylist,
+  onSetPlaylistItems,
+  initialSection,
+}: Props) {
   const bound = bindingsOf(settings);
   const [section, setSection] = useState<SectionId>(initialSection ?? lastSection);
   const railRef = useRef<HTMLDivElement>(null);
+  const stars = profile.stars;
 
   const choose = (id: SectionId) => {
     lastSection = id;
@@ -252,8 +284,12 @@ export function Practice({ profile, settings, onPlay, onFixControls, initialSect
         note: played > 0 ? `${played}/${PRACTICE_MODES.length} tried` : 'none tried yet',
       },
       codex: { count: `${CODEX.length - 1} CHAMPIONS`, note: 'every ability, and every number’s source' },
+      favorites: {
+        count: `${stars.length} STARRED`,
+        note: profile.playlists.length > 0 ? `${profile.playlists.length} playlist${profile.playlists.length > 1 ? 's' : ''}` : 'none yet',
+      },
     } as Record<SectionId, { count: string; note: string }>;
-  }, [profile]);
+  }, [profile, stars.length]);
 
   const active = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
 
@@ -282,11 +318,14 @@ export function Practice({ profile, settings, onPlay, onFixControls, initialSect
           <div className="eyebrow">Drills for your hands · Vayne, Twisted Fate or Katarina</div>
           <Why label="What is here">
             <p className="dim pr-lead">
-              Four tabs — one-minute drills with no champion at all, then the pieces of each
-              champion, the lane one of them plays for real, and every number behind all of it.
+              Five tabs — one-minute drills with no champion at all, then the pieces of each
+              champion, the lane one of them plays for real, every number behind all of it, and
+              whatever you have starred out of the four.
             </p>
           </Why>
         </header>
+
+        <WarmupEntry profile={profile} onOpen={onOpenWarmup} />
 
         {/* ------------------------------------------------------------ rail */}
         <div className="pr-tabs" ref={railRef}>
@@ -342,18 +381,84 @@ export function Practice({ profile, settings, onPlay, onFixControls, initialSect
           style={{ ['--c' as string]: active.accent }}
         >
           {section === 'drills' && (
-            <DrillsPanel profile={profile} settings={settings} onPlay={onPlay} onFixControls={onFixControls} />
+            <DrillsPanel
+              profile={profile}
+              settings={settings}
+              onPlay={onPlay}
+              onFixControls={onFixControls}
+              stars={stars}
+              onToggleStar={onToggleStar}
+            />
           )}
           {section === 'lane' && (
-            <LanePanel profile={profile} settings={settings} bound={bound} onPlay={onPlay} />
+            <LanePanel
+              profile={profile}
+              settings={settings}
+              bound={bound}
+              onPlay={onPlay}
+              stars={stars}
+              onToggleStar={onToggleStar}
+            />
           )}
           {section === 'practice' && (
-            <PracticePanel profile={profile} settings={settings} bound={bound} onPlay={onPlay} />
+            <PracticePanel
+              profile={profile}
+              settings={settings}
+              bound={bound}
+              onPlay={onPlay}
+              stars={stars}
+              onToggleStar={onToggleStar}
+            />
           )}
           {section === 'codex' && <CodexPanel />}
+          {section === 'favorites' && (
+            <FavoritesPanel
+              profile={profile}
+              settings={settings}
+              onPlay={onPlay}
+              onToggleStar={onToggleStar}
+              onPlayPlaylist={onPlayPlaylist}
+              onCreatePlaylist={onCreatePlaylist}
+              onDeletePlaylist={onDeletePlaylist}
+              onRenamePlaylist={onRenamePlaylist}
+              onSetPlaylistItems={onSetPlaylistItems}
+            />
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * THE WARM-UP, AS ONE LINE.
+ *
+ * HOME used to be a whole tab for this: the routine, the reaction tests, the
+ * benchmark sheet, opened before a player had touched a single drill. It is a
+ * button now, pinned above the rail on the screen that is actually the point
+ * — so the streak is never more than a glance away, and it is never the
+ * first thing standing between a player and PLAY either.
+ */
+function WarmupEntry({ profile, onOpen }: { profile: Profile; onOpen: () => void }) {
+  const w = profile.warmup;
+  const today = new Date();
+  const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const { state } = streakState(w, key);
+  const done = state === 'done';
+  return (
+    <button type="button" className="pr-warmup-entry" onClick={onOpen} onMouseEnter={() => audio.play('uiHover')}>
+      <span className="pr-warmup-entry-streak">
+        <b className="mono">{w.streak}</b>
+        <i>day{w.streak === 1 ? '' : 's'} in a row</i>
+      </span>
+      <span className="pr-warmup-entry-label">
+        <b className="display">{done ? 'WARM UP AGAIN' : 'START THE WARM-UP'}</b>
+        <i>reaction check · two sets on yesterday's mistake · a lab bench · benchmarks</i>
+      </span>
+      <span className="pr-warmup-entry-go" aria-hidden>
+        →
+      </span>
+    </button>
   );
 }
 
@@ -385,11 +490,15 @@ function LanePanel({
   settings,
   bound,
   onPlay,
+  stars,
+  onToggleStar,
 }: {
   profile: Profile;
   settings: AppSettings;
   bound: Bindings;
   onPlay: PlayFn;
+  stars: DrillId[];
+  onToggleStar: (id: DrillId) => void;
 }) {
   return (
     <>
@@ -402,7 +511,14 @@ function LanePanel({
         </p>
       </Explainer>
       <GroupHead label="THE MATCH" note="pick an opponent, pick a length" count="1 MODE" />
-      <LaneCard profile={profile} settings={settings} bound={bound} onPlay={onPlay} />
+      <LaneCard
+        profile={profile}
+        settings={settings}
+        bound={bound}
+        onPlay={onPlay}
+        starred={stars.includes('lanePhase')}
+        onToggleStar={() => onToggleStar('lanePhase')}
+      />
     </>
   );
 }
@@ -433,11 +549,15 @@ function LaneCard({
   settings,
   bound,
   onPlay,
+  starred,
+  onToggleStar,
 }: {
   profile: Profile;
   settings: AppSettings;
   bound: Bindings;
   onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number }) => void;
+  starred: boolean;
+  onToggleStar: () => void;
 }) {
   const meta = DRILLS.lanePhase;
   const [tier, setTier] = useState<LaneTier>(LANE_TIERS[1]);
@@ -480,21 +600,24 @@ function LaneCard({
           <h2 className="display pr-name">{meta.name}</h2>
           <div className="pr-tag">{meta.tagline}</div>
         </div>
-        <div className="pr-lane-record mono">
-          {record && record.runs > 0 ? (
-            <>
-              <b>{record.bestCsPerMin.toFixed(1)}</b>
-              <span>best CS/min vs {tier.label}</span>
-              <i>
-                {record.runs} lane{record.runs > 1 ? 's' : ''} · {record.wins} won on gold
-              </i>
-            </>
-          ) : (
-            <>
-              <b>—</b>
-              <span>no lane against {tier.label} yet</span>
-            </>
-          )}
+        <div className="pr-card-head-right">
+          <StarButton on={starred} onToggle={onToggleStar} label={meta.name} />
+          <div className="pr-lane-record mono">
+            {record && record.runs > 0 ? (
+              <>
+                <b>{record.bestCsPerMin.toFixed(1)}</b>
+                <span>best CS/min vs {tier.label}</span>
+                <i>
+                  {record.runs} lane{record.runs > 1 ? 's' : ''} · {record.wins} won on gold
+                </i>
+              </>
+            ) : (
+              <>
+                <b>—</b>
+                <span>no lane against {tier.label} yet</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -671,11 +794,15 @@ function PracticePanel({
   settings,
   bound,
   onPlay,
+  stars,
+  onToggleStar,
 }: {
   profile: Profile;
   settings: AppSettings;
   bound: Bindings;
   onPlay: PlayFn;
+  stars: DrillId[];
+  onToggleStar: (id: DrillId) => void;
 }) {
   const [who, setWho] = useState(lastChampion);
   const champion = PRACTICE_CHAMPIONS.find((c) => c.id === who) ?? PRACTICE_CHAMPIONS[0];
@@ -791,6 +918,8 @@ function PracticePanel({
                   settings={settings}
                   bound={bound}
                   onPlay={onPlay}
+                  starred={stars.includes(id)}
+                  onToggleStar={() => onToggleStar(id)}
                 />
               ))}
             </div>
@@ -836,12 +965,16 @@ function ModeCard({
   settings,
   bound,
   onPlay,
+  starred,
+  onToggleStar,
 }: {
   id: DrillId;
   profile: Profile;
   settings: AppSettings;
   bound: Bindings;
   onPlay: (id: DrillId, mode: RunMode) => void;
+  starred: boolean;
+  onToggleStar: () => void;
 }) {
   const meta = DRILLS[id];
   const best = profile.bests[id];
@@ -877,6 +1010,7 @@ function ModeCard({
             onPlay(id, 'play');
           }}
         />
+        <StarButton on={starred} onToggle={onToggleStar} label={meta.name} />
         <div className="pr-tile-title">
           <h2 className="display pr-name">{meta.name}</h2>
           <div className="pr-tag">{meta.tagline}</div>
@@ -1272,6 +1406,312 @@ function SheriffReference() {
         her health and her movement speed are untouched. Her basic attack hits softer than
         League's, because this mode is testing your dodging rather than your spacing.
       </p>
+    </section>
+  );
+}
+
+// ===========================================================================
+// 04 — FAVORITES
+// ===========================================================================
+
+/**
+ * THE ONE SECTION NOBODY WROTE.
+ *
+ * Every other tab is a fixed shape the client chose: thirteen drills, three
+ * champions, one lane, four kits. This one starts empty and is built entirely
+ * out of what a player starred on the other four — a shelf of shortcuts, and
+ * a way to string them into a queue and play straight through it.
+ *
+ * A playlist is deliberately shallow: an ordered list of activities, each
+ * played PLAY-shape at whatever difficulty it would open on from its own
+ * card. It is not a second settings screen for length or difficulty — those
+ * questions already have an answer everywhere else in the client, and a
+ * queue that stopped to ask them again would not be a queue.
+ */
+function FavoritesPanel({
+  profile,
+  settings,
+  onPlay,
+  onToggleStar,
+  onPlayPlaylist,
+  onCreatePlaylist,
+  onDeletePlaylist,
+  onRenamePlaylist,
+  onSetPlaylistItems,
+}: {
+  profile: Profile;
+  settings: AppSettings;
+  onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number }) => void;
+  onToggleStar: (id: DrillId) => void;
+  onPlayPlaylist: (name: string, items: DrillId[]) => void;
+  onCreatePlaylist: (name: string, items: DrillId[]) => void;
+  onDeletePlaylist: (id: string) => void;
+  onRenamePlaylist: (id: string, name: string) => void;
+  onSetPlaylistItems: (id: string, items: DrillId[]) => void;
+}) {
+  const starredMeta = DRILL_LIST.filter((d) => profile.stars.includes(d.id));
+
+  return (
+    <>
+      <Explainer title="HOW FAVORITES WORKS">
+        <p className="dim pr-lead pr-panel-lead">
+          Star anything on the other four tabs — the ★ sits in the corner of every drill, every
+          champion mode and the lane — and it lands here. Build a playlist out of your stars and{' '}
+          <b>PLAY PLAYLIST</b> runs straight through it, one activity into the next, looping back to
+          the start once it is done.
+        </p>
+      </Explainer>
+
+      <GroupHead
+        label="STARRED"
+        note="everything you have marked, across the whole client"
+        count={`${starredMeta.length} ITEM${starredMeta.length === 1 ? '' : 'S'}`}
+      />
+      {starredMeta.length === 0 ? (
+        <p className="dim pr-empty">
+          Nothing starred yet. Open the ★ on any drill, champion mode or the lane to put it here.
+        </p>
+      ) : (
+        <div className="pr-modes">
+          {starredMeta.map((meta) => (
+            <FavoriteTile
+              key={meta.id}
+              id={meta.id}
+              settings={settings}
+              onPlay={onPlay}
+              onToggleStar={() => onToggleStar(meta.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      <GroupHead
+        label="PLAYLISTS"
+        note="queues you built out of your stars — play straight through them"
+        count={`${profile.playlists.length} LIST${profile.playlists.length === 1 ? '' : 'S'}`}
+      />
+      <div className="pr-playlists">
+        {profile.playlists.map((pl) => (
+          <PlaylistCard
+            key={pl.id}
+            playlist={pl}
+            starred={starredMeta}
+            onPlay={() => onPlayPlaylist(pl.name, pl.items)}
+            onDelete={() => onDeletePlaylist(pl.id)}
+            onRename={(name) => onRenamePlaylist(pl.id, name)}
+            onSetItems={(items) => onSetPlaylistItems(pl.id, items)}
+          />
+        ))}
+        <NewPlaylist starred={starredMeta} onCreate={onCreatePlaylist} />
+      </div>
+    </>
+  );
+}
+
+/** One starred activity, as a compact card — the same picture and PLAY button every other card carries, without SURVIVE. */
+function FavoriteTile({
+  id,
+  settings,
+  onPlay,
+  onToggleStar,
+}: {
+  id: DrillId;
+  settings: AppSettings;
+  onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number }) => void;
+  onToggleStar: () => void;
+}) {
+  const meta = DRILLS[id];
+  const card = useRef<HTMLElement>(null);
+  const start = () => {
+    audio.play('uiClick');
+    if (id === 'lanePhase') onPlay(id, 'play', { difficulty: LANE_TIERS[1].difficulty, duration: LANE_LENGTHS[0].seconds });
+    else onPlay(id, 'play');
+  };
+  return (
+    <section
+      ref={card}
+      className="pr-tile panel pr-startable"
+      style={{ ['--c' as string]: meta.accent }}
+      onMouseEnter={() => audio.play('uiHover')}
+      onClick={(e) => {
+        if (!cardClickStarts(e)) return;
+        start();
+      }}
+    >
+      <div className="pr-tile-media">
+        <ModePreview id={id} accent={meta.accent} host={card} still={settings.lowFx} startLabel={meta.name} onStart={start} />
+        <StarButton on onToggle={onToggleStar} label={meta.name} />
+        <div className="pr-tile-title">
+          <h2 className="display pr-name">{meta.name}</h2>
+          <div className="pr-tag">{meta.tagline}</div>
+        </div>
+      </div>
+      <div className="pr-tile-body">
+        <p className="pr-brief">{meta.brief}</p>
+        <div className="pr-buttons">
+          <button className="pr-go pr-go-play" onMouseEnter={() => audio.play('uiHover')} onClick={start}>
+            <span className="pr-go-label">PLAY</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * ONE PLAYLIST, EDITABLE IN PLACE.
+ *
+ * Reorder with the two arrows rather than a drag — a queue with thirteen
+ * possible members has to work from a keyboard and a touchscreen as well as a
+ * mouse, and an arrow does not need either of those to hit a target.
+ */
+function PlaylistCard({
+  playlist,
+  starred,
+  onPlay,
+  onDelete,
+  onRename,
+  onSetItems,
+}: {
+  playlist: Playlist;
+  starred: DrillMeta[];
+  onPlay: () => void;
+  onDelete: () => void;
+  onRename: (name: string) => void;
+  onSetItems: (items: DrillId[]) => void;
+}) {
+  const [name, setName] = useState(playlist.name);
+  useEffect(() => setName(playlist.name), [playlist.name]);
+  const available = starred.filter((m) => !playlist.items.includes(m.id));
+
+  const move = (i: number, by: number) => {
+    const j = i + by;
+    if (j < 0 || j >= playlist.items.length) return;
+    const next = [...playlist.items];
+    [next[i], next[j]] = [next[j], next[i]];
+    onSetItems(next);
+  };
+  const remove = (i: number) => onSetItems(playlist.items.filter((_, idx) => idx !== i));
+
+  return (
+    <section className="panel pad pr-playlist">
+      <div className="pr-playlist-head">
+        <input
+          className="pr-playlist-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => {
+            if (name.trim() && name !== playlist.name) onRename(name);
+            else setName(playlist.name);
+          }}
+          maxLength={60}
+          aria-label="Playlist name"
+        />
+        <button className="btn ghost" type="button" onClick={onDelete}>
+          DELETE
+        </button>
+      </div>
+
+      {playlist.items.length === 0 ? (
+        <p className="dim pr-empty">Empty — add a starred activity below.</p>
+      ) : (
+        <ol className="pr-playlist-items">
+          {playlist.items.map((id, i) => (
+            <li key={`${id}-${i}`}>
+              <b className="mono">{String(i + 1).padStart(2, '0')}</b>
+              <span>{DRILLS[id].name}</span>
+              <span className="pr-playlist-item-controls">
+                <button type="button" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${DRILLS[id].name} earlier`}>
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  disabled={i === playlist.items.length - 1}
+                  onClick={() => move(i, 1)}
+                  aria-label={`Move ${DRILLS[id].name} later`}
+                >
+                  ▼
+                </button>
+                <button type="button" onClick={() => remove(i)} aria-label={`Remove ${DRILLS[id].name}`}>
+                  ✕
+                </button>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {available.length > 0 && (
+        <select
+          className="pr-playlist-add"
+          value=""
+          onChange={(e) => {
+            const id = e.target.value as DrillId;
+            if (id) onSetItems([...playlist.items, id]);
+          }}
+          aria-label={`Add a starred activity to ${playlist.name}`}
+        >
+          <option value="">+ add a starred activity…</option>
+          {available.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+      )}
+
+      <button className="pr-go pr-go-play pr-playlist-play" type="button" disabled={playlist.items.length === 0} onClick={onPlay}>
+        <span className="pr-go-label">PLAY PLAYLIST</span>
+        <span className="pr-go-sub">
+          {playlist.items.length} activit{playlist.items.length === 1 ? 'y' : 'ies'}, in order
+        </span>
+      </button>
+    </section>
+  );
+}
+
+/** Building a new playlist: a name, and a pick of whatever is starred. */
+function NewPlaylist({ starred, onCreate }: { starred: DrillMeta[]; onCreate: (name: string, items: DrillId[]) => void }) {
+  const [name, setName] = useState('');
+  const [picked, setPicked] = useState<DrillId[]>([]);
+
+  if (starred.length === 0) {
+    return <p className="dim pr-empty">Star something first — a playlist is built out of your stars.</p>;
+  }
+
+  const toggle = (id: DrillId) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
+  const create = () => {
+    if (!picked.length) return;
+    audio.play('uiClick');
+    onCreate(name.trim() || 'PLAYLIST', picked);
+    setName('');
+    setPicked([]);
+  };
+
+  return (
+    <section className="panel pad pr-playlist pr-playlist-new">
+      <div className="pr-playlist-head">
+        <input
+          className="pr-playlist-name"
+          placeholder="Name this playlist…"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={60}
+          aria-label="New playlist name"
+        />
+      </div>
+      <div className="pr-playlist-pick">
+        {starred.map((m) => (
+          <label key={m.id} className={`pr-playlist-check${picked.includes(m.id) ? ' on' : ''}`}>
+            <input type="checkbox" checked={picked.includes(m.id)} onChange={() => toggle(m.id)} />
+            {m.name}
+          </label>
+        ))}
+      </div>
+      <button className="btn primary" type="button" disabled={picked.length === 0} onClick={create}>
+        CREATE PLAYLIST · {picked.length} picked
+      </button>
     </section>
   );
 }

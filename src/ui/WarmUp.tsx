@@ -69,6 +69,8 @@ interface Props {
   onReaction: (test: ReactionTestId, run: ReactionRun) => void;
   onBench: (b: BenchScenario) => void;
   onCode: (code: ScenarioCode) => void;
+  /** Leaves the warm-up for PLAY. It has no tab of its own to fall back on. */
+  onBack: () => void;
 }
 
 const bindingsOf = (settings: AppSettings | undefined): Bindings => {
@@ -82,7 +84,7 @@ const bindingsOf = (settings: AppSettings | undefined): Bindings => {
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 
-export function WarmUp({ profile, settings, summary, onDismissSummary, onStart, onReaction, onBench, onCode }: Props) {
+export function WarmUp({ profile, settings, summary, onDismissSummary, onStart, onReaction, onBench, onCode, onBack }: Props) {
   const today = todayKey();
   const plan = useMemo(() => buildWarmup(profile, today), [profile, today]);
   const bindings = useMemo(() => bindingsOf(settings), [settings]);
@@ -103,6 +105,9 @@ export function WarmUp({ profile, settings, summary, onDismissSummary, onStart, 
     <div className="scroll">
       <div className="wrap wu fade-up">
         <header className="pr-head one-line">
+          <button className="btn ghost wu-back" type="button" onClick={onBack}>
+            ← Back to PLAY
+          </button>
           <h1 className="display pr-h1">WARM UP</h1>
           <div className="eyebrow">Ten minutes a day · come back tomorrow</div>
           <Why label="What it is">

@@ -1546,3 +1546,239 @@
     letter-spacing: 0.1em;
   }
 }
+
+/* ============================================================ the warm-up entry
+
+   HOME used to be a whole tab. It is one button now, pinned above the rail —
+   the streak is never more than a glance away, and it is never the first
+   thing between a player and the drills either. */
+
+.pr-warmup-entry {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  margin-bottom: 22px;
+  padding: 14px 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 209, 102, 0.28);
+  background: linear-gradient(90deg, rgba(255, 209, 102, 0.1), rgba(255, 209, 102, 0.02));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.pr-warmup-entry:hover {
+  border-color: rgba(255, 209, 102, 0.5);
+  background: linear-gradient(90deg, rgba(255, 209, 102, 0.16), rgba(255, 209, 102, 0.03));
+}
+.pr-warmup-entry-streak {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 64px;
+  padding-right: 16px;
+  border-right: 1px solid rgba(255, 209, 102, 0.25);
+}
+.pr-warmup-entry-streak b {
+  font-size: 22px;
+  color: #ffd166;
+}
+.pr-warmup-entry-streak i {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.pr-warmup-entry-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.pr-warmup-entry-label b {
+  font-size: 15px;
+  letter-spacing: 0.05em;
+}
+.pr-warmup-entry-label i {
+  font-size: 12px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pr-warmup-entry-go {
+  font-size: 18px;
+  color: #ffd166;
+}
+
+/* ============================================================ the star
+
+   One button, on every activity in the client: a drill, a mode, the lane.
+   It sits over the top-left corner of a card's own picture, opposite the key
+   caps a mode prints in the top right, so the two never fight for the same
+   pixels. */
+
+.pr-star {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 4;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 224, 102, 0.3);
+  background: rgba(3, 8, 16, 0.62);
+  backdrop-filter: blur(6px);
+  color: rgba(255, 224, 102, 0.55);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.pr-star:hover {
+  color: #ffe066;
+  border-color: rgba(255, 224, 102, 0.6);
+  transform: scale(1.08);
+}
+.pr-star.on {
+  color: #ffe066;
+  border-color: rgba(255, 224, 102, 0.7);
+  background: rgba(255, 224, 102, 0.14);
+}
+.pr-card-head-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+.pr-card-head-right .pr-star {
+  position: static;
+}
+
+/* ============================================================ favorites
+
+   The one section nobody wrote: whatever got starred elsewhere, plus the
+   queues built out of it. */
+
+.pr-empty {
+  padding: 18px 4px;
+  font-size: 13.5px;
+}
+.pr-playlists {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pr-playlist-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.pr-playlist-name {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(120, 90, 40, 0.35);
+  padding: 4px 2px;
+  font: inherit;
+  font-size: 17px;
+  letter-spacing: 0.03em;
+  color: var(--text-1);
+}
+.pr-playlist-name:focus {
+  outline: none;
+  border-color: var(--c, #ffd166);
+}
+.pr-playlist-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.pr-playlist-items li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 13.5px;
+}
+.pr-playlist-items b.mono {
+  color: var(--text-3);
+  font-size: 11px;
+}
+.pr-playlist-items span:not(.pr-playlist-item-controls) {
+  flex: 1;
+}
+.pr-playlist-item-controls {
+  display: flex;
+  gap: 4px;
+}
+.pr-playlist-item-controls button {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid rgba(120, 90, 40, 0.3);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 11px;
+}
+.pr-playlist-item-controls button:hover:not(:disabled) {
+  color: var(--text-1);
+  border-color: rgba(255, 209, 102, 0.4);
+}
+.pr-playlist-item-controls button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.pr-playlist-add {
+  display: block;
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px dashed rgba(120, 90, 40, 0.4);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+}
+.pr-playlist-play {
+  width: 100%;
+}
+.pr-playlist-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.pr-playlist-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 90, 40, 0.35);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.pr-playlist-check.on {
+  border-color: rgba(255, 224, 102, 0.6);
+  background: rgba(255, 224, 102, 0.1);
+  color: #ffe066;
+}
+.pr-playlist-check input {
+  accent-color: #ffe066;
+}

@@ -400,6 +400,17 @@ export interface Profile {
   warmup: WarmupProgress;
   /** Benchmark records: one scenario each, played at fixed settings. */
   bench: BenchRecords;
+  /** Drills, practice modes and the lane, marked as favourites for quick access. */
+  stars: DrillId[];
+  /** Player-built queues of activities, played through in order. */
+  playlists: Playlist[];
+}
+
+/** A named, ordered queue of activities — a player's own programme. */
+export interface Playlist {
+  id: string;
+  name: string;
+  items: DrillId[];
 }
 
 /** One beaten record, kept so the home screen can say what got better. */
@@ -490,6 +501,8 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   recentBests: [],
   warmup: emptyWarmup(),
   bench: {},
+  stars: [],
+  playlists: [],
 });
 
 /**
@@ -547,6 +560,22 @@ const keepKnownSurvive = (raw: unknown): Profile['survive'] => {
   return out;
 };
 
+
+/** Star ids drop the same way anything else keyed on a drill does: unknown ones vanish rather than crash the star screen. */
+const keepKnownStars = (raw: unknown): DrillId[] =>
+  Array.isArray(raw) ? [...new Set(raw.filter(isDrillId))].slice(0, 200) : [];
+
+const keepKnownPlaylists = (raw: unknown): Playlist[] => {
+  if (!Array.isArray(raw)) return [];
+  const out: Playlist[] = [];
+  for (const pl of raw as { id?: unknown; name?: unknown; items?: unknown }[]) {
+    if (!pl || typeof pl.id !== 'string' || typeof pl.name !== 'string') continue;
+    const items = Array.isArray(pl.items) ? pl.items.filter(isDrillId).slice(0, 100) : [];
+    if (items.length === 0) continue;
+    out.push({ id: pl.id, name: pl.name.slice(0, 60), items });
+  }
+  return out.slice(0, 50);
+};
 
 export const loadProfile = (): Profile => {
   try {
@@ -640,6 +669,8 @@ export const loadProfile = (): Profile => {
       // text or a reaction record with a hole in it comes back playable.
       warmup: normalizeWarmup(parsed.warmup),
       bench: normalizeBench(parsed.bench),
+      stars: keepKnownStars(parsed.stars),
+      playlists: keepKnownPlaylists(parsed.playlists),
     };
   } catch {
     return newProfile();
@@ -1136,6 +1167,37 @@ export const markDailyComplete = (p: Profile, drill: DrillId): boolean => {
   }
   return done;
 };
+
+// --------------------------------------------------------------- favourites
+
+export const isStarred = (p: Profile, id: DrillId): boolean => p.stars.includes(id);
+
+export const toggleStarred = (p: Profile, id: DrillId): Profile => ({
+  ...p,
+  stars: p.stars.includes(id) ? p.stars.filter((s) => s !== id) : [...p.stars, id],
+});
+
+const newPlaylistId = (): string => `pl_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+
+export const createPlaylist = (p: Profile, name: string, items: DrillId[]): Profile => ({
+  ...p,
+  playlists: [...p.playlists, { id: newPlaylistId(), name: name.trim() || 'PLAYLIST', items }],
+});
+
+export const deletePlaylist = (p: Profile, id: string): Profile => ({
+  ...p,
+  playlists: p.playlists.filter((pl) => pl.id !== id),
+});
+
+export const renamePlaylist = (p: Profile, id: string, name: string): Profile => ({
+  ...p,
+  playlists: p.playlists.map((pl) => (pl.id === id ? { ...pl, name: name.trim() || pl.name } : pl)),
+});
+
+export const setPlaylistItems = (p: Profile, id: string, items: DrillId[]): Profile => ({
+  ...p,
+  playlists: p.playlists.map((pl) => (pl.id === id ? { ...pl, items } : pl)),
+});
 
 // ------------------------------------------------------------------ queries
 

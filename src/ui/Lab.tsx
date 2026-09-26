@@ -27,6 +27,7 @@ import type { AppSettings, Profile } from '../progression/profile';
 import { Explainer } from './components/Explainer';
 import { ModePreview } from './components/ModePreview';
 import { cardClickStarts } from './components/cardStart';
+import { StarButton } from './components/StarButton';
 import './practice.css';
 import './lab.css';
 
@@ -40,6 +41,9 @@ interface Props {
   ) => void;
   /** Opens the controls screen. The drills are the one section that can need it. */
   onFixControls: () => void;
+  /** Which drills are starred, for the ★ every bench carries. */
+  stars: DrillId[];
+  onToggleStar: (id: DrillId) => void;
 }
 
 type PlayFn = Props['onPlay'];
@@ -106,7 +110,7 @@ const labBindings = (settings: AppSettings | undefined): Bindings => {
   }
 };
 
-export function DrillsPanel({ profile, settings, onPlay, onFixControls }: Props) {
+export function DrillsPanel({ profile, settings, onPlay, onFixControls, stars, onToggleStar }: Props) {
   // Which rung each mode is showing. Empty means "whatever the ladder
   // suggests", so a mode the player has not touched this session always opens
   // on the rung they have not beaten rather than on the one they last looked at.
@@ -125,6 +129,8 @@ export function DrillsPanel({ profile, settings, onPlay, onFixControls }: Props)
       onStep={step}
       onPlay={onPlay}
       onFixControls={onFixControls}
+      stars={stars}
+      onToggleStar={onToggleStar}
     />
   );
 }
@@ -271,6 +277,8 @@ function LabPanel({
   onStep,
   onPlay,
   onFixControls,
+  stars,
+  onToggleStar,
 }: {
   profile: Profile;
   settings: AppSettings;
@@ -278,6 +286,8 @@ function LabPanel({
   onStep: (m: ApmMode, level: number, by: number) => void;
   onPlay: PlayFn;
   onFixControls: () => void;
+  stars: DrillId[];
+  onToggleStar: (id: DrillId) => void;
 }) {
   const scheme = settings?.movementScheme === 'wasd' ? 'wasd' : 'click';
   const bound = labBindings(settings);
@@ -397,6 +407,8 @@ function LabPanel({
                     surgeBest={rec.surge?.bestSurge ?? 0}
                     onStep={(by) => onStep(m, level, by)}
                     onPlay={onPlay}
+                    starred={stars.includes(m.id)}
+                    onToggleStar={() => onToggleStar(m.id)}
                   />
                 );
               })}
@@ -423,6 +435,8 @@ function LabBench({
   surgeBest,
   onStep,
   onPlay,
+  starred,
+  onToggleStar,
 }: {
   mode: ApmMode;
   settings: AppSettings;
@@ -440,6 +454,8 @@ function LabBench({
   surgeBest: number;
   onStep: (by: number) => void;
   onPlay: PlayFn;
+  starred: boolean;
+  onToggleStar: () => void;
 }) {
   const meta = DRILLS[mode.id];
   const stars = levelStars(lv);
@@ -520,6 +536,7 @@ function LabBench({
           onStart={goPlay}
           startLabel={`${meta.name}, level ${level}`}
         />
+        <StarButton on={starred} onToggle={onToggleStar} label={meta.name} />
         <div className="pr-lab-title">
           <b className="pr-lab-name">{meta.name}</b>
           <span className="pr-lab-kind mono">
