@@ -14,13 +14,14 @@ import { KATARINA_STATS } from '../engine/katarina';
 import { katarinaStage } from '../drills/katarina';
 import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from '../engine/input';
 import type { AppSettings, Playlist, Profile } from '../progression/profile';
-import { streakState } from '../progression/warmup';
 import { Explainer } from './components/Explainer';
 import { ModePreview } from './components/ModePreview';
 import { StarButton } from './components/StarButton';
 import { Why } from './components/Why';
 import { DrillsPanel } from './Lab';
 import { APM_MODES } from '../progression/apm';
+import { PlayHero } from './PlayHero';
+import { pickNext, type StartSpec } from './playNext';
 import './practice.css';
 
 interface Props {
@@ -54,6 +55,11 @@ interface Props {
    * while its own tab is open.
    */
   initialSection?: SectionId;
+  /**
+   * Whether Enter and Space start PLAY NEXT. Off while anything is drawn over
+   * the screen — the walkthrough, say — whose own keys those are.
+   */
+  keysLive?: boolean;
 }
 
 type PlayFn = Props['onPlay'];
@@ -231,8 +237,38 @@ export function Practice({
   onRenamePlaylist,
   onSetPlaylistItems,
   initialSection,
+  keysLive = true,
 }: Props) {
   const bound = bindingsOf(settings);
+  // The one drill the front door offers, re-asked whenever the profile moves
+  // — which is after every run, so coming back from one is a new answer.
+  const pick = useMemo(() => pickNext(profile), [profile]);
+  const startSpec = (spec: StartSpec) => onPlay(spec.drill, 'play', spec.opts);
+  const startRef = useRef(() => startSpec(pick));
+  startRef.current = () => startSpec(pick);
+
+  // Enter and Space are PLAY NEXT, from anywhere on the screen that is not
+  // already a control of its own — a focused button, tab or field keeps its
+  // keys. A held key never fires it twice.
+  useEffect(() => {
+    if (!keysLive) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.defaultPrevented || e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (e.code !== 'Enter' && e.code !== 'NumpadEnter' && e.code !== 'Space') return;
+      const el = document.activeElement;
+      if (
+        el instanceof HTMLElement &&
+        el !== document.body &&
+        el.closest('button, a, input, select, textarea, summary, label, [role="tab"], [role="button"], [contenteditable="true"]')
+      )
+        return;
+      e.preventDefault();
+      audio.play('uiClick');
+      startRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [keysLive]);
   const [section, setSection] = useState<SectionId>(initialSection ?? lastSection);
   const railRef = useRef<HTMLDivElement>(null);
   const stars = profile.stars;
@@ -313,19 +349,15 @@ export function Practice({
   return (
     <div className="scroll">
       <div className="wrap practice fade-up">
-        <header className="pr-head one-line">
-          <h1 className="display pr-h1">PLAY</h1>
-          <div className="eyebrow">Drills for your hands · Vayne, Twisted Fate or Katarina</div>
-          <Why label="What is here">
-            <p className="dim pr-lead">
-              Five tabs — one-minute drills with no champion at all, then the pieces of each
-              champion, the lane one of them plays for real, every number behind all of it, and
-              whatever you have starred out of the four.
-            </p>
-          </Why>
-        </header>
-
-        <WarmupEntry profile={profile} onOpen={onOpenWarmup} />
+        <PlayHero
+          profile={profile}
+          settings={settings}
+          pick={pick}
+          onStart={startSpec}
+          onPlayPlaylist={onPlayPlaylist}
+          onOpenWarmup={onOpenWarmup}
+          onOpenFavorites={() => choose('favorites')}
+        />
 
         {/* ------------------------------------------------------------ rail */}
         <div className="pr-tabs" ref={railRef}>
@@ -425,40 +457,17 @@ export function Practice({
             />
           )}
         </div>
+
+        <Why label="What is here" className="pr-foot-why">
+          <p className="dim pr-lead">Drills for your hands · Vayne, Twisted Fate or Katarina.</p>
+          <p className="dim pr-lead">
+            Five tabs — one-minute drills with no champion at all, then the pieces of each
+            champion, the lane one of them plays for real, every number behind all of it, and
+            whatever you have starred out of the four.
+          </p>
+        </Why>
       </div>
     </div>
-  );
-}
-
-/**
- * THE WARM-UP, AS ONE LINE.
- *
- * HOME used to be a whole tab for this: the routine, the reaction tests, the
- * benchmark sheet, opened before a player had touched a single drill. It is a
- * button now, pinned above the rail on the screen that is actually the point
- * — so the streak is never more than a glance away, and it is never the
- * first thing standing between a player and PLAY either.
- */
-function WarmupEntry({ profile, onOpen }: { profile: Profile; onOpen: () => void }) {
-  const w = profile.warmup;
-  const today = new Date();
-  const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const { state } = streakState(w, key);
-  const done = state === 'done';
-  return (
-    <button type="button" className="pr-warmup-entry" onClick={onOpen} onMouseEnter={() => audio.play('uiHover')}>
-      <span className="pr-warmup-entry-streak">
-        <b className="mono">{w.streak}</b>
-        <i>day{w.streak === 1 ? '' : 's'} in a row</i>
-      </span>
-      <span className="pr-warmup-entry-label">
-        <b className="display">{done ? 'WARM UP AGAIN' : 'START THE WARM-UP'}</b>
-        <i>reaction check · two sets on yesterday's mistake · a lab bench · benchmarks</i>
-      </span>
-      <span className="pr-warmup-entry-go" aria-hidden>
-        →
-      </span>
-    </button>
   );
 }
 

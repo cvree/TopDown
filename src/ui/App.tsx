@@ -1133,6 +1133,7 @@ export function App() {
                 onDeletePlaylist={removePlaylist}
                 onRenamePlaylist={relabelPlaylist}
                 onSetPlaylistItems={editPlaylist}
+                keysLive={!tour}
               />
             )}
             {route === 'study' && <Study />}

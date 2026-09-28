@@ -3,7 +3,7 @@
    the player and either of them. */
 
 .practice {
-  padding-top: 46px;
+  padding-top: 26px;
   padding-bottom: 64px;
   max-width: 1180px;
 }
@@ -1781,4 +1781,29 @@
 }
 .pr-playlist-check input {
   accent-color: #ffe066;
+}
+
+/* ============================================================ a phone, again
+
+   The column used to keep its desktop gutter all the way down, which on a
+   390-pixel phone left 294 pixels for the cards. Sixteen a side is enough to
+   keep a card's edge off the glass. */
+@media (max-width: 700px) {
+  .wrap.practice {
+    padding-top: 16px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .pr-tabs {
+    margin: 0 -16px 18px;
+    padding: 0 16px;
+  }
+  .pr-tabs::after {
+    left: 16px;
+    right: 16px;
+  }
+}
+
+.pr-foot-why {
+  margin-top: 36px;
 }
