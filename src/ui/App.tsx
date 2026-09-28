@@ -22,7 +22,7 @@ import {
   type ProgressReport,
   type RunResult,
 } from '../progression/profile';
-import { LANE_LENGTHS, LANE_TIERS, laneTierOf } from '../progression/lane';
+import { LANE_TIERS, laneTierOf } from '../progression/lane';
 import { APM_LEVELS, levelDifficulty, openApmLadderAt } from '../progression/apm';
 import { clamp } from '../engine/math';
 import { rankFromRating, type RankInfo } from '../progression/ranks';
@@ -35,7 +35,8 @@ import { Crest } from './components/Crest';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
 import { GameView } from './GameView';
 import { ErrorBoundary } from './ErrorBoundary';
-import { Practice, openSection } from './Practice';
+import { Practice, openSection, revealDrill } from './Practice';
+import { pickNext, LANE_QUICK } from './playNext';
 import { Progress } from './Progress';
 import { PatchNotes } from './PatchNotes';
 import { RankEmblem } from './components/RankEmblem';
@@ -445,7 +446,7 @@ export function App() {
    * tier and length the lane card opens on, since a queue that stops to ask
    * "who, and how long" would not be a queue at all.
    */
-  const laneQuickOpts = { difficulty: LANE_TIERS[1].difficulty, duration: LANE_LENGTHS[0].seconds };
+  const laneQuickOpts = LANE_QUICK;
 
   /** Start a playlist from its first item — FAVORITES' one PLAY button. */
   const playPlaylist = useCallback(
@@ -674,6 +675,8 @@ export function App() {
       finishWarm(flow.warm, 'left');
       return;
     }
+    // Back on PLAY, the card you just played is the one in view.
+    if (flow) revealDrill(flow.drill);
     setResults(null);
     setRankUp(null);
     rankToken.current++;
@@ -690,7 +693,7 @@ export function App() {
    * went well, and it is the one place in the client where "harder" is a
    * choice rather than a consequence of the ladder.
    */
-  const switchMode = useCallback(() => {
+  const nextStep = useCallback(() => {
     if (!flow) return;
     // A playlist's "next" is the next item in the queue, always PLAY, looping
     // back to the first item once the last one finishes — the same shape as
@@ -747,6 +750,25 @@ export function App() {
         return;
       }
     }
+    // A free run's "next" is the coach's next pick — the same answer PLAY
+    // NEXT gives on the menu, asked of the profile this run just wrote, and
+    // never the drill you just finished: that one is RUN AGAIN.
+    const pick = pickNext(profileRef.current, flow.drill);
+    setResults(null);
+    setRankUp(null);
+    rankToken.current++;
+    setBenchNote(null);
+    setFlow({ drill: pick.drill, mode: 'play', seed: newSeed(), ...pick.opts });
+  }, [flow, finishWarm]);
+
+  /**
+   * The other shape of the run you just played, for a free run: SURVIVE after
+   * PLAY and back, the next opponent up after a lane, the level an endless run
+   * found played for a score. It used to be the results screen's "next"; it
+   * is its second button now, one click from where it always was.
+   */
+  const altMode = useCallback(() => {
+    if (!flow) return;
     setResults(null);
     setRankUp(null);
     rankToken.current++;
@@ -779,7 +801,7 @@ export function App() {
       return;
     }
     setFlow({ ...fresh(flow), mode: flow.mode === 'play' ? 'survive' : 'play', seed: newSeed() });
-  }, [flow, finishWarm]);
+  }, [flow]);
 
   // ------------------------------------------------------------- warm-up
 
@@ -888,6 +910,21 @@ export function App() {
     [profile.settings.gestureNoticeDismissed],
   );
 
+  /**
+   * What "next" means after a free run: the coach's next pick, never the drill
+   * just played. Null inside a warm-up, a playlist or a benchmark sheet, which
+   * each have a next of their own.
+   */
+  const freeNext = useMemo(
+    () =>
+      results && flow && !flow.warm && !flow.playlist && !(flow.bench && nextBench(flow.bench))
+        ? pickNext(profile, flow.drill)
+        : null,
+    // The pick is read once per results screen, off the profile the run wrote.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [results],
+  );
+
   // ------------------------------------------------------------------ render
 
   if (flow) {
@@ -929,7 +966,8 @@ export function App() {
             lastScore={results.lastScore}
             onRetry={retry}
             onExit={exitToMenu}
-            onNext={switchMode}
+            onNext={nextStep}
+            onAlt={freeNext ? altMode : undefined}
             code={
               flow.warm || flow.mode === 'infinite' || flow.mode === 'surge' || flow.playlist
                 ? null
@@ -955,7 +993,13 @@ export function App() {
                   ? `Next: ${DRILLS[flow.playlist.items[(flow.playlist.index + 1) % flow.playlist.items.length]].name}`
                 : flow.bench && nextBench(flow.bench)
                   ? `Next benchmark: ${nextBench(flow.bench)?.label}`
-                : flow.drill === 'lanePhase'
+                : freeNext
+                  ? `Next: ${DRILLS[freeNext.drill].name}`
+                  : 'Next drill'
+            }
+            nextWhy={freeNext?.why}
+            altLabel={
+              flow.drill === 'lanePhase'
                 ? `Lane against ${
                     LANE_TIERS[
                       Math.min(

@@ -194,13 +194,24 @@ const measure = (page) =>
       return s.visibility !== 'hidden' && s.display !== 'none' && Number(s.opacity) > 0.02;
     };
     const scope = document.querySelector('.results') ?? document.querySelector('.shell') ?? document.body;
-    const card = [...scope.querySelectorAll(PLAYABLE)].find((el) => visible(el) && !inTopbar(el));
+    // The first playable thing that is on screen now — after a scroll, a card
+    // above the viewport does not count as "in view".
+    const card = [...scope.querySelectorAll(PLAYABLE)].find(
+      (el) => visible(el) && !inTopbar(el) && el.getBoundingClientRect().bottom > 0,
+    );
+    // The same question asked of the section cards alone, leaving PLAY NEXT
+    // out: the honest comparison with a screen that had no front door.
+    const sectionCard = [...scope.querySelectorAll('.pr-panel ' + PLAYABLE.split(', ').join(', .pr-panel '))].find(
+      (el) => visible(el) && el.getBoundingClientRect().bottom > 0,
+    );
+    const sectionTop = sectionCard ? sectionCard.getBoundingClientRect().top : Infinity;
     const cardTop = card ? card.getBoundingClientRect().top : Infinity;
     const cardName = card
       ? (card.querySelector('.pr-name, .pr-lab-name, .pr-hero-name, h2, b')?.textContent ?? '').trim().slice(0, 40)
       : null;
 
     let above = 0;
+    let aboveSection = 0;
     let firstView = 0;
     const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
     const range = document.createRange();
@@ -213,7 +224,8 @@ const measure = (page) =>
       range.selectNodeContents(n);
       const r = range.getBoundingClientRect();
       if (r.width === 0) continue;
-      if (r.bottom <= cardTop + 1) above += words.length;
+      if (r.bottom > 0 && r.bottom <= cardTop + 1) above += words.length;
+      if (r.bottom > 0 && r.bottom <= sectionTop + 1) aboveSection += words.length;
       if (r.top < vh && r.bottom > 0) firstView += words.length;
     }
     const controls = [...scope.querySelectorAll('button, a[href], input, select, textarea, [role="tab"], [role="button"]')].filter(
@@ -230,6 +242,15 @@ const measure = (page) =>
       firstCard: cardName,
       firstCardTop: card ? Math.round(cardTop) : null,
       cardAboveFold: card ? cardTop < vh - 80 : false,
+      wordsAboveFirstSectionCard: sectionCard ? aboveSection : null,
+      firstSectionCardTop: sectionCard ? Math.round(sectionTop) : null,
+      sectionCardAboveFold: sectionCard ? sectionTop < vh - 80 : false,
+      justPlayedInView: (() => {
+        const j = document.querySelector('.just-played');
+        if (!j) return null;
+        const r = j.getBoundingClientRect();
+        return r.top < vh && r.bottom > 0;
+      })(),
       controlsInFirstView: controls.filter((el) => el.getBoundingClientRect().top < vh).length,
       controlsTotal: controls.length,
       smallTargetsInFirstView: small,

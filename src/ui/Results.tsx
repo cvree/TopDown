@@ -28,8 +28,21 @@ interface Props {
   bounds: { w: number; h: number };
   onRetry: () => void;
   onExit: () => void;
+  /**
+   * The primary action: the next drill — the next playlist item, benchmark
+   * row or warm-up step, or the coach's next pick after a free run.
+   */
   onNext?: () => void;
   nextLabel?: string;
+  /** Why the coach picked it, in one line, when it did. */
+  nextWhy?: string;
+  /**
+   * The other shape of this same run — SURVIVE after PLAY, the next opponent
+   * after a lane, the level an endless run found. It was the "next" button
+   * once; it is the second one now.
+   */
+  onAlt?: () => void;
+  altLabel?: string;
   /**
    * The run's scenario code, or null for a run that cannot have one. Printed
    * so a minute worth sending to somebody is one copy away from being sent.
@@ -86,7 +99,21 @@ const crossing = (r: number): number => 1 - Math.pow(1 - clamp(r, 0, 1), 1 / 4);
  *
  * Space, R and Escape work from the first frame; nothing waits on the show.
  */
-export function Results({ result, report, bounds, onRetry, onExit, onNext, nextLabel, code, banner, lastScore = null }: Props) {
+export function Results({
+  result,
+  report,
+  bounds,
+  onRetry,
+  onExit,
+  onNext,
+  nextLabel,
+  nextWhy,
+  onAlt,
+  altLabel,
+  code,
+  banner,
+  lastScore = null,
+}: Props) {
   const [copied, setCopied] = useState(false);
   const meta = DRILLS[result.drill];
   const [act, setAct] = useState(isCalm() ? 3 : 0);
@@ -128,16 +155,19 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
   }, [report]);
 
   useEffect(() => {
+    // Enter and Space are the next drill; R is the same one again. With no
+    // next to go to, Enter falls back to running it again.
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === 'Enter' || e.code === 'KeyR' || e.code === 'Backquote') {
+      if (e.repeat) return;
+      if ((e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') && onNext) {
+        e.preventDefault();
+        onNext();
+      } else if (e.code === 'Enter' || e.code === 'KeyR' || e.code === 'Backquote') {
         e.preventDefault();
         onRetry();
       } else if (e.code === 'Escape') {
         e.preventDefault();
         onExit();
-      } else if (e.code === 'Space' && onNext) {
-        e.preventDefault();
-        onNext();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -206,6 +236,30 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
               </span>
             )}
           </div>
+          {/* The record, as a moment of its own and with the drill's name on it:
+              it lands on the frame the old best is struck through. */}
+          {anyBest && (
+            <div className={`res-pb-moment${struck ? ' in' : ''}`} role="status">
+              <span className="res-pb-star" aria-hidden>
+                ★
+              </span>
+              <span>
+                <b>NEW PERSONAL BEST</b> on {meta.name}
+                {report.newBestScore && prevBest !== null ? (
+                  <i>
+                    {' '}
+                    — {result.score.toLocaleString()}, up from {prevBest.toLocaleString()}
+                  </i>
+                ) : visibleBests[0] ? (
+                  <i>
+                    {' '}
+                    — {visibleBests[0].label.toLowerCase()} {formatMetric(visibleBests[0].value, visibleBests[0].format)}
+                    {visibleBests[0].previous !== null && `, was ${formatMetric(visibleBests[0].previous, visibleBests[0].format)}`}
+                  </i>
+                ) : null}
+              </span>
+            </div>
+          )}
         </header>
 
         {/* ----------------------------------------------- act two: the verdict */}
@@ -259,17 +313,30 @@ export function Results({ result, report, bounds, onRetry, onExit, onNext, nextL
         )}
 
         <div className={`res-actions${act >= 2 ? ' in' : ''}`}>
-          <button className="btn primary lg" onClick={onRetry}>
-            Run again <span className="kbd">R</span>
-          </button>
-          {onNext && (
-            <button className="btn ghost lg" onClick={onNext}>
-              {nextLabel ?? 'Next'} <span className="kbd">Space</span>
+          {onNext ? (
+            <>
+              <button className="btn primary lg res-next" onClick={onNext}>
+                <span className="res-next-label">{nextLabel ?? 'Next drill'} →</span>
+                <span className="kbd">Enter</span>
+              </button>
+              <button className="btn ghost lg" onClick={onRetry}>
+                Run again <span className="kbd">R</span>
+              </button>
+            </>
+          ) : (
+            <button className="btn primary lg" onClick={onRetry}>
+              Run again <span className="kbd">R</span>
+            </button>
+          )}
+          {onAlt && altLabel && (
+            <button className="btn ghost lg" onClick={onAlt}>
+              {altLabel}
             </button>
           )}
           <button className="btn ghost lg" onClick={onExit}>
             Back <span className="kbd">Esc</span>
           </button>
+          {onNext && nextWhy && <p className="res-next-why">Next, because: {nextWhy}</p>}
         </div>
 
         {/* --------------------------------------------- act three: the evidence */}

@@ -2,7 +2,7 @@ import { cardClickStarts } from './components/cardStart';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, DRILL_LIST, type DrillId, type DrillMeta } from '../drills/catalog';
-import { PRACTICE_CHAMPIONS, PRACTICE_MODES, RUN_MODE_LIST, type RunMode } from '../drills/modes';
+import { PRACTICE_CHAMPIONS, PRACTICE_MODES, RUN_MODE_LIST, championOf, isPracticeMode, type RunMode } from '../drills/modes';
 import { LANE_LENGTHS, LANE_TIERS, type LaneTier } from '../progression/lane';
 import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from '../engine/input';
 import type { AppSettings, Playlist, Profile } from '../progression/profile';
@@ -187,6 +187,29 @@ export const openSection = (id: SectionId): void => {
   lastSection = id;
 };
 
+/** The drill whose card should be in view when PLAY next mounts. */
+let pendingReveal: DrillId | null = null;
+
+/**
+ * Coming back from a run, land on the card you just played.
+ *
+ * The section it lives in opens — the lab for a bench, the right champion for
+ * a mode, the lane for the lane — unless FAVORITES was open and the card is
+ * there too; and once the screen is drawn, the card is scrolled into view and
+ * lit for a moment, so "where was I" is never a question.
+ */
+export const revealDrill = (id: DrillId): void => {
+  pendingReveal = id;
+  if (lastSection === 'favorites') return;
+  if (id === 'lanePhase') lastSection = 'lane';
+  else if (isApmDrill(id)) lastSection = 'drills';
+  else if (isPracticeMode(id)) {
+    lastSection = 'practice';
+    const home = PRACTICE_CHAMPIONS.find((c) => c.id === lastChampion);
+    if (!home?.modes.includes(id)) lastChampion = championOf(id)?.id ?? lastChampion;
+  }
+};
+
 const SECTIONS: SectionMeta[] = [
   { id: 'drills', no: '01', label: 'DRILLS', sub: 'one minute, your hands', accent: '#7ceaff', rail: true },
   { id: 'practice', no: '02', label: 'PRACTICE', sub: 'one skill at a time', accent: '#c86bff', rail: true },
@@ -289,6 +312,18 @@ export function Practice({
   useEffect(() => {
     const scroller = railRef.current?.closest('.scroll');
     if (scroller instanceof HTMLElement) scroller.scrollTop = 0;
+    // Back from a run: the card just played, in view and lit. Read once.
+    const reveal = pendingReveal;
+    pendingReveal = null;
+    if (reveal && scroller instanceof HTMLElement) {
+      const el = scroller.querySelector<HTMLElement>(`.pr-panel [data-drill="${reveal}"]`);
+      if (el) {
+        const top = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+        scroller.scrollTop = Math.max(0, top - scroller.clientHeight * 0.28);
+        el.classList.add('just-played');
+        window.setTimeout(() => el.classList.remove('just-played'), 2400);
+      }
+    }
     const list = railRef.current?.querySelector<HTMLElement>('.pr-tablist');
     if (!list || list.scrollWidth <= list.clientWidth) return;
     const tab = list.querySelectorAll<HTMLElement>('.pr-tab')[RAIL.findIndex((s) => s.id === section)];

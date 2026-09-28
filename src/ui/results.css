@@ -930,3 +930,63 @@
   font-size: 13px;
   color: var(--gold-lit);
 }
+
+/* ------------------------------------------------------------ keep playing
+
+   The primary action is the next drill; RUN AGAIN is one key beside it. */
+.res-next {
+  max-width: 100%;
+}
+.res-next-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.res-next-why {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* A personal best, as a moment with the drill's name on it. */
+.res-pb-moment {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 8px 16px;
+  border: 1px solid rgba(240, 220, 170, 0.55);
+  background: linear-gradient(90deg, rgba(224, 176, 92, 0.22), rgba(224, 176, 92, 0.05));
+  box-shadow: 0 0 34px -12px rgba(240, 210, 150, 0.9);
+  font-size: 13px;
+  color: var(--text-1);
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity var(--dur-4) var(--ease-out), transform var(--dur-5) var(--ease-spring);
+}
+.res-pb-moment.in {
+  opacity: 1;
+  transform: none;
+}
+.res-pb-moment b {
+  font-family: var(--ui);
+  letter-spacing: 0.18em;
+  color: var(--gold-hot);
+}
+.res-pb-moment i {
+  font-style: normal;
+  color: var(--text-2);
+}
+.res-pb-star {
+  font-size: 18px;
+  color: var(--gold-lit);
+}
+
+@media (max-width: 700px) {
+  .res-actions .btn.lg {
+    flex: 1 1 100%;
+    padding: 14px 18px;
+    min-height: 48px;
+  }
+}

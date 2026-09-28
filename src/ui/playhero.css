@@ -384,3 +384,25 @@
     top: 19px;
   }
 }
+
+/* Back from a run: the card you just played, lit for a moment. */
+.just-played {
+  animation: just-played 2.2s var(--ease-out) both;
+}
+@keyframes just-played {
+  0%,
+  35% {
+    outline: 2px solid var(--gold-hot);
+    outline-offset: 4px;
+    box-shadow: 0 0 44px -6px rgba(240, 220, 170, 0.8);
+  }
+  100% {
+    outline: 2px solid transparent;
+    outline-offset: 4px;
+  }
+}
+:root[data-motion='calm'] .just-played {
+  animation: none;
+  outline: 2px solid var(--gold-hot);
+  outline-offset: 4px;
+}
