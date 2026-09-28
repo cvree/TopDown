@@ -35,11 +35,27 @@ export function CardRecord({
       {best && <span className="pr-rec-best">{best}</span>}
       {fresh && <span className="pr-newbest">NEW BEST</span>}
       <Trend scores={scores} />
+      {scores.length >= 2 && <Delta scores={scores} />}
       {quiet && (
         <span className="pr-stale" title={`You last played this ${days} days ago`}>
           not played in {days} days
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * The trend as a number: the newest of the last few runs against the oldest.
+ * The line says which way; this says how far.
+ */
+function Delta({ scores }: { scores: number[] }) {
+  const d = Math.round(scores[scores.length - 1] - scores[0]);
+  const n = scores.length;
+  if (d === 0) return <span className="pr-delta flat">level over {n} runs</span>;
+  return (
+    <span className={`pr-delta ${d > 0 ? 'up' : 'down'}`} title={`Your latest run against the one ${n - 1} runs before it`}>
+      {d > 0 ? '▲' : '▼'} {Math.abs(d).toLocaleString()} over {n} runs
+    </span>
   );
 }

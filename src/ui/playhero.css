@@ -406,3 +406,19 @@
   outline: 2px solid var(--gold-hot);
   outline-offset: 4px;
 }
+.pr-delta {
+  color: var(--text-3);
+}
+.pr-delta.up {
+  color: var(--good);
+}
+.pr-delta.down {
+  color: color-mix(in srgb, var(--danger) 70%, var(--text-3));
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .pr-playlist-item-controls button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

@@ -694,6 +694,7 @@ function LaneCard({
         </div>
       </div>
 
+      <CardRecord profile={profile} id="lanePhase" />
       <p className="pr-brief">{meta.brief}</p>
 
       <div className="pr-field">
