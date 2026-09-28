@@ -303,3 +303,84 @@
     margin-top: 10px;
   }
 }
+
+/* ------------------------------------------------ the record row on a card */
+
+.pr-rec {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-height: 18px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+.pr-stale {
+  color: var(--warn);
+}
+
+/* The card PLAY NEXT would start, marked where it sits in its row. */
+.is-next {
+  outline: 1px solid color-mix(in srgb, var(--gold) 80%, transparent);
+  outline-offset: 3px;
+}
+.pr-next-badge {
+  position: absolute;
+  top: 14px;
+  left: 48px;
+  z-index: 4;
+  padding: 3px 8px 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #0a1017;
+  background: linear-gradient(180deg, #f2e4bd, #cfb075);
+  box-shadow: 0 4px 14px -6px rgba(200, 170, 110, 0.9);
+  pointer-events: none;
+}
+.eyebrow .pr-next-badge {
+  position: static;
+  margin-left: 10px;
+  vertical-align: 1px;
+}
+
+/* A favourite has one button, full width. */
+.pr-buttons-one {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* SURGE and ENDLESS, one row of two chips under PLAY. */
+.pr-lab-alts > .pr-lab-surge,
+.pr-lab-alts > .pr-lab-inf {
+  flex: 1 1 0;
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 1px;
+  column-gap: 7px;
+  margin-top: 2px;
+  min-height: 44px;
+}
+.pr-lab-alts .pr-inf-best {
+  flex-basis: 100%;
+  margin-left: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* On a touchscreen every control on a card is a thumb's width. */
+@media (max-width: 700px), (pointer: coarse) {
+  .pr-lab-step {
+    width: 44px;
+    height: 36px;
+  }
+  .pr-star {
+    width: 40px;
+    height: 40px;
+  }
+  .pr-next-badge {
+    left: 60px;
+    top: 19px;
+  }
+}

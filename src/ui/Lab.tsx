@@ -28,6 +28,8 @@ import { Explainer } from './components/Explainer';
 import { ModePreview } from './components/ModePreview';
 import { cardClickStarts } from './components/cardStart';
 import { StarButton } from './components/StarButton';
+import { CardRecord } from './components/CardRecord';
+import { Why } from './components/Why';
 import './practice.css';
 import './lab.css';
 
@@ -44,6 +46,8 @@ interface Props {
   /** Which drills are starred, for the ★ every bench carries. */
   stars: DrillId[];
   onToggleStar: (id: DrillId) => void;
+  /** The drill PLAY NEXT would start, so its bench can say so. */
+  nextId?: DrillId;
 }
 
 type PlayFn = Props['onPlay'];
@@ -110,7 +114,7 @@ const labBindings = (settings: AppSettings | undefined): Bindings => {
   }
 };
 
-export function DrillsPanel({ profile, settings, onPlay, onFixControls, stars, onToggleStar }: Props) {
+export function DrillsPanel({ profile, settings, onPlay, onFixControls, stars, onToggleStar, nextId }: Props) {
   // Which rung each mode is showing. Empty means "whatever the ladder
   // suggests", so a mode the player has not touched this session always opens
   // on the rung they have not beaten rather than on the one they last looked at.
@@ -131,6 +135,7 @@ export function DrillsPanel({ profile, settings, onPlay, onFixControls, stars, o
       onFixControls={onFixControls}
       stars={stars}
       onToggleStar={onToggleStar}
+      nextId={nextId}
     />
   );
 }
@@ -279,6 +284,7 @@ function LabPanel({
   onFixControls,
   stars,
   onToggleStar,
+  nextId,
 }: {
   profile: Profile;
   settings: AppSettings;
@@ -288,6 +294,7 @@ function LabPanel({
   onFixControls: () => void;
   stars: DrillId[];
   onToggleStar: (id: DrillId) => void;
+  nextId?: DrillId;
 }) {
   const scheme = settings?.movementScheme === 'wasd' ? 'wasd' : 'click';
   const bound = labBindings(settings);
@@ -409,6 +416,8 @@ function LabPanel({
                     onPlay={onPlay}
                     starred={stars.includes(m.id)}
                     onToggleStar={() => onToggleStar(m.id)}
+                    profile={profile}
+                    isNext={m.id === nextId}
                   />
                 );
               })}
@@ -437,6 +446,8 @@ function LabBench({
   onPlay,
   starred,
   onToggleStar,
+  profile,
+  isNext = false,
 }: {
   mode: ApmMode;
   settings: AppSettings;
@@ -456,6 +467,9 @@ function LabBench({
   onPlay: PlayFn;
   starred: boolean;
   onToggleStar: () => void;
+  /** For the record row: the last five runs and whether the latest was a best. */
+  profile: Profile;
+  isNext?: boolean;
 }) {
   const meta = DRILLS[mode.id];
   const stars = levelStars(lv);
@@ -504,7 +518,8 @@ function LabBench({
   return (
     <article
       ref={card}
-      className={`pr-lab-mode${blocked ? ' unplayable' : ''}`}
+      className={`pr-lab-mode${blocked ? ' unplayable' : ''}${isNext ? ' is-next' : ''}`}
+      data-drill={mode.id}
       style={{ ['--c' as string]: meta.accent }}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -537,6 +552,11 @@ function LabBench({
           startLabel={`${meta.name}, level ${level}`}
         />
         <StarButton on={starred} onToggle={onToggleStar} label={meta.name} />
+        {isNext && (
+          <span className="pr-next-badge mono" title="This is the drill PLAY NEXT starts">
+            PLAY NEXT
+          </span>
+        )}
         <div className="pr-lab-title">
           <b className="pr-lab-name">{meta.name}</b>
           <span className="pr-lab-kind mono">
@@ -545,20 +565,7 @@ function LabBench({
         </div>
       </div>
       <div className="pr-lab-tag">{meta.tagline}</div>
-      <p className="pr-lab-brief">{meta.brief}</p>
-
-      {/* Two lines, and they are the only thing that tells thirteen drills
-          apart at a glance: what you do, and why it is hard. */}
-      <dl className="pr-lab-facts">
-        <div>
-          <dt>You do</dt>
-          <dd>{mode.counts}</dd>
-        </div>
-        <div>
-          <dt>Hard bit</dt>
-          <dd>{mode.pressure}</dd>
-        </div>
-      </dl>
+      <CardRecord profile={profile} id={mode.id} />
 
       <div className="pr-lab-level">
         <button
@@ -589,21 +596,6 @@ function LabBench({
             </b>
           ))}
         </i>
-      </div>
-
-      {/* The ladder, as ten marks. Which rungs you have put a star on, which
-          one the card is showing, and how far the ten actually go. It stopped
-          being a map of what is *open* when everything became open; a record
-          of what you have taken is the thing worth drawing instead. */}
-      <div className="pr-lab-rungs" aria-hidden>
-        {Array.from({ length: APM_LEVELS }, (_, i) => i + 1).map((n) => (
-          <span
-            key={n}
-            className={`pr-rung${cleared[n - 1] ? ' open' : ''}${n === level ? ' here' : ''}${
-              n >= MAP_MIN_LEVEL ? ' mapped' : ''
-            }`}
-          />
-        ))}
       </div>
 
       {/* The card's own version of the warning at the top of the screen, at the
@@ -646,14 +638,13 @@ function LabBench({
         onClick={goPlay}
       >
         <span className="pr-go-label">PLAY</span>
-        <span className="pr-go-sub">
-          1 min · {keysAtLevel(level).length + ordersAtLevel(level).length} keys ·{' '}
-          {level >= MAP_MIN_LEVEL ? 'with the corner map' : 'no corner map'}
-        </span>
         <span className="pr-go-best mono">
           {lv.best > 0 ? `best ${Math.round(lv.best * 100)}%` : 'not played yet'}
         </span>
       </button>
+      {/* SURGE and ENDLESS, side by side under PLAY: the same bench with
+          the floor let loose, so they are one row of chips rather than two
+          more buttons. */}
       <div className="pr-lab-alts">
         <button
           className="pr-lab-surge"
@@ -673,25 +664,62 @@ function LabBench({
             {surgeRuns > 0 ? `+${surgeBest.toFixed(1)} levels` : 'streaks raise it'}
           </span>
         </button>
+        <button
+          className="pr-lab-inf"
+          disabled={blocked}
+          onMouseEnter={() => audio.play('uiHover')}
+          onClick={goInfinite}
+          title={`${meta.name}: an endless run, starting at level ${level}. Right-click the card for the same thing.`}
+        >
+          <span className="pr-inf-mark" aria-hidden>
+            ∞
+          </span>
+          <span className="pr-inf-label">
+            ENDLESS
+            <i>no clock</i>
+          </span>
+          <span className="pr-inf-best mono">
+            {infRuns > 0 ? `held level ${infHeld.toFixed(1)}` : 'finds your level'}
+          </span>
+        </button>
       </div>
-      <button
-        className="pr-lab-inf"
-        disabled={blocked}
-        onMouseEnter={() => audio.play('uiHover')}
-        onClick={goInfinite}
-        title={`${meta.name}: an endless run, starting at level ${level}. Right-click the card for the same thing.`}
-      >
-        <span className="pr-inf-mark" aria-hidden>
-          ∞
-        </span>
-        <span className="pr-inf-label">
-          ENDLESS
-          <i>no clock</i>
-        </span>
-        <span className="pr-inf-best mono">
-          {infRuns > 0 ? `held level ${infHeld.toFixed(1)}` : 'finds your level'}
-        </span>
-      </button>
+
+      <Why label="why this one" className="pr-card-why">
+        <p className="pr-lab-brief">{meta.brief}</p>
+        {/* Two lines, and they are the only thing that tells thirteen drills
+            apart once you know them: what you do, and why it is hard. */}
+        <dl className="pr-lab-facts">
+          <div>
+            <dt>You do</dt>
+            <dd>{mode.counts}</dd>
+          </div>
+          <div>
+            <dt>Hard bit</dt>
+            <dd>{mode.pressure}</dd>
+          </div>
+          <div>
+            <dt>Level {level}</dt>
+            <dd>
+              1 min · {keysAtLevel(level).length + ordersAtLevel(level).length} keys ·{' '}
+              {level >= MAP_MIN_LEVEL ? 'with the corner map' : 'no corner map'}
+            </dd>
+          </div>
+        </dl>
+        {/* The ladder, as ten marks. Which rungs you have put a star on, which
+            one the card is showing, and how far the ten actually go. It stopped
+            being a map of what is *open* when everything became open; a record
+            of what you have taken is the thing worth drawing instead. */}
+        <div className="pr-lab-rungs" aria-hidden>
+          {Array.from({ length: APM_LEVELS }, (_, i) => i + 1).map((n) => (
+            <span
+              key={n}
+              className={`pr-rung${cleared[n - 1] ? ' open' : ''}${n === level ? ' here' : ''}${
+                n >= MAP_MIN_LEVEL ? ' mapped' : ''
+              }`}
+            />
+          ))}
+        </div>
+      </Why>
     </article>
   );
 }

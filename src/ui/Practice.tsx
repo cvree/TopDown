@@ -13,7 +13,9 @@ import { Why } from './components/Why';
 import { DrillsPanel } from './Lab';
 import { APM_MODES } from '../progression/apm';
 import { PlayHero } from './PlayHero';
-import { pickNext, type StartSpec } from './playNext';
+import { pickNext, startSpec as specFor, type StartSpec } from './playNext';
+import { CardRecord } from './components/CardRecord';
+import { isApmDrill } from '../progression/apm';
 import './practice.css';
 
 interface Props {
@@ -432,6 +434,7 @@ export function Practice({
           {section === 'drills' && (
             <DrillsPanel
               profile={profile}
+              nextId={pick.drill}
               settings={settings}
               onPlay={onPlay}
               onFixControls={onFixControls}
@@ -442,6 +445,7 @@ export function Practice({
           {section === 'lane' && (
             <LanePanel
               profile={profile}
+              nextId={pick.drill}
               settings={settings}
               bound={bound}
               onPlay={onPlay}
@@ -452,6 +456,7 @@ export function Practice({
           {section === 'practice' && (
             <PracticePanel
               profile={profile}
+              nextId={pick.drill}
               settings={settings}
               bound={bound}
               onPlay={onPlay}
@@ -462,6 +467,7 @@ export function Practice({
           {section === 'favorites' && (
             <FavoritesPanel
               profile={profile}
+              nextId={pick.drill}
               settings={settings}
               onPlay={onPlay}
               onToggleStar={onToggleStar}
@@ -512,6 +518,7 @@ function GroupHead({ label, note, count }: { label: string; note: string; count?
 // ===========================================================================
 
 function LanePanel({
+  nextId,
   profile,
   settings,
   bound,
@@ -525,6 +532,7 @@ function LanePanel({
   onPlay: PlayFn;
   stars: DrillId[];
   onToggleStar: (id: DrillId) => void;
+  nextId?: DrillId;
 }) {
   return (
     <>
@@ -544,6 +552,7 @@ function LanePanel({
         onPlay={onPlay}
         starred={stars.includes('lanePhase')}
         onToggleStar={() => onToggleStar('lanePhase')}
+        isNext={nextId === 'lanePhase'}
       />
     </>
   );
@@ -577,6 +586,7 @@ function LaneCard({
   onPlay,
   starred,
   onToggleStar,
+  isNext = false,
 }: {
   profile: Profile;
   settings: AppSettings;
@@ -584,6 +594,7 @@ function LaneCard({
   onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number }) => void;
   starred: boolean;
   onToggleStar: () => void;
+  isNext?: boolean;
 }) {
   const meta = DRILLS.lanePhase;
   const [tier, setTier] = useState<LaneTier>(LANE_TIERS[1]);
@@ -593,7 +604,8 @@ function LaneCard({
   return (
     <section
       ref={card}
-      className="pr-card panel pr-lane pr-startable"
+      className={`pr-card panel pr-lane pr-startable${isNext ? ' is-next' : ''}`}
+      data-drill="lanePhase"
       style={{ ['--c' as string]: tier.accent }}
       // The card starts the quick lane against the opponent picked on it; the
       // longer lanes are the buttons at the bottom.
@@ -622,7 +634,7 @@ function LaneCard({
       </div>
       <div className="pr-card-head">
         <div>
-          <div className="eyebrow">a real game of League</div>
+          <div className="eyebrow">a real game of League{isNext && <NextBadge />}</div>
           <h2 className="display pr-name">{meta.name}</h2>
           <div className="pr-tag">{meta.tagline}</div>
         </div>
@@ -816,6 +828,7 @@ const PRACTICE_GROUPS: Record<string, { id: string; label: string; note: string;
 let lastChampion = PRACTICE_CHAMPIONS[0].id;
 
 function PracticePanel({
+  nextId,
   profile,
   settings,
   bound,
@@ -829,6 +842,7 @@ function PracticePanel({
   onPlay: PlayFn;
   stars: DrillId[];
   onToggleStar: (id: DrillId) => void;
+  nextId?: DrillId;
 }) {
   const [who, setWho] = useState(lastChampion);
   const champion = PRACTICE_CHAMPIONS.find((c) => c.id === who) ?? PRACTICE_CHAMPIONS[0];
@@ -947,6 +961,7 @@ function PracticePanel({
                   onPlay={onPlay}
                   starred={stars.includes(id)}
                   onToggleStar={() => onToggleStar(id)}
+                  isNext={id === nextId}
                 />
               ))}
             </div>
@@ -994,6 +1009,7 @@ function ModeCard({
   onPlay,
   starred,
   onToggleStar,
+  isNext = false,
 }: {
   id: DrillId;
   profile: Profile;
@@ -1002,6 +1018,8 @@ function ModeCard({
   onPlay: (id: DrillId, mode: RunMode) => void;
   starred: boolean;
   onToggleStar: () => void;
+  /** The drill PLAY NEXT would start — marked, so the pick can be found in its row. */
+  isNext?: boolean;
 }) {
   const meta = DRILLS[id];
   const best = profile.bests[id];
@@ -1015,7 +1033,8 @@ function ModeCard({
   return (
     <section
       ref={card}
-      className="pr-tile panel pr-startable"
+      className={`pr-tile panel pr-startable${isNext ? ' is-next' : ''}`}
+      data-drill={id}
       style={{ ['--c' as string]: meta.accent }}
       onMouseEnter={() => audio.play('uiHover')}
       // Anywhere on the card that is not one of its own buttons is PLAY.
@@ -1038,6 +1057,7 @@ function ModeCard({
           }}
         />
         <StarButton on={starred} onToggle={onToggleStar} label={meta.name} />
+        {isNext && <NextBadge />}
         <div className="pr-tile-title">
           <h2 className="display pr-name">{meta.name}</h2>
           <div className="pr-tag">{meta.tagline}</div>
@@ -1056,8 +1076,11 @@ function ModeCard({
       </div>
 
       <div className="pr-tile-body">
-        <p className="pr-brief">{meta.brief}</p>
+        {/* The number, and whether it is moving. The brief and the transfer
+            note are both still on the card, one click down. */}
+        <CardRecord profile={profile} id={id} />
         <Why label="why this one" className="pr-card-why">
+          <p className="pr-brief">{meta.brief}</p>
           <p className="pr-transfers">{meta.transfers}</p>
         </Why>
 
@@ -1111,6 +1134,7 @@ function ModeCard({
  * queue that stopped to ask them again would not be a queue.
  */
 function FavoritesPanel({
+  nextId,
   profile,
   settings,
   onPlay,
@@ -1130,6 +1154,7 @@ function FavoritesPanel({
   onDeletePlaylist: (id: string) => void;
   onRenamePlaylist: (id: string, name: string) => void;
   onSetPlaylistItems: (id: string, items: DrillId[]) => void;
+  nextId?: DrillId;
 }) {
   const starredMeta = DRILL_LIST.filter((d) => profile.stars.includes(d.id));
 
@@ -1159,6 +1184,8 @@ function FavoritesPanel({
             <FavoriteTile
               key={meta.id}
               id={meta.id}
+              profile={profile}
+              isNext={meta.id === nextId}
               settings={settings}
               onPlay={onPlay}
               onToggleStar={() => onToggleStar(meta.id)}
@@ -1190,29 +1217,40 @@ function FavoritesPanel({
   );
 }
 
-/** One starred activity, as a compact card — the same picture and PLAY button every other card carries, without SURVIVE. */
+/**
+ * One starred activity, as a compact card — the same picture and PLAY button
+ * every other card carries, without SURVIVE. It is the one card that says how
+ * long it has been: a favourite you have stopped playing is worth a nudge.
+ */
 function FavoriteTile({
   id,
+  profile,
   settings,
   onPlay,
   onToggleStar,
+  isNext = false,
 }: {
   id: DrillId;
+  profile: Profile;
   settings: AppSettings;
-  onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number }) => void;
+  onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number; level?: number }) => void;
   onToggleStar: () => void;
+  isNext?: boolean;
 }) {
   const meta = DRILLS[id];
   const card = useRef<HTMLElement>(null);
   const start = () => {
     audio.play('uiClick');
-    if (id === 'lanePhase') onPlay(id, 'play', { difficulty: LANE_TIERS[1].difficulty, duration: LANE_LENGTHS[0].seconds });
-    else onPlay(id, 'play');
+    // The settings its own card would open on: the lab's suggested rung, the
+    // lane's quick match, a mode's one minute.
+    const spec = specFor(profile, id);
+    onPlay(spec.drill, 'play', spec.opts);
   };
   return (
     <section
       ref={card}
-      className="pr-tile panel pr-startable"
+      className={`pr-tile panel pr-startable${isNext ? ' is-next' : ''}`}
+      data-drill={id}
       style={{ ['--c' as string]: meta.accent }}
       onMouseEnter={() => audio.play('uiHover')}
       onClick={(e) => {
@@ -1223,20 +1261,48 @@ function FavoriteTile({
       <div className="pr-tile-media">
         <ModePreview id={id} accent={meta.accent} host={card} still={settings.lowFx} startLabel={meta.name} onStart={start} />
         <StarButton on onToggle={onToggleStar} label={meta.name} />
+        {isNext && <NextBadge />}
         <div className="pr-tile-title">
           <h2 className="display pr-name">{meta.name}</h2>
           <div className="pr-tag">{meta.tagline}</div>
         </div>
       </div>
       <div className="pr-tile-body">
-        <p className="pr-brief">{meta.brief}</p>
-        <div className="pr-buttons">
+        <CardRecord profile={profile} id={id} best={bestLine(profile, id)} stale />
+        <Why label="why this one" className="pr-card-why">
+          <p className="pr-brief">{meta.brief}</p>
+        </Why>
+        <div className="pr-buttons pr-buttons-one">
           <button className="pr-go pr-go-play" onMouseEnter={() => audio.play('uiHover')} onClick={start}>
             <span className="pr-go-label">PLAY</span>
           </button>
         </div>
       </div>
     </section>
+  );
+}
+
+/** The record a favourite prints, in the words its own card would use. */
+const bestLine = (p: Profile, id: DrillId): string | null => {
+  if (isApmDrill(id)) {
+    const lv = p.apm.modes[id]?.levels ?? [];
+    const top = lv.reduce((m, l) => Math.max(m, l?.best ?? 0), 0);
+    return top > 0 ? `best ${Math.round(top * 100)}%` : null;
+  }
+  if (id === 'lanePhase') {
+    const top = LANE_TIERS.reduce((m, t) => Math.max(m, p.lane?.tiers?.[t.id]?.bestCsPerMin ?? 0), 0);
+    return top > 0 ? `best ${top.toFixed(1)} CS/min` : null;
+  }
+  const b = p.bests[id];
+  return b ? `best ${b.score.toLocaleString()}` : null;
+};
+
+/** The mark on whichever card PLAY NEXT would start. */
+function NextBadge() {
+  return (
+    <span className="pr-next-badge mono" title="This is the drill PLAY NEXT starts">
+      PLAY NEXT
+    </span>
   );
 }
 
