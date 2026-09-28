@@ -675,8 +675,9 @@ export function App() {
       finishWarm(flow.warm, 'left');
       return;
     }
-    // Back on PLAY, the card you just played is the one in view.
-    if (flow) revealDrill(flow.drill);
+    // Back on PLAY, the card you just played is the one in view. A run
+    // started from the warm-up screen goes back there instead, untouched.
+    if (flow && routeRef.current === 'practice') revealDrill(flow.drill);
     setResults(null);
     setRankUp(null);
     rankToken.current++;

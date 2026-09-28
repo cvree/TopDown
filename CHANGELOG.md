@@ -6,10 +6,35 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.27.0**.
+Currently shipping **v2.28.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.28.0 — ONE CLICK
+
+*2026-09-28*
+
+Open the client and the next drill is already waiting: one button, one click, and every other drill right under it.
+
+### Added
+
+- PLAY NEXT, at the top of PLAY: one drill picked for you — from your recent mistakes, the skills you have not trained yet and the drills you have stalled on — with its clip, one line on why, and your record on it. Click it, or press Enter or Space anywhere on PLAY. Your very first one is PULSE at level 1.
+- Beside it, your shelf: the warm-up and its streak, every card you have starred and every playlist you have built, one click each.
+- Every card now shows how it is going: your best, a line of your last five scores, how much they have moved, and NEW BEST when your latest run was one. A starred card you have not played in three days says so.
+- Whichever card PLAY NEXT would start is marked PLAY NEXT where it sits.
+- A personal best gets its own line on the results screen, with the drill’s name and the record it beat.
+
+### Changed
+
+- PLAY opens on DRILLS, and its tabs are DRILLS, PRACTICE and THE LANE — only things you play.
+- CHARACTER — every ability and every number the four champions are built from — is now a tab of STUDY, word for word.
+- FAVORITES is no longer a tab. Your stars and playlists are on the shelf beside PLAY NEXT; its FAVORITES button opens the full list and the playlist editor.
+- After a run, the big button is the next drill: the next item in your playlist, the next benchmark or warm-up step, or a new pick after a free run. Enter and Space take it. R still runs the same drill again, and the old second option — SURVIVE after PLAY, the next opponent after a lane — is still there.
+- Leaving a results screen takes you back to the card you just played, in view and lit up for a moment.
+- Cards are shorter: the clip, the name, your record and PLAY come first. Each card’s description, and a drill’s “you do” and “hard bit”, are one click away under WHY THIS ONE. SURGE and ENDLESS sit side by side under PLAY.
+- The explanations on DRILLS and PRACTICE fold away, so a card you can play is on screen without scrolling, on a phone too.
+- On a phone, PLAY and STUDY use more of the screen’s width, and stars, level arrows and playlist buttons are big enough to hit with a thumb.
 
 ## v2.27.0 — FEWER DOORS
 
