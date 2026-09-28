@@ -1,0 +1,478 @@
+{
+  "ref": "working tree",
+  "at": "2026-09-28T01:16:59.919Z",
+  "screens": {
+    "desktop-new · PLAY (as it opens)": {
+      "wordsAboveFirstCard": 131,
+      "wordsInFirstView": 139,
+      "firstCard": "RANGE",
+      "firstCardTop": 686,
+      "cardAboveFold": true,
+      "controlsInFirstView": 15,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 5,
+      "horizontalScroll": false
+    },
+    "desktop-new · clicks to a running drill": {
+      "clicks": 1,
+      "note": ""
+    },
+    "desktop-new · Enter starts a drill": {
+      "enter": false
+    },
+    "desktop-new · PLAY › DRILLS": {
+      "wordsAboveFirstCard": 162,
+      "wordsInFirstView": 260,
+      "firstCard": "PULSE",
+      "firstCardTop": 652,
+      "cardAboveFold": true,
+      "controlsInFirstView": 17,
+      "controlsTotal": 112,
+      "smallTargetsInFirstView": 8,
+      "horizontalScroll": false
+    },
+    "desktop-new · PLAY › PRACTICE": {
+      "wordsAboveFirstCard": 131,
+      "wordsInFirstView": 139,
+      "firstCard": "RANGE",
+      "firstCardTop": 686,
+      "cardAboveFold": true,
+      "controlsInFirstView": 15,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 5,
+      "horizontalScroll": false
+    },
+    "desktop-new · PLAY › LANE": {
+      "wordsAboveFirstCard": 105,
+      "wordsInFirstView": 126,
+      "firstCard": "LANE PHASE",
+      "firstCardTop": 567,
+      "cardAboveFold": true,
+      "controlsInFirstView": 11,
+      "controlsTotal": 20,
+      "smallTargetsInFirstView": 4,
+      "horizontalScroll": false
+    },
+    "desktop-new · PLAY › CODEX": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 359,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 13,
+      "controlsTotal": 13,
+      "smallTargetsInFirstView": 2,
+      "horizontalScroll": false
+    },
+    "desktop-new · PLAY › FAVORITES": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 147,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 8,
+      "controlsTotal": 8,
+      "smallTargetsInFirstView": 2,
+      "horizontalScroll": false
+    },
+    "desktop-new · STUDY": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 162,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 19,
+      "controlsTotal": 19,
+      "smallTargetsInFirstView": 9,
+      "horizontalScroll": false
+    },
+    "desktop-new · PROGRESS": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 222,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 0,
+      "controlsTotal": 3,
+      "smallTargetsInFirstView": 0,
+      "horizontalScroll": false
+    },
+    "desktop-new · RESULTS": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 64,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 4,
+      "controlsTotal": 4,
+      "smallTargetsInFirstView": 1,
+      "horizontalScroll": false,
+      "primary": "Run again R"
+    },
+    "desktop-new · PLAY after leaving results": {
+      "wordsAboveFirstCard": 130,
+      "wordsInFirstView": 138,
+      "firstCard": "RANGE",
+      "firstCardTop": 683,
+      "cardAboveFold": true,
+      "controlsInFirstView": 15,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 5,
+      "horizontalScroll": false
+    },
+    "desktop-returning · PLAY (as it opens)": {
+      "wordsAboveFirstCard": 130,
+      "wordsInFirstView": 138,
+      "firstCard": "RANGE",
+      "firstCardTop": 686,
+      "cardAboveFold": true,
+      "controlsInFirstView": 15,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 5,
+      "horizontalScroll": false
+    },
+    "desktop-returning · clicks to a running drill": {
+      "clicks": 1,
+      "note": ""
+    },
+    "desktop-returning · Enter starts a drill": {
+      "enter": false
+    },
+    "desktop-returning · PLAY › DRILLS": {
+      "wordsAboveFirstCard": 161,
+      "wordsInFirstView": 259,
+      "firstCard": "PULSE",
+      "firstCardTop": 652,
+      "cardAboveFold": true,
+      "controlsInFirstView": 17,
+      "controlsTotal": 112,
+      "smallTargetsInFirstView": 8,
+      "horizontalScroll": false
+    },
+    "desktop-returning · PLAY › PRACTICE": {
+      "wordsAboveFirstCard": 130,
+      "wordsInFirstView": 138,
+      "firstCard": "RANGE",
+      "firstCardTop": 686,
+      "cardAboveFold": true,
+      "controlsInFirstView": 15,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 5,
+      "horizontalScroll": false
+    },
+    "desktop-returning · PLAY › LANE": {
+      "wordsAboveFirstCard": 104,
+      "wordsInFirstView": 125,
+      "firstCard": "LANE PHASE",
+      "firstCardTop": 567,
+      "cardAboveFold": true,
+      "controlsInFirstView": 11,
+      "controlsTotal": 20,
+      "smallTargetsInFirstView": 4,
+      "horizontalScroll": false
+    },
+    "desktop-returning · PLAY › CODEX": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 358,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 13,
+      "controlsTotal": 13,
+      "smallTargetsInFirstView": 2,
+      "horizontalScroll": false
+    },
+    "desktop-returning · PLAY › FAVORITES": {
+      "wordsAboveFirstCard": 104,
+      "wordsInFirstView": 211,
+      "firstCard": "TUMBLE",
+      "firstCardTop": 567,
+      "cardAboveFold": true,
+      "controlsInFirstView": 20,
+      "controlsTotal": 37,
+      "smallTargetsInFirstView": 11,
+      "horizontalScroll": false
+    },
+    "desktop-returning · STUDY": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 162,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 19,
+      "controlsTotal": 19,
+      "smallTargetsInFirstView": 9,
+      "horizontalScroll": false
+    },
+    "desktop-returning · PROGRESS": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 219,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 1,
+      "controlsTotal": 5,
+      "smallTargetsInFirstView": 1,
+      "horizontalScroll": false
+    },
+    "desktop-returning · RESULTS": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 64,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 4,
+      "controlsTotal": 4,
+      "smallTargetsInFirstView": 1,
+      "horizontalScroll": false,
+      "primary": "Run again R"
+    },
+    "desktop-returning · PLAY after leaving results": {
+      "wordsAboveFirstCard": 130,
+      "wordsInFirstView": 138,
+      "firstCard": "RANGE",
+      "firstCardTop": 683,
+      "cardAboveFold": true,
+      "controlsInFirstView": 15,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 5,
+      "horizontalScroll": false
+    },
+    "phone-new · PLAY (as it opens)": {
+      "wordsAboveFirstCard": 84,
+      "wordsInFirstView": 84,
+      "firstCard": "RANGE",
+      "firstCardTop": 797,
+      "cardAboveFold": false,
+      "controlsInFirstView": 13,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 4,
+      "horizontalScroll": false
+    },
+    "phone-new · clicks to a running drill": {
+      "clicks": 4,
+      "note": ""
+    },
+    "phone-new · Enter starts a drill": {
+      "enter": false
+    },
+    "phone-new · PLAY › DRILLS": {
+      "wordsAboveFirstCard": 115,
+      "wordsInFirstView": 100,
+      "firstCard": "PULSE",
+      "firstCardTop": 966,
+      "cardAboveFold": false,
+      "controlsInFirstView": 8,
+      "controlsTotal": 112,
+      "smallTargetsInFirstView": 2,
+      "horizontalScroll": false
+    },
+    "phone-new · PLAY › PRACTICE": {
+      "wordsAboveFirstCard": 84,
+      "wordsInFirstView": 84,
+      "firstCard": "RANGE",
+      "firstCardTop": 797,
+      "cardAboveFold": false,
+      "controlsInFirstView": 13,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 4,
+      "horizontalScroll": false
+    },
+    "phone-new · PLAY › LANE": {
+      "wordsAboveFirstCard": 58,
+      "wordsInFirstView": 64,
+      "firstCard": "LANE PHASE",
+      "firstCardTop": 645,
+      "cardAboveFold": true,
+      "controlsInFirstView": 11,
+      "controlsTotal": 20,
+      "smallTargetsInFirstView": 4,
+      "horizontalScroll": false
+    },
+    "phone-new · PLAY › CODEX": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 156,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 13,
+      "controlsTotal": 13,
+      "smallTargetsInFirstView": 2,
+      "horizontalScroll": false
+    },
+    "phone-new · PLAY › FAVORITES": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 89,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 8,
+      "controlsTotal": 8,
+      "smallTargetsInFirstView": 2,
+      "horizontalScroll": false
+    },
+    "phone-new · STUDY": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 91,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 6,
+      "controlsTotal": 19,
+      "smallTargetsInFirstView": 1,
+      "horizontalScroll": false
+    },
+    "phone-new · PROGRESS": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 57,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 0,
+      "controlsTotal": 3,
+      "smallTargetsInFirstView": 0,
+      "horizontalScroll": false
+    },
+    "phone-new · RESULTS": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 61,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 3,
+      "controlsTotal": 4,
+      "smallTargetsInFirstView": 0,
+      "horizontalScroll": false,
+      "primary": "Run again R"
+    },
+    "phone-new · PLAY after leaving results": {
+      "wordsAboveFirstCard": 84,
+      "wordsInFirstView": 84,
+      "firstCard": "RANGE",
+      "firstCardTop": 794,
+      "cardAboveFold": false,
+      "controlsInFirstView": 13,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 4,
+      "horizontalScroll": false
+    },
+    "phone-returning · PLAY (as it opens)": {
+      "wordsAboveFirstCard": 84,
+      "wordsInFirstView": 84,
+      "firstCard": "RANGE",
+      "firstCardTop": 797,
+      "cardAboveFold": false,
+      "controlsInFirstView": 13,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 4,
+      "horizontalScroll": false
+    },
+    "phone-returning · clicks to a running drill": {
+      "clicks": 4,
+      "note": ""
+    },
+    "phone-returning · Enter starts a drill": {
+      "enter": false
+    },
+    "phone-returning · PLAY › DRILLS": {
+      "wordsAboveFirstCard": 115,
+      "wordsInFirstView": 100,
+      "firstCard": "PULSE",
+      "firstCardTop": 966,
+      "cardAboveFold": false,
+      "controlsInFirstView": 8,
+      "controlsTotal": 112,
+      "smallTargetsInFirstView": 2,
+      "horizontalScroll": false
+    },
+    "phone-returning · PLAY › PRACTICE": {
+      "wordsAboveFirstCard": 84,
+      "wordsInFirstView": 84,
+      "firstCard": "RANGE",
+      "firstCardTop": 797,
+      "cardAboveFold": false,
+      "controlsInFirstView": 13,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 4,
+      "horizontalScroll": false
+    },
+    "phone-returning · PLAY › LANE": {
+      "wordsAboveFirstCard": 58,
+      "wordsInFirstView": 64,
+      "firstCard": "LANE PHASE",
+      "firstCardTop": 645,
+      "cardAboveFold": true,
+      "controlsInFirstView": 11,
+      "controlsTotal": 20,
+      "smallTargetsInFirstView": 4,
+      "horizontalScroll": false
+    },
+    "phone-returning · PLAY › CODEX": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 156,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 13,
+      "controlsTotal": 13,
+      "smallTargetsInFirstView": 2,
+      "horizontalScroll": false
+    },
+    "phone-returning · PLAY › FAVORITES": {
+      "wordsAboveFirstCard": 58,
+      "wordsInFirstView": 63,
+      "firstCard": "TUMBLE",
+      "firstCardTop": 660,
+      "cardAboveFold": true,
+      "controlsInFirstView": 11,
+      "controlsTotal": 37,
+      "smallTargetsInFirstView": 4,
+      "horizontalScroll": false
+    },
+    "phone-returning · STUDY": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 91,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 6,
+      "controlsTotal": 19,
+      "smallTargetsInFirstView": 1,
+      "horizontalScroll": false
+    },
+    "phone-returning · PROGRESS": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 59,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 1,
+      "controlsTotal": 5,
+      "smallTargetsInFirstView": 1,
+      "horizontalScroll": false
+    },
+    "phone-returning · RESULTS": {
+      "wordsAboveFirstCard": null,
+      "wordsInFirstView": 61,
+      "firstCard": null,
+      "firstCardTop": null,
+      "cardAboveFold": false,
+      "controlsInFirstView": 3,
+      "controlsTotal": 4,
+      "smallTargetsInFirstView": 0,
+      "horizontalScroll": false,
+      "primary": "Run again R"
+    },
+    "phone-returning · PLAY after leaving results": {
+      "wordsAboveFirstCard": 84,
+      "wordsInFirstView": 84,
+      "firstCard": "RANGE",
+      "firstCardTop": 794,
+      "cardAboveFold": false,
+      "controlsInFirstView": 13,
+      "controlsTotal": 48,
+      "smallTargetsInFirstView": 4,
+      "horizontalScroll": false
+    }
+  }
+}
