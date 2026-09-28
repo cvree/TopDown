@@ -593,12 +593,13 @@ line('\n=== Every screen that reads a profile draws it, on every profile ===');
 // different set of callbacks it never calls here.
 const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
   const noop = () => undefined;
-  const [{ Practice, SECTION_IDS }, { Progress }, { WarmUp }, { AccuracyReport }] =
+  const [{ Practice, SECTION_IDS }, { Progress }, { WarmUp }, { AccuracyReport }, { CodexPanel }] =
     await Promise.all([
       import('../src/ui/Practice'),
       import('../src/ui/Progress'),
       import('../src/ui/WarmUp'),
       import('../src/ui/AccuracyReport'),
+      import('../src/ui/Codex'),
     ]);
   return [
     // The screen a returning player opens on: the routine, the reaction
@@ -618,6 +619,9 @@ const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
         }),
     ],
     ['THE CODEX · ACCURACY', () => createElement(AccuracyReport as any, {})],
+    // CHARACTER left PLAY for STUDY; it reads no profile, but it is a screen
+    // PLAY used to draw on every check, so it is still drawn on every check.
+    ['STUDY · CHARACTER', () => createElement(CodexPanel as any, {})],
     // Every tab, not only the one a fresh mount opens on — DRILLS included, whose
     // cards read further into a saved record than anything else. Each section reads a
     // different corner of a stored profile and is only rendered while its own

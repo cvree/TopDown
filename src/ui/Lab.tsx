@@ -307,6 +307,21 @@ function LabPanel({
         />
       )}
       <Explainer title="HOW THE DRILLS WORK">
+        <div className="pr-legend">
+          <span className="pr-legend-item" style={{ ['--c' as string]: '#58e0ff' }}>
+            <b>PLAY</b>
+            <i>One minute at the level shown. The normal way to play — start here.</i>
+          </span>
+          <span className="pr-legend-item" style={{ ['--c' as string]: '#ff8a3d' }}>
+            <b>▲ SURGE</b>
+            <i>One minute, but a good streak makes it harder. How far can you push before you drop it?</i>
+          </span>
+          <span className="pr-legend-item" style={{ ['--c' as string]: '#c58bff' }}>
+            <b>∞ ENDLESS</b>
+            <i>No clock. It gets harder while you win and easier while you lose, until it finds your level.</i>
+          </span>
+        </div>
+
         <p className="dim pr-lead pr-panel-lead">
           Each run lasts one minute and counts the presses you got <i>right</i> — a wrong key or
           a wasted one scores nothing, so hammering the keyboard gives you the worst score here,
@@ -356,21 +371,6 @@ function LabPanel({
           because stars are for beating a level rather than standing on one.
         </p>
       </Explainer>
-
-      <div className="pr-legend">
-        <span className="pr-legend-item" style={{ ['--c' as string]: '#58e0ff' }}>
-          <b>PLAY</b>
-          <i>One minute at the level shown. The normal way to play — start here.</i>
-        </span>
-        <span className="pr-legend-item" style={{ ['--c' as string]: '#ff8a3d' }}>
-          <b>▲ SURGE</b>
-          <i>One minute, but a good streak makes it harder. How far can you push before you drop it?</i>
-        </span>
-        <span className="pr-legend-item" style={{ ['--c' as string]: '#c58bff' }}>
-          <b>∞ ENDLESS</b>
-          <i>No clock. It gets harder while you win and easier while you lose, until it finds your level.</i>
-        </span>
-      </div>
 
       {LAB_GROUPS.map((g) => {
         const modes = APM_MODES.filter((m) => m.kind === g.kind);

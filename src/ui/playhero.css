@@ -291,7 +291,7 @@
 }
 @media (max-width: 700px) {
   .pr-hero-media {
-    height: 118px;
+    height: 100px;
   }
   .pr-hero-go .kbd {
     display: none;

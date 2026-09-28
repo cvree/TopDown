@@ -39,6 +39,7 @@ import {
   type StudyStore,
 } from '../progression/study';
 import { Why } from './components/Why';
+import { CodexPanel } from './Codex';
 import { Ticker } from './components/Ticker';
 import './practice.css';
 import './lab.css';
@@ -121,7 +122,7 @@ export function Study() {
   const [store, setStore] = useState<StudyStore>(loadStudy);
   const storeRef = useRef(store);
   storeRef.current = store;
-  const [tab, setTab] = useState<'quiz' | 'champions'>('quiz');
+  const [tab, setTab] = useState<'quiz' | 'champions' | 'character'>('quiz');
   const [session, setSession] = useState<Session | null>(null);
   const [lookup, setLookup] = useState<string | null>(null);
 
@@ -361,6 +362,9 @@ export function Study() {
             [
               ['quiz', 'QUIZ', 'be asked'],
               ['champions', 'CHAMPIONS', 'look it up'],
+              // The four kits PLAY is built from, every figure printed. It was
+              // a tab of PLAY; it is reading, so it lives with the reading.
+              ['character', 'CHARACTER', 'the numbers behind PLAY'],
             ] as const
           ).map(([id, label, sub]) => (
             <button
@@ -385,6 +389,8 @@ export function Study() {
 
         {tab === 'quiz' ? (
           <QuizMenu store={store} pool={pool} due={due.length} onSet={set} onStart={start} />
+        ) : tab === 'character' ? (
+          <CodexPanel />
         ) : (
           <Reference
             store={store}

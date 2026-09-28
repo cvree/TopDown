@@ -81,7 +81,7 @@
 .pr-tablist {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
 }
 
@@ -1806,4 +1806,52 @@
 
 .pr-foot-why {
   margin-top: 36px;
+}
+
+/* FAVORITES, opened from the shelf: off the rail, so it says where it is and
+   how to get back. */
+.pr-offrail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-bottom: 18px;
+}
+.pr-offrail b {
+  font-size: 20px;
+  letter-spacing: 0.1em;
+  color: var(--c);
+}
+.pr-offrail i {
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--text-3);
+}
+.pr-offrail .btn {
+  margin-left: auto;
+  min-height: 44px;
+}
+
+/* The two tabs most of a session is spent in are the widest two on the rail. */
+@media (min-width: 901px) {
+  .pr-tablist {
+    grid-template-columns: 1.2fr 1.2fr 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .pr-panel .why {
+    margin-bottom: 10px;
+  }
+  .pr-group-head {
+    margin: 14px 0 10px;
+  }
+  .pr-seg {
+    margin-bottom: 10px;
+  }
+  .pr-seg-btn i {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
 }
