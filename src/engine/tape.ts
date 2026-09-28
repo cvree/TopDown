@@ -3,7 +3,7 @@ import type { ViewProjection } from './session';
 import type { Vec2 } from './types';
 
 /**
- * THE TAPE — what makes rewind possible.
+ * THE TAPE — a run, as the inputs that made it.
  *
  * The simulation is deterministic: one seed, a fixed 240 Hz step, and every
  * random number drawn from a seeded generator. Given the same inputs on the
@@ -306,6 +306,3 @@ export class Replayer {
   }
 }
 
-/** Steps a rewind goes back, at the simulation's fixed rate. */
-export const REWIND_SECONDS = 3;
-export const REWIND_LONG_SECONDS = 10;

@@ -29,8 +29,8 @@ interface Props {
   onRetry: () => void;
   onExit: () => void;
   /**
-   * The primary action: the next drill — the next playlist item, benchmark
-   * row or warm-up step, or the coach's next pick after a free run.
+   * The primary action: the next drill — the next playlist item or benchmark
+   * row, or the coach's next pick after a free run.
    */
   onNext?: () => void;
   nextLabel?: string;
@@ -48,7 +48,7 @@ interface Props {
    * so a minute worth sending to somebody is one copy away from being sent.
    */
   code?: string | null;
-  /** A line of context above the buttons: which warm-up step, which benchmark. */
+  /** A line of context above the buttons: which playlist item, which benchmark. */
   banner?: { eyebrow: string; line: string; tone?: 'good' | 'warn' } | null;
   /** This drill's score the run before this one, for the line under the number. */
   lastScore?: number | null;

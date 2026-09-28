@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
 import { newSeed } from '../engine/rng';
-import type { Tape } from '../engine/tape';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { RUN_MODES, practiceFor, type RunMode } from '../drills/modes';
 import {
   applyRun,
+  completePlaylist,
   createPlaylist,
   deletePlaylist,
   drillDifficulty,
@@ -16,7 +16,10 @@ import {
   rollDaily,
   saveProfile,
   setPlaylistItems,
+  setTuning,
   toggleStarred,
+  tuningOf,
+  type Playlist,
   type AppSettings,
   type Profile,
   type ProgressReport,
@@ -35,8 +38,22 @@ import { Crest } from './components/Crest';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
 import { GameView } from './GameView';
 import { ErrorBoundary } from './ErrorBoundary';
-import { Practice, openSection, revealDrill } from './Practice';
-import { pickNext, LANE_QUICK } from './playNext';
+import { Practice, PracticeScreen, openSection, revealDrill } from './Practice';
+import { pickNext, startSpec } from './playNext';
+import { ActivityEditor, ImportDialog, ShareDialog } from './ActivityEditor';
+import { Benchmarks } from './Benchmarks';
+import { isApmDrill } from '../progression/apm';
+import {
+  decodePlaylist,
+  defaultTuning,
+  encodePlaylist,
+  isCustom,
+  playlistFromLocation,
+  runTuningOf,
+  tunedOpts,
+  type ActivityTuning,
+  type SharedPlaylist,
+} from '../progression/tuning';
 import { Progress } from './Progress';
 import { PatchNotes } from './PatchNotes';
 import { RankEmblem } from './components/RankEmblem';
@@ -46,7 +63,6 @@ import { Results } from './Results';
 import { Settings } from './Settings';
 import { Study } from './Study';
 import { Welcome, type WelcomeResult } from './Welcome';
-import { WarmUp, type WarmupSummary } from './WarmUp';
 import { isCalm, setCalm } from './motion';
 import { launch, trackLaunches } from './launch';
 import {
@@ -55,69 +71,49 @@ import {
   BENCH_TIERS,
   benchFor,
   benchPlace,
+  decodeScenario,
   encodeScenario,
   recordBench,
   type BenchScenario,
-  type ScenarioCode,
 } from '../progression/benchmarks';
-import {
-  drillName,
-  finishWarmup,
-  lastWarmupOn,
-  recordReaction,
-  shouldStop,
-  type DayRead,
-  type ReactionRun,
-  type ReactionTestId,
-  type StopReason,
-  type WarmupPlan,
-  type WarmupRep,
-} from '../progression/warmup';
+import { recordReaction, type ReactionRun, type ReactionTestId } from '../progression/warmup';
 import '../styles/global.css';
 import './app.css';
 
 /**
  * The sections.
  *
- * Three in the bar now, and setup in the corner. The client used to have
- * seven tabs, four ladders, a daily plan and a calibration sequence, which
- * between them meant a player had to learn the *client* before they could
- * practise; everything that was really a way of choosing a run is now two
- * buttons on a card.
+ * Three in the bar, and setup, study and the patch notes in the corner.
  *
- * There used to be a fourth tab, HOME, where a returning player landed for
- * the day's warm-up, the reaction checks and the benchmark sheet. It is gone
- * from the bar: the whole point of this client is the drills and the
- * champions, and a tab that opened *before* them said otherwise every time
- * somebody signed in. The warm-up itself is not gone — it is one button at
- * the top of **PLAY**, which is where the client opens now, always.
+ * **PLAY** is every card you can start — the thirty-second drills for your
+ * hands, the three champions, the lane, and a shelf of whatever you have
+ * starred and every playlist you have built.
  *
- * **PLAY** is every card you can start — the one-minute drills for your
- * hands, the three champions, the lane, and a favourites shelf of whatever
- * you have starred. The drills spent a release as a tab of their own, TRAIN,
- * and that was two places in the bar that did the same thing: pick a card,
- * play a minute.
+ * **PRACTICE** is the champions in pieces. It is also a segment of PLAY, and
+ * stays one; it has its own tab as well so that "practise Katarina" is one
+ * click from anywhere.
  *
- * **STUDY** is neither hands nor one champion: it is every champion in the
- * game, as knowledge — what their passive does, how long their abilities are
- * down, how far they reach. Inside PLAY it would read as more about the three
- * champions there.
+ * **PROGRESS** is whether any of it is working — and the reaction tests and
+ * the benchmark sheet, which measure it at settings that never move.
+ *
+ * **STUDY** — every champion in League as knowledge — is a chip in the corner:
+ * always one click away, never competing with the three things you play.
+ *
+ * There used to be a warm-up: a daily routine with a streak, reached from a
+ * chip on PLAY. It is gone. Its reaction tests and benchmarks were never part
+ * of the routine, and moved to PROGRESS.
  */
-type Route = 'warmup' | 'practice' | 'study' | 'progress' | 'settings' | 'patch';
+type Route = 'play' | 'practice' | 'study' | 'progress' | 'settings' | 'patch';
 
-/**
- * The top bar, in order. Setup and the patch notes live in the corner.
- *
- * `warmup` is a real route still — the routine, the reaction tests, the
- * benchmark sheet all live there exactly as before — it is simply not a tab
- * here any more. It is reached from a button at the top of PLAY instead, so
- * it never has to compete with the drills for the first click of a session.
- */
+/** The top bar, in order. Setup, study and the patch notes live in the corner. */
 const NAV: { route: Route; label: string; hint: string }[] = [
-  { route: 'practice', label: 'PLAY', hint: 'One-minute drills for your hands, a champion in pieces, or a whole lane' },
-  { route: 'study', label: 'STUDY', hint: 'Every champion in League: passives, abilities, cooldowns, ranges, matchups' },
-  { route: 'progress', label: 'PROGRESS', hint: 'Your scores, and whether they are going up' },
+  { route: 'play', label: 'PLAY', hint: 'Thirty-second drills for your hands, a champion in pieces, or a whole lane' },
+  { route: 'practice', label: 'PRACTICE', hint: 'Vayne, Twisted Fate and Katarina, one piece at a time' },
+  { route: 'progress', label: 'PROGRESS', hint: 'Your scores, reaction tests and benchmarks' },
 ];
+
+/** A benchmark is one fixed minute for everybody: its lines were cut on sixty seconds. */
+const BENCH_SECONDS = 60;
 
 /**
  * A ladder's per-rung records, copied one level deeper than a spread goes.
@@ -173,41 +169,41 @@ interface Flow {
   fixedSeed?: boolean;
   /** The benchmark this run is being scored against, if it is one. */
   bench?: string;
-  /** The warm-up this run is a step of, if it is one. */
-  warm?: WarmState;
   /**
-   * The playlist this run is a step of, if it is one: a player's own queue,
-   * played through in order and looping back to its first item once the last
-   * one finishes — the same "run it again" shape a benchmark sheet has, for a
-   * list somebody built rather than one this client shipped with.
+   * The playlist this run is a step of, if it is one: a player's own queue —
+   * or a friend's — played through in order with each item's own settings,
+   * and looping back to its first item once the last one finishes.
    */
-  playlist?: { name: string; items: DrillId[]; index: number };
+  playlist?: PlaylistFlow;
+  /** The favourite's edited settings this run is played on, if any. */
+  tuning?: ActivityTuning;
   /**
-   * Where a rewind asked this run to restart: the tape so far and the step to
-   * rebuild to. Set by the rewind key, cleared by anything that starts a new
-   * attempt.
+   * A length, speed or target size no card offers. Scored for the player to
+   * see and written to nothing — see `tuning.ts`.
    */
-  rewind?: { tape: Tape; steps: number; still?: string | null };
-  /**
-   * Rewinds taken in this attempt. Any at all makes it practice: a run you can
-   * go back inside is a run whose score could be edited, so it is scored for
-   * you to see and written to nothing.
-   */
-  rewinds?: number;
+  custom?: boolean;
 }
 
-/** The same run, as a new attempt: no rewind to rebuild, none taken. */
-const fresh = (f: Flow): Flow => ({ ...f, rewind: undefined, rewinds: undefined });
-
-/** A warm-up in progress: the plan, which step is on screen, and what the steps before it scored. */
-interface WarmState {
-  plan: WarmupPlan;
-  step: number;
-  /** Indexed by step. The calibration step never has one. */
-  reps: (WarmupRep | undefined)[];
-  calibration: ReactionRun | null;
-  day: DayRead;
+/** A playlist being played. */
+interface PlaylistFlow {
+  /** The saved playlist, when it is one — for counting completions. */
+  id?: string;
+  name: string;
+  items: DrillId[];
+  tunings: ActivityTuning[];
+  index: number;
+  /** What each item scored this time through, by index. */
+  scores: (number | undefined)[];
+  /** This time through has been counted as a completion — a retry of the last item is not another. */
+  counted?: boolean;
 }
+
+/** What is drawn over the client, if anything. */
+type Modal =
+  | { kind: 'edit'; id: DrillId; justStarred: boolean }
+  | { kind: 'editItem'; playlist: string; index: number }
+  | { kind: 'share'; playlist: string }
+  | { kind: 'import'; shared: SharedPlaylist };
 
 interface ResultState {
   result: RunResult;
@@ -230,13 +226,13 @@ export function App() {
     return p;
   });
   // The profile as of the last render, for the two places that have to build
-  // the next one synchronously: a run finishing and a warm-up closing.
+  // the next one synchronously: a run finishing.
   const profileRef = useRef(profile);
   profileRef.current = profile;
   // Every session opens on PLAY — the drills and the champions are the
   // client now, and a screen that opened somewhere else first said otherwise
   // on every single sign-in.
-  const [route, setRouteNow] = useState<Route>('practice');
+  const [route, setRouteNow] = useState<Route>('play');
   const routeRef = useRef(route);
   routeRef.current = route;
   /**
@@ -256,7 +252,8 @@ export function App() {
     root.setProperty('--nav-y', dir === 0 ? '1' : '0');
     setRouteNow(to);
   }, []);
-  const [warmSummary, setWarmSummary] = useState<WarmupSummary | null>(null);
+  /** EDIT ACTIVITY, a share dialog or a playlist somebody sent — at most one. */
+  const [modal, setModal] = useState<Modal | null>(null);
   const [benchNote, setBenchNote] = useState<{ eyebrow: string; line: string; tone?: 'good' | 'warn' } | null>(null);
   const [flow, setFlow] = useState<Flow | null>(null);
   const [results, setResults] = useState<ResultState | null>(null);
@@ -344,7 +341,7 @@ export function App() {
   // Inside a run GameView owns Escape (it has a session to pause first), so
   // this only listens while there is no run on screen.
   useEffect(() => {
-    if (!booted || flow || tour) return;
+    if (!booted || flow || tour || modal) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Escape' || e.defaultPrevented) return;
       const el = document.activeElement;
@@ -357,11 +354,29 @@ export function App() {
       }
       e.preventDefault();
       audio.play(route === 'settings' ? 'uiBack' : 'uiTab');
-      setRoute((r) => (r === 'settings' ? 'practice' : 'settings'));
+      setRoute((r) => (r === 'settings' ? 'play' : 'settings'));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [booted, flow, route, tour]);
+  }, [booted, flow, route, tour, modal]);
+
+  // ------------------------------------------------------ a shared link
+  //
+  // A link somebody sent opens the client straight onto their playlist. It is
+  // read once, after the boot screen, and taken out of the address bar so a
+  // reload does not ask again.
+  useEffect(() => {
+    if (!booted) return;
+    const code = playlistFromLocation();
+    if (!code) return;
+    try {
+      window.history.replaceState(null, '', `${location.pathname}${location.search.replace(/[?&]playlist=[^&]*/, '')}`);
+    } catch {
+      // A sandboxed frame may refuse; the prompt still comes up once.
+    }
+    const r = decodePlaylist(code);
+    if (!('error' in r)) setModal({ kind: 'import', shared: r });
+  }, [booted]);
 
   // -------------------------------------------------------------- back guard
   //
@@ -415,8 +430,8 @@ export function App() {
         level?: number;
         seed?: number;
         bench?: string;
-        warm?: WarmState;
-        playlist?: { name: string; items: DrillId[]; index: number };
+        playlist?: PlaylistFlow;
+        tuning?: ActivityTuning;
       } = {},
     ) => {
       audio.unlock();
@@ -433,8 +448,9 @@ export function App() {
           duration: opts.duration,
           level: opts.level,
           bench: opts.bench,
-          warm: opts.warm,
           playlist: opts.playlist,
+          tuning: opts.tuning,
+          custom: opts.tuning ? isCustom(drill, opts.tuning) : undefined,
         });
       });
     },
@@ -442,30 +458,93 @@ export function App() {
   );
 
   /**
-   * The lane's own quick opts, for a playlist item that lands on it: the same
-   * tier and length the lane card opens on, since a queue that stops to ask
-   * "who, and how long" would not be a queue at all.
+   * How a favourite or a playlist row is started: the settings its own card
+   * would use, with the player's edit laid over them.
    */
-  const laneQuickOpts = LANE_QUICK;
-
-  /** Start a playlist from its first item — FAVORITES' one PLAY button. */
-  const playPlaylist = useCallback(
-    (name: string, items: DrillId[]) => {
-      if (!items.length) return;
-      const first = items[0];
-      startRun(first, 'play', {
-        ...(first === 'lanePhase' ? laneQuickOpts : {}),
-        playlist: { name, items, index: 0 },
-      });
-    },
-    [startRun],
+  const tunedStart = useCallback(
+    (drill: DrillId, t: ActivityTuning) => tunedOpts(drill, t, startSpec(profileRef.current, drill).opts, isApmDrill(drill)),
+    [],
   );
 
-  const toggleStar = useCallback((id: DrillId) => setProfile((p) => toggleStarred(p, id)), []);
+  /** A playlist's step `index`, as a run. */
+  const playlistFlow = useCallback(
+    (pl: PlaylistFlow, index: number): Flow => {
+      const drill = pl.items[index];
+      const tuning = pl.tunings[index] ?? defaultTuning(drill);
+      const o = tunedStart(drill, tuning);
+      return {
+        drill,
+        mode: 'play',
+        seed: newSeed(),
+        difficulty: o.difficulty,
+        duration: o.duration,
+        level: o.level,
+        tuning,
+        custom: isCustom(drill, tuning),
+        playlist: { ...pl, index },
+      };
+    },
+    [tunedStart],
+  );
+
+  /** Start a playlist from its first item — its one PLAY button. */
+  const playPlaylist = useCallback(
+    (pl: { id?: string; name: string; items: DrillId[]; tunings: ActivityTuning[] }) => {
+      if (!pl.items.length) return;
+      const f = playlistFlow({ id: pl.id, name: pl.name, items: pl.items, tunings: pl.tunings, index: 0, scores: [] }, 0);
+      startRun(f.drill, 'play', {
+        difficulty: f.difficulty,
+        duration: f.duration,
+        level: f.level,
+        tuning: f.tuning,
+        playlist: f.playlist,
+      });
+    },
+    [startRun, playlistFlow],
+  );
+
+  /** A starred activity, on the settings it was edited to. */
+  const playFavorite = useCallback(
+    (id: DrillId, t?: ActivityTuning) => {
+      const tuning = t ?? tuningOf(profileRef.current, id);
+      startRun(id, 'play', { ...tunedStart(id, tuning), tuning });
+    },
+    [startRun, tunedStart],
+  );
+
+  /** Starring opens EDIT ACTIVITY; unstarring just unstars. */
+  const toggleStar = useCallback((id: DrillId) => {
+    const was = profileRef.current.stars.includes(id);
+    setProfile((p) => toggleStarred(p, id));
+    if (!was) setModal({ kind: 'edit', id, justStarred: true });
+  }, []);
   const addPlaylist = useCallback((name: string, items: DrillId[]) => setProfile((p) => createPlaylist(p, name, items)), []);
   const removePlaylist = useCallback((id: string) => setProfile((p) => deletePlaylist(p, id)), []);
   const relabelPlaylist = useCallback((id: string, name: string) => setProfile((p) => renamePlaylist(p, id, name)), []);
-  const editPlaylist = useCallback((id: string, items: DrillId[]) => setProfile((p) => setPlaylistItems(p, id, items)), []);
+  const editPlaylist = useCallback(
+    (id: string, items: DrillId[], tunings: ActivityTuning[]) => setProfile((p) => setPlaylistItems(p, id, items, tunings)),
+    [],
+  );
+
+  /** A pasted playlist code or link, or a scenario code. Returns why not, or null. */
+  const openCode = useCallback(
+    (text: string): string | null => {
+      const t = text.trim();
+      if (t.includes('APX1.')) {
+        const r = decodePlaylist(t);
+        if ('error' in r) return r.error;
+        setModal({ kind: 'import', shared: r });
+        return null;
+      }
+      const c = decodeScenario(t);
+      if ('error' in c) return `${c.error} Playlist codes start with APX1.`;
+      // A pasted benchmark code is the benchmark, and records as one.
+      const b = c.mode === 'play' && Math.abs(c.difficulty - BENCH_DIFFICULTY) < 1e-6 ? benchFor(c.drill, c.seed) : null;
+      startRun(c.drill, c.mode, { difficulty: c.difficulty, seed: c.seed, bench: b?.id, duration: b ? BENCH_SECONDS : undefined });
+      return null;
+    },
+    [startRun],
+  );
 
   const difficulty = useMemo(
     () => (flow ? flow.difficulty ?? drillDifficulty(profile, flow.drill) : 0.35),
@@ -481,29 +560,36 @@ export function App() {
       if (!flow) return;
       if (result.endReason === 'abort') {
         // An instant reset is a fresh attempt, not a recorded run.
-        setFlow({ ...fresh(flow), seed: flow.fixedSeed ? flow.seed : newSeed() });
+        setFlow({ ...flow, seed: flow.fixedSeed ? flow.seed : newSeed() });
         return;
       }
 
-      // A rewound run is practice. It is scored against a copy of the profile
+      // Finishing the last item is finishing the playlist — counted here, on
+      // the run, so leaving from its results screen still counts.
+      const finished =
+        flow.playlist && flow.playlist.id && !flow.playlist.counted && flow.playlist.index + 1 >= flow.playlist.items.length
+          ? flow.playlist.id
+          : null;
+
+      // A playlist remembers what each step scored, for the line at the end.
+      if (flow.playlist) {
+        const pl = flow.playlist;
+        const scores = [...pl.scores];
+        scores[pl.index] = result.score;
+        setFlow((f) => (f && f.playlist ? { ...f, playlist: { ...f.playlist, scores, counted: f.playlist.counted || !!finished } } : f));
+      }
+
+      // A custom run is practice. It is scored against a copy of the profile
       // so the results screen can show everything it normally shows — and the
       // copy is thrown away, so no record, ladder, rating or benchmark moves.
-      if (flow.rewinds) {
+      if (flow.custom) {
+        if (finished) setProfile((p) => completePlaylist(p, finished));
         const report = applyRun(structuredClone(profileRef.current), result, flow.level ? { level: flow.level } : {});
         const lastScore = lastScoreOf(profileRef.current, result.drill);
         window.setTimeout(() => setResults({ result, report, bounds, lastScore }), 0);
         return;
       }
 
-      // A warm-up step keeps what it scored, so the next step can be chosen
-      // and the summary can compare set two with set one. A retried step
-      // overwrites its own slot rather than adding one.
-      if (flow.warm) {
-        const w = flow.warm;
-        const reps = [...w.reps];
-        reps[w.step] = { drill: result.drill, score: result.score, performance: result.performance };
-        setFlow((f) => (f ? { ...f, warm: { ...w, reps } } : f));
-      }
 
       // The rung the tide settled at, kept for the button that offers to play
       // it for score. Read off the run's own metric rather than recomputed,
@@ -516,7 +602,7 @@ export function App() {
       // Computed here, synchronously, from the profile as it stands, and then
       // handed to React — rather than inside a state updater and read back a
       // tick later. An updater only runs early when it is the first update of
-      // its batch; a warm-up step queues one before it, and the report came
+      // its batch; a playlist step queues one before it, and the report came
       // back empty.
       const prev = profileRef.current;
       const next: Profile = {
@@ -568,8 +654,9 @@ export function App() {
           tone: after > before || (beat && !first) ? 'good' : undefined,
         });
       }
-      profileRef.current = next;
-      setProfile(next);
+      const saved = finished ? completePlaylist(next, finished) : next;
+      profileRef.current = saved;
+      setProfile(saved);
 
       window.setTimeout(() => {
         const rep = report;
@@ -629,13 +716,6 @@ export function App() {
     setProfile((p) => (p.taught.includes(key) ? p : { ...p, taught: [...p.taught, key] }));
   }, []);
 
-  /** Go back inside this run: remount it rebuilt to `steps`, same seed. */
-  const onRewind = useCallback((tape: Tape, steps: number, still: string | null) => {
-    setResults(null);
-    setRankUp(null);
-    rankToken.current++;
-    setFlow((f) => (f ? { ...f, rewind: { tape, steps, still }, rewinds: (f.rewinds ?? 0) + 1 } : f));
-  }, []);
 
   const retry = useCallback(() => {
     if (!flow) return;
@@ -643,47 +723,19 @@ export function App() {
     setRankUp(null);
     rankToken.current++;
     setBenchNote(null);
-    setFlow({ ...fresh(flow), seed: flow.fixedSeed ? flow.seed : newSeed() });
+    setFlow({ ...flow, seed: flow.fixedSeed ? flow.seed : newSeed() });
   }, [flow]);
 
-  /**
-   * Close a warm-up: write the session, extend the streak, and put the summary
-   * on the warm-up screen. `stopped` is the stop rule firing, or a player who
-   * left after the two sets that were the point of it.
-   */
-  const finishWarm = useCallback((w: WarmState, stopped: StopReason | null) => {
-    const reps = w.reps.filter((r): r is WarmupRep => !!r);
-    const prev = profileRef.current;
-    const next: Profile = { ...prev, warmup: structuredClone(prev.warmup) };
-    const previous = lastWarmupOn(prev.warmup, w.plan.focus, Date.now());
-    const done = finishWarmup(next, w.plan, reps, w.calibration, w.day, stopped);
-    profileRef.current = next;
-    setProfile(next);
-    setWarmSummary({ session: done.session, ...done.streak, streak: next.warmup.streak, previous });
-    setResults(null);
-    setRankUp(null);
-    rankToken.current++;
-    setFlow(null);
-    setRouteNow('warmup');
-    audio.play('personalBest');
-  }, []);
 
   const exitToMenu = useCallback(() => {
-    // Leaving a warm-up after its two sets still counts: those were the
-    // point of it. Leaving before them is simply leaving.
-    if (flow?.warm && flow.warm.reps.filter(Boolean).length >= 2) {
-      finishWarm(flow.warm, 'left');
-      return;
-    }
-    // Back on PLAY, the card you just played is the one in view. A run
-    // started from the warm-up screen goes back there instead, untouched.
-    if (flow && routeRef.current === 'practice') revealDrill(flow.drill);
+    // Back on PLAY or PRACTICE, the card you just played is the one in view.
+    if (flow && (routeRef.current === 'play' || routeRef.current === 'practice')) revealDrill(flow.drill);
     setResults(null);
     setRankUp(null);
     rankToken.current++;
     setFlow(null);
     audio.play('uiBack');
-  }, [flow, finishWarm]);
+  }, [flow]);
 
   /**
    * The other mode of the run you just played, without going back to the menu.
@@ -702,40 +754,14 @@ export function App() {
     // rather than one this client shipped with.
     if (flow.playlist) {
       const pl = flow.playlist;
-      const index = (pl.index + 1) % pl.items.length;
-      const id = pl.items[index];
+      const last = pl.index + 1 >= pl.items.length;
+      // Round again from the top, with a clean sheet of scores.
+      const index = last ? 0 : pl.index + 1;
       setResults(null);
       setRankUp(null);
       rankToken.current++;
       setBenchNote(null);
-      setFlow({
-        drill: id,
-        mode: 'play',
-        seed: newSeed(),
-        ...(id === 'lanePhase' ? laneQuickOpts : {}),
-        playlist: { ...pl, index },
-      });
-      return;
-    }
-    if (flow.warm) {
-      const w = flow.warm;
-      const next = warmNext(w);
-      if (next === null) {
-        finishWarm(w, w.step === 2 && warmStops(w) ? 'rule' : null);
-        return;
-      }
-      const step = w.plan.steps[next];
-      setResults(null);
-      setRankUp(null);
-      rankToken.current++;
-      setFlow({
-        drill: step.drill ?? w.plan.focus,
-        mode: 'play',
-        seed: newSeed(),
-        difficulty: step.difficulty,
-        level: step.level,
-        warm: { ...w, step: next },
-      });
+      setFlow(playlistFlow(last ? { ...pl, scores: [], counted: false } : pl, index));
       return;
     }
     // A benchmark's "next" is the next row of the sheet, the way a KovaaK's
@@ -747,7 +773,15 @@ export function App() {
         setRankUp(null);
         rankToken.current++;
         setBenchNote(null);
-        setFlow({ drill: nb.drill, mode: 'play', seed: nb.seed, fixedSeed: true, difficulty: BENCH_DIFFICULTY, bench: nb.id });
+        setFlow({
+          drill: nb.drill,
+          mode: 'play',
+          seed: nb.seed,
+          fixedSeed: true,
+          difficulty: BENCH_DIFFICULTY,
+          duration: BENCH_SECONDS,
+          bench: nb.id,
+        });
         return;
       }
     }
@@ -760,7 +794,7 @@ export function App() {
     rankToken.current++;
     setBenchNote(null);
     setFlow({ drill: pick.drill, mode: 'play', seed: newSeed(), ...pick.opts });
-  }, [flow, finishWarm]);
+  }, [flow, playlistFlow]);
 
   /**
    * The other shape of the run you just played, for a free run: SURVIVE after
@@ -776,7 +810,7 @@ export function App() {
     if (flow.drill === 'lanePhase') {
       const i = LANE_TIERS.findIndex((t) => t.id === laneTierOf(flow.difficulty ?? 0.32).id);
       const next = LANE_TIERS[Math.min(LANE_TIERS.length - 1, i + 1)];
-      setFlow({ ...fresh(flow), difficulty: next.difficulty, seed: newSeed() });
+      setFlow({ ...flow, difficulty: next.difficulty, seed: newSeed() });
       return;
     }
     // An infinite run's "next" is the rung it just found, played for score:
@@ -785,7 +819,7 @@ export function App() {
     if (flow.mode === 'infinite') {
       const held = clamp(Math.round(flow.heldLevel ?? flow.level ?? 1), 1, APM_LEVELS);
       setFlow({
-        ...fresh(flow),
+        ...flow,
         mode: 'play',
         level: held,
         difficulty: levelDifficulty(held),
@@ -798,28 +832,11 @@ export function App() {
     // the difficulty, so the only way to find out what the rung is actually
     // worth is to play it with the floor nailed down.
     if (flow.mode === 'surge') {
-      setFlow({ ...fresh(flow), mode: 'play', seed: newSeed() });
+      setFlow({ ...flow, mode: 'play', seed: newSeed() });
       return;
     }
-    setFlow({ ...fresh(flow), mode: flow.mode === 'play' ? 'survive' : 'play', seed: newSeed() });
+    setFlow({ ...flow, mode: flow.mode === 'play' ? 'survive' : 'play', seed: newSeed() });
   }, [flow]);
-
-  // ------------------------------------------------------------- warm-up
-
-  const startWarm = useCallback(
-    (plan: WarmupPlan, calibration: ReactionRun | null, day: DayRead) => {
-      setWarmSummary(null);
-      const first = plan.steps.findIndex((s) => s.drill);
-      const step = plan.steps[first];
-      if (!step?.drill) return;
-      startRun(step.drill, 'play', {
-        difficulty: step.difficulty,
-        level: step.level,
-        warm: { plan, step: first, reps: [], calibration, day },
-      });
-    },
-    [startRun],
-  );
 
   const onReaction = useCallback((test: ReactionTestId, run: ReactionRun) => {
     setProfile((p) => {
@@ -832,16 +849,7 @@ export function App() {
   const playBench = useCallback(
     (b: BenchScenario) => {
       if (!b.drill || b.seed === undefined) return;
-      startRun(b.drill, 'play', { difficulty: BENCH_DIFFICULTY, seed: b.seed, bench: b.id });
-    },
-    [startRun],
-  );
-
-  const playCode = useCallback(
-    (c: ScenarioCode) => {
-      // A pasted benchmark code is the benchmark, and records as one.
-      const b = c.mode === 'play' && Math.abs(c.difficulty - BENCH_DIFFICULTY) < 1e-6 ? benchFor(c.drill, c.seed) : null;
-      startRun(c.drill, c.mode, { difficulty: c.difficulty, seed: c.seed, bench: b?.id });
+      startRun(b.drill, 'play', { difficulty: BENCH_DIFFICULTY, duration: BENCH_SECONDS, seed: b.seed, bench: b.id });
     },
     [startRun],
   );
@@ -882,7 +890,7 @@ export function App() {
       const first = tour === 'first';
       setTour(null);
       openSection('drills');
-      setRouteNow('practice');
+      setRouteNow('play');
       if (first) startRun('apmPulse', 'play', { difficulty: levelDifficulty(1), level: 1 });
     },
     [tour, startRun],
@@ -897,13 +905,91 @@ export function App() {
   const doReset = useCallback(() => {
     resetProfile();
     setProfile(newProfile());
-    setRouteNow('practice');
+    setRouteNow('play');
     // A wiped profile has never been onboarded, so the walkthrough is the
     // right first screen again — the same one a new player gets.
     setTour('first');
   }, []);
 
   const rank = rankFromRating(profile.overall);
+
+  /** Whatever is drawn over the client: one dialog at a time. */
+  const renderModal = () => {
+    if (!modal) return null;
+    const close = () => setModal(null);
+    if (modal.kind === 'edit') {
+      const id = modal.id;
+      const save = (t: ActivityTuning) => {
+        const next = setTuning(profileRef.current, id, t);
+        profileRef.current = next;
+        setProfile(next);
+        setModal(null);
+      };
+      return (
+        <ActivityEditor
+          key={`edit-${id}`}
+          id={id}
+          initial={tuningOf(profile, id)}
+          eyebrow={modal.justStarred ? '★ starred — now make it yours' : 'your favourite, your way'}
+          onSave={save}
+          onSaveAndPlay={(t) => {
+            save(t);
+            playFavorite(id, t);
+          }}
+          onClose={close}
+        />
+      );
+    }
+    if (modal.kind === 'editItem') {
+      const pl = profile.playlists.find((x) => x.id === modal.playlist);
+      const id = pl?.items[modal.index];
+      if (!pl || !id) return null;
+      return (
+        <ActivityEditor
+          key={`item-${pl.id}-${modal.index}`}
+          id={id}
+          initial={pl.tunings[modal.index] ?? defaultTuning(id)}
+          title="EDIT PLAYLIST ITEM"
+          eyebrow={`${pl.name} · ${modal.index + 1} of ${pl.items.length} · this playlist only`}
+          onSave={(t) => {
+            const tunings = [...pl.tunings];
+            tunings[modal.index] = t;
+            editPlaylist(pl.id, pl.items, tunings);
+            setModal(null);
+          }}
+          onClose={close}
+        />
+      );
+    }
+    if (modal.kind === 'share') {
+      const pl = profile.playlists.find((x) => x.id === modal.playlist);
+      if (!pl) return null;
+      const shared = { name: pl.name, items: pl.items, tunings: pl.tunings };
+      return <ShareDialog playlist={shared} code={encodePlaylist(shared)} onClose={close} />;
+    }
+    const shared = modal.shared;
+    // Saved first either way, so a friend's playlist is kept — and counted
+    // when it is finished — whether it is played now or later.
+    const keep = (): Playlist => {
+      const next = createPlaylist(profileRef.current, shared.name, shared.items, shared.tunings);
+      profileRef.current = next;
+      setProfile(next);
+      setModal(null);
+      return next.playlists[next.playlists.length - 1];
+    };
+    return (
+      <ImportDialog
+        playlist={shared}
+        onSave={() => {
+          keep();
+          audio.play('uiClick');
+          openSection('favorites');
+        }}
+        onSaveAndPlay={() => playPlaylist(keep())}
+        onClose={close}
+      />
+    );
+  };
   // Only ever shown to browsers that actually ship gestures, and only until
   // it has been read once.
   const showGestureNotice = useMemo(
@@ -913,12 +999,12 @@ export function App() {
 
   /**
    * What "next" means after a free run: the coach's next pick, never the drill
-   * just played. Null inside a warm-up, a playlist or a benchmark sheet, which
-   * each have a next of their own.
+   * just played. Null inside a playlist or a benchmark sheet, which each have
+   * a next of their own.
    */
   const freeNext = useMemo(
     () =>
-      results && flow && !flow.warm && !flow.playlist && !(flow.bench && nextBench(flow.bench))
+      results && flow && !flow.playlist && !(flow.bench && nextBench(flow.bench))
         ? pickNext(profile, flow.drill)
         : null,
     // The pick is read once per results screen, off the profile the run wrote.
@@ -932,9 +1018,8 @@ export function App() {
     return (
       <>
         <GameView
-          key={`${flow.drill}-${flow.mode}-${flow.seed}-${flow.rewinds ?? 0}`}
-          rewind={flow.rewind ?? null}
-          onRewind={onRewind}
+          key={`${flow.drill}-${flow.mode}-${flow.seed}`}
+          tuning={runTuningOf(flow.tuning)}
           taught={profile.taught}
           onTaught={onTaught}
           drill={flow.drill}
@@ -953,7 +1038,7 @@ export function App() {
                   ? `${DRILLS[flow.drill].name} · SURGE · from level ${flow.level ?? 1}`
                   : `${DRILLS[flow.drill].name} · ${RUN_MODES[flow.mode].label}`) +
             (flow.playlist ? ` · ${flow.playlist.name} · ${flow.playlist.index + 1}/${flow.playlist.items.length}` : '') +
-            (flow.rewinds ? ` · REWOUND ×${flow.rewinds} · PRACTICE ONLY` : '')
+            (flow.custom ? ' · CUSTOM · PRACTICE ONLY' : '')
           }
           onComplete={handleComplete}
           onExit={exitToMenu}
@@ -970,28 +1055,26 @@ export function App() {
             onNext={nextStep}
             onAlt={freeNext ? altMode : undefined}
             code={
-              flow.warm || flow.mode === 'infinite' || flow.mode === 'surge' || flow.playlist
+              flow.custom || flow.mode === 'infinite' || flow.mode === 'surge' || flow.playlist
                 ? null
                 : encodeScenario({ drill: flow.drill, mode: flow.mode, difficulty, seed: flow.seed })
             }
             banner={
-              flow.rewinds
-                ? {
-                    eyebrow: `Rewound ×${flow.rewinds} · practice`,
-                    line: 'Scored for you to see, and written to nothing — no record, ladder, rating or benchmark moved. Run again for one that counts.',
-                    tone: 'warn',
-                  }
-                : flow.warm
-                  ? warmBanner(flow.warm)
-                  : flow.playlist
-                    ? playlistBanner(flow.playlist)
-                    : benchNote
+              flow.playlist
+                ? playlistBanner(flow.playlist, !!flow.custom)
+                : flow.custom
+                  ? {
+                      eyebrow: 'Custom settings · practice',
+                      line: 'Played on your own length, speed or target size: scored for you to see, and written to nothing — no record, ladder or rating moved.',
+                      tone: 'warn',
+                    }
+                  : benchNote
             }
             nextLabel={
-              flow.warm
-                ? warmNextLabel(flow.warm)
-                : flow.playlist
-                  ? `Next: ${DRILLS[flow.playlist.items[(flow.playlist.index + 1) % flow.playlist.items.length]].name}`
+              flow.playlist
+                ? flow.playlist.index + 1 >= flow.playlist.items.length
+                  ? `Finish · play ${flow.playlist.name} again`
+                  : `Next ${flow.playlist.index + 2}/${flow.playlist.items.length}: ${DRILLS[flow.playlist.items[flow.playlist.index + 1]].name}`
                 : flow.bench && nextBench(flow.bench)
                   ? `Next benchmark: ${nextBench(flow.bench)?.label}`
                 : freeNext
@@ -1083,6 +1166,25 @@ export function App() {
                   do once and then forget about. */}
               {/* The walkthrough, on a button, forever. A tour you can only
                   ever see once is a tour nobody trusts themselves to skip. */}
+              {/* STUDY: every champion in League, as a quiz and a reference.
+                  In the corner rather than the bar, so the bar is the three
+                  things you play — and still one click from anywhere. */}
+              <button
+                className={`gear-chip study-chip${route === 'study' ? ' on' : ''}`}
+                title="Study every champion: passives, abilities, cooldowns, ranges, matchups"
+                aria-label="Study"
+                onMouseEnter={() => audio.play('uiHover')}
+                onClick={() => {
+                  audio.play('uiTab');
+                  setRoute('study');
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+                  <path d="M3 5.5C5.8 4.3 8.9 4.4 12 6c3.1-1.6 6.2-1.7 9-.5v13c-2.8-1.2-5.9-1.1-9 .5-3.1-1.6-6.2-1.7-9-.5z" />
+                  <path d="M12 6v13" />
+                </svg>
+                <span>STUDY</span>
+              </button>
               <button
                 className="help-chip"
                 title="How this works — the walkthrough again"
@@ -1149,37 +1251,31 @@ export function App() {
           <ErrorBoundary
             key={`route-${route}`}
             what={NAV.find((n) => n.route === route)?.label ?? 'This screen'}
-            onExit={() => setRoute('practice')}
-            exitLabel="Back to practice"
+            onExit={() => setRoute('play')}
+            exitLabel="Back to PLAY"
           >
-            {route === 'warmup' && (
-              <WarmUp
-                profile={profile}
-                settings={profile.settings}
-                summary={warmSummary}
-                onDismissSummary={() => setWarmSummary(null)}
-                onStart={startWarm}
-                onReaction={onReaction}
-                onBench={playBench}
-                onCode={playCode}
-                onBack={() => setRoute('practice')}
-              />
-            )}
-            {route === 'practice' && (
+            {route === 'play' && (
               <Practice
                 profile={profile}
                 settings={profile.settings}
                 onPlay={startRun}
                 onFixControls={() => setRoute('settings')}
-                onOpenWarmup={() => setRoute('warmup')}
                 onToggleStar={toggleStar}
-                onPlayPlaylist={playPlaylist}
+                onPlayFavorite={(id) => playFavorite(id)}
+                onEditFavorite={(id) => setModal({ kind: 'edit', id, justStarred: false })}
+                onPlayPlaylist={(pl: Playlist) => playPlaylist(pl)}
                 onCreatePlaylist={addPlaylist}
                 onDeletePlaylist={removePlaylist}
                 onRenamePlaylist={relabelPlaylist}
                 onSetPlaylistItems={editPlaylist}
-                keysLive={!tour}
+                onEditPlaylistItem={(id, index) => setModal({ kind: 'editItem', playlist: id, index })}
+                onSharePlaylist={(id) => setModal({ kind: 'share', playlist: id })}
+                onCode={openCode}
+                keysLive={!tour && !modal}
               />
+            )}
+            {route === 'practice' && (
+              <PracticeScreen profile={profile} settings={profile.settings} onPlay={startRun} onToggleStar={toggleStar} />
             )}
             {route === 'study' && <Study />}
             {route === 'progress' && (
@@ -1194,17 +1290,21 @@ export function App() {
                 // mechanics; the menu only offers Vayne, so a "fix this" button
                 // starts the mode that trains the thing it named.
                 onPlay={(id) => startRun(practiceFor(id), 'play')}
+                measurements={
+                  <Benchmarks profile={profile} settings={profile.settings} onReaction={onReaction} onBench={playBench} />
+                }
               />
             )}
             {route === 'settings' && (
-              <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('practice')} />
+              <Settings settings={profile.settings} onChange={patchSettings} onBack={() => setRoute('play')} />
             )}
             {route === 'patch' && (
-              <PatchNotes seen={profile.seenVersion} onRead={markPatchRead} onBack={() => setRoute('practice')} />
+              <PatchNotes seen={profile.seenVersion} onRead={markPatchRead} onBack={() => setRoute('play')} />
             )}
           </ErrorBoundary>
         </div>
       )}
+      {booted && !tour && modal && renderModal()}
     </div>
   );
 }
@@ -1251,65 +1351,26 @@ const formatHead = (v: number, f: string): string => {
   return `${Math.round(v)}`;
 };
 
-/** The banner a playlist run shows: which queue, and where in it. */
-const playlistBanner = (pl: NonNullable<Flow['playlist']>): { eyebrow: string; line: string } => ({
-  eyebrow: `Playlist · ${pl.name}`,
-  line: `${pl.index + 1} of ${pl.items.length} — ${DRILLS[pl.items[pl.index]].name}`,
-});
+/**
+ * The banner a playlist run shows: which queue, and where in it — and on the
+ * last item, the whole way through, score by score.
+ */
+const playlistBanner = (pl: PlaylistFlow, custom: boolean): { eyebrow: string; line: string; tone?: 'good' | 'warn' } => {
+  const last = pl.index + 1 >= pl.items.length;
+  const tag = custom ? ' · custom settings, written to nothing' : '';
+  if (!last) return { eyebrow: `Playlist · ${pl.name}`, line: `${pl.index + 1} of ${pl.items.length} — ${DRILLS[pl.items[pl.index]].name}${tag}` };
+  const scores = pl.items.map((id, i) => `${DRILLS[id].name} ${(pl.scores[i] ?? 0).toLocaleString('en-US')}`);
+  const total = pl.scores.reduce<number>((n, v) => n + (v ?? 0), 0);
+  return {
+    eyebrow: `Playlist complete · ${pl.name}`,
+    line: `All ${pl.items.length} done — ${scores.join(' · ')}. Total ${total.toLocaleString('en-US')}.${custom ? ' This last one was on custom settings: written to nothing.' : ''}`,
+    tone: 'good',
+  };
+};
 
 /** The benchmark row after this one, wrapping, skipping the reaction rows. */
 const nextBench = (id: string): BenchScenario | null => {
   const rows = BENCH_SCENARIOS.filter((b) => b.kind === 'drill');
   const i = rows.findIndex((b) => b.id === id);
   return i < 0 ? null : rows[(i + 1) % rows.length];
-};
-
-// ------------------------------------------------------------ warm-up steps
-
-/** Whether the stop rule fires on this warm-up's two sets. */
-const warmStops = (w: WarmState): boolean => shouldStop(w.reps[1]?.performance, w.reps[2]?.performance, w.day);
-
-/** The next step to play, or null when the routine is over. */
-const warmNext = (w: WarmState): number | null => {
-  if (w.step === 2 && warmStops(w)) return null;
-  const n = w.step + 1;
-  return n < w.plan.steps.length ? n : null;
-};
-
-const warmNextLabel = (w: WarmState): string => {
-  const n = warmNext(w);
-  if (n === null) return w.step === 2 && warmStops(w) ? 'Stop here — finish the warm-up' : 'Finish the warm-up';
-  const s = w.plan.steps[n];
-  const runs = w.plan.steps.filter((x) => x.drill).length;
-  const at = w.plan.steps.slice(0, n + 1).filter((x) => x.drill).length;
-  return `Next ${at}/${runs}: ${s.label} · ${s.drill ? drillName(s.drill) : ''}`;
-};
-
-const warmBanner = (w: WarmState): { eyebrow: string; line: string; tone?: 'good' | 'warn' } => {
-  const s = w.plan.steps[w.step];
-  const runs = w.plan.steps.filter((x) => x.drill).length;
-  const at = w.plan.steps.slice(0, w.step + 1).filter((x) => x.drill).length;
-  const eyebrow = `Warm-up · ${at} of ${runs} · ${s.label}`;
-  const a = w.reps[1];
-  const b = w.reps[2];
-  if (w.step === 2 && a && b) {
-    const d = Math.round((b.performance - a.performance) * 100);
-    if (warmStops(w))
-      return {
-        eyebrow,
-        line: `Set 2 was ${-d} points under set 1, on a slow day. That is tiredness, not practice — the routine stops here, and it counts.`,
-        tone: 'warn',
-      };
-    return {
-      eyebrow,
-      line:
-        d > 0
-          ? `Set 2 beat set 1 by ${d} performance point${d === 1 ? '' : 's'}.`
-          : d === 0
-            ? 'Set 2 matched set 1 exactly.'
-            : `Set 2 was ${-d} point${d === -1 ? '' : 's'} under set 1 — normal variance on its own; carry on.`,
-      tone: d > 0 ? 'good' : undefined,
-    };
-  }
-  return { eyebrow, line: s.reason };
 };

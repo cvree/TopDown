@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, type DrillId } from '../drills/catalog';
 import { formatMetric, type Profile } from '../progression/profile';
@@ -42,9 +42,11 @@ interface Props {
   onPlay: (id: DrillId) => void;
   /** Records that have now been seen landing, so they never land again. */
   onRecordsSeen?: (seen: number[]) => void;
+  /** The reaction tests and the benchmark sheet, drawn by the shell. */
+  measurements?: ReactNode;
 }
 
-export function Progress({ profile, onRename, onReset, onPlay, onRecordsSeen }: Props) {
+export function Progress({ profile, onRename, onReset, onPlay, onRecordsSeen, measurements }: Props) {
   const rank = rankFromRating(profile.overall);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(profile.name);
@@ -575,6 +577,9 @@ export function Progress({ profile, onRename, onReset, onPlay, onRecordsSeen }: 
             </table>
           )}
         </section>
+
+        {/* ------------------------------------ reaction tests · benchmarks */}
+        {measurements}
 
         {/* -------------------------------------------------- other tracks */}
         <section className="prof-tracks">

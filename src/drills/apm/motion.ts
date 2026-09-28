@@ -83,13 +83,22 @@ export class PadMotion {
    */
   private t = 0;
 
+  /** Pads already sized, so a pad put back into the field is not grown twice. */
+  private sized = new WeakSet<Pad>();
+
   constructor(
     private readonly bounds: { w: number; h: number },
     private readonly rng: Rng,
+    /** A favourite's target size, applied to every pad as it joins the field. */
+    private readonly scale = 1,
   ) {}
 
   /** Puts a pad into the field. Returns it, so calls can be chained inline. */
   add(pad: Pad, drift: Drift = 'wander'): Pad {
+    if (this.scale !== 1 && !this.sized.has(pad)) {
+      pad.radius *= this.scale;
+      this.sized.add(pad);
+    }
     const a = this.rng.angle();
     this.tracks.push({
       pad,

@@ -4,11 +4,11 @@ import { DRILLS, type DrillId } from '../drills/catalog';
 import { isApmDrill, levelStars } from '../progression/apm';
 import { LANE_TIERS } from '../progression/lane';
 import type { AppSettings, Playlist, Profile } from '../progression/profile';
-import { streakState } from '../progression/warmup';
+import { isEdited } from '../progression/tuning';
 import { cardClickStarts } from './components/cardStart';
 import { ModePreview } from './components/ModePreview';
 import { Trend } from './components/Trend';
-import { STALE_DAYS, daysSince, freshBest, recentScores, runsOf, startSpec, type NextPick, type StartSpec } from './playNext';
+import { STALE_DAYS, daysSince, freshBest, recentScores, runsOf, type NextPick, type StartSpec } from './playNext';
 import './playhero.css';
 
 /**
@@ -25,9 +25,7 @@ import './playhero.css';
  *  - **PLAY NEXT.** The only gold button on the screen. Enter and Space press
  *    it from anywhere on PLAY that is not already a control.
  *  - **Yours.** Everything you have starred and every playlist you have built,
- *    one click each, beside it — and the warm-up, as a chip rather than a
- *    banner, because it is one thing you might start rather than the thing
- *    standing in front of all of them.
+ *    one click each, beside it — each star played on the settings you gave it.
  */
 export function PlayHero({
   profile,
@@ -35,15 +33,16 @@ export function PlayHero({
   pick,
   onStart,
   onPlayPlaylist,
-  onOpenWarmup,
+  onPlayFavorite,
   onOpenFavorites,
 }: {
   profile: Profile;
   settings: AppSettings;
   pick: NextPick;
   onStart: (spec: StartSpec) => void;
-  onPlayPlaylist: (name: string, items: DrillId[]) => void;
-  onOpenWarmup: () => void;
+  onPlayPlaylist: (pl: Playlist) => void;
+  /** A starred activity, on its own edited settings. */
+  onPlayFavorite: (id: DrillId) => void;
   /** The full shelf — every starred card, and the playlist editor. */
   onOpenFavorites: () => void;
 }) {
@@ -95,13 +94,7 @@ export function PlayHero({
         </div>
       </section>
 
-      <Shelf
-        profile={profile}
-        onStart={onStart}
-        onPlayPlaylist={onPlayPlaylist}
-        onOpenWarmup={onOpenWarmup}
-        onOpenFavorites={onOpenFavorites}
-      />
+      <Shelf profile={profile} onPlayFavorite={onPlayFavorite} onPlayPlaylist={onPlayPlaylist} onOpenFavorites={onOpenFavorites} />
     </div>
   );
 }
@@ -162,27 +155,26 @@ function RecordLine({ profile, pick }: { profile: Profile; pick: NextPick }) {
  */
 function Shelf({
   profile,
-  onStart,
+  onPlayFavorite,
   onPlayPlaylist,
-  onOpenWarmup,
   onOpenFavorites,
 }: {
   profile: Profile;
-  onStart: (spec: StartSpec) => void;
-  onPlayPlaylist: (name: string, items: DrillId[]) => void;
-  onOpenWarmup: () => void;
+  onPlayFavorite: (id: DrillId) => void;
+  onPlayPlaylist: (pl: Playlist) => void;
   onOpenFavorites: () => void;
 }) {
   const stars = profile.stars.filter((id) => DRILLS[id]);
   const lists = profile.playlists.filter((pl: Playlist) => pl.items.length > 0);
   return (
     <nav className="pr-shelf" aria-label="Your starred drills and playlists">
-      <WarmupChip profile={profile} onOpen={onOpenWarmup} />
       {stars.map((id) => {
         const m = DRILLS[id];
         const days = daysSince(profile, id);
         const note = freshBest(profile, id)
           ? { text: 'NEW BEST', cls: 'best' }
+          : isEdited(id, profile.tunings?.[id])
+            ? { text: 'your settings', cls: '' }
           : days !== null && days >= STALE_DAYS
             ? { text: `${days} days ago`, cls: 'stale' }
             : days === null
@@ -198,7 +190,7 @@ function Shelf({
             onMouseEnter={() => audio.play('uiHover')}
             onClick={() => {
               audio.play('uiClick');
-              onStart(startSpec(profile, id));
+              onPlayFavorite(id);
             }}
           >
             <span className="pr-chip-mark" aria-hidden>
@@ -220,7 +212,7 @@ function Shelf({
           onMouseEnter={() => audio.play('uiHover')}
           onClick={() => {
             audio.play('uiClick');
-            onPlayPlaylist(pl.name, pl.items);
+            onPlayPlaylist(pl);
           }}
         >
           <span className="pr-chip-mark" aria-hidden>
@@ -249,41 +241,5 @@ function Shelf({
         </span>
       </button>
     </nav>
-  );
-}
-
-/**
- * THE WARM-UP, AS A CHIP.
- *
- * It was a whole tab once, then a full-width card above the rail. It is one
- * chip on the shelf now: the streak, and the way in.
- */
-function WarmupChip({ profile, onOpen }: { profile: Profile; onOpen: () => void }) {
-  const w = profile.warmup;
-  const today = new Date();
-  const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const { state } = streakState(w, key);
-  const done = state === 'done';
-  return (
-    <button
-      type="button"
-      className={`pr-chip pr-chip-warm${done ? ' done' : ''}`}
-      title="The warm-up: reaction check · two sets on yesterday's mistake · a lab bench · benchmarks"
-      onMouseEnter={() => audio.play('uiHover')}
-      onClick={() => {
-        audio.play('uiTab');
-        onOpen();
-      }}
-    >
-      <span className="pr-chip-mark mono" aria-hidden>
-        {w.streak}
-      </span>
-      <span className="pr-chip-text">
-        <b>{done ? 'WARM UP AGAIN' : 'WARM UP'}</b>
-        <i>
-          {w.streak} day{w.streak === 1 ? '' : 's'} in a row
-        </i>
-      </span>
-    </button>
   );
 }

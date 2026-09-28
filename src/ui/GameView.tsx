@@ -12,8 +12,8 @@ import {
   type Bindings,
   type MovementScheme,
 } from '../engine/input';
-import { GameLoop, SIM_DT, SIM_HZ } from '../engine/loop';
-import { REWIND_LONG_SECONDS, REWIND_SECONDS, Replayer, Tape, TapeInput, TapeView } from '../engine/tape';
+import { GameLoop } from '../engine/loop';
+import { Tape, TapeInput, TapeView } from '../engine/tape';
 import { derive } from '../engine/metrics';
 import { clearPaint, newPaint } from '../engine/paint';
 import { ABILITY_BAR, RANGE_CHECK_SECONDS, Session, type HudSnapshot } from '../engine/session';
@@ -24,6 +24,7 @@ import { MAP_KEYS, ORDER_LABEL, keysAtLevel, ordersAtLevel } from '../drills/apm
 import { RUN_MODES, SURVIVE_STRIKES, durationFor, hasMovingFloor, type RunMode } from '../drills/modes';
 import { difficultyLevel } from '../progression/apmladder';
 import type { AppSettings, RunResult } from '../progression/profile';
+import type { RunTuning } from '../progression/tuning';
 import { Minimap } from './hud/Minimap';
 import { Settings } from './Settings';
 import { isCalm } from './motion';
@@ -31,7 +32,7 @@ import './gameview.css';
 
 interface Props {
   drill: DrillId;
-  /** PLAY is a one-minute rep; SURVIVE runs until it beats you. */
+  /** PLAY is a thirty-second rep; SURVIVE runs until it beats you. */
   mode: RunMode;
   difficulty: number;
   /**
@@ -60,16 +61,11 @@ interface Props {
   onExit: () => void;
   onRetry: () => void;
   /**
-   * Start this run somewhere other than the beginning: the first `steps`
-   * recorded steps of `tape`, rebuilt, then handed back to the player.
+   * A favourite's own settings, as the player edited them: how fast the whole
+   * arena runs, how big every target is, and the vision and range overrides.
+   * Absent for every standard run.
    */
-  rewind?: { tape: Tape; steps: number; still?: string | null } | null;
-  /**
-   * The player asked to go back. The shell remounts the run with `rewind` set,
-   * carrying a still of the arena at the moment of asking so the rebuild can
-   * be shown as the run scrubbing backwards rather than as a loading bar.
-   */
-  onRewind?: (tape: Tape, steps: number, still: string | null) => void;
+  tuning?: RunTuning | null;
   /** The rules this profile has already been told, so a teaching banner is said once per player. */
   taught?: readonly string[];
   onTaught?: (key: string) => void;
@@ -329,8 +325,7 @@ export function GameView({
   onComplete,
   onExit,
   onRetry,
-  rewind = null,
-  onRewind,
+  tuning = null,
   taught,
   onTaught,
 }: Props) {
@@ -354,16 +349,8 @@ export function GameView({
   // reach the arena until the next run — which is exactly the complaint that
   // put a settings panel on the pause screen in the first place.
   const sessionRef = useRef<Session | null>(null);
-  /** Rewind, as the pause menu calls it: seconds back. */
-  const rewindRef = useRef<((seconds: number) => void) | null>(null);
-  const onRewindRef = useRef(onRewind);
-  onRewindRef.current = onRewind;
   const onTaughtRef = useRef(onTaught);
   onTaughtRef.current = onTaught;
-  /** Rebuild progress while a rewind replays, 0..1, or null when live. */
-  const [rebuilding, setRebuilding] = useState<number | null>(rewind ? 0 : null);
-  /** The scrub is leaving: the rebuilt arena is showing through it. */
-  const [scrubOut, setScrubOut] = useState(false);
   const inputRef = useRef<InputSystem | null>(null);
   const rendererRef = useRef<RiftRenderer | null>(null);
   const settingsRef = useRef(settings);
@@ -414,7 +401,11 @@ export function GameView({
   // screen has to read the binding instead of promising a key that may have
   // moved.
   const resetKey = codeLabel(bindingsFor(settings, drill).reset.primary);
-  const rewindKey = codeLabel(bindingsFor(settings, drill).rewind.primary);
+  // A favourite's edit. Speed is the simulation's clock against the wall's,
+  // so the run length is scaled with it: thirty seconds on the setting is
+  // thirty seconds of your evening at any speed.
+  const speed = tuning?.speed ?? 1;
+  const simDuration = duration > 0 ? duration * speed : 0;
 
   // Everything below lives outside React on purpose: the simulation must not
   // be driven by, or wait on, a render pass.
@@ -467,17 +458,13 @@ export function GameView({
       scheme,
     });
     // The tape. Every simulated step's inputs are written to it, in world
-    // units, which is what lets the rewind key rebuild this run from its seed.
-    // A rewound run starts on a slice of the old tape, replaying, and goes live
-    // once the rebuild reaches the moment it was asked for.
+    // units, so the session only ever sees ground points and never a pixel.
     const toWorld = (x: number, y: number) => renderer.screenToWorld(x, y);
     const view = new TapeView(renderer);
-    const tin = rewind
-      ? new TapeInput(rewind.tape.slice(rewind.steps), null, null)
-      : new TapeInput(new Tape(), input, toWorld);
+    const tin = new TapeInput(new Tape(), input, toWorld);
     const session = new Session(
       {
-        duration,
+        duration: simDuration,
         mode,
         arena: bounds,
         seed,
@@ -489,7 +476,8 @@ export function GameView({
         bindings: bindingsFor(settings, drill),
         tumbleAim: settings.tumbleAim ?? 'hands',
         hero: settings.hero,
-        fogOfWar: settings.fogOfWar !== false,
+        fogOfWar: tuning?.fog ?? settings.fogOfWar !== false,
+        targetScale: tuning?.size ?? 1,
         negativeFeedback: settings.negativeFeedback === true,
         taught: new Set(taught ?? []),
         onTaught: (key) => onTaughtRef.current?.(key),
@@ -506,45 +494,6 @@ export function GameView({
       if (session.phase === 'ended') return;
       session.abort();
     };
-    /**
-     * Rewind, asked for. It is carried out on the next drawn frame rather
-     * than now, because that is the one moment the arena's pixels can be
-     * read back: the still it takes is what the rebuild scrubs backwards over.
-     */
-    let rewindAsked: number | null = null;
-    const requestRewind = (seconds: number) => {
-      if (session.phase === 'ended' || tin.replaying || holdLeft > 0) return;
-      rewindAsked = seconds;
-    };
-    const carryOutRewind = () => {
-      if (rewindAsked === null) return;
-      const seconds = rewindAsked;
-      rewindAsked = null;
-      const steps = Math.max(0, tin.tape.length - Math.round(seconds * SIM_HZ));
-      let still: string | null = null;
-      try {
-        const w = 640;
-        const h = Math.max(1, Math.round((w * canvas.height) / Math.max(1, canvas.width)));
-        const snap = document.createElement('canvas');
-        snap.width = w;
-        snap.height = h;
-        const g = snap.getContext('2d');
-        if (g) {
-          g.drawImage(canvas, 0, 0, w, h);
-          g.drawImage(overlay, 0, 0, w, h);
-          still = snap.toDataURL('image/jpeg', 0.7);
-        }
-      } catch {
-        still = null;
-      }
-      audio.play('uiBack');
-      onRewindRef.current?.(tin.tape, steps, still);
-    };
-    session.onRewindRequest = () => requestRewind(REWIND_SECONDS);
-    rewindRef.current = requestRewind;
-    /** Seconds of stillness after a rewind, before the hands are yours. */
-    let holdLeft = 0;
-
     const paint = newPaint();
 
     // An opt-in handle for automated testing and for players who want to
@@ -611,9 +560,8 @@ export function GameView({
     let lastCount = '';
     let shownScore = 0;
     const calmHud = isCalm();
-    /** GO stays up a beat after the clock starts, and again when a rewind hands the run back. */
+    /** GO stays up a beat after the clock starts. */
     let goUntil = 0;
-    let goPending = false;
     let lastCountPhase: string = session.phase;
     let lastBannerSeq = -1;
     let lastBanner: string | null = null;
@@ -629,7 +577,8 @@ export function GameView({
       lastHudWrite = now;
       // In PLAY this counts down to the end of the minute; in SURVIVE it
       // counts up, because how long you lasted *is* the result.
-      const t = snap.timeLeft;
+      // A sped-up or slowed-down favourite reads in wall seconds, like its setting.
+      const t = snap.timeLeft / speed;
       elTime.textContent = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
       elTime.classList.toggle('urgent', duration > 0 && t < 5.5);
 
@@ -755,12 +704,10 @@ export function GameView({
       }
       // The start line. Each second is one numeral struck in, with a ring
       // closing on it over the second; GO lands, holds for a heartbeat, and
-      // the camera settles under it. A rewound run gets its GO when the
-      // hands are handed back rather than when the rebuild passes the start.
-      const started = lastCountPhase === 'countdown' && snap.phase === 'running' && !rewind;
+      // the camera settles under it.
+      const started = lastCountPhase === 'countdown' && snap.phase === 'running';
       lastCountPhase = snap.phase;
-      if (started || goPending) {
-        goPending = false;
+      if (started) {
         goUntil = now + 560;
         if (!isCalm()) renderer.settle();
       }
@@ -804,19 +751,6 @@ export function GameView({
 
     const loop = new GameLoop(
       (dt) => {
-        if (holdLeft > 0) {
-          // Frozen on the rewound moment, counting down to the handover. What
-          // is pressed meanwhile is thrown away, so the first input of the
-          // retake is one made after the count — except pause, which always
-          // works, and holds the count where it is.
-          const held = input.drain();
-          if (held.some((e) => e.kind === 'pause') && session.phase !== 'ended') session.togglePause();
-          if (session.phase === 'paused') return;
-          holdLeft -= dt;
-          session.banner = holdLeft > 0 ? `YOUR HANDS IN ${Math.ceil(holdLeft)}` : null;
-          if (holdLeft <= 0) goPending = true;
-          return;
-        }
         session.cursorWorld = tin.beginLive(renderer.screenToWorld(input.cursor.x, input.cursor.y));
         const before = session.elapsed;
         session.step(dt);
@@ -827,6 +761,8 @@ export function GameView({
         drillInstance.paint(paint, session.world.time);
 
         const live = settingsRef.current;
+        // A favourite can say when its range ring is drawn, over SETUP's answer.
+        const rangeShown = tuning?.range ?? live.rangeDisplay;
         // Settings can be opened from the pause screen, so the frame's taste
         // in punishment is read every frame rather than at construction: a
         // player who turns the red flashes off mid-run gets a run without
@@ -838,7 +774,7 @@ export function GameView({
           // buys, and a check is the camera-centre key. The two settings that
           // are not the default resolve to a constant.
           rangeReveal:
-            live.rangeDisplay === 'always' ? 1 : live.rangeDisplay === 'off' ? 0 : session.rangeCheckAlpha,
+            rangeShown === 'always' ? 1 : rangeShown === 'off' ? 0 : session.rangeCheckAlpha,
           hoverTargetId: session.hoverTargetId,
           pathTrail: session.pathTrail,
           chain: session.chain,
@@ -854,7 +790,6 @@ export function GameView({
           paint,
           idle: session.phase === 'countdown',
         });
-        carryOutRewind();
 
         const now = performance.now();
         writeHud(session.hud(loop.stats.fps), now);
@@ -951,48 +886,8 @@ export function GameView({
         }
       },
     );
-    let rebuildRaf = 0;
-    let scrubTimer = 0;
-    let silenced = false;
-    if (rewind) {
-      // Rebuild the run from its seed, a slice per frame, in silence and
-      // without shaking the camera, then freeze on the moment for a count.
-      silenced = !audio.muted;
-      audio.muted = true;
-      view.quiet = true;
-      const rp = new Replayer(session, tin, rewind.steps, SIM_DT);
-      let shown = -1;
-      const tick = () => {
-        const done = rp.advance(12);
-        const pct = Math.round(rp.progress * 100);
-        if (pct !== shown) {
-          shown = pct;
-          setRebuilding(rp.progress);
-        }
-        if (!done) {
-          rebuildRaf = requestAnimationFrame(tick);
-          return;
-        }
-        rebuildRaf = 0;
-        if (silenced) audio.muted = false;
-        silenced = false;
-        view.quiet = false;
-        session.fx.clear();
-        session.clearBanners();
-        tin.goLive(input, toWorld);
-        input.drain();
-        holdLeft = 1.5;
-        // The scrub lets go of the picture and the rebuilt arena shows
-        // through it, in colour, at the moment you asked for.
-        setRebuilding(1);
-        setScrubOut(true);
-        scrubTimer = window.setTimeout(() => setRebuilding(null), 340);
-        loop.start();
-      };
-      rebuildRaf = requestAnimationFrame(tick);
-    } else {
-      loop.start();
-    }
+    loop.timeScale = speed;
+    loop.start();
 
     // Browsers can take the GPU back — Opera GX's RAM and CPU limiters make it
     // markedly more likely than elsewhere. Unhandled, that is a black canvas
@@ -1009,10 +904,6 @@ export function GameView({
 
     return () => {
       loop.stop();
-      if (rebuildRaf) cancelAnimationFrame(rebuildRaf);
-      window.clearTimeout(scrubTimer);
-      if (silenced) audio.muted = false;
-      rewindRef.current = null;
       ro.disconnect();
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('webglcontextlost', onContextLost);
@@ -1027,7 +918,7 @@ export function GameView({
       if (debug) delete (window as unknown as { __apex?: unknown }).__apex;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drill, difficulty, seed, duration, mode]);
+  }, [drill, difficulty, seed, duration, mode, speed]);
 
   /**
    * Push a changed setting into the run that is already going.
@@ -1301,7 +1192,7 @@ export function GameView({
             key has to be visible for the whole run rather than in a hint row
             that fades — and the bar is the check burning down, so a player
             learns how long one lasts by watching one. */}
-        {settings.rangeDisplay === 'check' && (
+        {(tuning?.range ?? settings.rangeDisplay) === 'check' && (
           <div className="hud-check" data-check>
             <b className="kbd">{shortCodeLabel(bindingsFor(settings, drill).centerCamera.primary)}</b>
             <span>RANGE</span>
@@ -1334,38 +1225,6 @@ export function GameView({
         )}
       </div>
 
-      {/* THE REWIND. The arena as it was when you asked, drained of colour,
-          scrubbing backwards while the run is rebuilt from its seed under it;
-          the clock runs back to the moment you are being handed. Then the
-          still lets go and the live arena is there, in colour, waiting. */}
-      {rebuilding !== null && rewind && (
-        <div className={`rewind-scrub${scrubOut ? ' out' : ''}${rewind.still ? '' : ' plain'}`} aria-live="polite">
-          {rewind.still && <img className="rs-still" src={rewind.still} alt="" />}
-          <div className="rs-bands" aria-hidden>
-            <i />
-            <i />
-            <i />
-          </div>
-          <div className="rs-read">
-            <span className="rs-mark" aria-hidden>
-              ⟲
-            </span>
-            <b className="num">
-              {(() => {
-                const from = rewind.tape.length / SIM_HZ;
-                const to = rewind.steps / SIM_HZ;
-                const t = from + (to - from) * Math.max(0, Math.min(1, rebuilding));
-                const shown = duration > 0 ? Math.max(0, duration - t) : t;
-                return `${Math.floor(shown / 60)}:${String(Math.floor(shown % 60)).padStart(2, '0')}`;
-              })()}
-            </b>
-            <i className="rs-line">
-              <span style={{ transform: `scaleX(${Math.max(0, Math.min(1, rebuilding))})` }} />
-            </i>
-            <em>rewinding · what follows is practice</em>
-          </div>
-        </div>
-      )}
 
       {gpuLost && (
         <div className="pause-overlay fade-in">
@@ -1412,14 +1271,6 @@ export function GameView({
                   End run &amp; score
                 </button>
               )}
-              {/* Back to a moment of this run, rather than to its start. The
-                  run continues from there as practice — see the note. */}
-              <button className="btn" onClick={() => rewindRef.current?.(REWIND_SECONDS)}>
-                ⟲ {REWIND_SECONDS}s
-              </button>
-              <button className="btn" onClick={() => rewindRef.current?.(REWIND_LONG_SECONDS)}>
-                ⟲ {REWIND_LONG_SECONDS}s
-              </button>
               <button className="btn" onClick={openSetup}>
                 Settings
               </button>
@@ -1431,12 +1282,7 @@ export function GameView({
               </button>
             </div>
             <p className="pause-keys">
-              <kbd className="kbd">Esc</kbd> resume · <kbd className="kbd">{resetKey}</kbd> restart ·{' '}
-              <kbd className="kbd">{rewindKey}</kbd> rewind {REWIND_SECONDS}s
-            </p>
-            <p className="pause-keys dim">
-              A rewind rebuilds the run from its seed and hands it back to you at that moment. The rest of the run
-              is practice: it is scored for you to see, and not written to your records.
+              <kbd className="kbd">Esc</kbd> resume · <kbd className="kbd">{resetKey}</kbd> restart
             </p>
           </div>
         </div>

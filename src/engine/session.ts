@@ -205,6 +205,12 @@ export interface SessionConfig {
    */
   fogOfWar?: boolean;
   /**
+   * How big every target is, 1 being standard: enemy bodies, minions and the
+   * lab's pads. A favourite's edit, and only ever a custom run's — a record
+   * set on bigger targets is not written anywhere.
+   */
+  targetScale?: number;
+  /**
    * Whether the frame is allowed to punish you.
    *
    * The player's own setting, handed to the effect system on the first frame
@@ -333,6 +339,7 @@ export class Session {
     this.rng = new Rng(config.seed);
     this.world = new World(config.arena, this.rng);
     this.world.playerHero = config.hero ?? DEFAULT_HERO;
+    this.world.targetScale = config.targetScale ?? 1;
     this.fx.negative = config.negativeFeedback === true;
     this.flash = new FlashSpell(this, config.flashCd ?? FLASH_PRACTICE_CD);
     this.voice = new BannerVoice({ taught: config.taught, onTaught: config.onTaught });
@@ -670,10 +677,6 @@ export class Session {
         this.onResetRequest?.();
         continue;
       }
-      if (e.kind === 'rewind') {
-        this.onRewindRequest?.();
-        continue;
-      }
       if (this.phase !== 'running' || !player || !player.alive) continue;
 
       switch (e.kind) {
@@ -785,8 +788,6 @@ export class Session {
 
   /** Called by the shell so `R` can restart instantly from anywhere. */
   onResetRequest: (() => void) | null = null;
-  /** Called by the shell to rewind: rebuild the run a few seconds back. */
-  onRewindRequest: (() => void) | null = null;
 
   /**
    * A cast, with everything a cast is supposed to come with.

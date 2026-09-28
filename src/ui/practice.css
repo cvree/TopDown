@@ -1547,73 +1547,6 @@
   }
 }
 
-/* ============================================================ the warm-up entry
-
-   HOME used to be a whole tab. It is one button now, pinned above the rail —
-   the streak is never more than a glance away, and it is never the first
-   thing between a player and the drills either. */
-
-.pr-warmup-entry {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  width: 100%;
-  margin-bottom: 22px;
-  padding: 14px 20px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 209, 102, 0.28);
-  background: linear-gradient(90deg, rgba(255, 209, 102, 0.1), rgba(255, 209, 102, 0.02));
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-.pr-warmup-entry:hover {
-  border-color: rgba(255, 209, 102, 0.5);
-  background: linear-gradient(90deg, rgba(255, 209, 102, 0.16), rgba(255, 209, 102, 0.03));
-}
-.pr-warmup-entry-streak {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 64px;
-  padding-right: 16px;
-  border-right: 1px solid rgba(255, 209, 102, 0.25);
-}
-.pr-warmup-entry-streak b {
-  font-size: 22px;
-  color: #ffd166;
-}
-.pr-warmup-entry-streak i {
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: var(--text-3);
-  white-space: nowrap;
-}
-.pr-warmup-entry-label {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex: 1;
-  min-width: 0;
-}
-.pr-warmup-entry-label b {
-  font-size: 15px;
-  letter-spacing: 0.05em;
-}
-.pr-warmup-entry-label i {
-  font-size: 12px;
-  color: var(--text-3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pr-warmup-entry-go {
-  font-size: 18px;
-  color: #ffd166;
-}
-
 /* ============================================================ the star
 
    One button, on every activity in the client: a drill, a mode, the lane.
@@ -1781,6 +1714,97 @@
 }
 .pr-playlist-check input {
   accent-color: #ffe066;
+}
+
+/* A favourite's settings, under its record: what EDIT last said. */
+.pr-tuning {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+.pr-tuning.custom b {
+  color: var(--warn);
+  letter-spacing: 0.12em;
+}
+.pr-go-edit {
+  align-items: center;
+  justify-content: center;
+}
+.pr-go-edit:hover {
+  border-color: var(--c, var(--gold));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+}
+.pr-playlist-item-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pr-playlist-item-name i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+.pr-playlist-item-controls button.pr-playlist-edit {
+  width: auto;
+  padding: 0 8px;
+  letter-spacing: 0.12em;
+  font-size: 10px;
+}
+.pr-playlist-done {
+  margin: -6px 0 10px;
+  font-size: 11px;
+  color: var(--good);
+}
+
+/* ADD A CODE: one box for a friend's playlist or a scenario code. */
+.pr-code-row {
+  display: flex;
+  gap: 8px;
+}
+.pr-code-row input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--stroke);
+}
+.pr-code-err {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--danger);
+}
+
+@media (max-width: 520px) {
+  .pr-playlist-items li {
+    flex-wrap: wrap;
+  }
+  .pr-playlist-item-name {
+    flex: 1 1 calc(100% - 40px);
+  }
+  .pr-playlist-item-controls {
+    margin-left: auto;
+  }
+  .pr-playlist-head {
+    flex-wrap: wrap;
+  }
+}
+
+/* The PRACTICE tab: the champion switch with nothing above it but its name. */
+.pr-screen-head {
+  margin-bottom: 18px;
+}
+.pr-screen-head .pr-h1 {
+  margin: 0 0 6px;
+}
+.pr-screen-head p {
+  margin: 0;
+  font-size: 14px;
 }
 
 /* ============================================================ a phone, again

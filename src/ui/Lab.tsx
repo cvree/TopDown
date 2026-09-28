@@ -237,7 +237,7 @@ function BindWarning({
           arrows still move between them — the rungs above {ceiling} simply will not{' '}
           <i>start</i> until this is fixed, and each card names the key it is waiting on. That is
           the only thing in this section that has ever stopped a button, and it is here because
-          the alternative is a minute of being marked down for a press you have no key to make.
+          the alternative is thirty seconds of being marked down for a press you have no key to make.
         </p>
       )}
     </div>
@@ -317,11 +317,11 @@ function LabPanel({
         <div className="pr-legend">
           <span className="pr-legend-item" style={{ ['--c' as string]: '#58e0ff' }}>
             <b>PLAY</b>
-            <i>One minute at the level shown. The normal way to play — start here.</i>
+            <i>Thirty seconds at the level shown. The normal way to play — start here.</i>
           </span>
           <span className="pr-legend-item" style={{ ['--c' as string]: '#ff8a3d' }}>
             <b>▲ SURGE</b>
-            <i>One minute, but a good streak makes it harder. How far can you push before you drop it?</i>
+            <i>Thirty seconds, but a good streak makes it harder. How far can you push before you drop it?</i>
           </span>
           <span className="pr-legend-item" style={{ ['--c' as string]: '#c58bff' }}>
             <b>∞ ENDLESS</b>
@@ -330,7 +330,7 @@ function LabPanel({
         </div>
 
         <p className="dim pr-lead pr-panel-lead">
-          Each run lasts one minute and counts the presses you got <i>right</i> — a wrong key or
+          Each run lasts thirty seconds and counts the presses you got <i>right</i> — a wrong key or
           a wasted one scores nothing, so hammering the keyboard gives you the worst score here,
           not the best. Get several right in a row and they start counting for more.
         </p>
@@ -366,7 +366,7 @@ function LabPanel({
 
         <p className="set-note">
           <b>Nothing here is locked.</b> All ten levels of all thirteen drills are playable from
-          your very first minute — the only person who knows which one is worth your time is you.
+          your very first run — the only person who knows which one is worth your time is you.
           What it does instead is <b>remember</b>: every level keeps its own record, so a bad run
           on level 7 can never take away your best on level 6.
         </p>
@@ -651,7 +651,7 @@ function LabBench({
           disabled={blocked}
           onMouseEnter={() => audio.play('uiHover')}
           onClick={goSurge}
-          title={`${meta.name}: a SURGE run at level ${level}. One minute, and a good streak makes it harder.`}
+          title={`${meta.name}: a SURGE run at level ${level}. Thirty seconds, and a good streak makes it harder.`}
         >
           <span className="pr-inf-mark" aria-hidden>
             ▲

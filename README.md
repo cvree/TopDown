@@ -11,8 +11,9 @@ It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
 drawn on the ground where the thing it is about actually is.
 
-The top bar is four words: **HOME**, **PLAY**, **STUDY** and **PROGRESS**.
-**PLAY** is every card you can start, in four sections behind one rail —
+The top bar is three words: **PLAY**, **PRACTICE** and **PROGRESS**, with
+**STUDY**, setup and the patch notes in the corner.
+**PLAY** is every card you can start, in three sections behind one rail —
 **DRILLS**, then the three that are a champion. One of those is **THE LANE**:
 the first ten minutes of a game of League, at League's own numbers, against an
 enemy laner farming and trading on the other side of the wave. You pick the
@@ -20,11 +21,12 @@ opponent and the length; everything else is the game. Another is
 **PRACTICE** — the parts of that lane, rehearsed one at a time, behind a switch
 between the three champions: one distance, four pieces of Vayne and the opponent
 who shoots at her; nine stages of Twisted Fate's wheel; and nine stages of
-Katarina's daggers.
+Katarina's daggers. PRACTICE is also a tab of its own in the top bar, so a
+champion is one click from anywhere.
 Each mode has two ways to play it:
 
-- **PLAY** — one minute. The same minute every time, so a score means something
-  next to the one before it.
+- **PLAY** — thirty seconds. The same length every time, so a score means
+  something next to the one before it.
 - **SURVIVE** — no clock. It ramps as you last, and it ends when you die or
   when you have made that mode's own mistake three times. The result is how
   long you lasted.
@@ -58,13 +60,21 @@ a few questions later; a fact you know waits a day, then three, then a week,
 then longer. Behind the quiz is the reference: every champion's card, so a
 question you got wrong can be looked up instead of guessed at again.
 
-**HOME** is the first tab, and the one a returning player opens on. It is the
-warm-up — one button, ten minutes, built fresh each day out of your own mistakes, ending
-on one sentence to take into your next ranked game. It shares the screen with
-the four reaction tests, the benchmark sheet and a box for pasting a scenario
-code — the measurements the routine is built on. It is a button rather than a
-plan: nothing in the client waits on it, and skipping it costs nothing but the
-streak.
+**FAVORITES.** Star any card — a drill, a champion mode, the lane — and
+**EDIT ACTIVITY** opens on it: how long a run lasts, its level (or the lane's
+opponent), the game speed, the size of every target and pad, and whether the
+range ring and the fog of war are drawn. Your stars sit beside PLAY NEXT and
+play on those settings. A length, speed or target size no card offers makes it
+a *custom* run: scored so you can see it, and written to no record, ladder or
+rating. Stars string into **playlists** — each row keeps its own settings, and
+**SHARE** hands a friend a link that opens the client straight onto the
+playlist, or an `APX1.` code to paste under FAVORITES › ADD A CODE. The last
+item's results show the whole run through, score by score, and the playlist
+counts how many times it has been completed.
+
+**PROGRESS** holds the four reaction tests and the benchmark sheet beside
+everything else that says how you are doing. The daily warm-up routine that
+used to share a screen with them has been removed, and so has rewind.
 
 A new player gets one question first — mouse or W A S D — and a twenty-second
 hand test that sets the level every drill card opens on. Its last button starts
@@ -483,10 +493,11 @@ The lane itself has neither: it has an opponent and a length, both chosen on
 its card, because a lane is not a rep — the thing being measured is what
 happens over ten minutes rather than what your hands did in sixty seconds.
 
-**PLAY is one minute.** Every mode, every time. Night Hunter included: clearing
-the floor sends the next wave rather than ending the run, because a minute that
-finishes in eleven seconds is not a minute and cannot be compared with one that
-did not.
+**PLAY is thirty seconds.** Every mode, every time, unless a favourite's own
+edit says otherwise (and then it is a custom run, written to no record). Night
+Hunter included: clearing the floor sends the next wave rather than ending the
+run, because a run that finishes in eleven seconds cannot be compared with one
+that did not. Benchmarks keep their fixed minute: their tiers were cut on it.
 
 **SURVIVE has no clock.** Two things end it:
 
@@ -508,42 +519,12 @@ outlasted.
 A survive run keeps its own record, separate from the play score, because a
 score that grows simply by lasting is not the same measurement twice.
 
-## Warm up
+## Measurements
 
-The research this client is built on is blunt about three things. In League's
-own new-player data, practice spread across days went with better outcomes than
-the same practice crammed (PLOS ONE, 2022 — observational, so an association
-rather than a proof). A mechanic is learnt fastest in a block of the same thing
-and kept best when it has to survive among other demands. And feedback is worth
-most when it names one thing to do. The warm-up is those three findings with a
-button on them.
-
-### The routine
-
-| Step | What | Why |
-| --- | --- | --- |
-| **Calibrate** | SEE IT: five reactions to light | A thermometer. Measured the same way daily, reaction time moves with sleep and tiredness far more than with skill |
-| **Fix · set 1** | One minute of the mode that fixes the mistake you made most in the last two days | Yesterday's error, re-shown before anything new |
-| **Fix · set 2** | The same minute again | Blocked practice; the one score that matters today is this one against the last |
-| **Hands** | A lab bench at the rung you have not beaten — a different bench each day | The layer under every champion |
-| **Under pressure** | The same champion, with somebody against you | The only place the habit has to work |
-
-It ends on a summary — set two against set one, today's focus against the last
-warm-up on it, the thermometer against your normal — and one sentence written
-for the mistake in question, phrased as something to *do* in a ranked lane:
-*"Step off the line when the cast starts, not when the missile is in the
-air."*
-
-**The stop rule.** If set two is clearly worse than set one (twelve performance
-points or more) *and* the calibration was ten per cent or more off your own
-normal, the routine ends there and says so. Either half alone is ordinary —
-variance, or a cold morning — and together they are rehearsing tiredness. Both
-thresholds are ours; no paper hands them over, and the code says so.
-
-**The streak** counts any finished warm-up, including one that stopped early
-and one you left after the two sets. Every seven days in a row banks a freeze,
-up to two, and a freeze covers a missed day without asking. A streak that
-punishes hard enough to compete with ranked games is working against its owner.
+The reaction tests and the benchmark sheet live on **PROGRESS**. They used to
+share a screen with a daily warm-up routine; the routine has been removed, and
+these two — which were never part of it — moved to where the rest of your
+numbers are.
 
 ### Reaction tests
 
@@ -583,42 +564,26 @@ rank.
 
 Every results screen prints a code for the minute just played —
 `vayneTumble-P50-fl4ma-J`: the mode, PLAY or SURVIVE with its difficulty, the
-seed, and a check letter. Paste it on HOME and you get the same start: the
+seed, and a check letter. Paste it under PLAY › FAVORITES › ADD A CODE and you get the same start: the
 same spawns, the same wave, the same opening move from whoever is on the other
 side. After that they answer what *you* do, so two players on one code are on
 the same course rather than watching the same recording. A benchmark's code is
 the benchmark, and records as one.
 
-## Rewind
+## Sharing a playlist
 
-Press **Backspace** (rebindable), or ⟲ 3s / ⟲ 10s on the pause screen, and the
-run goes back to that moment and hands it to you — Tekken's replay takeover,
-for a lane. The count before your hands come back is a second and a half, and
-pause works during it.
+A playlist travels as one line of text: `APX1.` and a base64url JSON of its
+name and each activity with only the settings that differ from that
+activity's defaults. **SHARE** on a playlist prints it twice — as a link
+(`…/#playlist=APX1.…`) that opens the client straight onto an import prompt,
+and as the bare code for FAVORITES › ADD A CODE. Nothing is added until the
+friend says so; **PLAY IT NOW** saves it and starts the first activity with
+the sender's settings. A code is read back through the same sanitiser as a
+stored profile, so a hand-edited one can clamp but cannot break anything.
 
-There is no save state behind it, because there does not need to be one. The
-simulation is deterministic: one seed, a fixed 240 Hz step, every random
-number from a seeded generator. So every simulated step's inputs are written
-to a tape — the cursor, the held direction, and each command with its screen
-position already turned into ground — and a rewind remounts the run on the
-same seed and plays the tape back to the moment asked for. The session never
-sees a pixel, which is what keeps the camera out of the replay.
-
-`npm test` proves the property the whole feature rests on: seven modes are
-rebuilt from their tapes and compared with the original run, bit for bit, at
-5, 20 and 45 seconds, and the final scores are compared too. A practice mode
-rebuilds a full minute in about 120 ms; the lane costs more (about 13 ms per
-simulated second, with the fog grid — which only the renderer reads — skipped
-during the rebuild) and rebuilds in slices. While it does, the screen shows
-what is happening: the arena as it was when you asked, drained of colour,
-scrubbing backwards while the clock counts back to your moment — then the
-still lets go and the live arena is under it, in colour.
-
-**A rewound run is practice.** A run you can go back inside is a run whose
-score could be edited, so it is scored against a copy of your profile — the
-results screen shows everything — and written to nothing: no record, ladder,
-rating or benchmark moves. The HUD and the results screen both say so, and
-RUN AGAIN starts a fresh attempt that counts.
+The tape that records every run's inputs is still there — the simulation is
+deterministic and `npm test` still rebuilds runs from their tapes bit for bit
+— but the in-run rewind (Backspace, ⟲ 3s / ⟲ 10s) has been removed.
 
 ## The lane, read back
 

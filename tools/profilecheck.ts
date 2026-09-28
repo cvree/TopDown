@@ -16,6 +16,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { isDrillId, type DrillId } from '../src/drills/catalog';
+import { decodePlaylist, defaultTuning, encodePlaylist, isCustom, playlistLink } from '../src/progression/tuning';
 import { BootClock } from '../src/ui/boot/clock';
 import { MILESTONES, SHOWS, castBoot } from '../src/ui/boot/variants';
 import { isErrorCode } from '../src/progression/errors';
@@ -196,6 +197,20 @@ const hostileProfile = (): Record<string, unknown> => ({
     sessions: [null, { date: 'monday' }, { date: '2026-09-01', focus: 'notADrill', reps: [{ drill: 'vayneTumble', score: '9', performance: 4 }, null], day: 'weird' }],
   },
   bench: { range: { best: 'lots' }, tumble: { best: 50000, runs: 'two' }, notABench: { best: 1 } },
+  // Favourites and their edits, wrong in every way: a star that is not a
+  // drill, a tuning with every field out of range or the wrong type, and a
+  // playlist whose settings do not line up with its items.
+  stars: ['apmPulse', 'notADrill', 'lanePhase', 7],
+  tunings: {
+    apmPulse: { seconds: 99999, level: 44, speed: 'fast', size: -3, fog: 'maybe', range: 'always', tier: 'gold' },
+    lanePhase: { seconds: 'long', level: 3, tier: 'notATier' },
+    notADrill: { seconds: 30 },
+  },
+  playlists: [
+    { id: 'pl_a', name: 'MINE', items: ['notADrill', 'apmPulse', 'lanePhase'], tunings: [{ seconds: 5 }, { seconds: 45, speed: 1.5 }], completions: 'x' },
+    { id: 'pl_b', name: 'EMPTY', items: ['notADrill'] },
+    null,
+  ],
 });
 
 /* ---------------------------------------------------------------- helpers */
@@ -586,6 +601,54 @@ section('The warm-up ledger survives a profile that is wrong about it', () => {
   expect('a profile from before the warm-up gets one', load(legacyProfile()).warmup.reaction.visual.runs.length === 0, 'legacy');
 });
 
+section('Favourites, their edits and playlists survive a profile that is wrong about them', () => {
+  const p = load(hostileProfile());
+  expect('only real drills stay starred', p.stars.join() === 'apmPulse,lanePhase', p.stars.join());
+  const t = p.tunings.apmPulse!;
+  expect('an edit out of range is clamped', t.seconds === 600 && t.level === 10 && t.speed === 1 && t.size === 0.5, JSON.stringify(t));
+  expect('an edit that is not an answer falls back', t.fog === 'auto' && t.range === 'always' && t.tier === null, JSON.stringify(t));
+  const lane = p.tunings.lanePhase!;
+  expect('the lane keeps no level and no unknown opponent', lane.level === null && lane.tier === null && lane.seconds === 150, JSON.stringify(lane));
+  expect('an edit for a drill that does not exist is dropped', !('notADrill' in p.tunings), Object.keys(p.tunings).join());
+  const pl = p.playlists;
+  expect('a playlist of nothing playable is dropped', pl.length === 1 && pl[0].id === 'pl_a', pl.map((x) => x.id).join());
+  expect(
+    'an unknown item takes its own settings with it',
+    pl[0].items.join() === 'apmPulse,lanePhase' && pl[0].tunings.length === 2 && pl[0].tunings[0].seconds === 45 && pl[0].tunings[0].speed === 1.5,
+    JSON.stringify(pl[0]),
+  );
+  expect('a row with no settings gets its card\'s own', pl[0].tunings[1].seconds === 150, JSON.stringify(pl[0].tunings[1]));
+  expect('a completion count that is not a number is zero', pl[0].completions === 0, `${pl[0].completions}`);
+  expect('a new profile has no edits', Object.keys(newProfile().tunings).length === 0, 'edits');
+  expect('a profile from before edits loads with none', Object.keys(load(legacyProfile()).tunings).length === 0, 'edits');
+});
+
+section('A shared playlist arrives exactly as it was sent', () => {
+  const pl = load(hostileProfile()).playlists[0];
+  const code = encodePlaylist({ name: pl.name, items: pl.items, tunings: pl.tunings });
+  const back = decodePlaylist(code);
+  expect('a code reads back', !('error' in back), 'error' in back ? back.error : '');
+  if ('error' in back) return;
+  expect('with the same name and items', back.name === pl.name && back.items.join() === pl.items.join(), JSON.stringify(back));
+  expect('and every setting', JSON.stringify(back.tunings) === JSON.stringify(pl.tunings), JSON.stringify(back.tunings));
+  const link = playlistLink(code, 'https://example.test/apex/');
+  const fromLink = decodePlaylist(link);
+  expect('a whole link reads back too', !('error' in fromLink) && fromLink.items.join() === pl.items.join(), link);
+  expect('a scenario code is not a playlist', 'error' in decodePlaylist('vayneTumble-P50-fl4ma-J'), 'accepted');
+  expect('a damaged code says so', 'error' in decodePlaylist(code.slice(0, -6) + '!!!!!!'), 'accepted');
+  const junk = decodePlaylist('APX1.' + Buffer.from(JSON.stringify({ n: 5, i: [{ d: 'nope' }, { d: 'apmPulse', s: -9, v: 99 }] })).toString('base64url'));
+  expect(
+    'a hand-made code is sanitised like a stored one',
+    !('error' in junk) && junk.items.join() === 'apmPulse' && junk.tunings[0].seconds === 10 && junk.tunings[0].speed === 2 && junk.name === 'SHARED PLAYLIST',
+    JSON.stringify(junk),
+  );
+  const std = defaultTuning('apmPulse');
+  expect('the standard settings are not a custom run', !isCustom('apmPulse', std), JSON.stringify(std));
+  expect('a length, speed or size of your own is', isCustom('apmPulse', { ...std, seconds: 45 }) && isCustom('apmPulse', { ...std, speed: 1.5 }) && isCustom('apmPulse', { ...std, size: 2 }), 'standard');
+  expect('a level, fog or ring of your own is not', !isCustom('apmPulse', { ...std, level: 7, fog: 'off', range: 'always' }), 'custom');
+  expect('every lane length the card offers is standard', !isCustom('lanePhase', { ...defaultTuning('lanePhase'), seconds: 540 }), 'custom');
+});
+
 line('\n=== Every screen that reads a profile draws it, on every profile ===');
 
 // The screens are imported lazily and typed loosely on purpose: this is a
@@ -593,30 +656,42 @@ line('\n=== Every screen that reads a profile draws it, on every profile ===');
 // different set of callbacks it never calls here.
 const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
   const noop = () => undefined;
-  const [{ Practice, SECTION_IDS }, { Progress }, { WarmUp }, { AccuracyReport }, { CodexPanel }] =
+  const [{ Practice, PracticeScreen, SECTION_IDS }, { Progress }, { Benchmarks }, { AccuracyReport }, { CodexPanel }, { ActivityEditor }] =
     await Promise.all([
       import('../src/ui/Practice'),
       import('../src/ui/Progress'),
-      import('../src/ui/WarmUp'),
+      import('../src/ui/Benchmarks'),
       import('../src/ui/AccuracyReport'),
       import('../src/ui/Codex'),
+      import('../src/ui/ActivityEditor'),
     ]);
   return [
-    // The screen a returning player opens on: the routine, the reaction
-    // records, the benchmark sheet — all three read the warm-up ledger.
+    // The reaction records and the benchmark sheet, under PROGRESS — both
+    // read the reaction ledger the warm-up used to keep.
     [
-      'HOME',
+      'PROGRESS · BENCHMARKS',
       (profile) =>
-        createElement(WarmUp as any, {
+        createElement(Benchmarks as any, {
           profile,
           settings: profile.settings,
-          summary: null,
-          onDismissSummary: noop,
-          onStart: noop,
           onReaction: noop,
           onBench: noop,
-          onCode: noop,
         }),
+    ],
+    ['PRACTICE', (profile) => createElement(PracticeScreen as any, { profile, settings: profile.settings, onPlay: noop, onToggleStar: noop })],
+    // EDIT ACTIVITY on whatever a stored profile says a favourite is tuned to.
+    [
+      'EDIT ACTIVITY',
+      (profile) => {
+        const id = (profile.stars[0] ?? 'apmPulse') as DrillId;
+        return createElement(ActivityEditor as any, {
+          id,
+          initial: profile.tunings?.[id] ?? { seconds: 30, level: null, speed: 1, size: 1, fog: 'auto', range: 'auto', tier: null },
+          onSave: noop,
+          onSaveAndPlay: noop,
+          onClose: noop,
+        });
+      },
     ],
     ['THE CODEX · ACCURACY', () => createElement(AccuracyReport as any, {})],
     // CHARACTER left PLAY for STUDY; it reads no profile, but it is a screen

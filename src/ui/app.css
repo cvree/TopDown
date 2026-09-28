@@ -290,6 +290,11 @@
   .gear-chip span {
     display: none;
   }
+  /* STUDY keeps its word longer than SETUP: a book alone is not obviously
+     "every champion in League". */
+  .study-chip span {
+    display: inline;
+  }
   .nav button {
     padding: 0 14px;
     font-size: 11px;
@@ -336,6 +341,9 @@
   .topbar {
     gap: 14px;
     padding: 0 14px;
+  }
+  .study-chip span {
+    display: none;
   }
   .ver-chip {
     font-size: 10px;
@@ -386,6 +394,10 @@
   .gear-chip {
     width: 38px;
     height: 38px;
+  }
+  .gear-chip {
+    justify-content: center;
+    padding: 0;
   }
 }
 

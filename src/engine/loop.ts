@@ -34,6 +34,13 @@ export class GameLoop {
 
   readonly stats: LoopStats = { fps: 60, frameMs: 0, steps: 0 };
 
+  /**
+   * Simulated seconds per wall second. The step is still the same 1/240s
+   * slice — a faster arena takes more of them per frame rather than bigger
+   * ones — so a run is exactly as deterministic at double speed as at one.
+   */
+  timeScale = 1;
+
   constructor(
     private readonly step: (dt: number) => void,
     private readonly render: (alpha: number, dtWall: number) => void,
@@ -68,14 +75,14 @@ export class GameLoop {
     // A tab that was backgrounded should resume, not fast-forward.
     frame = clamp(frame, 0, MAX_FRAME_TIME);
 
-    this.acc += frame;
+    this.acc += frame * this.timeScale;
     let steps = 0;
     while (this.acc >= SIM_DT) {
       this.step(SIM_DT);
       this.acc -= SIM_DT;
       steps++;
       // Hard ceiling stops a slow machine from spiralling into a freeze.
-      if (steps > 240) {
+      if (steps > 240 * Math.max(1, this.timeScale)) {
         this.acc = 0;
         break;
       }

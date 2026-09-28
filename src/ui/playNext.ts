@@ -58,11 +58,11 @@ export const startSpec = (p: Profile, drill: DrillId): StartSpec => {
   return { drill, opts: {} };
 };
 
-/** The very first minute: PULSE at level one, the same run the walkthrough ends on. */
+/** The very first run: PULSE at level one, the same run the walkthrough ends on. */
 const FIRST: NextPick = {
   drill: 'apmPulse',
   opts: { level: 1, difficulty: levelDifficulty(1) },
-  why: 'Your first minute — two keys, one lit square.',
+  why: 'Your first thirty seconds — two keys, one lit square.',
   source: 'first',
 };
 

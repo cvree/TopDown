@@ -68,7 +68,7 @@ import './study.css';
  * looked up rather than guessed at again.
  */
 
-const PLAY_MS = 60_000;
+const PLAY_MS = 30_000;
 const STRIKES = 3;
 const REVIEW_MAX = 25;
 /** In PLAY and SURVIVE, how often a due fact is asked instead of a new one. */
@@ -77,7 +77,7 @@ const REVIEW_SHARE = 0.35;
 const RECENT = 12;
 
 const MODES: { id: StudyMode; label: string; brief: string }[] = [
-  { id: 'play', label: 'PLAY', brief: 'One minute of questions. The clock stops while you read the answer.' },
+  { id: 'play', label: 'PLAY', brief: 'Thirty seconds of questions. The clock stops while you read the answer.' },
   { id: 'survive', label: 'SURVIVE', brief: `No clock. ${STRIKES} wrong and it is over.` },
   { id: 'review', label: 'REVIEW', brief: 'Only what is due — what you missed, and what you have not seen in a while.' },
 ];
@@ -876,7 +876,7 @@ function SessionResults({
       : s.asked === 0
         ? 'No questions answered.'
         : s.mode === 'play'
-          ? `${s.right} right in a minute.`
+          ? `${s.right} right in thirty seconds.`
           : s.mode === 'survive'
             ? `${s.right} right before the third miss.`
             : `${s.right} of ${s.asked} remembered.`;

@@ -155,7 +155,7 @@ export const EPIGRAPHS: string[] = [
   'Tumble is a reposition, not an escape. The best ones end closer to the fight.',
   'Last-hitting is not an aim problem. It is a patience problem with an aim problem inside it.',
   'Your hands are faster than your decisions. The lab measures the hands; the lane measures the rest.',
-  'Every drill in here is one minute long. The improvement is in the tenth one, not the first.',
+  'Every drill in here is thirty seconds long. The improvement is in the tenth one, not the first.',
   'Condemn into terrain, not into space. A wall is worth more than the damage.',
   'Nobody has ever out-clicked a bad position. Move first, then press things.',
   'A streak broken at forty is worth more than a streak of five, restarted eight times.',

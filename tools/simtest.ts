@@ -5976,6 +5976,62 @@ line('\n=== STUDY: the roster, the questions, and the schedule ===');
   expect('a miss from the top goes back to the bottom', studyAnswer(card, false, t0).box === 0, '');
 }
 
+line('\n=== EDIT ACTIVITY: a favourite\'s speed and target size reach the arena ===');
+{
+  // Target size: every body that is not yours, and every pad on a bench, is
+  // built at the favourite's scale — and yours is not.
+  const build = (id: DrillId, targetScale?: number) => {
+    const meta = DRILLS[id];
+    const session = new Session(
+      { duration: 30, mode: 'play', arena: arenaFor(id), seed: 77, difficulty: 0.4, abilities: meta.abilities, targetScale },
+      new FakeInput() as unknown as InputSystem,
+      fakeRenderer,
+    );
+    const drill = createDrill(id, session);
+    session.attachDrill(drill);
+    session.countdown = 0;
+    for (let i = 0; i < 240; i++) session.step(1 / 240);
+    return session;
+  };
+  const enemyRadius = (s: Session) => s.world.actors.filter((a) => a.team === 'enemy').map((a) => a.radius);
+  const plain = enemyRadius(build('vayneBolts'));
+  const big = enemyRadius(build('vayneBolts', 2));
+  expect(
+    'double-size targets are double the size',
+    plain.length > 0 && big.length === plain.length && big.every((r, i) => Math.abs(r - plain[i] * 2) < 1e-6),
+    `${plain.join()} vs ${big.join()}`,
+  );
+  const you = (s: Session) => s.world.player?.radius ?? 0;
+  expect('and yours is not', you(build('vayneBolts')) === you(build('vayneBolts', 2)), 'the player grew');
+  // Pads are geometry, not actors: read them off the bench itself.
+  const benchRadii = (s: Session) =>
+    ((s.drill as unknown as { motion?: { tracks?: { pad: { radius: number } }[] } }).motion?.tracks ?? []).map((t) => t.pad.radius);
+  const padsPlain = benchRadii(build('apmPulse'));
+  const padsBig = benchRadii(build('apmPulse', 1.5));
+  expect(
+    'a bench\'s circles grow with it',
+    padsPlain.length > 0 && padsBig.length === padsPlain.length && padsBig.every((r, i) => Math.abs(r - padsPlain[i] * 1.5) < 1e-6),
+    `${padsPlain.join()} vs ${padsBig.join()}`,
+  );
+
+  // Speed: the loop takes more fixed steps per wall second, never bigger ones.
+  const steps: number[] = [];
+  const loop = new GameLoop((dt) => steps.push(dt), () => undefined);
+  loop.timeScale = 2;
+  const tick = (loop as unknown as { tick: (now: number) => void }).tick;
+  (loop as unknown as { running: boolean; last: number }).running = true;
+  (loop as unknown as { last: number }).last = 0;
+  const raf = globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame = (() => 0) as typeof requestAnimationFrame;
+  tick(100);
+  globalThis.requestAnimationFrame = raf;
+  expect(
+    'double speed runs twice the simulation in the same wall time, in the same size of step',
+    Math.abs(steps.length - 48) <= 1 && steps.every((d) => d === 1 / 240),
+    `${steps.length} steps`,
+  );
+}
+
 line(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}\n`);
 void GameLoop;
 process.exit(failures === 0 ? 0 : 1);

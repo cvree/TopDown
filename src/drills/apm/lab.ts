@@ -330,7 +330,7 @@ export abstract class LabDrill extends ApmDrill {
       p.moveSpeed = 0;
       p.hidden = true;
     }
-    this.motion = new PadMotion(this.s.world.bounds, this.s.rng);
+    this.motion = new PadMotion(this.s.world.bounds, this.s.rng, this.s.config.targetScale ?? 1);
     this.mapOn = mapAtLevel(this.rung);
     this.map = new MapDodge(
       this.s,

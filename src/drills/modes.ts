@@ -42,8 +42,8 @@ import type { DrillId } from './catalog';
  */
 export type RunMode = 'play' | 'survive' | 'infinite' | 'surge';
 
-/** PLAY is one minute, for every mode, always. */
-export const PLAY_SECONDS = 60;
+/** PLAY is thirty seconds, for every mode, unless the player's own edit of a favourite says otherwise. */
+export const PLAY_SECONDS = 30;
 
 /** How many defining mistakes SURVIVE forgives before it ends the run. */
 export const SURVIVE_STRIKES = 3;
@@ -73,8 +73,8 @@ export const RUN_MODES: Record<RunMode, ModeMeta> = {
   play: {
     id: 'play',
     label: 'PLAY',
-    tagline: '1 minute',
-    blurb: 'One minute, scored. Always the same length, so you can compare runs.',
+    tagline: '30 seconds',
+    blurb: 'Thirty seconds, scored. Always the same length, so you can compare runs.',
     accent: '#58e0ff',
   },
   survive: {
@@ -97,7 +97,7 @@ export const RUN_MODES: Record<RunMode, ModeMeta> = {
     label: 'SURGE',
     tagline: 'streaks raise it',
     blurb:
-      'One minute, and your streak drives the difficulty: keep one going and it climbs above the level you picked; drop it and it settles back.',
+      'Thirty seconds, and your streak drives the difficulty: keep one going and it climbs above the level you picked; drop it and it settles back.',
     accent: '#ff8a3d',
   },
 };

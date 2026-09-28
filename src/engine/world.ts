@@ -310,6 +310,9 @@ export class World {
 
   // ---------------------------------------------------------------- spawning
 
+  /** Every body that is not yours is drawn and hit at this size. See SessionConfig.targetScale. */
+  targetScale = 1;
+
   spawnActor(init: Partial<Actor> & { pos: Vec2; team: Team }): Actor {
     const attack: AttackProfile = init.attack ?? { ...PLAYER_ATTACK };
     const hp = init.maxHp ?? init.hp ?? 600;
@@ -319,7 +322,7 @@ export class World {
       pos: { ...init.pos },
       prev: { ...init.pos },
       vel: v2(),
-      radius: init.radius ?? 26,
+      radius: (init.radius ?? 26) * (init.team === 'player' ? 1 : this.targetScale),
       moveSpeed: init.moveSpeed ?? 345,
       hp,
       maxHp: hp,

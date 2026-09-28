@@ -6,10 +6,32 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.28.0**.
+Currently shipping **v2.29.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.29.0 — MAKE IT YOURS
+
+*2026-09-28*
+
+Star a card and set it up your way — length, speed, target size, level — then put it in a playlist and send it to a friend.
+
+### Added
+
+- EDIT ACTIVITY. Starring any drill, champion mode or the lane now opens it: how long a run lasts, its level (or the lane’s opponent and length), game speed from 0.5× to 2×, target and circle size from 0.5× to 2×, and whether the range ring and fog of war are drawn. EDIT on any favourite opens it again.
+- Your stars play on those settings — from the shelf beside PLAY NEXT, from FAVORITES, and inside playlists. A length, speed or target size no card offers is a custom run: scored so you can see it, and written to no record, ladder or rating. The HUD and the results screen say so.
+- Playlists keep each activity’s settings, and EDIT on a row changes it for that playlist only.
+- SHARE on a playlist: a link that opens APEX straight onto it, and a playlist code. Whoever opens it sees every activity and its settings, and can save it or play it straight away.
+- ADD A CODE, under FAVORITES: paste a friend’s playlist link or code, or a scenario code from a results screen.
+- Finishing a playlist shows every score from the way through and the total, and the playlist counts how many times you have completed it.
+
+### Changed
+
+- The top bar is PLAY, PRACTICE and PROGRESS. PRACTICE — the three champions in pieces — is its own tab now, and still a section of PLAY. STUDY moved to a button in the corner.
+- PLAY is thirty seconds, for every drill and every champion mode, and so is a STUDY quiz. Benchmarks keep their fixed minute, because their tiers were cut on it; the lane keeps its own lengths.
+- The daily warm-up routine and its streak are gone. The reaction tests and the benchmark sheet it shared a screen with are on PROGRESS.
+- Rewind is gone: Backspace, and the ⟲ 3s and ⟲ 10s buttons on the pause screen.
 
 ## v2.28.0 — ONE CLICK
 

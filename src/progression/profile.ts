@@ -71,6 +71,7 @@ import {
 import { emptyWarmup, normalizeWarmup, type WarmupProgress } from './warmup';
 import type { LaneReport } from '../drills/lanereport';
 import { normalizeBench, type BenchRecords } from './benchmarks';
+import { defaultTuning, sanitizeTuning, type ActivityTuning } from './tuning';
 
 const STORAGE_KEY = 'apex.profile.v1';
 const PROFILE_VERSION = 1;
@@ -404,6 +405,11 @@ export interface Profile {
   stars: DrillId[];
   /** Player-built queues of activities, played through in order. */
   playlists: Playlist[];
+  /**
+   * How each favourite is played: its length, level, speed, target size and
+   * the rest, as edited when it was starred. See `tuning.ts`.
+   */
+  tunings: Partial<Record<DrillId, ActivityTuning>>;
 }
 
 /** A named, ordered queue of activities — a player's own programme. */
@@ -411,6 +417,14 @@ export interface Playlist {
   id: string;
   name: string;
   items: DrillId[];
+  /**
+   * Each item's settings, index for index with `items`. A copy rather than a
+   * reference to the favourite's, so a playlist plays the same after a star is
+   * edited or removed — and so it can be sent to somebody who has neither.
+   */
+  tunings: ActivityTuning[];
+  /** Times played start to finish. */
+  completions: number;
 }
 
 /** One beaten record, kept so the home screen can say what got better. */
@@ -503,6 +517,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   bench: {},
   stars: [],
   playlists: [],
+  tunings: {},
 });
 
 /**
@@ -568,13 +583,40 @@ const keepKnownStars = (raw: unknown): DrillId[] =>
 const keepKnownPlaylists = (raw: unknown): Playlist[] => {
   if (!Array.isArray(raw)) return [];
   const out: Playlist[] = [];
-  for (const pl of raw as { id?: unknown; name?: unknown; items?: unknown }[]) {
+  for (const pl of raw as { id?: unknown; name?: unknown; items?: unknown; tunings?: unknown; completions?: unknown }[]) {
     if (!pl || typeof pl.id !== 'string' || typeof pl.name !== 'string') continue;
-    const items = Array.isArray(pl.items) ? pl.items.filter(isDrillId).slice(0, 100) : [];
+    // Items and their settings are filtered together, so an item this build
+    // no longer knows takes its own settings with it rather than handing
+    // them to its neighbour.
+    const rawItems = Array.isArray(pl.items) ? pl.items : [];
+    const rawTunings = Array.isArray(pl.tunings) ? pl.tunings : [];
+    const items: DrillId[] = [];
+    const tunings: ActivityTuning[] = [];
+    rawItems.forEach((id, i) => {
+      if (!isDrillId(id) || items.length >= 100) return;
+      items.push(id);
+      tunings.push(rawTunings[i] ? sanitizeTuning(id, rawTunings[i]) : defaultTuning(id));
+    });
     if (items.length === 0) continue;
-    out.push({ id: pl.id, name: pl.name.slice(0, 60), items });
+    const done = Number(pl.completions);
+    out.push({
+      id: pl.id,
+      name: pl.name.slice(0, 60),
+      items,
+      tunings,
+      completions: Number.isFinite(done) && done > 0 ? Math.floor(done) : 0,
+    });
   }
   return out.slice(0, 50);
+};
+
+const keepKnownTunings = (raw: unknown): Profile['tunings'] => {
+  const out: Profile['tunings'] = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [id, t] of Object.entries(raw as Record<string, unknown>)) {
+    if (isDrillId(id)) out[id] = sanitizeTuning(id, t);
+  }
+  return out;
 };
 
 export const loadProfile = (): Profile => {
@@ -671,6 +713,7 @@ export const loadProfile = (): Profile => {
       bench: normalizeBench(parsed.bench),
       stars: keepKnownStars(parsed.stars),
       playlists: keepKnownPlaylists(parsed.playlists),
+      tunings: keepKnownTunings(parsed.tunings),
     };
   } catch {
     return newProfile();
@@ -1179,9 +1222,30 @@ export const toggleStarred = (p: Profile, id: DrillId): Profile => ({
 
 const newPlaylistId = (): string => `pl_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
-export const createPlaylist = (p: Profile, name: string, items: DrillId[]): Profile => ({
+/** The settings a favourite is played on: its edit, or its card's own. */
+export const tuningOf = (p: Profile, id: DrillId): ActivityTuning => p.tunings?.[id] ?? defaultTuning(id);
+
+export const setTuning = (p: Profile, id: DrillId, t: ActivityTuning): Profile => ({
   ...p,
-  playlists: [...p.playlists, { id: newPlaylistId(), name: name.trim() || 'PLAYLIST', items }],
+  tunings: { ...p.tunings, [id]: t },
+});
+
+/**
+ * A new playlist. Each item is given the settings its favourite has right now
+ * unless `tunings` says otherwise — a shared playlist brings its own.
+ */
+export const createPlaylist = (p: Profile, name: string, items: DrillId[], tunings?: ActivityTuning[]): Profile => ({
+  ...p,
+  playlists: [
+    ...p.playlists,
+    {
+      id: newPlaylistId(),
+      name: name.trim() || 'PLAYLIST',
+      items,
+      tunings: items.map((id, i) => tunings?.[i] ?? tuningOf(p, id)),
+      completions: 0,
+    },
+  ],
 });
 
 export const deletePlaylist = (p: Profile, id: string): Profile => ({
@@ -1194,9 +1258,15 @@ export const renamePlaylist = (p: Profile, id: string, name: string): Profile =>
   playlists: p.playlists.map((pl) => (pl.id === id ? { ...pl, name: name.trim() || pl.name } : pl)),
 });
 
-export const setPlaylistItems = (p: Profile, id: string, items: DrillId[]): Profile => ({
+export const setPlaylistItems = (p: Profile, id: string, items: DrillId[], tunings: ActivityTuning[]): Profile => ({
   ...p,
-  playlists: p.playlists.map((pl) => (pl.id === id ? { ...pl, items } : pl)),
+  playlists: p.playlists.map((pl) => (pl.id === id ? { ...pl, items, tunings } : pl)),
+});
+
+/** One more time through a playlist, start to finish. */
+export const completePlaylist = (p: Profile, id: string): Profile => ({
+  ...p,
+  playlists: p.playlists.map((pl) => (pl.id === id ? { ...pl, completions: pl.completions + 1 } : pl)),
 });
 
 // ------------------------------------------------------------------ queries
