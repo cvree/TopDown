@@ -260,8 +260,7 @@ const measure = (page) =>
 
 /**
  * The fewest clicks from a freshly loaded PLAY to a live run, found by doing
- * it: click the first playable thing on screen; if nothing playable is in the
- * first viewport, click through the rail to the first section that has one.
+ * it: click the first playable thing in the first viewport.
  */
 const clicksToRun = async (page) => {
   const vh = page.viewportSize().height;
@@ -274,17 +273,7 @@ const clicksToRun = async (page) => {
     return null;
   };
   let clicks = 0;
-  let hit = await firstVisible();
-  if (!hit) {
-    const tabs = await page.$$('.pr-tablist [role="tab"]');
-    for (const t of tabs) {
-      await t.click();
-      clicks++;
-      await sleep(600);
-      hit = await firstVisible();
-      if (hit) break;
-    }
-  }
+  const hit = await firstVisible();
   if (!hit) return { clicks: null, note: 'no playable card reachable without scrolling' };
   // Click the card body, clear of its own buttons.
   await page.mouse.click(hit.b.x + hit.b.width * 0.5, hit.b.y + Math.min(40, hit.b.height * 0.25));
@@ -369,24 +358,24 @@ const main = async () => {
         record(`${tag} · Enter starts a drill`, { enter: await keyToRun(page) });
         await ctx.close();
       }
-      // Every section on the rail.
+      // PLAY with YOURS unfolded from the shelf.
       {
         const { ctx, page } = await open(browser, url, vp, profile);
-        const tabs = await page.$$eval('.pr-tablist [role="tab"]', (ts) => ts.map((t) => t.id));
-        for (const id of tabs) {
-          await page.click(`#${id}`);
-          await sleep(700);
-          await page.evaluate(() => document.querySelectorAll('.scroll').forEach((s) => (s.scrollTop = 0)));
-          const name = id.replace('pr-tab-', '');
-          await shot(page, `${tag}-play-${name}`);
-          record(`${tag} · PLAY › ${name.toUpperCase()}`, await measure(page));
-        }
+        await page.click('.pr-chip-more');
+        await sleep(700);
+        await shot(page, `${tag}-play-yours`);
+        record(`${tag} · PLAY › YOURS`, await measure(page));
         await ctx.close();
       }
-      // STUDY, PROGRESS.
-      for (const tab of ['STUDY', 'PROGRESS']) {
+      // PRACTICE and PROGRESS from the bar; STUDY from its corner chip.
+      for (const [tab, sel] of [
+        ['PRACTICE', null],
+        ['PROGRESS', null],
+        ['STUDY', '.study-chip'],
+      ]) {
         const { ctx, page } = await open(browser, url, vp, profile);
-        await page.locator('.nav button', { hasText: tab }).click();
+        if (sel) await page.click(sel);
+        else await page.locator('.nav button', { hasText: tab }).click();
         await sleep(900);
         await shot(page, `${tag}-${tab.toLowerCase()}`);
         record(`${tag} · ${tab}`, await measure(page));

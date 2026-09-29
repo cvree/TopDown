@@ -1,19 +1,16 @@
 import { cardClickStarts } from './components/cardStart';
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { audio } from '../engine/audio';
 import { DRILLS, DRILL_LIST, type DrillId, type DrillMeta } from '../drills/catalog';
-import { PRACTICE_CHAMPIONS, PRACTICE_MODES, RUN_MODE_LIST, championOf, isPracticeMode, type RunMode } from '../drills/modes';
+import { PRACTICE_CHAMPIONS, RUN_MODE_LIST, type RunMode } from '../drills/modes';
 import { LANE_LENGTHS, LANE_TIERS, type LaneTier } from '../progression/lane';
 import { resolveBindings, shortCodeLabel, type AbilitySlot, type Bindings } from '../engine/input';
 import type { AppSettings, Playlist, Profile } from '../progression/profile';
 import { defaultTuning as defaultTuningFor, isCustom, isEdited, type ActivityTuning } from '../progression/tuning';
 import { tuningSummary } from './ActivityEditor';
-import { Explainer } from './components/Explainer';
 import { ModePreview } from './components/ModePreview';
 import { StarButton } from './components/StarButton';
-import { Why } from './components/Why';
 import { DrillsPanel } from './Lab';
-import { APM_MODES } from '../progression/apm';
 import { PlayHero } from './PlayHero';
 import { pickNext, type StartSpec } from './playNext';
 import { CardRecord } from './components/CardRecord';
@@ -53,15 +50,11 @@ interface Props {
    */
   onCode?: (text: string) => string | null;
   /**
-   * Which section to open on, overriding the one the player was last reading.
-   *
-   * Nothing in the client passes it. The headless profile check does, so that
-   * a hostile stored profile is still drawn through all five sections rather
-   * than only the one a fresh mount happens to open on — every one of them
-   * reads a different corner of a saved record, and each is only rendered
-   * while its own tab is open.
+   * Open with YOURS unfolded. Nothing in the client passes it; the headless
+   * profile check does, so a hostile stored profile is drawn through the
+   * editor as well as the shelf.
    */
-  initialSection?: SectionId;
+  initialYours?: boolean;
   /**
    * Whether Enter and Space start PLAY NEXT. Off while anything is drawn over
    * the screen — the walkthrough, say — whose own keys those are.
@@ -125,141 +118,64 @@ const bindingsOf = (settings: AppSettings | undefined): Bindings => {
 };
 
 // ===========================================================================
-// THE SECTIONS
+// PLAY
 // ===========================================================================
 
 /**
- * What this screen is actually made of.
+ * Whether YOURS — every star, every playlist, the playlist editor and the box
+ * for a friend's code — is open under the shelf.
  *
- * It used to be one column: a header of five paragraphs, the lane, six
- * champion cards, two tables of numbers and thirteen benches, in that order,
- * all the way down. Every one of those things is worth having and none of them
- * is the same *kind* of thing, so a player looking for one of them scrolled
- * past the other three — and the two reference tables, which are the only part
- * of the screen you read rather than click, sat directly between the champion
- * and the lab like a wall.
- *
- * Four sections now, and three of them are a champion:
- *
- *  - **DRILLS** is not a champion: thirteen one-minute drills for the hands
- *    under every champion. It was a tab of this screen once, then a tab of the
- *    top bar (TRAIN) — which put two places in the bar where you pick a card
- *    and play a minute. It is back as a segment, and first, because it is the
- *    shortest thing on the screen and the first run anybody plays.
- *  - **PRACTICE** is a champion in pieces, grouped by how much of one a mode
- *    hands you — and there are three champions on it now, behind a switch at
- *    the top rather than a tab each, because "which piece of a champion" is
- *    one question asked three times and not three different kinds of one. It
- *    comes before the lane because it is where a player can actually start. THE LANE is the
- *    game and it is also ten minutes against somebody who is better than you;
- *    opening on it asked a player to be ready before the client had taught
- *    them anything. A menu should open on the thing you can do now.
- *  - **THE LANE** is the game, and everything in PRACTICE exists to make it go
- *    better — so it comes after them, where it reads as what the pieces add up to.
- *  - **FAVORITES** is the one section nobody wrote: whatever you have starred
- *    across the other three, plus any playlist you have built out of them. It
- *    is not on the rail: the shelf under PLAY NEXT already puts every star and
- *    every playlist one click from a run, and this is where that shelf opens
- *    out to be edited.
- *
- * CHARACTER — every figure the four champions are built from — was a fourth
- * tab here, and the only one you could not play. It is under STUDY now, beside
- * the rest of the reading (see `Codex.tsx`), so the rail holds only things you
- * start.
- *
- * The tab rail is sticky, so the three are one keystroke apart from anywhere on
- * any of them, and the section you are in is never more than a glance away.
+ * Module-level rather than stored on the profile: it has to survive the
+ * screen being unmounted, which it is every time a run starts, without being
+ * a preference anybody wrote to disk.
  */
-export type SectionId = 'drills' | 'lane' | 'practice' | 'favorites';
+let yoursOpen = false;
 
-interface SectionMeta {
-  id: SectionId;
-  /** The numeral on the tab. The order is the order it is taught. */
-  no: string;
-  label: string;
-  /** What the section is, in three words, under the label. */
-  sub: string;
-  accent: string;
-  /** On the rail. FAVORITES is reached from the shelf instead. */
-  rail: boolean;
-}
-
-/**
- * The tab the player was last on.
- *
- * Module-level rather than stored on the profile: which of four sections you
- * are reading is session state, not a preference worth writing to disk — but
- * it does have to survive the screen being unmounted, which it is every time a
- * run starts. Coming back from a bench in the lab and landing on the lane is
- * the client forgetting what you were doing.
- */
-let lastSection: SectionId = 'drills';
-
-/** Open PLAY on this section the next time it mounts — after a first run, say. */
-export const openSection = (id: SectionId): void => {
-  lastSection = id;
+/** Open YOURS the next time PLAY mounts — after saving a friend's playlist, say. */
+export const openYours = (): void => {
+  yoursOpen = true;
 };
 
-/** The drill whose card should be in view when PLAY next mounts. */
+/** The drill whose card should be in view when PLAY or PRACTICE next mounts. */
 let pendingReveal: DrillId | null = null;
 
 /**
- * Coming back from a run, land on the card you just played.
- *
- * The section it lives in opens — the lab for a bench, the right champion for
- * a mode, the lane for the lane — unless FAVORITES was open and the card is
- * there too; and once the screen is drawn, the card is scrolled into view and
- * lit for a moment, so "where was I" is never a question.
+ * Coming back from a run, land on the card you just played: once the screen
+ * is drawn, the card is scrolled into view and lit for a moment, so "where
+ * was I" is never a question.
  */
 export const revealDrill = (id: DrillId): void => {
   pendingReveal = id;
-  if (lastSection === 'favorites') return;
-  if (id === 'lanePhase') lastSection = 'lane';
-  else if (isApmDrill(id)) lastSection = 'drills';
-  else if (isPracticeMode(id)) {
-    lastSection = 'practice';
-    const home = PRACTICE_CHAMPIONS.find((c) => c.id === lastChampion);
-    if (!home?.modes.includes(id)) lastChampion = championOf(id)?.id ?? lastChampion;
-  }
 };
 
-const SECTIONS: SectionMeta[] = [
-  { id: 'drills', no: '01', label: 'DRILLS', sub: 'thirty seconds, your hands', accent: '#7ceaff', rail: true },
-  { id: 'practice', no: '02', label: 'PRACTICE', sub: 'one skill at a time', accent: '#c86bff', rail: true },
-  { id: 'lane', no: '03', label: 'THE LANE', sub: 'play a real lane', accent: '#ffd166', rail: true },
-  { id: 'favorites', no: '★', label: 'FAVORITES', sub: 'yours — starred, and queued up', accent: '#ffe066', rail: false },
-];
-
-/** The tabs on the rail, in order: the arrow keys walk these and nothing else. */
-const RAIL = SECTIONS.filter((s) => s.rail);
-
-/** Every section, rail or not — for anything that has to walk all of them. */
-export const SECTION_IDS: SectionId[] = SECTIONS.map((s) => s.id);
+/** Scroll the pending card into view inside `root`, and light it. Read once. */
+const useReveal = (root: string): void => {
+  useEffect(() => {
+    const reveal = pendingReveal;
+    pendingReveal = null;
+    if (!reveal) return;
+    const el = document.querySelector<HTMLElement>(`${root} [data-drill="${reveal}"]`);
+    const scroller = el?.closest('.scroll');
+    if (!el || !(scroller instanceof HTMLElement)) return;
+    const top = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTop = Math.max(0, top - scroller.clientHeight * 0.28);
+    el.classList.add('just-played');
+    window.setTimeout(() => el.classList.remove('just-played'), 2400);
+  }, [root]);
+};
 
 /**
- * THE MENU.
+ * PLAY: one screen, one job.
  *
- * There used to be seven sections, four ladders, a daily queue, a calibration
- * sequence and a course of gated stages, and between them they asked a player
- * roughly a dozen questions before anything happened on a screen. This asks
- * two: which part of the champion, and for how long.
+ * Three things, top to bottom, and nothing between them:
  *
- * Every mode on it is played as a named champion with that champion's real
- * numbers. That is not a filter over a larger catalogue — it is what the
- * trainer is for. There are two deliberate exceptions, and both are on both
- * champions' lists:
+ *  1. **PLAY NEXT** — one drill, chosen for you, one click (or Enter) away.
+ *  2. **Yours** — your stars and playlists as a shelf beside it. The shelf's
+ *     last chip opens the editor underneath: every star with its settings,
+ *     the playlists, and the box for a code a friend sent.
+ *  3. **The drills** — the thirteen thirty-second benches, as a grid.
  *
- *  - **RANGE** is about the one distance every champion has and no champion
- *    draws for you, so it hands you a body and nothing else. A mode that put
- *    you behind a body with no tumble could tell you about your hands in the
- *    abstract; it could not tell you anything about the quarter of a second at
- *    the end of a roll, which is where Vayne is won and lost — or about the
- *    walk a gold card has to survive, which is where he is.
- *  - **SHERIFF** is the other half of a lane. Everything else measures what
- *    your hands did; this one measures what you did about somebody else's,
- *    which is a skill that cannot be rehearsed alone — so its kit is printed
- *    in the codex exactly as the champions' own are, because a window you are
- *    expected to beat has to be a number you can check.
+ * The champions and the lane are on PRACTICE, and only there.
  */
 export function Practice({
   profile,
@@ -277,16 +193,17 @@ export function Practice({
   onEditPlaylistItem,
   onSharePlaylist,
   onCode,
-  initialSection,
+  initialYours,
   keysLive = true,
 }: Props) {
-  const bound = bindingsOf(settings);
   // The one drill the front door offers, re-asked whenever the profile moves
   // — which is after every run, so coming back from one is a new answer.
   const pick = useMemo(() => pickNext(profile), [profile]);
   const startSpec = (spec: StartSpec) => onPlay(spec.drill, 'play', spec.opts);
   const startRef = useRef(() => startSpec(pick));
   startRef.current = () => startSpec(pick);
+  const [yours, setYours] = useState(initialYours ?? yoursOpen);
+  const stars = profile.stars;
 
   // Enter and Space are PLAY NEXT, from anywhere on the screen that is not
   // already a control of its own — a focused button, tab or field keeps its
@@ -310,96 +227,19 @@ export function Practice({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [keysLive]);
-  const [section, setSection] = useState<SectionId>(initialSection ?? lastSection);
-  const railRef = useRef<HTMLDivElement>(null);
-  const stars = profile.stars;
 
-  const choose = (id: SectionId) => {
-    lastSection = id;
-    setSection(id);
-  };
+  useReveal('.pr-play-screen');
 
-  // A tab is a page, so it starts at the top of itself. Without this, opening
-  // THE LANE from halfway down DRILLS drops you halfway down the lane.
-  //
-  // The second half is for the narrow layout, where the rail scrolls sideways
-  // rather than fitting: the tab you just opened has to be the one you can
-  // see. Done by hand rather than with scrollIntoView, because that would also
-  // scroll the page vertically and undo the line above it.
-  useEffect(() => {
-    const scroller = railRef.current?.closest('.scroll');
-    if (scroller instanceof HTMLElement) scroller.scrollTop = 0;
-    // Back from a run: the card just played, in view and lit. Read once.
-    const reveal = pendingReveal;
-    pendingReveal = null;
-    if (reveal && scroller instanceof HTMLElement) {
-      const el = scroller.querySelector<HTMLElement>(`.pr-panel [data-drill="${reveal}"]`);
-      if (el) {
-        const top = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-        scroller.scrollTop = Math.max(0, top - scroller.clientHeight * 0.28);
-        el.classList.add('just-played');
-        window.setTimeout(() => el.classList.remove('just-played'), 2400);
-      }
-    }
-    const list = railRef.current?.querySelector<HTMLElement>('.pr-tablist');
-    if (!list || list.scrollWidth <= list.clientWidth) return;
-    const tab = list.querySelectorAll<HTMLElement>('.pr-tab')[RAIL.findIndex((s) => s.id === section)];
-    if (!tab) return;
-    const left = tab.offsetLeft - (list.clientWidth - tab.offsetWidth) / 2;
-    list.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-  }, [section]);
-
-  // What each tab has to say about itself before you open it. All three are
-  // counts of the thing inside, and three of them are also a record — a tab
-  // that can tell you how far through it you are is worth more than a tab
-  // that can only tell you it exists.
-  const counts = useMemo(() => {
-    const lanes = LANE_TIERS.reduce((n, t) => n + (profile.lane?.tiers?.[t.id]?.runs ?? 0), 0);
-    const played = PRACTICE_MODES.filter((id) => profile.bests[id] || profile.survive[id]).length;
-    const drilled = APM_MODES.filter((m) => (profile.apm?.modes?.[m.id]?.runs ?? 0) > 0).length;
-    return {
-      drills: {
-        count: `${APM_MODES.length} DRILLS`,
-        note: drilled > 0 ? `${drilled}/${APM_MODES.length} tried` : 'none tried yet',
-      },
-      lane: {
-        count: `${LANE_TIERS.length} OPPONENTS`,
-        note: lanes > 0 ? `${lanes} lane${lanes > 1 ? 's' : ''} played` : 'never played',
-      },
-      practice: {
-        count: `${PRACTICE_MODES.length} MODES`,
-        note: played > 0 ? `${played}/${PRACTICE_MODES.length} tried` : 'none tried yet',
-      },
-      favorites: {
-        count: `${stars.length} STARRED`,
-        note: profile.playlists.length > 0 ? `${profile.playlists.length} playlist${profile.playlists.length > 1 ? 's' : ''}` : 'none yet',
-      },
-    } as Record<SectionId, { count: string; note: string }>;
-  }, [profile, stars.length]);
-
-  const active = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
-
-  // Left and right walk the rail, Home and End jump to its ends — the tab
-  // pattern every desktop client uses, and the one a keyboard player will try
-  // first.
-  const onRailKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    // FAVORITES is off the rail, so from there the arrows start at its ends.
-    const i = RAIL.findIndex((s) => s.id === section);
-    let next = -1;
-    if (e.key === 'ArrowRight') next = i < 0 ? 0 : (i + 1) % RAIL.length;
-    else if (e.key === 'ArrowLeft') next = i < 0 ? RAIL.length - 1 : (i - 1 + RAIL.length) % RAIL.length;
-    else if (e.key === 'Home') next = 0;
-    else if (e.key === 'End') next = RAIL.length - 1;
-    if (next < 0) return;
-    e.preventDefault();
-    audio.play('uiTab');
-    choose(RAIL[next].id);
-    railRef.current?.querySelectorAll<HTMLButtonElement>('.pr-tab')[next]?.focus();
+  const toggleYours = () => {
+    const next = !yours;
+    yoursOpen = next;
+    setYours(next);
+    audio.play(next ? 'uiTab' : 'uiBack');
   };
 
   return (
     <div className="scroll">
-      <div className="wrap practice fade-up">
+      <div className="wrap practice pr-play-screen fade-up">
         <PlayHero
           profile={profile}
           settings={settings}
@@ -407,116 +247,12 @@ export function Practice({
           onStart={startSpec}
           onPlayPlaylist={onPlayPlaylist}
           onPlayFavorite={(id) => (onPlayFavorite ? onPlayFavorite(id) : onPlay(id, 'play'))}
-          onOpenFavorites={() => choose('favorites')}
+          onOpenFavorites={toggleYours}
+          yoursOpen={yours}
         />
 
-        {/* ------------------------------------------------------------ rail */}
-        <div className="pr-tabs" ref={railRef}>
-          <div
-            className="pr-tablist"
-            role="tablist"
-            aria-label="Practice sections"
-            onKeyDown={onRailKey}
-          >
-            {RAIL.map((s, idx) => {
-              const on = s.id === section;
-              return (
-                <button
-                  key={s.id}
-                  id={`pr-tab-${s.id}`}
-                  className={`pr-tab${on ? ' on' : ''}`}
-                  style={{ ['--c' as string]: s.accent }}
-                  role="tab"
-                  type="button"
-                  aria-selected={on}
-                  aria-controls={`pr-panel-${s.id}`}
-                  // Off the rail (FAVORITES open), the first tab keeps the
-                  // rail reachable from the keyboard.
-                  tabIndex={on || (idx === 0 && !active.rail) ? 0 : -1}
-                  onMouseEnter={() => audio.play('uiHover')}
-                  onClick={() => {
-                    if (on) return;
-                    audio.play('uiTab');
-                    choose(s.id);
-                  }}
-                >
-                  <span className="pr-tab-no mono">{s.no}</span>
-                  <span className="pr-tab-text">
-                    <b className="display">{s.label}</b>
-                    <i>{s.sub}</i>
-                  </span>
-                  <span className="pr-tab-meta">
-                    <b className="mono">{counts[s.id].count}</b>
-                    <i className="mono">{counts[s.id].note}</i>
-                  </span>
-                  <span className="pr-tab-rule" aria-hidden />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ----------------------------------------------------------- panel */}
-        <div
-          key={section}
-          id={`pr-panel-${section}`}
-          className="pr-panel fade-up"
-          {...(active.rail
-            ? { role: 'tabpanel', 'aria-labelledby': `pr-tab-${section}` }
-            : { role: 'region', 'aria-label': active.label })}
-          style={{ ['--c' as string]: active.accent }}
-        >
-          {!active.rail && (
-            <div className="pr-offrail">
-              <b className="display">{active.label}</b>
-              <i>{active.sub}</i>
-              <button
-                type="button"
-                className="btn ghost sm"
-                onMouseEnter={() => audio.play('uiHover')}
-                onClick={() => {
-                  audio.play('uiBack');
-                  choose('drills');
-                }}
-              >
-                ← BACK TO DRILLS
-              </button>
-            </div>
-          )}
-          {section === 'drills' && (
-            <DrillsPanel
-              profile={profile}
-              nextId={pick.drill}
-              settings={settings}
-              onPlay={onPlay}
-              onFixControls={onFixControls}
-              stars={stars}
-              onToggleStar={onToggleStar}
-            />
-          )}
-          {section === 'lane' && (
-            <LanePanel
-              profile={profile}
-              nextId={pick.drill}
-              settings={settings}
-              bound={bound}
-              onPlay={onPlay}
-              stars={stars}
-              onToggleStar={onToggleStar}
-            />
-          )}
-          {section === 'practice' && (
-            <PracticePanel
-              profile={profile}
-              nextId={pick.drill}
-              settings={settings}
-              bound={bound}
-              onPlay={onPlay}
-              stars={stars}
-              onToggleStar={onToggleStar}
-            />
-          )}
-          {section === 'favorites' && (
+        {yours && (
+          <section className="pr-yours pr-panel fade-up" aria-label="Your stars and playlists" style={{ ['--c' as string]: '#ffe066' }}>
             <FavoritesPanel
               profile={profile}
               nextId={pick.drill}
@@ -533,18 +269,20 @@ export function Practice({
               onSharePlaylist={onSharePlaylist}
               onCode={onCode}
             />
-          )}
-        </div>
+          </section>
+        )}
 
-        <Why label="What is here" className="pr-foot-why">
-          <p className="dim pr-lead">Drills for your hands · Vayne, Twisted Fate or Katarina.</p>
-          <p className="dim pr-lead">
-            Three tabs — thirty-second drills with no champion at all, then the pieces of each
-            champion, and the lane one of them plays for real. PRACTICE is also its own tab in the
-            top bar. Star anything to edit how it plays; your stars and playlists sit beside PLAY
-            NEXT, and every number behind all of it is under STUDY, as CHARACTER.
-          </p>
-        </Why>
+        <div className="pr-panel pr-drills" style={{ ['--c' as string]: '#7ceaff' }}>
+          <DrillsPanel
+            profile={profile}
+            nextId={pick.drill}
+            settings={settings}
+            onPlay={onPlay}
+            onFixControls={onFixControls}
+            stars={stars}
+            onToggleStar={onToggleStar}
+          />
+        </div>
       </div>
     </div>
   );
@@ -570,49 +308,8 @@ function GroupHead({ label, note, count }: { label: string; note: string; count?
 }
 
 // ===========================================================================
-// 01 — THE LANE
+// THE LANE — one big card, on PRACTICE
 // ===========================================================================
-
-function LanePanel({
-  nextId,
-  profile,
-  settings,
-  bound,
-  onPlay,
-  stars,
-  onToggleStar,
-}: {
-  profile: Profile;
-  settings: AppSettings;
-  bound: Bindings;
-  onPlay: PlayFn;
-  stars: DrillId[];
-  onToggleStar: (id: DrillId) => void;
-  nextId?: DrillId;
-}) {
-  return (
-    <>
-      <Explainer title="HOW THE LANE WORKS">
-        <p className="dim pr-lead pr-panel-lead">
-          This is the actual game: minions walk in, you kill the ones about to die for gold, and
-          somebody on the other side is doing the same and trying to stop you. Pick who you are up
-          against and how long you want to play. Everything in <b>PRACTICE</b> is one piece of this
-          on its own; here you find out whether it held up.
-        </p>
-      </Explainer>
-      <GroupHead label="THE MATCH" note="pick an opponent, pick a length" count="1 MODE" />
-      <LaneCard
-        profile={profile}
-        settings={settings}
-        bound={bound}
-        onPlay={onPlay}
-        starred={stars.includes('lanePhase')}
-        onToggleStar={() => onToggleStar('lanePhase')}
-        isNext={nextId === 'lanePhase'}
-      />
-    </>
-  );
-}
 
 /**
  * THE LANE.
@@ -638,7 +335,6 @@ function LanePanel({
 function LaneCard({
   profile,
   settings,
-  bound,
   onPlay,
   starred,
   onToggleStar,
@@ -646,7 +342,6 @@ function LaneCard({
 }: {
   profile: Profile;
   settings: AppSettings;
-  bound: Bindings;
   onPlay: (id: DrillId, mode: RunMode, opts?: { difficulty?: number; duration?: number }) => void;
   starred: boolean;
   onToggleStar: () => void;
@@ -662,6 +357,7 @@ function LaneCard({
       ref={card}
       className={`pr-card panel pr-lane pr-startable${isNext ? ' is-next' : ''}`}
       data-drill="lanePhase"
+      title={meta.brief}
       style={{ ['--c' as string]: tier.accent }}
       // The card starts the quick lane against the opponent picked on it; the
       // longer lanes are the buttons at the bottom.
@@ -716,7 +412,6 @@ function LaneCard({
       </div>
 
       <CardRecord profile={profile} id="lanePhase" />
-      <p className="pr-brief">{meta.brief}</p>
 
       <div className="pr-field">
         <span className="pr-field-label">Who are you up against?</span>
@@ -727,6 +422,7 @@ function LaneCard({
               <button
                 key={t.id}
                 className={`pr-tier${t.id === tier.id ? ' on' : ''}`}
+                title={t.blurb}
                 style={{ ['--c' as string]: t.accent }}
                 onMouseEnter={() => audio.play('uiHover')}
                 onClick={() => {
@@ -741,7 +437,6 @@ function LaneCard({
             );
           })}
         </div>
-        <p className="pr-lane-blurb">{tier.blurb}</p>
       </div>
 
       <div className="pr-field">
@@ -765,16 +460,6 @@ function LaneCard({
         </div>
       </div>
 
-      <Why label="why the lane">
-        <p className="pr-transfers">{meta.transfers}</p>
-        <p className="set-note">
-          Everything here is League's own: the same minions, the same health, the same gold, the
-          same wave every thirty seconds, the same turret. You both start at level one and level up
-          as the wave pays for it. There is no shop — gold is just the scoreboard — and no jungler,
-          so nobody is coming out of the river. Health does not come back on its own, so{' '}
-          <b>{shortCodeLabel(bound.f.primary)}</b> to go home is a real decision.
-        </p>
-      </Why>
     </section>
   );
 }
@@ -952,53 +637,6 @@ function PracticePanel({
         })}
       </div>
 
-      {/* Who she is and what the two buttons mean, said once, behind the why. */}
-      {/* One disclosure for the whole section: who she is, what the two
-          buttons mean, and how this screen hangs together. It was two, stacked,
-          which on a phone was the difference between a card above the fold
-          and none. */}
-      <Why key={`${champion.id}-why`} label={`how this screen works · ${champion.label.toLowerCase()}`}>
-        <p key={`${champion.id}-blurb`} className="dim pr-lead pr-panel-lead fade-in">
-          {champion.blurb}
-        </p>
-
-        <div className="pr-legend">
-          {RUN_MODE_LIST.map((m) => (
-            <span className="pr-legend-item" key={m.id} style={{ ['--c' as string]: m.accent }}>
-              <b>{m.label}</b>
-              <i>{m.blurb}</i>
-            </span>
-          ))}
-          {/* The clip, named as the thing it is. It used to say "hover a card",
-              which was true of a mouse and of nothing else — on a touchscreen
-              there was no hovering to do and the sentence was an instruction
-              nobody could follow. Every card now carries a play control you can
-              press, so the hint leads with that and keeps the hover as the
-              shortcut it always was. */}
-          <span className="pr-legend-hint">
-            <b>▶ CLICK ANY CARD</b>
-            <i>and you are in it — thirty seconds of PLAY. Rest on a card, or press CLIP, to watch it first</i>
-          </span>
-        </div>
-        <p className="dim pr-lead pr-panel-lead">
-          <b>PRACTICE</b> — this tab — is each champion taken apart: every mode is a single piece
-          of a lane rehearsed on its own. <b>THE LANE</b> is all of it at once: a real game of
-          League, farming minions while somebody tries to stop you. <b>CHARACTER</b>, under STUDY, is the
-          reference behind both. Want something shorter? <b>DRILLS</b>, on PLAY, is
-          thirty-second drills with no champion at all.
-        </p>
-        <p className="dim pr-lead pr-panel-lead">
-          Every mode has two buttons. <b>PLAY</b> is thirty seconds, always the same, so you can
-          compare today's score to yesterday's. <b>SURVIVE</b> has no clock — it gets harder the
-          longer you last and ends on your third mistake. Clicking anywhere else on a card is PLAY;
-          rest on it for a moment and it plays you a clip of the mode instead.
-        </p>
-        <p className="set-note">
-          Every number behind these — cooldowns, ranges, how long you have to dodge — is printed in{' '}
-          <b>CHARACTER</b> under STUDY, so you can check any of it against the real game.
-        </p>
-      </Why>
-
       <div key={champion.id} className="fade-in" style={{ ['--c' as string]: champion.accent }}>
         {groups.map((g) => (
           <div className="pr-group" key={g.id}>
@@ -1092,6 +730,7 @@ function ModeCard({
       ref={card}
       className={`pr-tile panel pr-startable${isNext ? ' is-next' : ''}`}
       data-drill={id}
+      title={meta.brief}
       style={{ ['--c' as string]: meta.accent }}
       onMouseEnter={() => audio.play('uiHover')}
       // Anywhere on the card that is not one of its own buttons is PLAY.
@@ -1136,10 +775,6 @@ function ModeCard({
         {/* The number, and whether it is moving. The brief and the transfer
             note are both still on the card, one click down. */}
         <CardRecord profile={profile} id={id} />
-        <Why label="why this one" className="pr-card-why">
-          <p className="pr-brief">{meta.brief}</p>
-          <p className="pr-transfers">{meta.transfers}</p>
-        </Why>
 
         <div className="pr-buttons">
           {RUN_MODE_LIST.map((m) => {
@@ -1220,16 +855,6 @@ function FavoritesPanel({
 
   return (
     <>
-      <Explainer title="HOW FAVORITES WORKS">
-        <p className="dim pr-lead pr-panel-lead">
-          Star anything on the three tabs — the ★ sits in the corner of every drill, every
-          champion mode and the lane — and you get to edit how it plays: its length, level, game
-          speed, target size and more. Build a playlist out of your stars and{' '}
-          <b>PLAY PLAYLIST</b> runs straight through it; <b>SHARE</b> hands a friend a link or a code
-          that plays it exactly as you built it.
-        </p>
-      </Explainer>
-
       <GroupHead
         label="STARRED"
         note="everything you have marked — each on its own settings"
@@ -1319,6 +944,7 @@ function FavoriteTile({
       ref={card}
       className={`pr-tile panel pr-startable${isNext ? ' is-next' : ''}`}
       data-drill={id}
+      title={meta.brief}
       style={{ ['--c' as string]: meta.accent }}
       onMouseEnter={() => audio.play('uiHover')}
       onClick={(e) => {
@@ -1341,9 +967,6 @@ function FavoriteTile({
           {tuning && isEdited(id, tuning) ? tuningSummary(id, tuning) : 'standard settings'}
           {isCustom(id, tuning) && <b> · CUSTOM</b>}
         </p>
-        <Why label="why this one" className="pr-card-why">
-          <p className="pr-brief">{meta.brief}</p>
-        </Why>
         <div className="pr-buttons pr-buttons-two">
           <button className="pr-go pr-go-play" onMouseEnter={() => audio.play('uiHover')} onClick={start}>
             <span className="pr-go-label">PLAY</span>
@@ -1638,12 +1261,11 @@ function CodeBox({ onCode }: { onCode: (text: string) => string | null }) {
 // ===========================================================================
 
 /**
- * PRACTICE, ON ITS OWN TAB.
+ * PRACTICE: the champions, and the lane.
  *
- * The champions in pieces are one segment of PLAY, and they still are. They
- * are also a tab of the top bar, because "I want to practise Katarina" should
- * be one click from anywhere rather than a tab inside a tab — so this is the
- * same panel, the same cards and the same records, with nothing above it.
+ * The lane — the real game — is one big card at the top. Under it, a switch
+ * between the three champions and each one's pieces. This is the only place
+ * either of them lives; PLAY is the drills.
  */
 export function PracticeScreen({
   profile,
@@ -1658,26 +1280,22 @@ export function PracticeScreen({
 }) {
   const bound = bindingsOf(settings);
   const nextId = useMemo(() => pickNext(profile).drill, [profile]);
-  useEffect(() => {
-    const reveal = pendingReveal;
-    if (!reveal) return;
-    pendingReveal = null;
-    const el = document.querySelector<HTMLElement>(`.pr-practice-screen [data-drill="${reveal}"]`);
-    const scroller = el?.closest('.scroll');
-    if (!el || !(scroller instanceof HTMLElement)) return;
-    const top = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-    scroller.scrollTop = Math.max(0, top - scroller.clientHeight * 0.28);
-    el.classList.add('just-played');
-    window.setTimeout(() => el.classList.remove('just-played'), 2400);
-  }, []);
+  useReveal('.pr-practice-screen');
   return (
     <div className="scroll">
       <div className="wrap practice pr-practice-screen fade-up">
-        <header className="pr-screen-head">
-          <h1 className="display pr-h1">PRACTICE</h1>
-          <p className="dim">One champion at a time, one piece at a time — {PRACTICE_MODES.length} modes across three champions.</p>
-        </header>
-        <div className="pr-panel" style={{ ['--c' as string]: SECTIONS.find((x) => x.id === 'practice')?.accent }}>
+        <h1 className="sr-only">PRACTICE</h1>
+        <div className="pr-panel pr-lane-slot">
+          <LaneCard
+            profile={profile}
+            settings={settings}
+            onPlay={onPlay}
+            starred={profile.stars.includes('lanePhase')}
+            onToggleStar={() => onToggleStar('lanePhase')}
+            isNext={nextId === 'lanePhase'}
+          />
+        </div>
+        <div className="pr-panel" style={{ ['--c' as string]: '#c86bff' }}>
           <PracticePanel
             profile={profile}
             nextId={nextId}

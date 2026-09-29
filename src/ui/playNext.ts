@@ -5,7 +5,7 @@ import { APM_LEVELS, isApmDrill, levelDifficulty, recommendedLevel } from '../pr
 import { recommend } from '../progression/coach';
 import { LANE_LENGTHS, LANE_TIERS } from '../progression/lane';
 import { buildPlan } from '../progression/plan';
-import type { Profile } from '../progression/profile';
+import { sameEra, type Profile } from '../progression/profile';
 
 /**
  * WHAT TO PLAY NEXT.
@@ -104,7 +104,8 @@ export const recentScores = (p: Profile, id: DrillId, n = 5): number[] => {
   const out: number[] = [];
   for (let i = p.history.length - 1; i >= 0 && out.length < n; i--) {
     const h = p.history[i];
-    if (h.drill === id && Number.isFinite(h.score)) out.push(h.score);
+    // One-minute scores are not on the same scale as today's thirty seconds.
+    if (h.drill === id && Number.isFinite(h.score) && sameEra(h)) out.push(h.score);
   }
   return out.reverse();
 };
@@ -134,7 +135,7 @@ export const freshBest = (p: Profile, id: DrillId, now = Date.now()): boolean =>
   let last: { score: number; t: number } | null = null;
   let before = -Infinity;
   for (const h of p.history) {
-    if (h.drill !== id) continue;
+    if (h.drill !== id || !sameEra(h)) continue;
     if (last) before = Math.max(before, last.score);
     last = { score: h.score, t: h.t };
   }

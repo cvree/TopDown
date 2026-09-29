@@ -411,7 +411,8 @@ section('A profile from a build whose catalogue has moved on still loads', () =>
 
   // And the runs that are still playable are still there.
   expect('runs in drills that still exist are kept', p.history.length === 20, String(p.history.length));
-  expect('records in drills that still exist are kept', Boolean(p.bests.movement), Object.keys(p.bests).join(', '));
+  // Kept — in the one-minute archive, since this profile predates thirty-second PLAY.
+  expect('records in drills that still exist are kept', Boolean(p.bests.movement ?? p.legacyBests.movement), Object.keys(p.legacyBests).join(', '));
   expect('a champion the roster no longer has reads back as one it does', p.settings.hero !== 'someoneWhoLeftTheRoster' && p.settings.hero.length > 0, p.settings.hero);
 });
 
@@ -499,6 +500,47 @@ section('A saved profile survives the round trip unchanged', () => {
   saveProfile(before);
   const after = loadProfile();
   expect('loading a profile the client wrote changes nothing', JSON.stringify(after) === JSON.stringify(before), 'the second load differed');
+});
+
+section('Records start again for thirty-second PLAY, and nothing is thrown away', () => {
+  const ghost = (seconds: number, at: number) => ({
+    path: Array.from({ length: Math.round(seconds / 0.25) }, () => ({ x: 0, y: 0 })),
+    step: 0.25,
+    marks: [],
+    score: 0,
+    at,
+  });
+  const old = Date.UTC(2026, 5, 1);
+  const recent = Date.UTC(2026, 8, 28, 12);
+  const raw = {
+    ...newProfile(),
+    recordEra: undefined,
+    bests: {
+      katReset: { score: 40000, metrics: { katReset: 18 }, at: old, replay: ghost(60, old) },
+      tfGate: { score: 9000, metrics: {}, at: recent, replay: ghost(30, recent) },
+      vayneTumble: { score: 7000, metrics: {}, at: old },
+      lanePhase: { score: 5000, metrics: {}, at: old, replay: ghost(150, old) },
+    },
+    katarina: (() => {
+      const k = newProfile().katarina;
+      k.stages.katReset = { ...k.stages.katReset, best: 0.8, bestScore: 40000, runs: 12 };
+      return k;
+    })(),
+    history: [
+      { drill: 'katReset', t: old, score: 40000, performance: 0.8, difficulty: 0.4, overall: 900, key: 0, keyId: '' },
+    ],
+  };
+  const p = load(raw);
+  expect('the profile is in the new era', p.recordEra === 2, String(p.recordEra));
+  expect('a one-minute best is no longer the best', !p.bests.katReset && !p.bests.vayneTumble, JSON.stringify(Object.keys(p.bests)));
+  expect('it is kept in the archive', p.legacyBests.katReset?.score === 40000 && p.legacyBests.vayneTumble?.score === 7000, JSON.stringify(p.legacyBests));
+  expect('a best already set on a thirty-second run stays', p.bests.tfGate?.score === 9000, JSON.stringify(p.bests.tfGate));
+  expect('the lane keeps its records', p.bests.lanePhase?.score === 5000, JSON.stringify(p.bests.lanePhase));
+  expect('a stage keeps its best percentage', p.katarina.stages.katReset.best === 0.8, String(p.katarina.stages.katReset.best));
+  expect('and its count-based best score starts again', p.katarina.stages.katReset.bestScore === 0, String(p.katarina.stages.katReset.bestScore));
+  expect('history is untouched', p.history.length === 1, String(p.history.length));
+  saveProfile(p);
+  expect('the move happens once', JSON.stringify(loadProfile()) === JSON.stringify(p), 'a second load moved records again');
 });
 
 section('Everything the home screen asks a profile, on every profile', () => {
@@ -656,7 +698,7 @@ line('\n=== Every screen that reads a profile draws it, on every profile ===');
 // different set of callbacks it never calls here.
 const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
   const noop = () => undefined;
-  const [{ Practice, PracticeScreen, SECTION_IDS }, { Progress }, { Benchmarks }, { AccuracyReport }, { CodexPanel }, { ActivityEditor }] =
+  const [{ Practice, PracticeScreen }, { Progress }, { Benchmarks }, { AccuracyReport }, { CodexPanel }, { ActivityEditor }] =
     await Promise.all([
       import('../src/ui/Practice'),
       import('../src/ui/Progress'),
@@ -697,21 +739,18 @@ const screens = async (): Promise<[string, (p: Profile) => unknown][]> => {
     // CHARACTER left PLAY for STUDY; it reads no profile, but it is a screen
     // PLAY used to draw on every check, so it is still drawn on every check.
     ['STUDY · CHARACTER', () => createElement(CodexPanel as any, {})],
-    // Every tab, not only the one a fresh mount opens on — DRILLS included, whose
-    // cards read further into a saved record than anything else. Each section reads a
-    // different corner of a stored profile and is only rendered while its own
-    // tab is open — so a check that drew the default tab would be checking the
-    // least of the screen.
-    ...SECTION_IDS.map(
-      (id): [string, (p: Profile) => unknown] => [
-        `PLAY · ${id.toUpperCase()}`,
+    // PLAY twice: as it opens, and with YOURS unfolded — the editor reads
+    // every star's settings and every playlist a stored profile holds.
+    ...([false, true] as const).map(
+      (open): [string, (p: Profile) => unknown] => [
+        open ? 'PLAY · YOURS' : 'PLAY',
         (profile) =>
           createElement(Practice as any, {
             profile,
             settings: profile.settings,
             onPlay: noop,
             onFixControls: noop,
-            initialSection: id,
+            initialYours: open,
           }),
       ],
     ),

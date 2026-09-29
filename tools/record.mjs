@@ -134,17 +134,16 @@ const clip = async (browser, state, name, fn) => {
   console.log(`  ✓ ${name}.webm  (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
 };
 
+/** PRACTICE, from the top bar: the lane, then the champions. */
 const openPractice = async (page) => {
-  await page.locator('.nav button', { hasText: 'PLAY' }).click();
-  await sleep(700);
+  await page.locator('.nav button', { hasText: 'PRACTICE' }).click();
+  await sleep(900);
 };
 
-/** Click the first mode card on the PRACTICE tab of the champion screen. */
+/** Click the first champion mode card on PRACTICE. */
 const openModeCard = async (page) => {
   await openPractice(page);
-  await page.locator('#pr-tab-practice').click();
-  await sleep(900);
-  const card = page.locator('.pr-startable').first();
+  const card = page.locator('.pr-tile.pr-startable').first();
   await card.scrollIntoViewIfNeeded();
   const box = await card.boundingBox();
   if (box) {
@@ -156,8 +155,6 @@ const openModeCard = async (page) => {
 
 const startLane = async (page) => {
   await openPractice(page);
-  await page.locator('#pr-tab-lane').click();
-  await sleep(700);
   const card = page.locator('.pr-lane').first();
   const box = await card.boundingBox();
   await page.mouse.click(box.x + box.width * 0.5, box.y + 80);

@@ -13,16 +13,17 @@ drawn on the ground where the thing it is about actually is.
 
 The top bar is three words: **PLAY**, **PRACTICE** and **PROGRESS**, with
 **STUDY**, setup and the patch notes in the corner.
-**PLAY** is every card you can start, in three sections behind one rail —
-**DRILLS**, then the three that are a champion. One of those is **THE LANE**:
+**PLAY** is one screen with one job: **PLAY NEXT** (one drill, chosen for you,
+one click or Enter away), your stars and playlists beside it, and the grid of
+**DRILLS** under both.
+**PRACTICE** is the champions, and only there. At the top is **THE LANE**:
 the first ten minutes of a game of League, at League's own numbers, against an
 enemy laner farming and trading on the other side of the wave. You pick the
-opponent and the length; everything else is the game. Another is
-**PRACTICE** — the parts of that lane, rehearsed one at a time, behind a switch
-between the three champions: one distance, four pieces of Vayne and the opponent
-who shoots at her; nine stages of Twisted Fate's wheel; and nine stages of
-Katarina's daggers. PRACTICE is also a tab of its own in the top bar, so a
-champion is one click from anywhere.
+opponent and the length; everything else is the game. Under it are the parts
+of that lane, rehearsed one at a time, behind a switch between the three
+champions: one distance, four pieces of Vayne and the opponent who shoots at
+her; nine stages of Twisted Fate's wheel; and nine stages of Katarina's
+daggers.
 Each mode has two ways to play it:
 
 - **PLAY** — thirty seconds. The same length every time, so a score means
@@ -31,10 +32,10 @@ Each mode has two ways to play it:
   when you have made that mode's own mistake three times. The result is how
   long you lasted.
 
-The last is **CHARACTER** — every figure all three champions are built from,
-printed, so a claim about transfer is one you can check.
+**CHARACTER**, under STUDY, is every figure all three champions are built
+from, printed, so a claim about transfer is one you can check.
 
-**DRILLS**, the first section of PLAY, is not a champion at
+**DRILLS**, the grid on PLAY, is not a champion at
 all: thirteen benches of drifting pads, ten levels each, measuring correct
 commands a minute and nothing else. It is separate because it is the layer
 underneath every champion there will ever be. Every level of every bench is

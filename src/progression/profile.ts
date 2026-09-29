@@ -76,6 +76,66 @@ import { defaultTuning, sanitizeTuning, type ActivityTuning } from './tuning';
 const STORAGE_KEY = 'apex.profile.v1';
 const PROFILE_VERSION = 1;
 
+/**
+ * THE THIRTY-SECOND ERA.
+ *
+ * PLAY became thirty seconds in v2.29.0. A score is mostly a count — daggers,
+ * cards, correct presses — so a record set on a one-minute run is roughly
+ * twice anything a thirty-second run can reach, and every card was showing a
+ * best nobody could beat any more.
+ *
+ * So records start again at the change. The one-minute ones are not deleted:
+ * they move to `legacyBests`, which nothing compares against. Percentages and
+ * rates (a stage's best %, a level's best %, correct actions a minute) are
+ * already per-second and carry over; counts (`bestScore` on every ladder) do
+ * not. The lane keeps its own lengths and its records; benchmarks keep their
+ * fixed minute and their own sheet.
+ */
+export const RECORD_ERA = 2;
+/** When the thirty-second era began, for reading history that predates the stamp. */
+export const THIRTY_SECOND_ERA = Date.UTC(2026, 8, 28);
+
+/** Whether a stored score can be compared with a PLAY run today. */
+export const sameEra = (h: { drill: DrillId; t: number }): boolean => h.drill === 'lanePhase' || h.t >= THIRTY_SECOND_ERA;
+
+/** A best whose ghost is at most this long was set on a thirty-second run. */
+const ERA_MAX_SECONDS = 45;
+
+/**
+ * Move a profile into the thirty-second era. Idempotent in effect: a best
+ * already set on a short run stays where it is.
+ */
+const startRecordEra = (p: Profile): Profile => {
+  const bests: Profile['bests'] = {};
+  const legacy: Profile['legacyBests'] = { ...p.legacyBests };
+  for (const [id, rec] of Object.entries(p.bests) as [DrillId, BestRecord][]) {
+    const len = rec.replay ? rec.replay.path.length * rec.replay.step : Infinity;
+    const short = !!rec.replay && rec.replay.at >= THIRTY_SECOND_ERA && len <= ERA_MAX_SECONDS;
+    if (id === 'lanePhase' || short) bests[id] = rec;
+    else legacy[id] = { score: rec.score, at: rec.at };
+  }
+  const recount = <T extends { bestScore: number }>(stages: Record<string, T>): Record<string, T> =>
+    Object.fromEntries(Object.entries(stages).map(([k, v]) => [k, { ...v, bestScore: 0 }])) as Record<string, T>;
+  const modes = Object.fromEntries(
+    Object.entries(p.apm.modes).map(([k, m]) => [
+      k,
+      { ...m, levels: m.levels.map((lv) => ({ ...lv, bestScore: 0 })), surge: { ...m.surge, bestScore: 0 } },
+    ]),
+  ) as ApmProgress['modes'];
+  return {
+    ...p,
+    recordEra: RECORD_ERA,
+    bests,
+    legacyBests: legacy,
+    vayne: { ...p.vayne, stages: recount(p.vayne.stages) as VayneProgress['stages'] },
+    ezreal: { ...p.ezreal, stages: recount(p.ezreal.stages) as EzrealProgress['stages'] },
+    twisted: { ...p.twisted, stages: recount(p.twisted.stages) as TwistedProgress['stages'] },
+    katarina: { ...p.katarina, stages: recount(p.katarina.stages) as KatarinaProgress['stages'] },
+    wasd: { ...p.wasd, modules: recount(p.wasd.modules) as WasdProgress['modules'] },
+    apm: { ...p.apm, modes },
+  };
+};
+
 export type MetricDirection = 'higher' | 'lower';
 
 export interface KeyMetric {
@@ -348,6 +408,10 @@ export interface Profile {
   /** Adaptive difficulty per axis, 0..1. */
   difficulty: Record<SkillAxis, number>;
   bests: Partial<Record<DrillId, BestRecord>>;
+  /** Which record era `bests` belongs to. See {@link RECORD_ERA}. */
+  recordEra: number;
+  /** One-minute PLAY records from before the thirty-second era. Kept, never compared. */
+  legacyBests: Partial<Record<DrillId, { score: number; at: number }>>;
   /**
    * The longest SURVIVE run of each mode.
    *
@@ -497,6 +561,8 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   peakOverall: 0,
   difficulty: zeroAxis(0.32),
   bests: {},
+  recordEra: RECORD_ERA,
+  legacyBests: {},
   survive: {},
   history: [],
   daily: { date: todayKey(), completed: [], streak: 0, lastCompletedDate: null, startOverall: 0 },
@@ -555,6 +621,17 @@ const keepKnownBests = (raw: unknown): Partial<Record<DrillId, BestRecord>> => {
   if (!raw || typeof raw !== 'object') return out;
   for (const [id, rec] of Object.entries(raw as Record<string, BestRecord>)) {
     if (isDrillId(id) && rec) out[id] = rec;
+  }
+  return out;
+};
+
+const keepKnownLegacy = (raw: unknown): Profile['legacyBests'] => {
+  const out: Profile['legacyBests'] = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [id, rec] of Object.entries(raw as Record<string, { score?: unknown; at?: unknown }>)) {
+    const score = Number(rec?.score);
+    if (!isDrillId(id) || !Number.isFinite(score)) continue;
+    out[id] = { score, at: Number.isFinite(Number(rec.at)) ? Number(rec.at) : 0 };
   }
   return out;
 };
@@ -627,7 +704,7 @@ export const loadProfile = (): Profile => {
     if (parsed.version !== PROFILE_VERSION) return newProfile();
     // Merge forward so a partially-written profile can't crash the app.
     const p = newProfile(parsed.name ?? 'PLAYER');
-    return {
+    const loaded: Profile = {
       ...p,
       ...parsed,
       ratings: { ...p.ratings, ...parsed.ratings },
@@ -714,7 +791,10 @@ export const loadProfile = (): Profile => {
       stars: keepKnownStars(parsed.stars),
       playlists: keepKnownPlaylists(parsed.playlists),
       tunings: keepKnownTunings(parsed.tunings),
+      recordEra: typeof parsed.recordEra === 'number' ? parsed.recordEra : 1,
+      legacyBests: keepKnownLegacy(parsed.legacyBests),
     };
+    return loaded.recordEra === RECORD_ERA ? loaded : startRecordEra(loaded);
   } catch {
     return newProfile();
   }
@@ -962,7 +1042,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
   };
 
   // Improvement versus the previous run of the same drill.
-  const lastRun = [...p.history].reverse().find((h) => h.drill === result.drill);
+  const lastRun = [...p.history].reverse().find((h) => h.drill === result.drill && sameEra(h));
   const improvements: Improvement[] = [];
   const head = result.keyMetrics[0];
   if (lastRun && head && lastRun.keyId === head.id) {

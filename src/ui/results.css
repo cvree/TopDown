@@ -133,65 +133,18 @@
 }
 
 /* ------------------------------------------------------------ act two
-   The verdict: the number that mode is about, one sentence, the one thing
-   that held the run back, where the rating went — and one button. */
+   The verdict: one sentence, and one button under it. Every other number
+   is behind EVIDENCE. */
 .res-verdict {
-  display: grid;
-  grid-template-columns: minmax(220px, 300px) 1fr;
-  gap: 34px;
-  align-items: center;
-  margin: 34px auto 22px;
-  max-width: 980px;
-  padding: 24px 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-.rvd-metric {
-  text-align: right;
-  padding-right: 34px;
-  border-right: 1px solid var(--line);
-}
-.rvd-value {
-  font-size: 54px;
-  line-height: 1;
-  margin: 8px 0 6px;
-  color: #eafcff;
-}
-.rvd-words {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.rvd-sentence {
-  margin: 0;
+  margin: 26px auto 24px;
+  max-width: 56ch;
+  text-align: center;
   font-size: 16px;
   line-height: 1.55;
   color: var(--text);
-  max-width: 60ch;
 }
-.rvd-limiter {
-  margin: 0;
-  display: flex;
-  gap: 12px;
-  align-items: baseline;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-2);
-  max-width: 64ch;
-}
-.rvd-limiter .eyebrow {
-  flex: none;
-  color: var(--danger);
-  opacity: 0.85;
-}
-.rvd-rating {
-  font-size: 11.5px;
-  letter-spacing: 0.08em;
-  color: var(--text-3);
-}
-.rvd-rating b {
-  color: var(--text-2);
-  font-weight: 600;
+.res-custom {
+  color: var(--warn);
 }
 
 /* ---------------------------------------------------------- act three
@@ -254,16 +207,6 @@
   transform: none;
 }
 
-@media (max-width: 860px) {
-  .res-verdict {
-    grid-template-columns: 1fr;
-  }
-  .rvd-metric {
-    text-align: left;
-    border-right: 0;
-    padding-right: 0;
-  }
-}
 
 .res-head {
   display: flex;
@@ -941,12 +884,33 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.res-next-why {
+/* Everything that is not the next drill, as quiet text under it. */
+.res-quiet {
   flex-basis: 100%;
-  margin: 2px 0 0;
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  margin-top: 4px;
+}
+.res-link {
+  padding: 8px 2px;
+  border: 0;
+  background: none;
+  font-family: var(--ui);
   font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--text-3);
+  cursor: pointer;
+  transition: color var(--dur-2) var(--ease-out);
+}
+.res-link:hover {
+  color: var(--text);
+}
+.res-link:focus-visible {
+  outline: 2px solid var(--gold-lit);
+  outline-offset: 3px;
 }
 
 /* A personal best, as a moment with the drill's name on it. */

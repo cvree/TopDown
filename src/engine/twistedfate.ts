@@ -335,6 +335,12 @@ export class TwistedKit {
   qCd = 0;
   wCd = 0;
   rCd = 0;
+  /**
+   * Destiny's full cooldown. League's-for-this-client everywhere, except on
+   * the one stage about the gate, which sets a practice figure so a
+   * thirty-second run holds more than one.
+   */
+  rCdMax: number = TWISTED_STATS.rCd;
 
   /** The card on the hand, waiting for an attack. */
   held: CardColor | null = null;
@@ -906,7 +912,7 @@ export class TwistedKit {
     }
 
     if (this.rCd > 0) return 'refused';
-    this.rCd = TWISTED_STATS.rCd;
+    this.rCd = this.rCdMax;
     this.stats.rCasts++;
     this.destiny = {
       kind: 'reveal',
@@ -994,7 +1000,7 @@ export class TwistedKit {
                 name: this.gateArmed > 0 ? 'GATE' : 'DESTINY',
                 locked: false,
                 highlight: this.gateArmed > 0,
-                cd: this.gateArmed > 0 ? 0 : clamp(this.rCd / TWISTED_STATS.rCd, 0, 1),
+                cd: this.gateArmed > 0 ? 0 : clamp(this.rCd / this.rCdMax, 0, 1),
               }
             : a;
         default:

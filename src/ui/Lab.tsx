@@ -29,7 +29,6 @@ import { ModePreview } from './components/ModePreview';
 import { cardClickStarts } from './components/cardStart';
 import { StarButton } from './components/StarButton';
 import { CardRecord } from './components/CardRecord';
-import { Why } from './components/Why';
 import './practice.css';
 import './lab.css';
 
@@ -343,7 +342,7 @@ function LabPanel({
           are not, a line is drawn from your cursor to the square that wants you.
         </p>
         <p className="dim pr-lead pr-panel-lead">
-          <b>Pick a level and it stays there for the whole minute.</b> It never speeds up because
+          <b>Pick a level and it stays there for the whole run.</b> It never speeds up because
           you are doing well, so two runs at level 6 are two runs at the same thing and the scores
           can be compared. Every card opens on the lowest level you have not beaten yet — the
           arrows move it, and nothing is ever locked.
@@ -402,7 +401,6 @@ function LabPanel({
                     binds={checkLabBinds(bound, level, scheme)}
                     bound={bound}
                     onFixControls={onFixControls}
-                    cleared={rec.levels.map((lv) => levelStars(lv) > 0)}
                     lv={rec.levels[level - 1]}
                     // Defensive, like everything else this screen reads out of
                     // a stored profile: a menu that throws on a half-written
@@ -436,7 +434,6 @@ function LabBench({
   binds,
   bound,
   onFixControls,
-  cleared,
   lv,
   infRuns,
   infHeld,
@@ -456,8 +453,6 @@ function LabBench({
   binds: BindReport;
   bound: Bindings;
   onFixControls: () => void;
-  /** Which of the ten rungs have a star on them, for the ladder strip. */
-  cleared: boolean[];
   lv: ApmLevelRecord;
   infRuns: number;
   infHeld: number;
@@ -520,6 +515,7 @@ function LabBench({
       ref={card}
       className={`pr-lab-mode${blocked ? ' unplayable' : ''}${isNext ? ' is-next' : ''}`}
       data-drill={mode.id}
+      title={`${meta.brief}\n\nYou do: ${mode.counts}\nHard bit: ${mode.pressure}`}
       style={{ ['--c' as string]: meta.accent }}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -658,7 +654,7 @@ function LabBench({
           </span>
           <span className="pr-inf-label">
             SURGE
-            <i>1 min</i>
+            <i>30 sec</i>
           </span>
           <span className="pr-inf-best mono">
             {surgeRuns > 0 ? `+${surgeBest.toFixed(1)} levels` : 'streaks raise it'}
@@ -684,42 +680,6 @@ function LabBench({
         </button>
       </div>
 
-      <Why label="why this one" className="pr-card-why">
-        <p className="pr-lab-brief">{meta.brief}</p>
-        {/* Two lines, and they are the only thing that tells thirteen drills
-            apart once you know them: what you do, and why it is hard. */}
-        <dl className="pr-lab-facts">
-          <div>
-            <dt>You do</dt>
-            <dd>{mode.counts}</dd>
-          </div>
-          <div>
-            <dt>Hard bit</dt>
-            <dd>{mode.pressure}</dd>
-          </div>
-          <div>
-            <dt>Level {level}</dt>
-            <dd>
-              1 min · {keysAtLevel(level).length + ordersAtLevel(level).length} keys ·{' '}
-              {level >= MAP_MIN_LEVEL ? 'with the corner map' : 'no corner map'}
-            </dd>
-          </div>
-        </dl>
-        {/* The ladder, as ten marks. Which rungs you have put a star on, which
-            one the card is showing, and how far the ten actually go. It stopped
-            being a map of what is *open* when everything became open; a record
-            of what you have taken is the thing worth drawing instead. */}
-        <div className="pr-lab-rungs" aria-hidden>
-          {Array.from({ length: APM_LEVELS }, (_, i) => i + 1).map((n) => (
-            <span
-              key={n}
-              className={`pr-rung${cleared[n - 1] ? ' open' : ''}${n === level ? ' here' : ''}${
-                n >= MAP_MIN_LEVEL ? ' mapped' : ''
-              }`}
-            />
-          ))}
-        </div>
-      </Why>
     </article>
   );
 }

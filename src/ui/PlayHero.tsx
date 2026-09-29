@@ -35,10 +35,13 @@ export function PlayHero({
   onPlayPlaylist,
   onPlayFavorite,
   onOpenFavorites,
+  yoursOpen = false,
 }: {
   profile: Profile;
   settings: AppSettings;
   pick: NextPick;
+  /** Whether the editor under the shelf is open. */
+  yoursOpen?: boolean;
   onStart: (spec: StartSpec) => void;
   onPlayPlaylist: (pl: Playlist) => void;
   /** A starred activity, on its own edited settings. */
@@ -94,7 +97,13 @@ export function PlayHero({
         </div>
       </section>
 
-      <Shelf profile={profile} onPlayFavorite={onPlayFavorite} onPlayPlaylist={onPlayPlaylist} onOpenFavorites={onOpenFavorites} />
+      <Shelf
+        profile={profile}
+        onPlayFavorite={onPlayFavorite}
+        onPlayPlaylist={onPlayPlaylist}
+        onOpenFavorites={onOpenFavorites}
+        open={yoursOpen}
+      />
     </div>
   );
 }
@@ -158,11 +167,13 @@ function Shelf({
   onPlayFavorite,
   onPlayPlaylist,
   onOpenFavorites,
+  open,
 }: {
   profile: Profile;
   onPlayFavorite: (id: DrillId) => void;
   onPlayPlaylist: (pl: Playlist) => void;
   onOpenFavorites: () => void;
+  open: boolean;
 }) {
   const stars = profile.stars.filter((id) => DRILLS[id]);
   const lists = profile.playlists.filter((pl: Playlist) => pl.items.length > 0);
@@ -228,16 +239,14 @@ function Shelf({
       ))}
       <button
         type="button"
-        className="pr-chip pr-chip-more"
+        className={`pr-chip pr-chip-more${open ? ' on' : ''}`}
+        aria-expanded={open}
         onMouseEnter={() => audio.play('uiHover')}
-        onClick={() => {
-          audio.play('uiTab');
-          onOpenFavorites();
-        }}
+        onClick={onOpenFavorites}
       >
         <span className="pr-chip-text">
-          <b>{stars.length ? 'FAVORITES' : '☆ STAR A CARD'}</b>
-          <i>{stars.length ? 'edit · playlists' : 'it lands here'}</i>
+          <b>{open ? 'DONE' : stars.length || lists.length ? 'EDIT' : '☆ YOURS'}</b>
+          <i>{open ? 'close' : 'stars · playlists · codes'}</i>
         </span>
       </button>
     </nav>

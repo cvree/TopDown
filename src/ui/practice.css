@@ -1828,33 +1828,19 @@
   }
 }
 
-.pr-foot-why {
-  margin-top: 36px;
+/* YOURS: every star, the playlists and the code box, unfolded under the
+   shelf by its last chip and folded away again by the same chip. */
+.pr-yours {
+  margin: 0 0 30px;
+  padding: 20px 22px 6px;
+  border: 1px solid var(--stroke);
+  border-left: 3px solid var(--c);
+  background: var(--panel-2);
 }
 
-/* FAVORITES, opened from the shelf: off the rail, so it says where it is and
-   how to get back. */
-.pr-offrail {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  margin-bottom: 18px;
-}
-.pr-offrail b {
-  font-size: 20px;
-  letter-spacing: 0.1em;
-  color: var(--c);
-}
-.pr-offrail i {
-  font-style: normal;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  color: var(--text-3);
-}
-.pr-offrail .btn {
-  margin-left: auto;
-  min-height: 44px;
+/* PRACTICE opens on the lane: one big card, then the champions. */
+.pr-lane-slot {
+  margin-bottom: 6px;
 }
 
 /* The two tabs most of a session is spent in are the widest two on the rail. */

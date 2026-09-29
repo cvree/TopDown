@@ -15,6 +15,7 @@ import {
   resetProfile,
   rollDaily,
   saveProfile,
+  sameEra,
   setPlaylistItems,
   setTuning,
   toggleStarred,
@@ -38,7 +39,7 @@ import { Crest } from './components/Crest';
 import { GestureNotice, hasBrowserMouseGestures } from './components/GestureNotice';
 import { GameView } from './GameView';
 import { ErrorBoundary } from './ErrorBoundary';
-import { Practice, PracticeScreen, openSection, revealDrill } from './Practice';
+import { Practice, PracticeScreen, openYours, revealDrill } from './Practice';
 import { pickNext, startSpec } from './playNext';
 import { ActivityEditor, ImportDialog, ShareDialog } from './ActivityEditor';
 import { Benchmarks } from './Benchmarks';
@@ -85,13 +86,11 @@ import './app.css';
  *
  * Three in the bar, and setup, study and the patch notes in the corner.
  *
- * **PLAY** is every card you can start — the thirty-second drills for your
- * hands, the three champions, the lane, and a shelf of whatever you have
- * starred and every playlist you have built.
+ * **PLAY** is one screen with one job: PLAY NEXT, your stars and playlists,
+ * and the grid of thirty-second drills.
  *
- * **PRACTICE** is the champions in pieces. It is also a segment of PLAY, and
- * stays one; it has its own tab as well so that "practise Katarina" is one
- * click from anywhere.
+ * **PRACTICE** is the lane — one big card — and the three champions in
+ * pieces. They live here and nowhere else.
  *
  * **PROGRESS** is whether any of it is working — and the reaction tests and
  * the benchmark sheet, which measure it at settings that never move.
@@ -107,8 +106,8 @@ type Route = 'play' | 'practice' | 'study' | 'progress' | 'settings' | 'patch';
 
 /** The top bar, in order. Setup, study and the patch notes live in the corner. */
 const NAV: { route: Route; label: string; hint: string }[] = [
-  { route: 'play', label: 'PLAY', hint: 'Thirty-second drills for your hands, a champion in pieces, or a whole lane' },
-  { route: 'practice', label: 'PRACTICE', hint: 'Vayne, Twisted Fate and Katarina, one piece at a time' },
+  { route: 'play', label: 'PLAY', hint: 'The next drill, your stars and playlists, and every thirty-second drill' },
+  { route: 'practice', label: 'PRACTICE', hint: 'The lane, and Vayne, Twisted Fate and Katarina one piece at a time' },
   { route: 'progress', label: 'PROGRESS', hint: 'Your scores, reaction tests and benchmarks' },
 ];
 
@@ -215,7 +214,10 @@ interface ResultState {
 
 /** The most recent score of a drill in the history, before the run being shown. */
 const lastScoreOf = (p: Profile, drill: DrillId): number | null => {
-  for (let i = p.history.length - 1; i >= 0; i--) if (p.history[i].drill === drill) return p.history[i].score;
+  for (let i = p.history.length - 1; i >= 0; i--) {
+    const h = p.history[i];
+    if (h.drill === drill && sameEra(h)) return h.score;
+  }
   return null;
 };
 
@@ -254,6 +256,8 @@ export function App() {
   }, []);
   /** EDIT ACTIVITY, a share dialog or a playlist somebody sent — at most one. */
   const [modal, setModal] = useState<Modal | null>(null);
+  /** Moves to remount PLAY with YOURS unfolded, after a friend's playlist is saved. */
+  const [playKey, setPlayKey] = useState(0);
   const [benchNote, setBenchNote] = useState<{ eyebrow: string; line: string; tone?: 'good' | 'warn' } | null>(null);
   const [flow, setFlow] = useState<Flow | null>(null);
   const [results, setResults] = useState<ResultState | null>(null);
@@ -626,7 +630,12 @@ export function App() {
         recentBests: [...prev.recentBests],
         bench: Object.fromEntries(Object.entries(prev.bench).map(([k, v]) => [k, v && { ...v }])),
       };
-      const report: ProgressReport = applyRun(next, result, flow.level ? { level: flow.level } : {});
+      // A benchmark is a fixed minute. It keeps its own sheet, and is played
+      // as a longer run here so it never sets a thirty-second PLAY record.
+      const report: ProgressReport = applyRun(next, result, {
+        ...(flow.level ? { level: flow.level } : {}),
+        ...(flow.bench ? { endurance: true } : {}),
+      });
       // A new record is shown landing in its row the next time PROGRESS is
       // opened, once. Remembered by the run's own timestamp.
       const newest = next.history[next.history.length - 1];
@@ -889,7 +898,6 @@ export function App() {
       });
       const first = tour === 'first';
       setTour(null);
-      openSection('drills');
       setRouteNow('play');
       if (first) startRun('apmPulse', 'play', { difficulty: levelDifficulty(1), level: 1 });
     },
@@ -983,7 +991,9 @@ export function App() {
         onSave={() => {
           keep();
           audio.play('uiClick');
-          openSection('favorites');
+          openYours();
+          setPlayKey((k) => k + 1);
+          setRoute('play');
         }}
         onSaveAndPlay={() => playPlaylist(keep())}
         onClose={close}
@@ -1059,17 +1069,8 @@ export function App() {
                 ? null
                 : encodeScenario({ drill: flow.drill, mode: flow.mode, difficulty, seed: flow.seed })
             }
-            banner={
-              flow.playlist
-                ? playlistBanner(flow.playlist, !!flow.custom)
-                : flow.custom
-                  ? {
-                      eyebrow: 'Custom settings · practice',
-                      line: 'Played on your own length, speed or target size: scored for you to see, and written to nothing — no record, ladder or rating moved.',
-                      tone: 'warn',
-                    }
-                  : benchNote
-            }
+            custom={!!flow.custom}
+            banner={flow.playlist ? playlistBanner(flow.playlist) : flow.custom ? null : benchNote}
             nextLabel={
               flow.playlist
                 ? flow.playlist.index + 1 >= flow.playlist.items.length
@@ -1256,6 +1257,7 @@ export function App() {
           >
             {route === 'play' && (
               <Practice
+                key={playKey}
                 profile={profile}
                 settings={profile.settings}
                 onPlay={startRun}
@@ -1355,15 +1357,14 @@ const formatHead = (v: number, f: string): string => {
  * The banner a playlist run shows: which queue, and where in it — and on the
  * last item, the whole way through, score by score.
  */
-const playlistBanner = (pl: PlaylistFlow, custom: boolean): { eyebrow: string; line: string; tone?: 'good' | 'warn' } => {
+const playlistBanner = (pl: PlaylistFlow): { eyebrow: string; line: string; tone?: 'good' | 'warn' } => {
   const last = pl.index + 1 >= pl.items.length;
-  const tag = custom ? ' · custom settings, written to nothing' : '';
-  if (!last) return { eyebrow: `Playlist · ${pl.name}`, line: `${pl.index + 1} of ${pl.items.length} — ${DRILLS[pl.items[pl.index]].name}${tag}` };
+  if (!last) return { eyebrow: `Playlist · ${pl.name}`, line: `${pl.index + 1} of ${pl.items.length}` };
   const scores = pl.items.map((id, i) => `${DRILLS[id].name} ${(pl.scores[i] ?? 0).toLocaleString('en-US')}`);
   const total = pl.scores.reduce<number>((n, v) => n + (v ?? 0), 0);
   return {
     eyebrow: `Playlist complete · ${pl.name}`,
-    line: `All ${pl.items.length} done — ${scores.join(' · ')}. Total ${total.toLocaleString('en-US')}.${custom ? ' This last one was on custom settings: written to nothing.' : ''}`,
+    line: `Total ${total.toLocaleString('en-US')} — ${scores.join(' · ')}`,
     tone: 'good',
   };
 };

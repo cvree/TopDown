@@ -150,7 +150,7 @@ import {
   recommendedLevel,
   seedApmLadder,
 } from '../src/progression/apm';
-import { durationFor, isOpenEnded, type RunMode } from '../src/drills/modes';
+import { PLAY_SECONDS, durationFor, isOpenEnded, type RunMode } from '../src/drills/modes';
 import { Rng } from '../src/engine/rng';
 import { World } from '../src/engine/world';
 
@@ -3324,6 +3324,60 @@ line('\n=== KATARINA: the mechanics behind the score are real ===');
   expect('diving it at full health is not', metric(dive, 'katEntry') < 0.3, pct(metric(dive, 'katEntry')));
 }
 
+line('\n=== THIRTY SECONDS: every champion stage still grades a PLAY run ===');
+{
+  // PLAY is thirty seconds. Everything above plays each stage for the length
+  // its card was written for, so this is the check that the length a player
+  // actually gets still holds enough of each stage's act to be a measurement:
+  // played properly it scores well, played badly it scores worse, and not
+  // played at all it scores nothing.
+  const kat = KATARINA_DRILL_IDS as unknown as DrillId[];
+  const tf = TWISTED_DRILL_IDS as unknown as DrillId[];
+  const timed = [
+    ...kat.filter((id) => DRILLS[id].duration > 0).map((id) => [id, 'katarina', 'katChase'] as const),
+    ...tf.filter((id) => DRILLS[id].duration > 0).map((id) => [id, 'twisted', 'tfReactive'] as const),
+  ];
+  for (const [id, good, bad] of timed) {
+    const g = runDrill(id, good, 0.4, 4242, 'wasd', 'hands', { seconds: PLAY_SECONDS });
+    const b = runDrill(id, bad, 0.4, 4242, 'wasd', 'hands', { seconds: PLAY_SECONDS });
+    const idle = runDrill(id, 'idle', 0.4, 4242, 'wasd', 'hands', { seconds: PLAY_SECONDS });
+    line(`  ${id.padEnd(11)} good ${pct(g.out.performance)}  |  ${bad} ${pct(b.out.performance)}  |  idle ${pct(idle.out.performance)}`);
+    expect(`${id} @30s: playing it properly scores well`, g.out.performance > 0.5, pct(g.out.performance));
+    expect(`${id} @30s: doing nothing scores near zero`, idle.out.performance < 0.3, pct(idle.out.performance));
+    // The four stages retuned for thirty seconds also have to keep telling
+    // the right habit from the wrong one at that length.
+    if (['katReset', 'katLotus', 'katEntry', 'tfGate'].includes(id)) {
+      expect(`${id} @30s: the wrong habit still costs you`, b.out.performance < g.out.performance - 0.05, `${pct(b.out.performance)} vs ${pct(g.out.performance)}`);
+    }
+  }
+
+  const katKit = (r: ReturnType<typeof runDrill>) => (r.drill as unknown as { kit: KatarinaKit }).kit;
+  const tfKit = (r: ReturnType<typeof runDrill>) => (r.drill as unknown as { kit: TwistedKit }).kit;
+  const metric = (r: ReturnType<typeof runDrill>, id: string) => r.out.keyMetrics.find((m) => m.id === id)?.value ?? 0;
+  const thirty = { seconds: PLAY_SECONDS };
+
+  const reset = katKit(runDrill('katReset', 'katarina', 0.4, 55, 'wasd', 'hands', thirty));
+  line(`  reset  : ${reset.stats.takedowns} takedowns, ${reset.stats.resets} resets in 30s`);
+  expect('@30s a kill is still a cooldown', reset.stats.resets > 3, `${reset.stats.resets}`);
+
+  const lotus = katKit(runDrill('katLotus', 'katarina', 0.4, 8080, 'wasd', 'hands', thirty));
+  line(`  lotus  : ${lotus.stats.rCasts} spun, ${lotus.stats.rCompleted + lotus.stats.rShunpoOut} kept in 30s`);
+  expect('@30s the lotus is reachable more than twice', lotus.stats.rCasts > 2, `${lotus.stats.rCasts}`);
+
+  const entry = runDrill('katEntry', 'katarina', 0.4, 4242, 'wasd', 'hands', thirty);
+  const dive = runDrill('katEntry', 'katChase', 0.4, 4242, 'wasd', 'hands', thirty);
+  line(`  entry  : on time — waited ${pct(metric(entry, 'katEntry'))}, dived ${pct(metric(dive, 'katEntry'))} in 30s`);
+  expect('@30s there is more than one fight to join', (entry.drill as unknown as { groups: unknown[] }).groups.length > 2, `${(entry.drill as unknown as { groups: unknown[] }).groups.length}`);
+  expect('@30s waiting for the fight is an entry on time', metric(entry, 'katEntry') > 0.6, pct(metric(entry, 'katEntry')));
+  expect('@30s diving it at full health is not', metric(dive, 'katEntry') < 0.3, pct(metric(dive, 'katEntry')));
+
+  const gate = runDrill('tfGate', 'twisted', 0.4, 8080, 'wasd', 'hands', thirty);
+  const gk = tfKit(gate);
+  line(`  gate   : ${gk.stats.rCasts} destinies, on the mark ${metric(gate, 'tfGates')} in 30s`);
+  expect('@30s the ultimate is reachable more than once', gk.stats.rCasts > 1, `${gk.stats.rCasts}`);
+  expect('@30s starting on the telegraph gets you there', metric(gate, 'tfGates') > 1, `${metric(gate, 'tfGates')} on the mark`);
+}
+
 line('\n=== KATARINA: the path is gated, and mastery only ever climbs ===');
 {
   const p = emptyKatarinaProgress();
@@ -5742,6 +5796,7 @@ line('\n=== REWIND: a run rebuilt from its tape is the same run ===');
   // The client rebuilds in slices between frames behind a progress bar, so
   // this is a budget rather than a freeze: a rewind at the end of a full
   // nine-minute lane should still be a matter of seconds.
+  line(`  TIMING ${ms.toFixed(0)}`);
   expect('rebuilding two and a half minutes of lane takes under four seconds', ms < 4000, `${ms.toFixed(0)} ms`);
 }
 

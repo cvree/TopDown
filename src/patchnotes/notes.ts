@@ -41,6 +41,34 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.30.0',
+    name: 'ONE JOB',
+    date: '2026-09-29',
+    headline: 'PLAY is one screen with one job, the results screen leads with your score, and thirty-second records you can actually beat.',
+    sections: [
+      {
+        tag: 'changed',
+        items: [
+          'PLAY is three things: PLAY NEXT, your stars and playlists, and the thirteen drills. The DRILLS · PRACTICE · THE LANE rail is gone.',
+          'The champions and the lane live on PRACTICE, and only there. The lane is the big card at the top; Vayne, Twisted Fate and Katarina are under it.',
+          'Your stars, playlists and the box for a friend’s code open under the shelf, from its last chip, and fold away again from the same chip.',
+          'The “why this one” boxes on every card are gone. Rest the pointer on a card for its one-line description.',
+          'The results screen: your score, whether it went up or down against your last run, one sentence, and one button. Run again, the other mode and Back are quiet links under it. The rating, the limiter and everything else are under EVIDENCE.',
+          'Records start again for thirty-second PLAY. A score is mostly a count, so a record set on a one-minute run was out of reach. Those records are kept in an archive, not deleted; a record you already set on a thirty-second run stays. Best percentages and rates carry over.',
+          'Katarina · RESET, DEATH LOTUS and THE ENTRY, and Twisted Fate · GATE, are retuned for thirty seconds: the lotus is on seven seconds with a wave of hunters on the same beat, a fight bleeds to the line in four and a half seconds and waits fourteen, and Destiny is on nine seconds on the gate stage. Every champion stage now asks for the same rate on a thirty-second run rather than a minute’s count.',
+        ],
+      },
+      {
+        tag: 'fixed',
+        items: [
+          'A custom run no longer shows a rating change or a new best. Nothing was saved, and the screen now says “Custom settings · not saved” and nothing else.',
+          'A benchmark minute no longer writes into a drill’s thirty-second PLAY record.',
+          'GATE no longer opens a ring the clock ends before you could land in, and THE ENTRY no longer starts a fight that could not bleed to the line in time.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.29.0',
     name: 'MAKE IT YOURS',
     date: '2026-09-28',

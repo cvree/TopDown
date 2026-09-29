@@ -186,7 +186,10 @@ const STAGES: Record<KatarinaDrillId, StageDef> = {
     duration: 60,
     abilities: ['q', 'w', 'e'],
     loadout: { bouncingBlade: true, preparation: true, shunpo: true },
-    weights: { reset: 0.4, take: 0.14, damage: 0.18, survival: 0.16, timing: 0.12 },
+    // Daggers taken carry real weight: over thirty seconds a player who chases
+    // the body still reaches the reset count, and what gives them away is the
+    // daggers they leave on the floor on the way.
+    weights: { reset: 0.36, take: 0.28, damage: 0.16, survival: 0.14, timing: 0.06 },
     // Resets come often here on purpose — three fragile bodies, always three —
     // so the count that means something is a high one: a reset every three
     // seconds or so is a player arriving at every next target with the kit.
@@ -196,13 +199,13 @@ const STAGES: Record<KatarinaDrillId, StageDef> = {
   katLotus: {
     id: 'katLotus',
     stage: 'PRESSURE',
-    duration: 60,
+    // Tuned for the thirty-second PLAY run: a lotus every seven seconds and a
+    // wave of hunters on the same beat, so a run holds four of each. At the
+    // old fourteen seconds a thirty-second run held two, which is an anecdote.
+    duration: 30,
     abilities: ['e', 'r'],
     loadout: { shunpo: true, deathLotus: true },
-    // Three lotuses a minute is an anecdote. Four is still few, and it is the
-    // most a run can hold without the waves arriving faster than the ultimate
-    // could ever answer them.
-    practice: { r: 14 },
+    practice: { r: 7 },
     weights: { lotus: 0.5, survival: 0.24, damage: 0.26 },
     expected: 4,
     clarity: 0.35,
@@ -210,11 +213,12 @@ const STAGES: Record<KatarinaDrillId, StageDef> = {
   katEntry: {
     id: 'katEntry',
     stage: 'TRANSFER',
-    duration: 65,
+    // Thirty seconds, three fights: see ENTRY_DRAIN for the pace.
+    duration: 30,
     abilities: ['q', 'w', 'e', 'r'],
     loadout: { bouncingBlade: true, preparation: true, shunpo: true, deathLotus: true },
     weights: { entry: 0.38, reset: 0.2, survival: 0.24, damage: 0.18 },
-    expected: 4,
+    expected: 3,
     clarity: 0.2,
   },
   katFight: {
@@ -245,17 +249,17 @@ export const isKatarinaDrill = (id: string): id is KatarinaDrillId => id in STAG
  * The entry stage's fight: how fast it bleeds, how low it bottoms out, and
  * the line under which joining it is on time.
  *
- * Seven per cent a second takes a group from full to the line in about six
- * and a half seconds, which is long enough that waiting is a decision and
- * short enough that a run holds four of them. The floor is there so the fight
- * never finishes itself: it is waiting for her, and a fight that ended
+ * Ten per cent a second takes a group from full to the line in four and a half
+ * seconds, which is long enough that waiting is a decision and short enough
+ * that a thirty-second run holds three of them. The floor is there so the
+ * fight never finishes itself: it is waiting for her, and a fight that ended
  * without her would be grading the drain rather than the entry.
  */
-const ENTRY_DRAIN = 0.07;
+const ENTRY_DRAIN = 0.1;
 const ENTRY_FLOOR = 0.2;
 const ENTRY_LINE = 0.55;
 /** How long a fight waits for her before it is over without her. */
-const ENTRY_LIFE = 17;
+const ENTRY_LIFE = 14;
 
 /** In, drop, take: one trade on the dance stage, and how far it got. */
 interface Trade {
@@ -449,7 +453,10 @@ export class KatarinaDrill extends Drill {
    */
   private spawnGroup(): void {
     const p = this.s.world.player;
-    const anchor = this.randomPoint(p?.pos ?? null, 760, 260);
+    // Far enough that joining is a decision, near enough that a thirty-second
+    // run is spent on the timing rather than on the walk across the arena.
+    let anchor = this.randomPoint(p?.pos ?? null, 620, 260);
+    for (let i = 0; i < 24 && p && dist(anchor, p.pos) > 1050; i++) anchor = this.randomPoint(p.pos, 620, 260);
     const ids: number[] = [];
     for (let i = 0; i < 3; i++) {
       const ang = (i / 3) * Math.PI * 2 + this.s.rng.range(-0.3, 0.3);
@@ -584,7 +591,9 @@ export class KatarinaDrill extends Drill {
     this.huntCd -= dt;
     const alive = this.s.world.enemies().filter((e) => !e.isMinion).length;
     if (this.huntCd > 0 || alive > 1) return;
-    this.huntCd = 14 - this.s.config.difficulty * 2;
+    // On the lotus's own beat (see the stage's `practice`), so every wave
+    // arrives with the ultimate up or nearly up.
+    this.huntCd = 7 - this.s.config.difficulty;
     const p = this.s.world.player;
     const c = p?.pos ?? { x: this.s.world.bounds.w / 2, y: this.s.world.bounds.h / 2 };
     const { w, h } = this.s.world.bounds;
@@ -628,13 +637,17 @@ export class KatarinaDrill extends Drill {
           a.hp = 0;
         }
         this.group = null;
-        this.groupCd = 1.5;
+        this.groupCd = 1;
         if (g.enteredAt === null) this.s.micro('FIGHT LOST WITHOUT YOU', g.anchor, PALETTE.danger);
       }
     }
     if (this.group) return;
     this.groupCd -= dt;
     if (this.groupCd > 0) return;
+    // A fight that could not bleed to the line before the clock ends is not a
+    // fight she could join on time, so it is not offered.
+    const end = this.s.config.duration;
+    if (end > 0 && this.s.elapsed + (1 - ENTRY_LINE) / ENTRY_DRAIN + 1 > end) return;
     this.spawnGroup();
     this.s.setBanner('A FIGHT', 1, { tone: 'critical', key: 'fight' });
   }
@@ -974,6 +987,21 @@ export class KatarinaDrill extends Drill {
     );
   }
 
+  /**
+   * How many of the stage's own act this run should hold.
+   *
+   * `expected` is written for the stage's own length. A run on a shorter
+   * clock — PLAY is thirty seconds — is asked for the same *rate*, not the
+   * same count, or every stage written for a minute would be marked down for
+   * the half it was never given. Open-ended runs keep the full count.
+   */
+  private expected(): number {
+    const own = this.def.duration;
+    const run = this.s.config.duration;
+    if (own <= 0 || run <= 0 || run >= own) return this.def.expected;
+    return Math.max(2, this.def.expected * clamp(run / own, 0.25, 1));
+  }
+
   private entriesOnTime(): number {
     return this.groups.filter((g) => g.enteredAt !== null && g.healthAtEntry <= ENTRY_LINE).length;
   }
@@ -985,7 +1013,8 @@ export class KatarinaDrill extends Drill {
     const m = this.s.metrics.m;
     const d = derive(m, this.s.world.player?.maxHp ?? KATARINA_STATS.hp);
     const w = this.def.weights;
-    const want = Math.max(3, this.def.expected * 0.6);
+    const expected = this.expected();
+    const want = Math.max(3, expected * 0.6);
 
     const settled = st.daggersTaken + st.daggersExpired;
     const takes = st.daggersTaken;
@@ -998,7 +1027,7 @@ export class KatarinaDrill extends Drill {
     const route = takes > 0 ? clamp(st.takenByShunpo / takes, 0, 1) * band(st.takenByShunpo, 0, want) : 0;
     const tradesDone = this.trades.filter((t) => t.done).length;
     const trade = this.trades.length > 0 ? clamp(tradesDone / this.trades.length, 0, 1) * band(tradesDone, 0, want) : 0;
-    const reset = band(st.resets, 0, this.def.expected);
+    const reset = band(st.resets, 0, expected);
     const kept = st.rCompleted + st.rShunpoOut;
     const lotus = st.rCasts > 0 ? clamp(kept / st.rCasts, 0, 1) * band(this.kit.lotusSpread, 0.5, 2.2) : 0;
     const groupsSettled = this.groups.filter((g) => g.settled || g.enteredAt !== null).length;
@@ -1056,7 +1085,7 @@ export class KatarinaDrill extends Drill {
           return Math.max(st.takedowns * 2, st.qCasts, st.eCasts);
       }
     })();
-    const volume = band(acts, 1, this.def.expected);
+    const volume = band(acts, 1, expected);
     const driving = this.totalTime > 1 ? clamp(this.movingTime / this.totalTime, 0, 1) : 0;
     const presence = this.def.stage === 'LEARN' ? 1 : band(driving, 0.08, 0.35);
     const performance = clamp(raw * (0.42 + 0.58 * volume) * (0.5 + 0.5 * presence), 0, 1);

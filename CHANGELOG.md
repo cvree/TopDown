@@ -6,10 +6,32 @@ Every release, newest first — what was added, what changed under you, and what
 broken and is not any more. The same list is readable in the client under the version
 chip in the top bar.
 
-Currently shipping **v2.29.0**.
+Currently shipping **v2.30.0**.
 
 Versions before 1.2.0 are assigned retroactively from the commit history: the project
 shipped continuously before it started numbering itself.
+
+## v2.30.0 — ONE JOB
+
+*2026-09-29*
+
+PLAY is one screen with one job, the results screen leads with your score, and thirty-second records you can actually beat.
+
+### Changed
+
+- PLAY is three things: PLAY NEXT, your stars and playlists, and the thirteen drills. The DRILLS · PRACTICE · THE LANE rail is gone.
+- The champions and the lane live on PRACTICE, and only there. The lane is the big card at the top; Vayne, Twisted Fate and Katarina are under it.
+- Your stars, playlists and the box for a friend’s code open under the shelf, from its last chip, and fold away again from the same chip.
+- The “why this one” boxes on every card are gone. Rest the pointer on a card for its one-line description.
+- The results screen: your score, whether it went up or down against your last run, one sentence, and one button. Run again, the other mode and Back are quiet links under it. The rating, the limiter and everything else are under EVIDENCE.
+- Records start again for thirty-second PLAY. A score is mostly a count, so a record set on a one-minute run was out of reach. Those records are kept in an archive, not deleted; a record you already set on a thirty-second run stays. Best percentages and rates carry over.
+- Katarina · RESET, DEATH LOTUS and THE ENTRY, and Twisted Fate · GATE, are retuned for thirty seconds: the lotus is on seven seconds with a wave of hunters on the same beat, a fight bleeds to the line in four and a half seconds and waits fourteen, and Destiny is on nine seconds on the gate stage. Every champion stage now asks for the same rate on a thirty-second run rather than a minute’s count.
+
+### Fixed
+
+- A custom run no longer shows a rating change or a new best. Nothing was saved, and the screen now says “Custom settings · not saved” and nothing else.
+- A benchmark minute no longer writes into a drill’s thirty-second PLAY record.
+- GATE no longer opens a ring the clock ends before you could land in, and THE ENTRY no longer starts a fight that could not bleed to the line in time.
 
 ## v2.29.0 — MAKE IT YOURS
 

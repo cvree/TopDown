@@ -225,6 +225,10 @@
   border-left-style: dashed;
   background: rgba(4, 10, 18, 0.4);
 }
+.pr-chip-more.on {
+  border-style: solid;
+  border-color: var(--gold);
+}
 
 /* ------------------------------------------------------ records on cards */
 

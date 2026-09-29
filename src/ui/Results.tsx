@@ -52,6 +52,12 @@ interface Props {
   banner?: { eyebrow: string; line: string; tone?: 'good' | 'warn' } | null;
   /** This drill's score the run before this one, for the line under the number. */
   lastScore?: number | null;
+  /**
+   * Played on custom settings: scored for the player to see and saved
+   * nowhere. The screen says so and shows no record, rating or ladder, since
+   * none of them moved.
+   */
+  custom?: boolean;
 }
 
 /** The count-up of the number, and when it starts. Everything else is timed off these. */
@@ -113,6 +119,7 @@ export function Results({
   code,
   banner,
   lastScore = null,
+  custom = false,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const meta = DRILLS[result.drill];
@@ -128,7 +135,10 @@ export function Results({
   const visibleBests = report.personalBests.filter(
     (pb) => pb.previous === null || formatMetric(pb.value, pb.format) !== formatMetric(pb.previous, pb.format),
   );
-  const anyBest = report.newBestScore || visibleBests.length > 0;
+  // A custom run was scored against a copy of the profile that was thrown
+  // away, so a "best" it reports is not one the player holds.
+  const saved = !custom;
+  const anyBest = saved && (report.newBestScore || visibleBests.length > 0);
 
   useEffect(() => {
     const calm = isCalm();
@@ -190,7 +200,6 @@ export function Results({
 
   const runRating = expectedRating(result.performance, result.difficulty);
   const topPct = 1 - percentileForRating(runRating);
-  const head = result.keyMetrics[0];
   const improvement = report.improvements[0];
   const overallDelta = report.overallAfter - report.overallBefore;
   const vsLast = lastScore === null ? null : result.score - lastScore;
@@ -220,88 +229,46 @@ export function Results({
           </div>
           <h1 className="display res-score num">{Math.round(score).toLocaleString()}</h1>
           <div className="res-line">
-            {prevBest !== null && (
-              <span className={`res-best${struck && report.newBestScore ? ' struck' : ''}`}>
-                <span className="res-best-old">
-                  BEST <b className="mono">{prevBest.toLocaleString()}</b>
-                  <i className="res-best-rule" aria-hidden />
-                </span>
-                {report.newBestScore && <em className="res-best-new">NEW BEST</em>}
-              </span>
-            )}
-            {prevBest === null && <span className="res-best first">FIRST RUN</span>}
-            {vsLast !== null && (
-              <span className={`res-vs ${vsLast > 0 ? 'up' : vsLast < 0 ? 'down' : ''}`}>
-                {vsLast === 0 ? 'level with' : `${vsLast > 0 ? '+' : '−'}${Math.abs(vsLast).toLocaleString()} on`} your last run
-              </span>
+            {custom ? (
+              <span className="res-custom">Custom settings · not saved</span>
+            ) : (
+              <>
+                {vsLast !== null && (
+                  <span className={`res-vs ${vsLast > 0 ? 'up' : vsLast < 0 ? 'down' : ''}`}>
+                    {vsLast === 0
+                      ? 'level with last run'
+                      : `${vsLast > 0 ? '▲' : '▼'} ${Math.abs(vsLast).toLocaleString()} vs last run`}
+                  </span>
+                )}
+                {prevBest !== null ? (
+                  <span className={`res-best${struck && report.newBestScore ? ' struck' : ''}`}>
+                    <span className="res-best-old">
+                      BEST <b className="mono">{prevBest.toLocaleString()}</b>
+                      <i className="res-best-rule" aria-hidden />
+                    </span>
+                  </span>
+                ) : (
+                  <span className="res-best first">FIRST RUN</span>
+                )}
+              </>
             )}
           </div>
-          {/* The record, as a moment of its own and with the drill's name on it:
-              it lands on the frame the old best is struck through. */}
+          {/* The record, as a moment of its own: it lands on the frame the old
+              best is struck through. */}
           {anyBest && (
             <div className={`res-pb-moment${struck ? ' in' : ''}`} role="status">
               <span className="res-pb-star" aria-hidden>
                 ★
               </span>
-              <span>
-                <b>NEW PERSONAL BEST</b> on {meta.name}
-                {report.newBestScore && prevBest !== null ? (
-                  <i>
-                    {' '}
-                    — {result.score.toLocaleString()}, up from {prevBest.toLocaleString()}
-                  </i>
-                ) : visibleBests[0] ? (
-                  <i>
-                    {' '}
-                    — {visibleBests[0].label.toLowerCase()} {formatMetric(visibleBests[0].value, visibleBests[0].format)}
-                    {visibleBests[0].previous !== null && `, was ${formatMetric(visibleBests[0].previous, visibleBests[0].format)}`}
-                  </i>
-                ) : null}
-              </span>
+              <b>NEW BEST</b>
             </div>
           )}
         </header>
 
-        {/* ----------------------------------------------- act two: the verdict */}
-        <section className={`res-verdict${act >= 2 ? ' in' : ''}`}>
-          <div className="rvd-metric">
-            <div className="eyebrow">{head?.label ?? meta.keyMetric}</div>
-            <div className="rvd-value display">{head ? formatMetric(head.value, head.format) : '—'}</div>
-            {improvement &&
-              (() => {
-                const same =
-                  formatMetric(improvement.current, improvement.format) ===
-                  formatMetric(improvement.previous, improvement.format);
-                const better =
-                  improvement.direction === 'higher'
-                    ? improvement.current > improvement.previous
-                    : improvement.current < improvement.previous;
-                return (
-                  <div className={`hero-delta ${same ? '' : better ? 'up' : 'down'}`}>
-                    {same
-                      ? `held at ${formatMetric(improvement.previous, improvement.format)} from last run`
-                      : `${better ? '▲' : '▼'} from ${formatMetric(improvement.previous, improvement.format)} last run`}
-                  </div>
-                );
-              })()}
-          </div>
-          <div className="rvd-words">
-            <p className="rvd-sentence">{result.advice}</p>
-            {limiter && (
-              <p className="rvd-limiter">
-                <span className="eyebrow">Held it back</span>
-                {limiter}
-              </p>
-            )}
-            <div className="rvd-rating mono">
-              <b>{report.rankAfter.label}</b> · {Math.round(report.overallAfter)} rating{' '}
-              <span className={overallDelta >= 0 ? 'good' : 'bad'}>
-                {overallDelta >= 0 ? '+' : '−'}
-                {Math.abs(Math.round(overallDelta))}
-              </span>
-            </div>
-          </div>
-        </section>
+        {/* ----------------------------------------------- act two: the verdict
+            One sentence and one button. The rating, the limiter and every
+            other number are under EVIDENCE. */}
+        <p className={`res-verdict${act >= 2 ? ' in' : ''}`}>{result.advice}</p>
 
         {banner && (
           <div className={`res-context${act >= 2 ? ' in' : ''}`}>
@@ -313,30 +280,29 @@ export function Results({
         )}
 
         <div className={`res-actions${act >= 2 ? ' in' : ''}`}>
-          {onNext ? (
-            <>
-              <button className="btn primary lg res-next" onClick={onNext}>
-                <span className="res-next-label">{nextLabel ?? 'Next drill'} →</span>
-                <span className="kbd">Enter</span>
-              </button>
-              <button className="btn ghost lg" onClick={onRetry}>
+          <button
+            className="btn primary lg res-next"
+            onClick={onNext ?? onRetry}
+            title={onNext && nextWhy ? `Next, because: ${nextWhy}` : undefined}
+          >
+            <span className="res-next-label">{onNext ? `${nextLabel ?? 'Next drill'} →` : 'Run again'}</span>
+            <span className="kbd">{onNext ? 'Enter' : 'R'}</span>
+          </button>
+          <div className="res-quiet">
+            {onNext && (
+              <button type="button" className="res-link" onClick={onRetry}>
                 Run again <span className="kbd">R</span>
               </button>
-            </>
-          ) : (
-            <button className="btn primary lg" onClick={onRetry}>
-              Run again <span className="kbd">R</span>
+            )}
+            {onAlt && altLabel && (
+              <button type="button" className="res-link" onClick={onAlt}>
+                {altLabel}
+              </button>
+            )}
+            <button type="button" className="res-link" onClick={onExit}>
+              Back <span className="kbd">Esc</span>
             </button>
-          )}
-          {onAlt && altLabel && (
-            <button className="btn ghost lg" onClick={onAlt}>
-              {altLabel}
-            </button>
-          )}
-          <button className="btn ghost lg" onClick={onExit}>
-            Back <span className="kbd">Esc</span>
-          </button>
-          {onNext && nextWhy && <p className="res-next-why">Next, because: {nextWhy}</p>}
+          </div>
         </div>
 
         {/* --------------------------------------------- act three: the evidence */}
@@ -347,9 +313,9 @@ export function Results({
           onClick={toggleEvidence}
         >
           <span className="res-why-mark" aria-hidden>
-            ?
+            {open ? '−' : '+'}
           </span>
-          <span>{open ? 'Fold the evidence away' : 'Why — the evidence'}</span>
+          <span>Evidence</span>
         </button>
 
         <div ref={evidenceRef} className={`res-evidence${open ? ' open' : ''}`} hidden={!open}>
@@ -419,17 +385,19 @@ export function Results({
 
         <div className={`res-hero ${shown ? 'in' : ''}`}>
           <div className="metric-grid">
-            {result.keyMetrics.slice(1, 5).map((m) => (
-              <div className={`metric-cell ${pbIds.has(m.id) ? 'pb' : ''}`} key={m.id}>
+            {result.keyMetrics.slice(0, 5).map((m, i) => (
+              <div className={`metric-cell ${saved && pbIds.has(m.id) ? 'pb' : ''}`} key={m.id}>
                 <div className="eyebrow">{m.label}</div>
                 <div className="metric-value display">{formatMetric(m.value, m.format)}</div>
-                {pbIds.has(m.id) && <span className="pb-dot">BEST</span>}
+                {i === 0 && improvement && <MetricDelta improvement={improvement} />}
+                {saved && pbIds.has(m.id) && <span className="pb-dot">BEST</span>}
               </div>
             ))}
           </div>
         </div>
 
         <div className={`res-rating ${shown ? 'in' : ''}`}>
+          {saved && (
           <div className="panel pad rating-panel">
             <div className="panel-title">Mechanical rating</div>
             <div className="rating-rows">
@@ -498,9 +466,16 @@ export function Results({
               </div>
             )}
           </div>
+          )}
 
           <div className="panel pad read-panel">
             <div className="panel-title">The read</div>
+            {limiter && (
+              <div className="read-block">
+                <div className="read-label bad">HELD IT BACK</div>
+                <div className="read-line">{limiter}</div>
+              </div>
+            )}
             {result.helped.length > 0 && (
               <div className="read-block">
                 <div className="read-label good">WHAT WORKED</div>
@@ -530,7 +505,7 @@ export function Results({
           </div>
         </div>
 
-        {report.lane && (
+        {saved && report.lane && (
           <div className={`res-vayne ${shown ? 'in' : ''}`}>
             <div className="panel pad">
               <div className="panel-title">The lane, against {laneTierOf(result.difficulty).label}</div>
@@ -572,6 +547,8 @@ export function Results({
             learned to read one has learned to read all of them. They used to
             be three copies of the same forty lines, which is how two of them
             came to have subtly different wording for the same event. */}
+        {saved && (
+          <>
         <LadderPanel
           shown={shown}
           label="The Vayne path"
@@ -651,7 +628,10 @@ export function Results({
           }
         />
 
-        {report.apm?.infinite && (
+          </>
+        )}
+
+        {saved && report.apm?.infinite && (
           <div className={`res-apm ${shown ? 'in' : ''}`}>
             <div className="panel pad">
               <div className="panel-title">The tide</div>
@@ -708,7 +688,7 @@ export function Results({
           </div>
         )}
 
-        {report.apm?.surge && (
+        {saved && report.apm?.surge && (
           <div className={`res-apm ${shown ? 'in' : ''}`}>
             <div className="panel pad">
               <div className="panel-title">The surge</div>
@@ -754,7 +734,7 @@ SURGE keeps its own record. The difficulty moved while you played, so this does
           </div>
         )}
 
-        {report.apm && !report.apm.infinite && !report.apm.surge && (
+        {saved && report.apm && !report.apm.infinite && !report.apm.surge && (
           <div className={`res-apm ${shown ? 'in' : ''}`}>
             <div className="panel pad">
               <div className="panel-title">Your level</div>
@@ -762,7 +742,7 @@ SURGE keeps its own record. The difficulty moved while you played, so this does
                 <div className="ra-level">
                   <span className="eyebrow">
                     Level {report.apm.level} of {APM_LEVELS}
-                    {report.apm.endurance && ' · endurance run'}
+                    {report.apm.endurance && ' · benchmark minute — not a PLAY record'}
                   </span>
                   <div className="ra-stars">
                     {[1, 2, 3].map((n) => (
@@ -1007,6 +987,20 @@ function LadderPanel({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** The headline metric against the last run, in the evidence. */
+function MetricDelta({ improvement }: { improvement: ProgressReport['improvements'][number] }) {
+  const same = formatMetric(improvement.current, improvement.format) === formatMetric(improvement.previous, improvement.format);
+  const better =
+    improvement.direction === 'higher' ? improvement.current > improvement.previous : improvement.current < improvement.previous;
+  return (
+    <div className={`hero-delta ${same ? '' : better ? 'up' : 'down'}`}>
+      {same
+        ? `held at ${formatMetric(improvement.previous, improvement.format)}`
+        : `${better ? '▲' : '▼'} from ${formatMetric(improvement.previous, improvement.format)}`}
     </div>
   );
 }

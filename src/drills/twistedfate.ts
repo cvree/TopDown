@@ -120,6 +120,8 @@ interface StageDef {
    * perfectly and be scored as flawless.
    */
   expected: number;
+  /** Destiny's cooldown on this stage, when it is not the kit's own. */
+  rCd?: number;
   /**
    * Seconds between one card being asked for and the next, at the lowest
    * difficulty. Higher settings shorten it — see {@link TwistedDrill.ask}.
@@ -228,11 +230,14 @@ const STAGES: Record<TwistedDrillId, StageDef> = {
   tfGate: {
     id: 'tfGate',
     stage: 'TRANSFER',
-    duration: 65,
+    // Tuned for the thirty-second PLAY run. At the kit's twenty-two seconds a
+    // run held one ring anybody could answer; at nine it holds three.
+    duration: 30,
     abilities: ['q', 'w', 'r'],
     loadout: { pickACard: true, wildCards: true, stackedDeck: true, destiny: true },
     weights: { gate: 0.38, dodging: 0.18, damage: 0.16, wheel: 0.12, survival: 0.16 },
-    expected: 5,
+    rCd: 9,
+    expected: 4,
     askEvery: 0,
     clarity: 0.2,
   },
@@ -351,6 +356,19 @@ export class TwistedDrill extends Drill {
     super(session);
     this.def = STAGES[id];
     this.kit = new TwistedKit(session, this.def.loadout);
+    if (this.def.rCd) this.kit.rCdMax = this.def.rCd;
+  }
+
+  /**
+   * How many cards or casts this run should hold. `expected` is written for
+   * the stage's own length; a shorter clock — PLAY is thirty seconds — is
+   * asked for the same rate rather than the same count.
+   */
+  private expected(): number {
+    const own = this.def.duration;
+    const run = this.s.config.duration;
+    if (own <= 0 || run <= 0 || run >= own) return this.def.expected;
+    return Math.max(2, this.def.expected * clamp(run / own, 0.25, 1));
   }
 
   // ----------------------------------------------------------------- setup
@@ -410,7 +428,8 @@ export class TwistedDrill extends Drill {
         break;
       case 'tfGate':
         this.spawnPressure();
-        this.gateCd = 4;
+        // Early enough that thirty seconds holds three rings.
+        this.gateCd = 2;
         break;
       case 'tfFight':
         this.spawnHunter();
@@ -818,9 +837,13 @@ export class TwistedDrill extends Drill {
     }
     this.gateCd -= dt;
     if (this.gateZone || this.gateCd > 0) return;
+    const opensAt = this.s.elapsed + GATE_TELEGRAPH;
+    // A ring the clock ends before anybody could land in is not a chance, and
+    // grading against it would mark a player down for the length of the run.
+    const end = this.s.config.duration;
+    if (end > 0 && opensAt + GATE_OPEN_FOR > end) return;
     const p = this.s.world.player;
     const pos = this.randomPoint(p?.pos ?? null, 1100, 220);
-    const opensAt = this.s.elapsed + GATE_TELEGRAPH;
     this.gateZone = { pos, radius: 210, opensAt, until: opensAt + GATE_OPEN_FOR };
     this.gateZonesOffered++;
     // A chance is a ring the ultimate could have answered: up by the time it
@@ -829,7 +852,7 @@ export class TwistedDrill extends Drill {
     if (this.kit.gateArmed > 0 || this.kit.rCd <= GATE_TELEGRAPH || this.kit.destiny !== null) this.gateChances++;
     // One ring per ultimate, near enough, so the question the stage asks is
     // *when* rather than *which*.
-    this.gateCd = TWISTED_STATS.rCd + GATE_TELEGRAPH - this.s.config.difficulty * 3;
+    this.gateCd = this.kit.rCdMax + GATE_TELEGRAPH - this.s.config.difficulty * 3;
     this.s.setBanner('GATE OPENING', 1.1, { tone: 'critical', key: 'gate' });
     this.s.fx.ring(pos.x, pos.y, 20, 210, 0.6, TF_DESTINY, 3, 'pulse');
   }
@@ -1239,6 +1262,7 @@ export class TwistedDrill extends Drill {
     const m = this.s.metrics.m;
     const d = derive(m, this.s.world.player?.maxHp ?? TWISTED_STATS.hp);
     const w = this.def.weights;
+    const expected = this.expected();
 
     // Only the asks that got an answer of some kind. The last card named in a
     // run is routinely still open when the clock stops, and counting it as a
@@ -1252,18 +1276,18 @@ export class TwistedDrill extends Drill {
     // player who is asked for three cards and locks two of them is not 67%
     // accurate at anything, they have simply not played the stage yet.
     const lockShare = asked > 0 ? clamp(answered / asked, 0, 1) : 0;
-    const lock = lockShare * band(answered, 0, Math.max(3, this.def.expected * 0.6));
+    const lock = lockShare * band(answered, 0, Math.max(3, expected * 0.6));
 
     // The spine. Zero waste is a perfect score and three — a whole revolution
     // thrown away on every single lock — is nothing.
-    const wheel = st.wLocks > 0 ? band(this.kit.wastedPerLock, 3, 0) * band(st.wLocks, 0, Math.max(3, this.def.expected * 0.6)) : 0;
+    const wheel = st.wLocks > 0 ? band(this.kit.wastedPerLock, 3, 0) * band(st.wLocks, 0, Math.max(3, expected * 0.6)) : 0;
 
-    const gold = band(st.goldOnChampions, 0, Math.max(3, this.def.expected * 0.7));
-    const fan = band(this.kit.cardsPerCast, 0.3, 2.2) * band(st.qCasts, 1, Math.max(4, this.def.expected * 0.7));
+    const gold = band(st.goldOnChampions, 0, Math.max(3, expected * 0.7));
+    const fan = band(this.kit.cardsPerCast, 0.3, 2.2) * band(st.qCasts, 1, Math.max(4, expected * 0.7));
     const pierce = st.qCasts > 0 ? clamp(st.qMultiHits / st.qCasts, 0, 1) : 0;
     const deck =
       st.deckProcs > 0
-        ? clamp(st.deckOnChampions / st.deckProcs, 0, 1) * band(st.deckProcs, 0, Math.max(3, this.def.expected * 0.6))
+        ? clamp(st.deckOnChampions / st.deckProcs, 0, 1) * band(st.deckProcs, 0, Math.max(3, expected * 0.6))
         : 0;
     const carry = this.contacts.length
       ? clamp(this.contacts.filter((c) => c.held === 'gold').length / this.contacts.length, 0, 1) *
@@ -1323,7 +1347,7 @@ export class TwistedDrill extends Drill {
       this.def.askEvery > 0
         ? asked
         : Math.max(st.wLocks, st.qCasts, st.deckProcs, this.contacts.length, this.gateChances);
-    const volume = band(acts, 1, this.def.expected);
+    const volume = band(acts, 1, expected);
     const driving = this.totalTime > 1 ? clamp(this.movingTime / this.totalTime, 0, 1) : 0;
     const presence = this.def.stage === 'LEARN' ? 1 : band(driving, 0.1, 0.45);
     const performance = clamp(raw * (0.42 + 0.58 * volume) * (0.5 + 0.5 * presence), 0, 1);

@@ -7,6 +7,7 @@ import { VAYNE_STATS, tumbleCdAt, tumblePracticeCdAt, condemnCdAt, condemnPracti
 import { TWISTED_STATS } from '../engine/twistedfate';
 import { KATARINA_STATS } from '../engine/katarina';
 import { katarinaStage } from '../drills/katarina';
+import { twistedStage } from '../drills/twistedfate';
 import { AccuracyReport } from './AccuracyReport';
 import { Why } from './components/Why';
 import './practice.css';
@@ -203,7 +204,7 @@ function TwistedReference() {
     {
       slot: 'R',
       name: 'DESTINY · GATE',
-      body: `${TWISTED_STATS.rChannel}s of standing still for the reveal, ${TWISTED_STATS.rGateArmed}s in which the gate may then be taken, and ${TWISTED_STATS.rGateChannel}s of standing still again to cross up to ${TWISTED_STATS.rGateRange} units. ${TWISTED_STATS.rInterruptAt} damage inside either channel breaks it and the ultimate is gone. League charges this in minutes because the reveal is a macro tool and no sixty-second rep can teach one; here it is ${TWISTED_STATS.rCd}s, because what a rep can teach is the mechanic — choosing the place before the window opens, and holding still for it while being shot at.`,
+      body: `${TWISTED_STATS.rChannel}s of standing still for the reveal, ${TWISTED_STATS.rGateArmed}s in which the gate may then be taken, and ${TWISTED_STATS.rGateChannel}s of standing still again to cross up to ${TWISTED_STATS.rGateRange} units. ${TWISTED_STATS.rInterruptAt} damage inside either channel breaks it and the ultimate is gone. League charges this in minutes because the reveal is a macro tool and no sixty-second rep can teach one; here it is ${TWISTED_STATS.rCd}s, and ${twistedStage('tfGate').rCd}s on the stage about the gate, because what a rep can teach is the mechanic — choosing the place before the window opens, and holding still for it while being shot at.`,
     },
     {
       slot: 'F',
@@ -273,7 +274,7 @@ function KatarinaReference() {
     {
       slot: 'R',
       name: 'DEATH LOTUS',
-      body: `${K.rChannel}s of daggers at the ${K.rTargets} nearest champions within ${K.rRange} units, six a second, ${K.rDamage} each. A move command ends it — under WASD a held key does, after ${Math.round(K.rMoveGrace * 1000)}ms to let go — and so does Shunpo, which is the one way to leave it on purpose. League charges it at ${K.rLeagueCd}s; here it is ${K.rCd}s, and ${katarinaStage('katLotus').practice?.r}s on the stage about it, because a minute has to hold more than one.`,
+      body: `${K.rChannel}s of daggers at the ${K.rTargets} nearest champions within ${K.rRange} units, six a second, ${K.rDamage} each. A move command ends it — under WASD a held key does, after ${Math.round(K.rMoveGrace * 1000)}ms to let go — and so does Shunpo, which is the one way to leave it on purpose. League charges it at ${K.rLeagueCd}s; here it is ${K.rCd}s, and ${katarinaStage('katLotus').practice?.r}s on the stage about it, because a thirty-second run has to hold more than one.`,
     },
     {
       slot: 'F',
