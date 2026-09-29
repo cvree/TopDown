@@ -5796,7 +5796,6 @@ line('\n=== REWIND: a run rebuilt from its tape is the same run ===');
   // The client rebuilds in slices between frames behind a progress bar, so
   // this is a budget rather than a freeze: a rewind at the end of a full
   // nine-minute lane should still be a matter of seconds.
-  line(`  TIMING ${ms.toFixed(0)}`);
   expect('rebuilding two and a half minutes of lane takes under four seconds', ms < 4000, `${ms.toFixed(0)} ms`);
 }
 
