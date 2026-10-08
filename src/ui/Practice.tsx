@@ -97,8 +97,25 @@ const KATARINA_KIT: { slot: AbilitySlot; name: string }[] = [
   { slot: 'r', name: 'DEATH LOTUS' },
 ];
 
-const kitOrderFor = (id: DrillId) =>
-  DRILLS[id].group === 'TWISTED' ? TWISTED_KIT : DRILLS[id].group === 'KATARINA' ? KATARINA_KIT : VAYNE_KIT;
+const XERATH_KIT: { slot: AbilitySlot; name: string }[] = [
+  { slot: 'q', name: 'ARCANOPULSE' },
+  { slot: 'w', name: 'EYE OF DESTRUCTION' },
+  { slot: 'e', name: 'SHOCKING ORB' },
+  { slot: 'r', name: 'RITE OF THE ARCANE' },
+];
+
+const kitOrderFor = (id: DrillId) => {
+  switch (DRILLS[id].group) {
+    case 'TWISTED':
+      return TWISTED_KIT;
+    case 'KATARINA':
+      return KATARINA_KIT;
+    case 'XERATH':
+      return XERATH_KIT;
+    default:
+      return VAYNE_KIT;
+  }
+};
 
 /**
  * The keys this profile plays on.
@@ -478,7 +495,8 @@ function LaneCard({
  * an empty floor, the wheel with the rest of the deck attached, the wheel with
  * people shooting at you. Katarina's climbs by *how far ahead you have to
  * think*: one dagger, then two ways of getting to one, then a whole fight
- * routed through them.
+ * routed through them. Xerath's climbs by *how much is coming at you*: the
+ * buttons on a bench, then the distance to keep from somebody, then a fight.
  *
  * Anything added to a champion's list that no group here claims still appears,
  * under a group of its own — a mode that exists and is not on the menu is a
@@ -555,6 +573,32 @@ const PRACTICE_GROUPS: Record<string, { id: string; label: string; note: string;
       label: 'THE FIGHT',
       note: 'the spin you lose by moving, the moment to join, and all of it at once',
       members: ['katLotus', 'katEntry', 'katFight'],
+    },
+  ],
+  xerath: [
+    {
+      id: 'foundation',
+      label: 'FOUNDATION',
+      note: 'no abilities — his auto is five hundred and twenty-five, and it is the one short thing about him',
+      members: ['rangecheck'],
+    },
+    {
+      id: 'buttons',
+      label: 'THE BUTTONS',
+      note: 'one at a time: how long to hold, how far to lead, how far to throw',
+      members: ['xerPulse', 'xerEye', 'xerOrb'],
+    },
+    {
+      id: 'spacing',
+      label: 'THE DISTANCE',
+      note: 'the band between their reach and yours, the combo that ends the guessing, and backing away from a dive',
+      members: ['xerEdge', 'xerCombo', 'xerRetreat'],
+    },
+    {
+      id: 'fight',
+      label: 'THE ARTILLERY',
+      note: 'the volley from across the map, a lane, and all of it at once',
+      members: ['xerRite', 'xerWave', 'xerFight'],
     },
   ],
 };

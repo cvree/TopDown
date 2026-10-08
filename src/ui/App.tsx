@@ -107,7 +107,7 @@ type Route = 'play' | 'practice' | 'study' | 'progress' | 'settings' | 'patch';
 /** The top bar, in order. Setup, study and the patch notes live in the corner. */
 const NAV: { route: Route; label: string; hint: string }[] = [
   { route: 'play', label: 'PLAY', hint: 'The next drill, your stars and playlists, and every thirty-second drill' },
-  { route: 'practice', label: 'PRACTICE', hint: 'The lane, and Vayne, Twisted Fate and Katarina one piece at a time' },
+  { route: 'practice', label: 'PRACTICE', hint: 'The lane, and Vayne, Twisted Fate, Katarina and Xerath one piece at a time' },
   { route: 'progress', label: 'PROGRESS', hint: 'Your scores, reaction tests and benchmarks' },
 ];
 
@@ -626,6 +626,7 @@ export function App() {
         vayne: { ...prev.vayne, stages: copyRungs(prev.vayne.stages) },
         twisted: { ...prev.twisted, stages: copyRungs(prev.twisted.stages) },
         katarina: { ...prev.katarina, stages: copyRungs(prev.katarina.stages) },
+        xerath: { ...prev.xerath, stages: copyRungs(prev.xerath.stages) },
         ezreal: { ...prev.ezreal, stages: copyRungs(prev.ezreal.stages) },
         recentBests: [...prev.recentBests],
         bench: Object.fromEntries(Object.entries(prev.bench).map(([k, v]) => [k, v && { ...v }])),

@@ -19,6 +19,7 @@ import { SpacingDrill } from './spacing';
 import { TargetSwitchDrill } from './targetswitch';
 import { TwistedDrill, isTwistedDrill } from './twistedfate';
 import { KatarinaDrill, isKatarinaDrill } from './katarina';
+import { XerathDrill, isXerathDrill } from './xerath';
 import { VayneBoltsDrill } from './vaynebolts';
 import { VayneCondemnDrill } from './vaynecondemn';
 import { VayneHuntDrill } from './vaynehunt';
@@ -37,6 +38,8 @@ export const createDrill = (id: DrillId, session: Session): Drill => {
   if (isTwistedDrill(id)) return new TwistedDrill(session, id);
   // And the Katarina path nine of its own.
   if (isKatarinaDrill(id)) return new KatarinaDrill(session, id);
+  // And the Xerath path nine more.
+  if (isXerathDrill(id)) return new XerathDrill(session, id);
   switch (id) {
     case 'movement':
       return new MovementDrill(session);
@@ -156,6 +159,26 @@ export const arenaFor = (id: DrillId): { w: number; h: number } => {
       return { w: 2500, h: 1400 };
     case 'katEntry':
       return { w: 2600, h: 1460 };
+    // Xerath's floors.
+    //
+    // The biggest in the client, because the champion is the longest reach
+    // in it: a fourteen-hundred-unit pulse on a floor the width of Katarina's
+    // would be a stage with no far end to it, and the band stages need room
+    // to back away in that is not a corner.
+    case 'xerPulse':
+    case 'xerEye':
+    case 'xerOrb':
+    case 'xerCombo':
+      return { w: 2800, h: 1500 };
+    case 'xerEdge':
+    case 'xerRetreat':
+      return { w: 3200, h: 1800 };
+    case 'xerRite':
+      return { w: 3400, h: 1900 };
+    case 'xerWave':
+      return { w: 3000, h: 1500 };
+    case 'xerFight':
+      return { w: 3200, h: 1800 };
     // The lab is a bench, not a battlefield. A field the cursor can cross
     // without the camera moving, and no more floor than the console needs.
     case 'apmPulse':

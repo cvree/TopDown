@@ -1,0 +1,106 @@
+{
+  "cast": {
+    "XERATH": { "voice": "bm_george", "speed": 0.92, "lang": "en-gb", "color": "#4fc3ff" },
+    "COACH": { "voice": "af_heart", "speed": 1.04, "lang": "en-us", "color": "#5ce1a8" },
+    "KURBO": { "voice": "am_puck", "speed": 1.08, "lang": "en-us", "color": "#ffcf6b" }
+  },
+  "episodes": [
+    {
+      "id": "ep1-arcanopulse",
+      "number": 1,
+      "title": "ARCANOPULSE",
+      "subtitle": "Let go, Kurbo",
+      "beats": [
+        { "who": "XERATH", "say": "I am Xerath. Magus Ascendant. I have transcended flesh, death, and the concept of a dash.", "scene": "throne" },
+        { "who": "COACH", "say": "And this is Kurbo. Kurbo also plays Xerath. Kurbo presses Q, and then simply never lets go.", "scene": "kurboHold" },
+        { "who": "KURBO", "say": "I was charging it for maximum power!", "scene": "kurboHold", "params": { "fizzle": true } },
+        { "who": "XERATH", "say": "While you hold it, I am slowed. I become a very expensive sarcophagus, standing in the open, waiting for a hook.", "scene": "slowMeter" },
+        { "who": "COACH", "say": "Here's the rule. Arcanopulse grows from seven fifty to fourteen fifty range, over one and a half seconds. The charge is the range.", "scene": "ruler" },
+        { "who": "COACH", "say": "So don't charge to full. Charge to them. The instant the end of the line is past the target, let go.", "scene": "letGo" },
+        { "who": "XERATH", "say": "And it lands half a second after you release. They are walking, Kurbo. Aim where they will be, not where they were.", "scene": "pulseLead" },
+        { "who": "COACH", "say": "Bad Kurbo: full charge, aimed at their feet, misses, slowed the whole time. Good Kurbo: short charge, led, hits. Same button.", "scene": "pulseVersus" },
+        { "who": "XERATH", "say": "Go to APEX. Practice. Xerath. Arcanopulse. Do it until your fingers let go on their own. Ascend.", "scene": "endCard", "params": { "mode": "ARCANOPULSE", "stat": "HELD PAST NEED: 0.0s" } }
+      ]
+    },
+    {
+      "id": "ep2-eye",
+      "number": 2,
+      "title": "EYE OF DESTRUCTION",
+      "subtitle": "The future is round",
+      "beats": [
+        { "who": "XERATH", "say": "My Eye sees the future. Kurbo sees the present. Barely. On a good day.", "scene": "throne" },
+        { "who": "COACH", "say": "Eye of Destruction lands three quarters of a second after you press it. In that time, a champion walks about two hundred and fifty units.", "scene": "eyeDelay" },
+        { "who": "KURBO", "say": "So I just put it on them, right?", "scene": "eyeFeet" },
+        { "who": "COACH", "say": "No. If you put it on them, they walk out of the middle, and the middle is the whole point.", "scene": "eyeFeet", "params": { "verdict": true } },
+        { "who": "XERATH", "say": "The centre deals two thirds more damage, and slows by sixty percent. The edge is a love tap. The centre is a sentence.", "scene": "eyeCentre" },
+        { "who": "COACH", "say": "Look where they are walking. Put the centre a step ahead of them, and let them walk into it.", "scene": "eyeLead" },
+        { "who": "COACH", "say": "Bonus: a centred Eye slows them so hard that the Arcanopulse after it basically aims itself.", "scene": "eyeThenQ" },
+        { "who": "XERATH", "say": "APEX. Practice. Xerath. Eye of Destruction. The future awaits, and it is slightly to the left of where they are standing.", "scene": "endCard", "params": { "mode": "EYE OF DESTRUCTION", "stat": "EYE CENTRES: 60%" } }
+      ]
+    },
+    {
+      "id": "ep3-orb",
+      "number": 3,
+      "title": "SHOCKING ORB",
+      "subtitle": "Distance is damage",
+      "beats": [
+        { "who": "COACH", "say": "Shocking Orb is a missile. It stops on the first thing it touches, and it stuns for longer the farther it flew.", "scene": "orbScale" },
+        { "who": "XERATH", "say": "Point blank, three quarters of a second. At full range, two and a quarter. Three times the stun, for the crime of pressing E sooner.", "scene": "orbScale", "params": { "both": true } },
+        { "who": "COACH", "say": "Kurbo waits until the assassin is in his lap, then throws the orb.", "scene": "orbLate" },
+        { "who": "XERATH", "say": "That is not an orb. That is a hug. A short, disappointing hug.", "scene": "orbLate", "params": { "hit": true } },
+        { "who": "COACH", "say": "Throw it the moment they start coming. Long flight, long stun, and you are still far away when it lands.", "scene": "orbEarly" },
+        { "who": "KURBO", "say": "Why did my orb hit a minion?", "scene": "orbBlocked" },
+        { "who": "COACH", "say": "Because minions block it. Look at the line first. Step to the side for a clear lane, or wait for the gap.", "scene": "orbBlocked", "params": { "fix": true } },
+        { "who": "XERATH", "say": "APEX. Practice. Xerath. Shocking Orb, and then The Retreat. Make them sleep far, far away.", "scene": "endCard", "params": { "mode": "SHOCKING ORB", "stat": "AVERAGE STUN: 1.8s" } }
+      ]
+    },
+    {
+      "id": "ep4-spacing",
+      "number": 4,
+      "title": "SPACING",
+      "subtitle": "Live in the band",
+      "beats": [
+        { "who": "XERATH", "say": "I have no dash. I have never had a dash. My escape is being somewhere else, beforehand.", "scene": "throne" },
+        { "who": "COACH", "say": "This is the most important video. Every enemy has a threat range: how far they can walk and dash onto you before you react. Draw it in your head, in red.", "scene": "threatRing" },
+        { "who": "COACH", "say": "Your Arcanopulse reaches fourteen fifty. Draw that around them, in blue. The ring of floor between red and blue is the band.", "scene": "band" },
+        { "who": "XERATH", "say": "In the band, I hit them, and they cannot touch me. Outside it, I am useless. Inside red, I am dead.", "scene": "bandThree" },
+        { "who": "KURBO", "say": "But I need to be close to hit my Eye!", "scene": "kurboWalksIn" },
+        { "who": "COACH", "say": "Then you don't throw the Eye. Your Eye reaches a thousand, which is inside a lot of red rings. Only use it on someone who can't reach you.", "scene": "kurboWalksIn", "params": { "dived": true } },
+        { "who": "COACH", "say": "And remember, charging slows you. So charge while walking backwards, and let go early. Never stand still inside their ring holding Q.", "scene": "chargeBack" },
+        { "who": "COACH", "say": "When they commit, back off. When they settle, step back up to range. You are not running away. You are keeping a distance.", "scene": "dance" },
+        { "who": "XERATH", "say": "In lane it is the same. Stand behind your wave, outside their range, and poke over the minions. The band is everywhere.", "scene": "laneBand" },
+        { "who": "XERATH", "say": "APEX. Practice. Xerath. The Band. Live there. Pay rent there. Die of old age there.", "scene": "endCard", "params": { "mode": "THE BAND", "stat": "TIME IN THE BAND: 90%" } }
+      ]
+    },
+    {
+      "id": "ep5-combo",
+      "number": 5,
+      "title": "THE COMBO",
+      "subtitle": "Stun, then everything",
+      "beats": [
+        { "who": "COACH", "say": "Good players dodge. They see your Eye, they walk out. They see your Q telegraph, they step aside.", "scene": "juke" },
+        { "who": "XERATH", "say": "Throwing my Arcanopulse at a healthy Ezreal is not an attack. It is a light show, for his enjoyment.", "scene": "juke", "params": { "lightshow": true } },
+        { "who": "COACH", "say": "But a stunned target can't dodge anything. So: orb first. Then, while they are stunned, Eye on their feet, and the pulse through them.", "scene": "comboSteps" },
+        { "who": "KURBO", "say": "Can I do Q first?", "scene": "comboWrong" },
+        { "who": "COACH", "say": "No. Charging Q locks out your E and your W. Orb, Eye, then pulse. In that order, every time.", "scene": "comboWrong", "params": { "locked": true } },
+        { "who": "XERATH", "say": "The orb is the question. The Eye and the pulse are the answer. Do not answer before the question has been asked.", "scene": "comboSteps", "params": { "fast": true } },
+        { "who": "XERATH", "say": "APEX. Practice. Xerath. Stun, Then Everything. Waste nothing.", "scene": "endCard", "params": { "mode": "STUN, THEN EVERYTHING", "stat": "COMBOS: 8" } }
+      ]
+    },
+    {
+      "id": "ep6-rite",
+      "number": 6,
+      "title": "RITE OF THE ARCANE",
+      "subtitle": "Long-distance relationships",
+      "beats": [
+        { "who": "XERATH", "say": "My ultimate. I root myself, and rain judgement across the map. Four shots, each landing six tenths of a second after I call it.", "scene": "riteIntro" },
+        { "who": "KURBO", "say": "So I fire all four really fast at them!", "scene": "riteSpam" },
+        { "who": "COACH", "say": "All four at the same spot means one guess, four times. They juke once, and you miss all of it.", "scene": "riteSpam", "params": { "miss": true } },
+        { "who": "COACH", "say": "Fire one. Watch which way they dodge. Put the next one where the dodge is going. Every shot is a different guess.", "scene": "riteRead" },
+        { "who": "XERATH", "say": "And I am rooted. So before I begin, I make sure nobody is close enough to interrupt my sermon.", "scene": "riteSafe" },
+        { "who": "COACH", "say": "So that's it, Kurbo. Let go of Q. Lead the Eye. Orb early. Live in the band. Stun, then everything.", "scene": "recap" },
+        { "who": "XERATH", "say": "APEX. Practice. Xerath. Start at stage one. Finish at Magus Ascendant. Kurbo, ascend.", "scene": "endCard", "params": { "mode": "RITE OF THE ARCANE", "stat": "TITLE: MAGUS ASCENDANT" } }
+      ]
+    }
+  ]
+}

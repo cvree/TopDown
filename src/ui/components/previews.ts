@@ -4667,6 +4667,451 @@ const katFight: PreviewScene = {
   },
 };
 
+// ===========================================================================
+// XERATH
+// ===========================================================================
+
+const XER_BLUEC = '#4fc3ff';
+const XER_COREC = '#e6f6ff';
+const XER_VIOLETC = '#9b7bff';
+
+/**
+ * A pulse: the charging line while it grows, the beam when it lands.
+ *
+ * `reach` is the length in stage units, `p` how far through the half-second
+ * delay a released pulse is (null while charging), so one painter draws the
+ * whole life of one.
+ */
+function pulse(ctx: CanvasRenderingContext2D, a: Pt, ang: number, reach: number, alpha: number, fired: number | null) {
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.translate(a.x, a.y);
+  ctx.rotate(ang);
+  if (fired === null || fired < 1) {
+    // The telegraph: a lane as wide as the beam, filling as it closes.
+    ctx.globalAlpha = alpha * 0.85;
+    ctx.fillStyle = rgba(XER_BLUEC, 0.12);
+    ctx.fillRect(0, -9, reach, 18);
+    ctx.strokeStyle = rgba(XER_BLUEC, 0.75);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0, -9, reach, 18);
+    if (fired !== null) {
+      ctx.fillStyle = rgba(XER_BLUEC, 0.28);
+      ctx.fillRect(0, -9, reach * clamp01(fired), 18);
+    }
+    ctx.fillStyle = rgba(XER_COREC, 0.95);
+    ctx.fillRect(reach - 1.5, -11, 3, 22);
+  } else {
+    // The beam, for a moment, and then nothing.
+    const k = 1 - clamp01((fired - 1) / 0.6);
+    ctx.globalAlpha = alpha * k;
+    const g = ctx.createLinearGradient(0, 0, reach, 0);
+    g.addColorStop(0, rgba(XER_BLUEC, 0.4));
+    g.addColorStop(1, rgba(XER_COREC, 0.95));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, -7 * k - 1, reach, 14 * k + 2);
+    ctx.fillStyle = rgba(XER_COREC, 0.9);
+    ctx.fillRect(0, -1.6, reach, 3.2);
+  }
+  ctx.restore();
+}
+
+/** An Eye: the circle, the centre, and the ring closing on the moment it lands. */
+function eyeCircle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, p: number, color = XER_BLUEC) {
+  if (p < 0) return;
+  if (p < 1) {
+    ring(ctx, x, y, r, rgba(color, 1), 0.7, 1.3);
+    ring(ctx, x, y, r * (1 - p), rgba(color, 1), 0.45, 1);
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = rgba(color, 1);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    if (color === XER_BLUEC) ring(ctx, x, y, r * 0.2, rgba(XER_COREC, 1), 0.85, 1.2);
+  } else burst(ctx, x, y, clamp01((p - 1) / 0.5), color, r * 1.15, 12);
+}
+
+/** The orb in flight, with the light it drags. */
+function orbShot(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number, alpha = 1) {
+  lance(ctx, x, y, ang, 22, XER_BLUEC, alpha, 3.4);
+  ring(ctx, x, y, 5, rgba(XER_COREC, 1), alpha * 0.9, 1.6);
+}
+
+/** A stun: a ring that counts down around the body it holds. */
+function stunRing(ctx: CanvasRenderingContext2D, x: number, y: number, left: number) {
+  if (left <= 0 || left > 1) return;
+  ctx.save();
+  ctx.strokeStyle = rgba(XER_BLUEC, 1);
+  ctx.globalAlpha = 0.9;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, 11, -Math.PI / 2, -Math.PI / 2 + TAU * left);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * ARCANOPULSE — let go the moment it reaches.
+ *
+ * The line grows out of him while the key is down, the number at its end
+ * climbing; the instant the end is past the target the hand opens, and the
+ * beam lands half a second later. The clip holds on the growing, because the
+ * mode is about when to stop it.
+ */
+const xerPulse: PreviewScene = {
+  length: 3.4,
+  poster: 0.42,
+  caption: 'let go the moment it reaches',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 80, 100);
+    const me = { x: 46, y: 104 };
+    const target = { x: 232 + 6 * Math.sin(t * 2.4), y: 86 };
+    const ang = Math.atan2(target.y - me.y, target.x - me.x);
+    const need = Math.hypot(target.x - me.x, target.y - me.y) + 8;
+    const chargeAt = 0.25;
+    const grow = 150;
+    const reach = 94 + grow * smooth(at(t, chargeAt, 1.5));
+    const releaseAt = chargeAt + 1.5 * clamp01((need - 94) / grow) + 0.05;
+    const released = t >= releaseAt;
+    const length = released ? Math.min(94 + grow * smooth(at(releaseAt, chargeAt, 1.5)), 260) : reach;
+    if (t >= chargeAt) {
+      const fired = released ? (t - releaseAt) / 0.5 : null;
+      pulse(ctx, me, ang, length, 1, fired);
+      if (!released) tag(ctx, me.x + Math.cos(ang) * length, me.y + Math.sin(ang) * length - 16, `${Math.round(750 + (1450 - 750) * smooth(at(t, chargeAt, 1.5)))}`, XER_COREC, 0.9, 8);
+    }
+    const landed = released && t - releaseAt >= 0.5;
+    if (landed) {
+      burst(ctx, target.x, target.y, at(t, releaseAt + 0.5, 0.45), XER_BLUEC, 30, 10);
+      tag(ctx, target.x, target.y - 24, 'HIT', GOOD, at(t, releaseAt + 0.5, 0.2), 9);
+    }
+    tag(ctx, 12, 20, released ? 'LET GO' : t >= chargeAt ? 'HOLD' : '', released ? GOOD : WARN, 0.95, 9, 'left');
+    foe(ctx, target.x, target.y, 5.6, 1);
+    hero(ctx, me.x, me.y, accent, ang);
+    vignette(f);
+  },
+};
+
+/**
+ * EYE OF DESTRUCTION — aim where they will be.
+ *
+ * The target walks across the frame and the circle goes down ahead of it,
+ * centred on the spot it will be standing on three quarters of a second from
+ * now. It walks into the centre as the Eye lands. The lead is the mode.
+ */
+const xerEye: PreviewScene = {
+  length: 3,
+  poster: 0.5,
+  caption: 'aim where they will be',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 160, 96);
+    const me = { x: 62, y: 120 };
+    const walk = (s: number): Pt => ({ x: lerp(270, 120, s / 3), y: 82 + 6 * Math.sin(s * 1.6) });
+    const castAt = 0.75;
+    const landAt = castAt + 0.75;
+    const spot = walk(landAt);
+    const foeAt = walk(t);
+    eyeCircle(ctx, spot.x, spot.y, 34, t < castAt ? -1 : (t - castAt) / 0.75);
+    if (t >= castAt && t < landAt) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = rgba(BONE, 1);
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(foeAt.x, foeAt.y);
+      ctx.lineTo(spot.x, spot.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+    tag(ctx, spot.x, spot.y - 46, 'CENTRE', GOOD, at(t, landAt, 0.15) * (1 - at(t, landAt + 0.9, 0.3)), 9);
+    tag(ctx, 12, 20, t < landAt ? '0.75s — LEAD IT' : 'ON THE CENTRE', t < landAt ? WARN : GOOD, t >= castAt ? 0.95 : 0.4, 8.5, 'left');
+    foe(ctx, foeAt.x, foeAt.y, 5.6, 1);
+    hero(ctx, me.x, me.y, accent, Math.atan2(spot.y - me.y, spot.x - me.x));
+    vignette(f);
+  },
+};
+
+/**
+ * SHOCKING ORB — the farther it flies, the longer they sleep.
+ *
+ * Two throws, as a comparison: at somebody close, and the ring around them
+ * runs out almost at once; at somebody at the end of its range, and it runs
+ * three times as long. Same button, same hit, a different fight.
+ */
+const xerOrb: PreviewScene = {
+  length: 4,
+  poster: 0.82,
+  caption: 'longer flight, longer stun',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    const t = f.t % 4;
+    stage(f, 80, 100);
+    const me = { x: 46, y: 100 };
+    const near = t < 2;
+    const target = near ? { x: 110, y: 96 } : { x: 236, y: 92 };
+    const p = near ? t / 2 : (t - 2) / 2;
+    const span = Math.hypot(target.x - me.x, target.y - me.y);
+    const fly = at(p, 0.08, (span / 200) * 0.5);
+    const ang = Math.atan2(target.y - me.y, target.x - me.x);
+    const stun = near ? 0.8 : 2.1;
+    if (fly > 0 && fly < 1) orbShot(ctx, lerp(me.x, target.x, fly), lerp(me.y, target.y, fly), ang);
+    const hitAt = 0.08 + (span / 200) * 0.5;
+    if (fly >= 1) {
+      burst(ctx, target.x, target.y, at(p, hitAt, 0.3), XER_BLUEC, 26, 8);
+      const left = 1 - clamp01((p - hitAt) * 2 / stun * 1.2);
+      stunRing(ctx, target.x, target.y, left);
+      tag(ctx, target.x, target.y - 22, `${stun.toFixed(1)}s`, near ? WARN : GOOD, 0.95 * (left > 0 ? 1 : 0.4), 9);
+    }
+    tag(ctx, 12, 20, near ? 'POINT BLANK — SHORT STUN' : 'FULL RANGE — LONG STUN', near ? WARN : GOOD, 0.95, 8.5, 'left');
+    foe(ctx, target.x, target.y, 5.6, 1);
+    hero(ctx, me.x, me.y, accent, ang);
+    vignette(f);
+  },
+};
+
+/**
+ * THE BAND — outside their reach, inside yours.
+ *
+ * The hunter's reach in red and his own in blue, both around the hunter, and
+ * him walking the floor between them — backing off as it comes, the pulse
+ * going out from the band. Nothing in the clip is a hit or a miss; it is a
+ * place to stand, drawn.
+ */
+const xerEdge: PreviewScene = {
+  length: 4,
+  poster: 0.3,
+  caption: 'outside their reach, inside yours',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    const t = f.t % 4;
+    const u = t / 4;
+    stage(f, 140, 100);
+    const hunter = { x: 210 + 10 * Math.sin(u * TAU), y: 96 + 6 * Math.cos(u * TAU) };
+    const threat = 50;
+    const reach = 104;
+    ring(ctx, hunter.x, hunter.y, threat, rgba(RED, 1), 0.55, 1.4, [5, 4]);
+    ring(ctx, hunter.x, hunter.y, reach, rgba(XER_BLUEC, 1), 0.45, 1.2, [7, 5]);
+    // The band itself, washed.
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = rgba(GOOD, 1);
+    ctx.beginPath();
+    ctx.arc(hunter.x, hunter.y, reach, 0, TAU);
+    ctx.arc(hunter.x, hunter.y, threat, 0, TAU, true);
+    ctx.fill();
+    ctx.restore();
+    const a = Math.PI + 0.5 * Math.sin(u * TAU);
+    const r = (threat + reach) / 2 + 8 * Math.sin(u * TAU * 2);
+    const me = { x: hunter.x + Math.cos(a) * r, y: hunter.y + Math.sin(a) * r };
+    const ang = Math.atan2(hunter.y - me.y, hunter.x - me.x);
+    const k = (t % 2) / 2;
+    pulse(ctx, me, ang, r + 8, 1, k < 0.5 ? null : (k - 0.5) / 0.25);
+    tag(ctx, me.x, me.y - 22, 'IN THE BAND', GOOD, 0.9, 8);
+    foe(ctx, hunter.x, hunter.y, 6, 1);
+    hero(ctx, me.x, me.y, accent, ang);
+    vignette(f);
+  },
+};
+
+/**
+ * STUN, THEN EVERYTHING.
+ *
+ * Three words, printed as they happen, because the order is the mode: the orb
+ * first, and on the body it holds, the Eye and the pulse — neither of which a
+ * body that can walk would have stood still for.
+ */
+const xerCombo: PreviewScene = {
+  length: 3.4,
+  poster: 0.7,
+  caption: 'stun, then everything',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 150, 100);
+    const me = { x: 54, y: 112 };
+    const target = { x: 214, y: 92 };
+    const ang = Math.atan2(target.y - me.y, target.x - me.x);
+    const orbAt = 0.3;
+    const hitAt = orbAt + 0.5;
+    const eyeAt = hitAt + 0.15;
+    const qAt = eyeAt + 0.25;
+    const fly = at(t, orbAt, 0.5);
+    if (fly > 0 && fly < 1) orbShot(ctx, lerp(me.x, target.x, fly), lerp(me.y, target.y, fly), ang);
+    if (t >= hitAt) stunRing(ctx, target.x, target.y, 1 - at(t, hitAt, 2.2));
+    eyeCircle(ctx, target.x, target.y, 30, t < eyeAt ? -1 : (t - eyeAt) / 0.75);
+    if (t >= qAt) pulse(ctx, me, ang, Math.hypot(target.x - me.x, target.y - me.y) + 16, 1, (t - qAt - 0.3) / 0.5);
+    const words = ['ORB', 'EYE', 'PULSE'];
+    const times = [hitAt, eyeAt + 0.75, qAt + 0.8];
+    for (let i = 0; i < 3; i++) tag(ctx, 34 + i * 48, 22, words[i], t >= times[i] ? GOOD : BONE, t >= times[i] ? 0.95 : 0.25, 9.5);
+    foe(ctx, target.x + (t < hitAt ? 6 * Math.sin(t * 6) : 0), target.y, 5.6, 1);
+    hero(ctx, me.x, me.y, accent, ang);
+    vignette(f);
+  },
+};
+
+/**
+ * THE RETREAT — make them sleep far away.
+ *
+ * A diver comes in from the right; he backs off to the left, and the orb goes
+ * out early and long. It stops dead most of a screen away, and the pulse he
+ * has been charging on the way back goes through it.
+ */
+const xerRetreat: PreviewScene = {
+  length: 3.4,
+  poster: 0.48,
+  caption: 'make them sleep far away',
+  narrative: true,
+  paint: (f) => {
+    const { ctx, accent, t } = f;
+    stage(f, 120, 100);
+    const orbAt = 0.7;
+    const hitAt = orbAt + 0.45;
+    const diverX = t < hitAt ? lerp(290, 200, t / hitAt) : 200;
+    const diver = { x: diverX, y: 96 };
+    const me = { x: lerp(120, 70, smooth(at(t, 0, 2.6))), y: 104 };
+    const ang = Math.atan2(diver.y - me.y, diver.x - me.x);
+    const fly = at(t, orbAt, hitAt - orbAt);
+    const orbFrom = { x: lerp(120, 70, smooth(at(orbAt, 0, 2.6))), y: 104 };
+    if (fly > 0 && fly < 1) orbShot(ctx, lerp(orbFrom.x, diver.x, fly), lerp(orbFrom.y, diver.y, fly), ang);
+    if (t >= hitAt) {
+      stunRing(ctx, diver.x, diver.y, 1 - at(t, hitAt, 2.2));
+      tag(ctx, diver.x, diver.y - 22, 'STOPPED', GOOD, at(t, hitAt, 0.2), 9);
+    }
+    const chargeFrom = hitAt + 0.1;
+    if (t >= chargeFrom) {
+      const fired = t >= chargeFrom + 0.7 ? (t - chargeFrom - 0.7) / 0.5 : null;
+      pulse(ctx, me, ang, fired === null ? lerp(70, Math.hypot(diver.x - me.x, diver.y - me.y) + 12, at(t, chargeFrom, 0.7)) : Math.hypot(diver.x - me.x, diver.y - me.y) + 12, 1, fired);
+    }
+    // The way he is walking: away.
+    tag(ctx, 12, 20, '◀ BACK OFF', WARN, 0.8, 8.5, 'left');
+    foe(ctx, diver.x, diver.y, 6, 1);
+    hero(ctx, me.x, me.y, accent, ang);
+    vignette(f);
+  },
+};
+
+/**
+ * RITE OF THE ARCANE — four shots from across the map.
+ *
+ * He is rooted on the left, and on the right somebody low is running. Four
+ * circles come down one after another, each one led a little further than
+ * the last, and the fourth is the one it walks into.
+ */
+const xerRite: PreviewScene = {
+  length: 3.6,
+  poster: 0.78,
+  caption: 'four shots from across the map',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    const t = f.t % 3.6;
+    stage(f, 60, 110);
+    const me = { x: 40, y: 120 };
+    const run = (s: number): Pt => ({ x: lerp(196, 286, s / 3.6), y: 70 + 26 * Math.sin(s * 1.1) });
+    ring(ctx, me.x, me.y, 12 + 2 * Math.sin((t / 3.6) * TAU * 5), rgba(XER_VIOLETC, 1), 0.8, 1.6);
+    const shots = [0.3, 0.9, 1.5, 2.1];
+    // The first three where it is, the last where it will be.
+    for (let i = 0; i < shots.length; i++) {
+      const s0 = shots[i];
+      if (t < s0) continue;
+      const aim = i < 3 ? run(s0 - 0.4) : run(s0 + 0.62);
+      const p = (t - s0) / 0.62;
+      eyeCircle(ctx, aim.x, aim.y, 22, p > 1.8 ? -1 : p, XER_VIOLETC);
+    }
+    // The next one runs in from where the first one did, so the loop is the
+    // next volley rather than a cut.
+    if (t < 2.72) foe(ctx, run(t).x, run(t).y, 5.4, 1);
+    else if (t >= 3.3) foe(ctx, run(0).x, run(0).y, 5.4, at(t, 3.3, 0.3));
+    tag(ctx, run(2.72).x, run(2.72).y - 22, 'GOT HIM', GOOD, t >= 2.72 ? 1 - at(t, 3.0, 0.3) : 0, 9);
+    tag(ctx, 12, 20, 'ROOTED · 4 SHOTS', XER_VIOLETC, 0.9, 8.5, 'left');
+    hero(ctx, me.x, me.y, accent, -0.4);
+    vignette(f);
+  },
+};
+
+/**
+ * BEHIND THE WAVE — over it, never into it.
+ *
+ * Their mage stands behind their minions. The pulse goes over the wave and
+ * through the mage; the orb, thrown along the same line, stops on the first
+ * minion it meets. Same target, two buttons, one of them wasted.
+ */
+const xerWave: PreviewScene = {
+  length: 4,
+  poster: 0.3,
+  caption: 'over the wave, never into it',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    const t = f.t % 4;
+    stage(f, 90, 100);
+    const me = { x: 52, y: 100 };
+    const mage = { x: 250, y: 94 };
+    const wave: Pt[] = [
+      { x: 168, y: 70 },
+      { x: 172, y: 96 },
+      { x: 166, y: 122 },
+    ];
+    for (const w of wave) minion(ctx, w.x, w.y, RED, 1);
+    const ang = Math.atan2(mage.y - me.y, mage.x - me.x);
+    const good = t < 2;
+    const p = good ? t / 2 : (t - 2) / 2;
+    if (good) {
+      pulse(ctx, me, ang, Math.hypot(mage.x - me.x, mage.y - me.y) + 14, 1, p < 0.3 ? null : (p - 0.3) / 0.25);
+      if (p > 0.55) tag(ctx, mage.x, mage.y - 22, 'HIT', GOOD, at(p, 0.55, 0.1), 9);
+    } else {
+      const block = wave[1];
+      const fly = at(p, 0.1, 0.3);
+      if (fly < 1) orbShot(ctx, lerp(me.x, block.x, fly), lerp(me.y, block.y, fly), Math.atan2(block.y - me.y, block.x - me.x));
+      else {
+        burst(ctx, block.x, block.y, at(p, 0.4, 0.4), WARN, 20, 6);
+        tag(ctx, block.x, block.y - 20, 'BLOCKED', WARN, 0.95, 9);
+      }
+    }
+    tag(ctx, 12, 20, good ? 'Q — OVER THE WAVE' : 'E — INTO THE WAVE', good ? GOOD : WARN, 0.95, 8.5, 'left');
+    foe(ctx, mage.x, mage.y, 5.8, 1);
+    hero(ctx, me.x, me.y, accent, ang);
+    vignette(f);
+  },
+};
+
+/**
+ * THE ARTILLERY — all of it, against people.
+ *
+ * The band around the assassin, a diver stopped by an orb on the far side,
+ * and the pulse going out on its own beat. He never stops moving and never
+ * stops being far away.
+ */
+const xerFight: PreviewScene = {
+  length: 3,
+  poster: 0.4,
+  caption: 'all of it, against people',
+  paint: (f) => {
+    const { ctx, accent } = f;
+    const t = f.t % 3;
+    const u = t / 3;
+    stage(f, 140, 100);
+    wall(ctx, 160, 8, 46);
+    wall(ctx, 160, 136, 178);
+    const assassin = { x: 236 + 8 * Math.sin(u * TAU), y: 90 };
+    ring(ctx, assassin.x, assassin.y, 44, rgba(RED, 1), 0.5, 1.3, [5, 4]);
+    ring(ctx, assassin.x, assassin.y, 96, rgba(XER_BLUEC, 1), 0.35, 1.1, [7, 5]);
+    const me = { x: 150 + 10 * Math.cos(u * TAU), y: 100 + 14 * Math.sin(u * TAU) };
+    const ang = Math.atan2(assassin.y - me.y, assassin.x - me.x);
+    pulse(ctx, me, ang, Math.hypot(assassin.x - me.x, assassin.y - me.y) + 10, 0.9, u < 0.4 ? null : (u - 0.4) / 0.17);
+    const diver = { x: 70, y: 60 };
+    stunRing(ctx, diver.x, diver.y, 1 - u);
+    foe(ctx, diver.x, diver.y, 5.4, 1);
+    for (let i = 0; i < 3; i++) minion(ctx, 268 + i * 8, 130 + i * 10, RED, 1 - i * 0.2, 0.7);
+    foe(ctx, assassin.x, assassin.y, 5.8, 1);
+    hero(ctx, me.x, me.y, accent, ang);
+    vignette(f);
+  },
+};
+
 /**
  * EVERY ACTIVITY, AND ITS CLIP.
  *
@@ -4745,4 +5190,13 @@ export const PREVIEWS: Record<DrillId, PreviewScene> = {
   katLotus,
   katEntry,
   katFight,
+  xerPulse,
+  xerEye,
+  xerOrb,
+  xerEdge,
+  xerCombo,
+  xerRetreat,
+  xerRite,
+  xerWave,
+  xerFight,
 };

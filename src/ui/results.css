@@ -799,6 +799,26 @@
   border-left-color: #ff4057;
 }
 
+.res-xerath .panel {
+  border-color: rgba(79, 195, 255, 0.42);
+}
+.res-xerath .rv-stars .on,
+.res-xerath .rv-title b,
+.res-xerath .rv-num {
+  color: #4fc3ff;
+}
+.res-xerath .rv-stars .on {
+  text-shadow: 0 0 14px rgba(79, 195, 255, 0.45);
+}
+.res-xerath .rv-gain,
+.res-xerath .rv-new {
+  background: #4fc3ff;
+  color: #04121c;
+}
+.res-xerath .rv-unlock {
+  border-left-color: #4fc3ff;
+}
+
 /* The academy's block reuses the champion path's layout — same kind of
    progress, same shape — and only recolours it: cyan for the scheme, as
    everywhere else in the client. */

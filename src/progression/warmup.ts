@@ -424,6 +424,7 @@ const ROTATION: DrillId[] = [
   'vayneCondemn',
   'tfGold',
   'katBlade',
+  'xerPulse',
   'rangecheck',
 ];
 
@@ -435,6 +436,8 @@ const pressureFor = (focus: DrillId): DrillId => {
       return 'tfPressure';
     case 'katarina':
       return 'katReset';
+    case 'xerath':
+      return 'xerEdge';
     default:
       return 'caitlynDodge';
   }
@@ -539,7 +542,9 @@ export const intentionFor = (err: ErrorCode | null, focus: DrillId): string =>
         ? 'Lock the card the first time it comes round. Waiting for the second pass is a second and a half standing still.'
         : championOf(focus)?.id === 'katarina'
           ? 'Before you throw a dagger, know where you will be standing when it lands.'
-          : INTENTIONS.OVERSTEP;
+          : championOf(focus)?.id === 'xerath'
+            ? 'Let the pulse go the moment it reaches, and never stand inside their ring to throw it.'
+            : INTENTIONS.OVERSTEP;
 
 /** Close a routine into a session record and extend the streak. */
 export const finishWarmup = (

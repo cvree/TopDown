@@ -6,3 +6,5 @@ dist-ssr
 .vite
 *.tsbuildinfo
 recordings/
+tutorial-build/
+__pycache__/

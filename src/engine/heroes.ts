@@ -44,6 +44,7 @@ export type HeroId =
   | 'nightHunter'
   | 'twistedFate'
   | 'katarina'
+  | 'xerath'
   | 'caitlyn';
 
 /** The subset of `RigSpec` that is the champion rather than the situation. */
@@ -290,6 +291,31 @@ export const HEROES: Record<HeroId, HeroDef> = {
       weapon: 'daggers',
       headgear: 'ponytail',
       cape: false,
+    },
+    championPath: true,
+  },
+  // The artillery path's body. No weapon in his hands — everything he does
+  // comes out of them — so he is told apart by his head: a lit core with a
+  // halo of shards standing off it, the widest head on the roster and the
+  // only one with gaps in it.
+  xerath: {
+    id: 'xerath',
+    name: 'XERATH',
+    title: 'The Magus Ascendant',
+    role: 'Artillery',
+    accent: '#4fc3ff',
+    blurb:
+      'A body of blue light held together by a sarcophagus and a ring of shards. The slowest thing on the floor and the longest reach in the game — which is fitting, because everything he does is decided by how far away he is when he does it.',
+    silhouette: 'Tall, empty-handed, a lit core ringed by floating shards',
+    look: {
+      build: 'medium',
+      primary: '#1b2b4a',
+      secondary: '#0b1222',
+      accent: '#4fc3ff',
+      skin: '#9fdcff',
+      weapon: 'none',
+      headgear: 'runes',
+      cape: true,
     },
     championPath: true,
   },

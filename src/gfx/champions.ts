@@ -26,7 +26,7 @@ export type WeaponKind =
   | 'rifle'
   | 'cards'
   | 'none';
-export type HeadKind = 'hood' | 'helm' | 'horns' | 'crown' | 'tophat' | 'widebrim' | 'ponytail' | 'none';
+export type HeadKind = 'hood' | 'helm' | 'horns' | 'crown' | 'tophat' | 'widebrim' | 'ponytail' | 'runes' | 'none';
 export type Build = 'lean' | 'medium' | 'heavy' | 'small';
 
 export interface RigSpec {
@@ -405,6 +405,24 @@ export class ChampionRig {
         }
         add(parent, new THREE.TorusGeometry(headR * 0.95, headR * 0.11, 6, 14), metal, 0, headR * 1.42, 0).rotation.x = Math.PI / 2;
         add(parent, new THREE.OctahedronGeometry(headR * 0.34), accent, 0, headR * 1.72, headR * 0.6);
+        break;
+      }
+      case 'runes': {
+        // No head at all in the usual sense: a lit core where a face would be
+        // and a halo of shards standing off it, wider than any hat. From
+        // overhead it is a ring of points around a bright centre — the only
+        // head on the roster with daylight between it and its pieces, which
+        // is the one thing about Xerath anybody can see from across a map.
+        const core = add(parent, new THREE.IcosahedronGeometry(headR * 0.82, 0), accent, 0, headR * 1.05, 0);
+        core.castShadow = false;
+        for (let i = 0; i < 7; i++) {
+          const a = (i / 7) * Math.PI * 2;
+          const shard = add(parent, new THREE.OctahedronGeometry(headR * 0.26), metal, Math.cos(a) * headR * 1.75, headR * 1.2 + (i % 2) * headR * 0.3, Math.sin(a) * headR * 1.75);
+          shard.scale.set(0.6, 1.6, 0.6);
+          shard.rotation.z = -Math.cos(a) * 0.5;
+          shard.rotation.x = Math.sin(a) * 0.5;
+          shard.castShadow = false;
+        }
         break;
       }
       default:

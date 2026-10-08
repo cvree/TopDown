@@ -172,7 +172,13 @@ export const isOpenEnded = (mode: RunMode): boolean => mode !== 'play' && mode !
  *    grades where you are and Twisted Fate grades what you took; she grades
  *    where you are going to be, which neither of them can ask.
  *
- * RANGE sits at the top of all three, unchanged, because it hands you no kit at
+ *  - **Xerath** is a *distance* one, and the distance is kept rather than
+ *    reached. His reach is twice anybody's and his feet are the slowest on
+ *    the floor, so every mode on his list is a question about standing far
+ *    enough away — and then about aiming at where somebody will be, because
+ *    everything he casts lands a beat late.
+ *
+ * RANGE sits at the top of all four, unchanged, because it hands you no kit at
  * all and it is the one thing every other mode on every list already assumes
  * you know: tumbling to a good position, condemning from one, walking a gold
  * card into somebody and meeting a dagger with somebody inside the slash are
@@ -180,7 +186,7 @@ export const isOpenEnded = (mode: RunMode): boolean => mode !== 'play' && mode !
  * enough*.
  */
 export interface PracticeChampion {
-  id: 'vayne' | 'twisted' | 'katarina';
+  id: 'vayne' | 'twisted' | 'katarina' | 'xerath';
   /** As printed on the switch. */
   label: string;
   /** The line under it. */
@@ -254,6 +260,28 @@ export const PRACTICE_CHAMPIONS: PracticeChampion[] = [
       'katLotus',
       'katEntry',
       'katFight',
+    ],
+  },
+  {
+    id: 'xerath',
+    label: 'XERATH',
+    sub: 'keep your distance',
+    blurb:
+      'The longest reach in the game and the slowest feet. A pulse that grows while you hold it, an Eye that lands late, an orb that stuns longer the farther it flies, and a volley from across the map. Every mode below is a question about how far away you are when you hit.',
+    accent: '#4fc3ff',
+    modes: [
+      // The same opening as theirs, and for the opposite reason: his auto is
+      // the one thing he has that is short.
+      'rangecheck',
+      'xerPulse',
+      'xerEye',
+      'xerOrb',
+      'xerEdge',
+      'xerCombo',
+      'xerRetreat',
+      'xerRite',
+      'xerWave',
+      'xerFight',
     ],
   },
 ];

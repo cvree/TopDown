@@ -64,6 +64,16 @@ export type DrillId =
   | 'katLotus'
   | 'katEntry'
   | 'katFight'
+  /* --- the Xerath path. Nine stages of the distance you keep while you hit --- */
+  | 'xerPulse'
+  | 'xerEye'
+  | 'xerOrb'
+  | 'xerEdge'
+  | 'xerCombo'
+  | 'xerRetreat'
+  | 'xerRite'
+  | 'xerWave'
+  | 'xerFight'
   /* --- the APM lab. One engine, thirteen ways of measuring a press --- */
   | 'apmPulse'
   | 'apmSequence'
@@ -89,6 +99,7 @@ export type DrillGroup =
   | 'EZREAL'
   | 'TWISTED'
   | 'KATARINA'
+  | 'XERATH'
   | 'CAITLYN'
   | 'LANE';
 
@@ -122,6 +133,11 @@ export interface DrillMeta {
    * for a drill whose arena is deliberately bigger than one screenful.
    */
   zoom?: number;
+  /**
+   * Opening framing as a width of ground, for a drill whose lesson is a reach
+   * longer than the default camera shows. Capped at League's own camera.
+   */
+  viewWidth?: number;
   /**
    * A drill that only means anything under one control scheme says so, and the
    * run is played that way whatever the profile is set to.
@@ -1135,6 +1151,166 @@ export const DRILLS: Record<DrillId, DrillMeta> = {
     keyMetric: 'DAGGERS TAKEN',
     order: 78,
   },
+  // ----------------------------------------------------------------------
+  // THE XERATH PATH
+  //
+  // Nine stages of the thing the other paths assume: the distance you keep
+  // while you hit. The longest reach in the client and the slowest feet, and
+  // every cast lands a beat after it is made.
+  // ----------------------------------------------------------------------
+  xerPulse: {
+    id: 'xerPulse',
+    // League's own camera: his full reach either side of him.
+    viewWidth: 2900,
+    name: 'ARCANOPULSE',
+    tagline: 'Let go the moment it reaches',
+    brief:
+      'Hold Q and the line grows from 750 to 1450 over a second and a half — slowing you while it does. Let go and it lands half a second later. Hit the target, and release the instant the end of the line is past them.',
+    transfers: 'Every Xerath poke in lane: the charge sized to the target, not held to full out of habit while you stand there slowed.',
+    group: 'XERATH',
+    axes: { targeting: 0.5, spacing: 0.5 },
+    duration: 45,
+    abilities: ['q', 'f'],
+    accent: '#4fc3ff',
+    keyMetric: 'PULSES LANDED',
+    order: 80,
+  },
+  xerEye: {
+    id: 'xerEye',
+    // League's own camera: his full reach either side of him.
+    viewWidth: 2900,
+    name: 'EYE OF DESTRUCTION',
+    tagline: 'Aim where they will be',
+    brief:
+      'The Eye lands three quarters of a second after you press it, and its centre is worth two thirds again and a crippling slow. The target is walking. Put the centre where it is walking to.',
+    transfers: 'Leading a delayed circle on somebody moving — the skill under every Xerath W, Ziggs Q and Lux E.',
+    group: 'XERATH',
+    axes: { targeting: 0.7, tempo: 0.3 },
+    duration: 50,
+    abilities: ['w', 'f'],
+    accent: '#5fd0ff',
+    keyMetric: 'EYE CENTRES',
+    order: 81,
+  },
+  xerOrb: {
+    id: 'xerOrb',
+    // League's own camera: his full reach either side of him.
+    viewWidth: 2900,
+    name: 'SHOCKING ORB',
+    tagline: 'The farther it flies, the longer they sleep',
+    brief:
+      'A missile, stopped by the first body it touches — minions too. It stuns for three quarters of a second at your feet and two and a quarter at the end of its range. Land it, and land it from far away.',
+    transfers: 'Throwing the orb early and long, around the wave rather than into it, so a hit is a kill rather than a pause.',
+    group: 'XERATH',
+    axes: { targeting: 0.55, spacing: 0.45 },
+    duration: 50,
+    abilities: ['e', 'f'],
+    accent: '#3fb0ff',
+    keyMetric: 'ORBS LANDED',
+    order: 82,
+  },
+  xerEdge: {
+    id: 'xerEdge',
+    // League's own camera: his full reach either side of him.
+    viewWidth: 2900,
+    name: 'THE BAND',
+    tagline: 'Outside their reach, inside yours',
+    brief:
+      'An assassin walks at you. Its red ring is how close it can get before it dives you; your blue ring around it is how far your pulse reaches. Live between the two, and hit it from there — charging slows you, so charge while you back away.',
+    transfers: 'Spacing as Xerath: the whole champion is standing at 1100 units from somebody who needs to be at 700.',
+    group: 'XERATH',
+    axes: { spacing: 0.55, movement: 0.25, targeting: 0.2 },
+    duration: 60,
+    abilities: ['q', 'w', 'f'],
+    accent: '#58e0ff',
+    keyMetric: 'TIME IN THE BAND',
+    order: 83,
+  },
+  xerCombo: {
+    id: 'xerCombo',
+    // League's own camera: his full reach either side of him.
+    viewWidth: 2900,
+    name: 'STUN, THEN EVERYTHING',
+    tagline: 'A stunned body cannot juke',
+    brief:
+      'This target walks out of nearly everything it can see coming. Land the orb, and while it is stunned put the Eye on its feet and the pulse through it. Anything thrown at it standing up is wasted.',
+    transfers: 'The kill combo: E, then W centred and Q on a body that cannot move, instead of three guesses at one that can.',
+    group: 'XERATH',
+    axes: { tempo: 0.4, targeting: 0.4, combat: 0.2 },
+    duration: 60,
+    abilities: ['q', 'w', 'e', 'f'],
+    accent: '#6fb8ff',
+    keyMetric: 'COMBOS',
+    order: 84,
+  },
+  xerRetreat: {
+    id: 'xerRetreat',
+    // League's own camera: his full reach either side of him.
+    viewWidth: 2900,
+    name: 'THE RETREAT',
+    tagline: 'They are coming. Make them sleep far away.',
+    brief:
+      'Divers come for you one after another. Orb them while they are still far out — the stun is longer from there — and pulse them while you walk away. Let one reach you and it hurts.',
+    transfers: 'Surviving as artillery: the orb as a wall in front of you, thrown early, and the pulse charged on the way out rather than standing still.',
+    group: 'XERATH',
+    axes: { combat: 0.35, spacing: 0.35, dodging: 0.3 },
+    duration: 45,
+    abilities: ['q', 'w', 'e', 'f'],
+    accent: '#7a9cff',
+    keyMetric: 'DIVERS STOPPED',
+    order: 85,
+  },
+  xerRite: {
+    id: 'xerRite',
+    // League's own camera: his full reach either side of him.
+    viewWidth: 2900,
+    name: 'RITE OF THE ARCANE',
+    tagline: 'Four shots from across the map',
+    brief:
+      'Low champions are running away, far off. Press R to root yourself and open the volley, then each press is a shot that lands six tenths of a second later. They see it coming. Lead them, and make every shot a different guess.',
+    transfers: 'Finishing a fight from a screen away, and not throwing all your shots at the place somebody used to be.',
+    group: 'XERATH',
+    axes: { targeting: 0.75, tempo: 0.25 },
+    duration: 40,
+    abilities: ['r', 'f'],
+    accent: '#9b7bff',
+    keyMetric: 'RITE SHOTS LANDED',
+    order: 86,
+  },
+  xerWave: {
+    id: 'xerWave',
+    // League's own camera: his full reach either side of him.
+    viewWidth: 2900,
+    name: 'BEHIND THE WAVE',
+    tagline: 'Over the wave, never into it',
+    brief:
+      'A lane: their mage behind their minions, and it shoots back if you walk into its range. The pulse and the Eye go over the wave; the orb stops on the first minion. Win the trade from where it cannot answer.',
+    transfers: 'Laning as Xerath: poke over the wave from outside their range, and keep the orb for the gap.',
+    group: 'XERATH',
+    axes: { spacing: 0.45, targeting: 0.35, combat: 0.2 },
+    duration: 60,
+    abilities: ['q', 'w', 'e', 'f'],
+    accent: '#4fe0d0',
+    keyMetric: 'TRADE WON',
+    order: 87,
+  },
+  xerFight: {
+    id: 'xerFight',
+    // League's own camera: his full reach either side of him.
+    viewWidth: 2900,
+    name: 'THE ARTILLERY',
+    tagline: 'All of it, against people',
+    brief:
+      'An assassin, a mage, a wave, terrain, divers later, and the whole kit. Keep the band, land the pulse, orb what comes for you, and finish what runs with the Rite.',
+    transfers: 'Playing Xerath, rather than owning his abilities.',
+    group: 'XERATH',
+    axes: { combat: 0.4, spacing: 0.3, targeting: 0.2, movement: 0.1 },
+    duration: 0,
+    abilities: ['q', 'w', 'e', 'r', 'f'],
+    accent: '#4fc3ff',
+    keyMetric: 'TIME IN THE BAND',
+    order: 88,
+  },
   vayneTumble: {
     id: 'vayneTumble',
     name: 'TUMBLE',
@@ -1306,6 +1482,28 @@ export const KATARINA_SEQUENCE: DrillId[] = [
 
 export const isKatarinaPathDrill = (id: DrillId): boolean => DRILLS[id].group === 'KATARINA';
 
+/**
+ * The Xerath path, in the order it has to be learned.
+ *
+ * The three buttons alone first, because each one is its own question — how
+ * long to hold, how far to lead, how far to throw. Then the band, which is the
+ * question all three answer to, and the combo that makes the guessing stop.
+ * Then the pressure: somebody coming at you, the Rite, a lane, and a fight.
+ */
+export const XERATH_SEQUENCE: DrillId[] = [
+  'xerPulse',
+  'xerEye',
+  'xerOrb',
+  'xerEdge',
+  'xerCombo',
+  'xerRetreat',
+  'xerRite',
+  'xerWave',
+  'xerFight',
+];
+
+export const isXerathPathDrill = (id: DrillId): boolean => DRILLS[id].group === 'XERATH';
+
 export const isVayneDrill = (id: DrillId): boolean => DRILLS[id].group === 'VAYNE';
 
 /**
@@ -1392,6 +1590,17 @@ export const PRESSURE_TIER: Record<DrillId, PressureTier> = {
   katLotus: 'applied',
   katEntry: 'applied',
   katFight: 'live',
+  // And his: each button on a bench, then the band and the combo against a
+  // body that moves, then people who want him dead.
+  xerPulse: 'isolated',
+  xerEye: 'isolated',
+  xerOrb: 'isolated',
+  xerEdge: 'applied',
+  xerCombo: 'applied',
+  xerRetreat: 'applied',
+  xerRite: 'applied',
+  xerWave: 'live',
+  xerFight: 'live',
   apmPulse: 'isolated',
   apmSequence: 'isolated',
   apmChord: 'isolated',

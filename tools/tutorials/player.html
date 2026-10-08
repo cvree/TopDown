@@ -1,0 +1,1065 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Xerath School</title>
+<style>
+  html, body { margin: 0; background: #03060c; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1280" height="720"></canvas>
+<script>
+/*
+ * XERATH SCHOOL — the picture half of the tutorials.
+ *
+ * Everything here is a pure function of one number: seconds into the episode.
+ * `render.mjs` loads this page, hands it the episode and every narration
+ * line's length, and then asks for frame after frame, so a video is exact at
+ * any frame rate and two renders of one episode are the same file.
+ *
+ * The vocabulary is the trainer's own — a lit blue body that is you, red
+ * diamonds that are not, rings on the floor for every range, a lane for every
+ * line — because the point of a tutorial is that the next thing you open is
+ * the trainer, and it should already look familiar.
+ *
+ * Painters also *cue* sounds: `cue('zap', 1.2)` is "at 1.2s into this beat,
+ * the pulse lands". Cues are collected as the frames go by and handed back to
+ * the mixer, so the audio is built from the same timeline as the picture.
+ */
+const W = 1280, H = 720;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const TAU = Math.PI * 2;
+const S = 0.38; // pixels per League unit
+
+const C = {
+  bg0: '#070d18', bg1: '#02050b',
+  blue: '#4fc3ff', core: '#e6f6ff', violet: '#9b7bff',
+  red: '#ff5147', good: '#5ce1a8', warn: '#ffcf6b', bad: '#ff5f7e',
+  bone: '#e8eefc', dim: '#8ea3bd', kurbo: '#ffcf6b',
+};
+
+const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (x) => { const t = clamp01(x); return t * t * (3 - 2 * t); };
+const easeOut = (x) => 1 - (1 - clamp01(x)) ** 3;
+const ramp = (t, from, dur) => clamp01((t - from) / dur);
+const rgba = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+};
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const norm = (x, y) => { const m = Math.hypot(x, y) || 1; return { x: x / m, y: y / m }; };
+
+// --------------------------------------------------------------- cue capture
+let cues = [];
+let beatStart = 0, beatPrev = -1, beatNow = 0, capturing = false;
+function cue(kind, at, gain = 1) {
+  if (!capturing) return;
+  if (beatPrev < at && at <= beatNow) cues.push({ kind, t: +(beatStart + at).toFixed(3), gain });
+}
+
+// ------------------------------------------------------------------ the floor
+function floor(glowX = W * 0.4, glowY = H * 0.45, tint = C.blue) {
+  // The floor is the whole screen whatever the scene's own scale is, so the
+  // grid never shows an edge.
+  ctx.save();
+  const m = ctx.getTransform();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  glowX = m.a * glowX + m.e;
+  glowY = m.d * glowY + m.f;
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, C.bg0); g.addColorStop(1, C.bg1);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.lineWidth = 1;
+  for (let y = 20; y < H; y += 48) {
+    ctx.strokeStyle = `rgba(120,160,210,${0.03 + 0.05 * (y / H)})`;
+    ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(120,160,210,0.045)';
+  for (let x = 16; x < W; x += 48) { ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); ctx.stroke(); }
+  const gl = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, 520);
+  gl.addColorStop(0, rgba(tint, 0.16)); gl.addColorStop(1, rgba(tint, 0));
+  ctx.fillStyle = gl; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+function vignette() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const v = ctx.createRadialGradient(W / 2, H / 2, 200, W / 2, H / 2, 820);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+}
+
+// --------------------------------------------------------------- the bodies
+/** Xerath: a lit core, a ring of shards, and a name under him. */
+function xerath(x, y, opts = {}) {
+  const { label = 'XERATH', color = C.blue, t = 0, facing = 0, alpha = 1, scale = 1, slowed = 0, rooted = false } = opts;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, 70);
+  halo.addColorStop(0, rgba(color, 0.55)); halo.addColorStop(1, rgba(color, 0));
+  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 0, 70, 0, TAU); ctx.fill();
+  // shards
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * TAU + t * 0.9;
+    const r = 30 + 3 * Math.sin(t * 3 + i);
+    ctx.save();
+    ctx.translate(Math.cos(a) * r, Math.sin(a) * r);
+    ctx.rotate(a);
+    ctx.fillStyle = rgba(color, 0.85);
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(0, -8); ctx.lineTo(3, 0); ctx.lineTo(0, 8); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = rgba(C.core, 0.95);
+  ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.fill();
+  ctx.strokeStyle = rgba(color, 1); ctx.lineWidth = 3; ctx.stroke();
+  // facing chevron
+  ctx.rotate(facing);
+  ctx.strokeStyle = rgba(color, 0.95); ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(20, -9); ctx.lineTo(30, 0); ctx.lineTo(20, 9); ctx.stroke();
+  ctx.restore();
+  if (slowed > 0.02) {
+    ctx.save(); ctx.globalAlpha = alpha * slowed;
+    ctx.strokeStyle = C.warn; ctx.lineWidth = 3; ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.arc(x, y, 44 * scale, 0, TAU); ctx.stroke(); ctx.restore();
+    text(`SLOWED ${Math.round(slowed * 50)}%`, x, y + 66 * scale, C.warn, 16, alpha);
+  }
+  if (rooted) {
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.strokeStyle = C.violet; ctx.lineWidth = 3;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * TAU;
+      ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 40, y + Math.sin(a) * 40); ctx.lineTo(x + Math.cos(a) * 54, y + Math.sin(a) * 54); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  if (label) text(label, x, y - 56 * scale, label === 'KURBO' ? C.kurbo : color, 18, alpha, 800);
+}
+
+/** Anybody who is not you: a red diamond with a name. */
+function foe(x, y, label = '', opts = {}) {
+  const { alpha = 1, color = C.red, r = 16, stun = 0, dead = false } = opts;
+  if (dead) return;
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.translate(x, y); ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = rgba(color, 0.3); ctx.strokeStyle = rgba(color, 0.95); ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.rect(-r, -r, 2 * r, 2 * r); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  if (stun > 0) {
+    ctx.save(); ctx.strokeStyle = C.blue; ctx.lineWidth = 4; ctx.globalAlpha = alpha;
+    ctx.beginPath(); ctx.arc(x, y, 30, -Math.PI / 2, -Math.PI / 2 + TAU * clamp01(stun)); ctx.stroke(); ctx.restore();
+    text('STUNNED', x, y + 50, C.blue, 15, alpha);
+  }
+  if (label) text(label, x, y - 36, color, 17, alpha, 800);
+}
+
+function minion(x, y, alpha = 1) {
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.fillStyle = rgba(C.red, 0.22); ctx.strokeStyle = rgba(C.red, 0.85); ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.rect(x - 9, y - 9, 18, 18); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(x - 14, y - 20, 28, 4);
+  ctx.fillStyle = rgba(C.red, 0.9); ctx.fillRect(x - 14, y - 20, 28, 4);
+  ctx.restore();
+}
+
+function ring(x, y, r, color, alpha = 1, width = 2, dash = null, fill = 0) {
+  ctx.save(); ctx.globalAlpha = alpha;
+  if (fill > 0) { ctx.fillStyle = rgba(color, fill); ctx.beginPath(); ctx.arc(x, y, Math.max(1, r), 0, TAU); ctx.fill(); }
+  ctx.strokeStyle = color; ctx.lineWidth = width;
+  if (dash) ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.arc(x, y, Math.max(1, r), 0, TAU); ctx.stroke();
+  ctx.restore();
+}
+
+function text(s, x, y, color = C.bone, size = 20, alpha = 1, weight = 700, align = 'center') {
+  if (alpha <= 0.01 || !s) return;
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.font = `${weight} ${size}px 'DejaVu Sans Mono', 'JetBrains Mono', monospace`;
+  ctx.textAlign = align; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(s, x + 2, y + 2);
+  ctx.fillStyle = color; ctx.fillText(s, x, y);
+  ctx.restore();
+}
+
+/** A pop of text that rises and fades: HIT, MISS, DIVED. */
+function pop(s, x, y, color, t, at, size = 34) {
+  const k = t - at;
+  if (k < 0 || k > 1.4) return;
+  const a = k < 0.1 ? k / 0.1 : 1 - ramp(k, 0.9, 0.5);
+  const sc = 1 + 0.25 * (1 - easeOut(k / 0.25));
+  text(s, x, y - 30 * easeOut(k), color, size * sc, a, 900);
+}
+
+function burst(x, y, p, color, size = 90, spokes = 12) {
+  if (p <= 0 || p >= 1) return;
+  const a = (1 - p) ** 2;
+  ring(x, y, easeOut(p) * size, color, a, 3 + 4 * (1 - p));
+  ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = color; ctx.lineWidth = 3;
+  for (let i = 0; i < spokes; i++) {
+    const ang = (i / spokes) * TAU + p;
+    const r0 = 12 + easeOut(p) * size * 0.5, r1 = r0 + 22 * (1 - p);
+    ctx.beginPath(); ctx.moveTo(x + Math.cos(ang) * r0, y + Math.sin(ang) * r0); ctx.lineTo(x + Math.cos(ang) * r1, y + Math.sin(ang) * r1); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * Arcanopulse: the charging lane while it grows, the telegraph once let go,
+ * the beam when it lands. `fired` is seconds since release, or null.
+ */
+function pulse(from, ang, len, fired, alpha = 1) {
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.translate(from.x, from.y); ctx.rotate(ang);
+  const half = 72 * S;
+  if (fired === null || fired < 0.5) {
+    ctx.fillStyle = rgba(C.blue, 0.12); ctx.fillRect(0, -half, len, 2 * half);
+    ctx.strokeStyle = rgba(C.blue, 0.7); ctx.lineWidth = 2; ctx.strokeRect(0, -half, len, 2 * half);
+    if (fired !== null) { ctx.fillStyle = rgba(C.blue, 0.3); ctx.fillRect(0, -half, len * (fired / 0.5), 2 * half); }
+    ctx.fillStyle = C.core; ctx.fillRect(len - 3, -half - 6, 6, 2 * half + 12);
+  } else {
+    const k = 1 - clamp01((fired - 0.5) / 0.5);
+    const g = ctx.createLinearGradient(0, 0, len, 0);
+    g.addColorStop(0, rgba(C.blue, 0.5)); g.addColorStop(1, rgba(C.core, 1));
+    ctx.globalAlpha = alpha * k; ctx.fillStyle = g;
+    ctx.fillRect(0, -half * k - 2, len, 2 * half * k + 4);
+    ctx.fillStyle = C.core; ctx.fillRect(0, -3, len, 6);
+  }
+  ctx.restore();
+}
+
+/** Eye of Destruction (or a Rite shot): the circle closing on its landing. */
+function eye(x, y, r, p, color = C.blue, centre = true) {
+  if (p < 0) return;
+  if (p < 1) {
+    ring(x, y, r, color, 0.8, 3, null, 0.1);
+    ring(x, y, r * (1 - p), color, 0.5, 2);
+    if (centre) ring(x, y, 50 * S + 4, C.core, 0.9, 3, null, 0.15);
+  } else burst(x, y, clamp01((p - 1) / 0.6), color, r * 1.2, 16);
+}
+
+function orbShot(x, y, ang) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  const g = ctx.createLinearGradient(-90, 0, 0, 0);
+  g.addColorStop(0, rgba(C.blue, 0)); g.addColorStop(1, rgba(C.blue, 0.95));
+  ctx.strokeStyle = g; ctx.lineWidth = 10; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-90, 0); ctx.lineTo(0, 0); ctx.stroke();
+  ctx.fillStyle = C.core; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.fill();
+  ctx.strokeStyle = C.blue; ctx.lineWidth = 3; ctx.stroke();
+  ctx.restore();
+}
+
+/** A labelled distance along the floor: the ruler every lesson leans on. */
+function measure(a, b, label, color = C.dim, off = 26) {
+  const d = norm(b.x - a.x, b.y - a.y);
+  const n = { x: -d.y * off, y: d.x * off };
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+  ctx.beginPath(); ctx.moveTo(a.x + n.x, a.y + n.y); ctx.lineTo(b.x + n.x, b.y + n.y); ctx.stroke();
+  ctx.restore();
+  text(label, (a.x + b.x) / 2 + n.x * 1.6, (a.y + b.y) / 2 + n.y * 1.6, color, 18);
+}
+
+function keycap(x, y, key, lit = false, held = 0) {
+  ctx.save();
+  ctx.fillStyle = lit ? rgba(C.blue, 0.35) : 'rgba(20,30,50,0.85)';
+  ctx.strokeStyle = lit ? C.blue : 'rgba(150,180,220,0.5)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.roundRect(x - 30, y - 30 + (lit ? 4 : 0), 60, 60, 10); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  text(key, x, y + (lit ? 4 : 0), lit ? C.core : C.bone, 30, 1, 900);
+  if (held > 0) {
+    ctx.save(); ctx.strokeStyle = C.warn; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(x, y, 44, -Math.PI / 2, -Math.PI / 2 + TAU * clamp01(held)); ctx.stroke(); ctx.restore();
+  }
+}
+
+function panel(x, y, w, h, color = C.blue, alpha = 0.9) {
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(6,12,24,0.85)'; ctx.strokeStyle = rgba(color, 0.6); ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 14); ctx.fill(); ctx.stroke(); ctx.restore();
+}
+
+function check(x, y, good, alpha = 1) {
+  text(good ? '✓' : '✗', x, y, good ? C.good : C.bad, 44, alpha, 900);
+}
+
+// -------------------------------------------------------------------- scenes
+/*
+ * Every scene is `(t, d, P)`: seconds into the beat, the beat's length, and
+ * the beat's params. Most of them time their action as a share of `d`, so a
+ * line that came out of the voice a second longer stretches the picture
+ * rather than leaving it frozen at the end.
+ */
+const HERO = { x: 250, y: 400 };
+
+const SCENES = {
+  throne(t, d) {
+    floor(W / 2, H * 0.42, C.blue);
+    const y = 330 + 8 * Math.sin(t * 1.4);
+    for (let i = 0; i < 3; i++) ring(W / 2, y, 120 + i * 60 + 10 * Math.sin(t * 2 + i), C.blue, 0.25 - i * 0.06, 3, [10, 12]);
+    xerath(W / 2, y, { t, scale: 2.2, label: 'XERATH' });
+    text('MAGUS ASCENDANT', W / 2, y + 140, C.dim, 22, ramp(t, 0.5, 0.6));
+  },
+
+  kurboHold(t, d, P) {
+    floor();
+    const target = { x: 900, y: 360 + 30 * Math.sin(t * 1.3) };
+    const held = Math.min(t, P.fizzle ? 4.2 : d);
+    const reach = (750 + 700 * clamp01(held / 1.5)) * S;
+    const fizzled = P.fizzle && t > 1.2;
+    const ang = Math.atan2(target.y - HERO.y, target.x - HERO.x);
+    if (!fizzled) pulse(HERO, ang, reach, null);
+    xerath(HERO.x, HERO.y, { t, label: 'KURBO', facing: ang, slowed: fizzled ? 0 : clamp01(held / 1.5) });
+    keycap(110, 620 - 40, 'Q', !fizzled, fizzled ? 0 : clamp01(held / 4));
+    text(fizzled ? '' : `HOLDING Q… ${held.toFixed(1)}s`, 260, 580, C.warn, 22, 1, 800, 'left');
+    foe(target.x, target.y, 'ENEMY MID');
+    if (!P.fizzle) {
+      text('…still holding', 900, 200, C.dim, 22, ramp(t, d * 0.6, 0.5));
+      cue('charge', 0.2, 0.8);
+    } else {
+      pop('FIZZLED', HERO.x, HERO.y - 90, C.bad, t, 1.2, 40);
+      pop('?', target.x, target.y - 80, C.warn, t, 1.6, 64);
+      cue('fizzle', 1.2);
+      cue('ping', 1.6);
+    }
+  },
+
+  slowMeter(t, d) {
+    floor();
+    const hook = { x: 1000, y: 330 };
+    const held = (t % 3.2);
+    const slow = clamp01(held / 1.5);
+    const walk = HERO.x + 60 * Math.sin(t * 0.8);
+    xerath(walk, HERO.y, { t, label: 'XERATH', slowed: slow });
+    pulse({ x: walk, y: HERO.y }, -0.15, (750 + 700 * slow) * S, null, 0.8);
+    panel(80, 70, 470, 120, C.warn);
+    text('MOVE SPEED', 110, 105, C.dim, 20, 1, 700, 'left');
+    text(`${Math.round(340 * (1 - 0.5 * slow))}`, 110, 150, C.warn, 44, 1, 900, 'left');
+    text('of 340 while charging', 250, 150, C.dim, 20, 1, 700, 'left');
+    // something coming for the slow, sitting duck
+    const p = ramp(t, d * 0.55, d * 0.3);
+    foe(hook.x, hook.y, 'BLITZCRANK', { alpha: 1 });
+    if (p > 0) {
+      const hx = lerp(hook.x, walk + 40, easeOut(p));
+      ctx.save(); ctx.strokeStyle = C.red; ctx.lineWidth = 4; ctx.setLineDash([12, 8]);
+      ctx.beginPath(); ctx.moveTo(hook.x, hook.y); ctx.lineTo(hx, lerp(hook.y, HERO.y, easeOut(p))); ctx.stroke(); ctx.restore();
+      cue('whoosh', d * 0.55);
+      if (p >= 1) pop('HOOKED', walk, HERO.y - 100, C.bad, t, d * 0.85, 40);
+      cue('thud', d * 0.85);
+    }
+  },
+
+  ruler(t, d) {
+    floor();
+    const o = { x: 120, y: 380 };
+    const k = clamp01(((t * 0.8) % 2.4) / 1.5);
+    ring(o.x, o.y, 750 * S, C.blue, 0.5, 2, [10, 8]);
+    ring(o.x, o.y, 1450 * S, C.blue, 0.5, 2, [14, 10]);
+    text('750', o.x + 750 * S - 30, o.y - 30, C.blue, 22);
+    text('1450', o.x + 1450 * S - 40, o.y - 30, C.blue, 22);
+    pulse(o, 0, (750 + 700 * smooth(k)) * S, null);
+    xerath(o.x, o.y, { t, label: '' });
+    // the timeline
+    panel(300, 520, 720, 120, C.blue);
+    text('HOLD TIME', 330, 550, C.dim, 18, 1, 700, 'left');
+    const x0 = 340, x1 = 980;
+    ctx.save(); ctx.strokeStyle = 'rgba(150,180,220,0.4)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(x0, 600); ctx.lineTo(x1, 600); ctx.stroke();
+    ctx.strokeStyle = C.blue; ctx.beginPath(); ctx.moveTo(x0, 600); ctx.lineTo(lerp(x0, x1, k), 600); ctx.stroke(); ctx.restore();
+    for (const [s, lab] of [[0, '0s · 750'], [0.5, '0.75s · 1100'], [1, '1.5s · 1450']]) text(lab, lerp(x0, x1, s), 625, C.bone, 16);
+    text(`${Math.round(750 + 700 * smooth(k))}`, o.x + (750 + 700 * smooth(k)) * S, o.y + 50, C.core, 26, 1, 900);
+  },
+
+  letGo(t, d) {
+    floor();
+    const target = { x: 120 + 1050 * S, y: 380 };
+    const o = { x: 120, y: 380 };
+    const need = 1050 + 40;
+    const releaseAt = 0.6 + 1.5 * ((need - 750) / 700);
+    const period = 3.4;
+    const cycle = t % period;
+    const rep = Math.floor(t / period) * period;
+    const held = Math.min(Math.max(0, cycle - 0.6), releaseAt - 0.6);
+    const reach = (750 + 700 * clamp01(held / 1.5)) * S;
+    const released = cycle >= releaseAt;
+    pulse(o, 0, reach, released ? cycle - releaseAt : null);
+    ring(target.x, target.y, 26, C.good, 0.5 + 0.5 * Math.sin(t * 6), 2);
+    xerath(o.x, o.y, { t, label: 'GOOD KURBO', color: C.blue, slowed: released ? 0 : clamp01(held / 1.5) });
+    foe(target.x, target.y, 'TARGET');
+    keycap(110, 580, 'Q', !released, released ? 0 : clamp01(held / 1.5));
+    if (released) pop('LET GO', o.x + reach, o.y - 70, C.good, cycle, releaseAt, 36);
+    if (cycle - releaseAt >= 0.5) { pop('HIT', target.x, target.y - 40, C.good, cycle, releaseAt + 0.5, 44); burst(target.x, target.y, ramp(cycle, releaseAt + 0.5, 0.5), C.blue); }
+    measure(o, target, '1050 away → hold ~0.7s, not 1.5', C.dim, 70);
+    for (let k = 0; k < 4; k++) {
+      const r0 = k * period;
+      cue('charge', r0 + 0.6, 0.6);
+      cue('release', r0 + releaseAt);
+      cue('zap', r0 + releaseAt + 0.5);
+      cue('ding', r0 + releaseAt + 0.6, 0.6);
+    }
+    void rep;
+  },
+
+  pulseLead(t, d) {
+    floor();
+    const o = { x: 140, y: 420 };
+    const walk = (s) => ({ x: 760, y: 200 + 95 * s });
+    const castAt = d * 0.3;
+    const lands = castAt + 0.5;
+    const now = walk(t);
+    const aimFeet = walk(castAt);
+    const aimLead = walk(lands);
+    const showGood = t > d * 0.55;
+    const castT = showGood ? d * 0.62 : castAt;
+    const aim = showGood ? walk(castT + 0.5) : aimFeet;
+    const ang = Math.atan2(aim.y - o.y, aim.x - o.x);
+    const len = dist(o, aim) + 40;
+    if (t >= castT) pulse(o, ang, len, t - castT);
+    foe(now.x, now.y, 'WALKING ↓');
+    xerath(o.x, o.y, { t, label: 'XERATH', facing: ang });
+    if (!showGood && t >= castAt + 0.5) pop('MISS — they were already gone', 760, 140, C.bad, t, castAt + 0.5, 28);
+    if (showGood && t >= castT + 0.5) pop('HIT — aimed where they would be', 760, 140, C.good, t, castT + 0.5, 28);
+    if (showGood) {
+      ctx.save(); ctx.strokeStyle = C.good; ctx.setLineDash([6, 6]); ctx.lineWidth = 2;
+      const from = walk(castT);
+      ctx.beginPath(); ctx.moveTo(from.x + 40, from.y); ctx.lineTo(aim.x + 40, aim.y); ctx.stroke(); ctx.restore();
+      text('0.5s of walking', aim.x + 140, (walk(castT).y + aim.y) / 2, C.good, 18);
+    }
+    cue('release', castAt); cue('zap', castAt + 0.5); cue('buzz', castAt + 0.55, 0.6);
+    cue('release', d * 0.62); cue('zap', d * 0.62 + 0.5); cue('ding', d * 0.62 + 0.55, 0.6);
+    void aimLead;
+  },
+
+  pulseVersus(t, d) {
+    floor(W / 2, H / 2, C.blue);
+    // two lanes, top bad, bottom good
+    const rows = [
+      { y: 230, label: 'BAD KURBO', good: false },
+      { y: 480, label: 'GOOD KURBO', good: true },
+    ];
+    for (const r of rows) {
+      const o = { x: 150, y: r.y };
+      const walk = (s) => ({ x: 800, y: r.y - 70 + 60 * Math.sin(s * 1.2) });
+      const startAt = 0.5;
+      const releaseAt = r.good ? startAt + 0.5 : startAt + 2.4;
+      const held = Math.min(Math.max(0, t - startAt), releaseAt - startAt);
+      const aim = r.good ? walk(releaseAt + 0.5) : walk(releaseAt);
+      const ang = Math.atan2(aim.y - o.y, aim.x - o.x);
+      const reach = r.good ? dist(o, aim) + 40 : 1450 * S;
+      const len = t < releaseAt ? Math.min(reach, (750 + 700 * clamp01(held / 1.5)) * S) : reach;
+      if (t >= startAt) pulse(o, ang, len, t >= releaseAt ? t - releaseAt : null);
+      const tgt = walk(t);
+      foe(tgt.x, tgt.y);
+      xerath(o.x, o.y, { t, label: r.label, color: r.good ? C.blue : C.kurbo, facing: ang, slowed: t >= startAt && t < releaseAt ? clamp01(held / 1.5) : 0 });
+      if (t >= releaseAt + 0.5) {
+        if (r.good) { burst(tgt.x, tgt.y, ramp(t, releaseAt + 0.5, 0.5), C.blue); pop('HIT', tgt.x + 110, tgt.y, C.good, t, releaseAt + 0.5); }
+        else pop('MISS', tgt.x + 110, tgt.y, C.bad, t, releaseAt + 0.5);
+      }
+      text(r.good ? 'short charge · led · 0.5s slowed' : 'full charge · at their feet · 2.4s slowed', 640, r.y + 95, r.good ? C.good : C.bad, 20);
+      cue(r.good ? 'ding' : 'buzz', releaseAt + 0.55, 0.6);
+      cue('zap', releaseAt + 0.5, 0.7);
+    }
+  },
+
+  endCard(t, d, P) {
+    floor(W / 2, H * 0.45, C.blue);
+    for (let i = 0; i < 4; i++) ring(W / 2, 300, 90 + i * 70 + 12 * Math.sin(t * 1.6 + i), C.blue, 0.22 - i * 0.04, 3, [12, 14]);
+    xerath(W / 2, 300, { t, scale: 1.5, label: '' });
+    panel(W / 2 - 360, 430, 720, 120, C.blue);
+    text('APEX › PRACTICE › XERATH', W / 2, 465, C.dim, 22, 1, 800);
+    text(P.mode, W / 2, 515, C.core, 40, 1, 900);
+    text(P.stat || '', W / 2, 600 - 30, C.good, 20, ramp(t, 1, 0.5));
+    cue('sting', 0.05, 0.6);
+  },
+
+  // ----------------------------------------------------------------- EYE
+  eyeDelay(t, d) {
+    floor();
+    const o = { x: 160, y: 420 };
+    const walk = (s) => ({ x: lerp(1100, 600, (s % 3) / 3), y: 330 });
+    const k = t % 3;
+    const c = walk(0.6);
+    if (k >= 0.6) eye(c.x, c.y, 275 * S, (k - 0.6) / 0.75);
+    const now = walk(t);
+    foe(now.x, now.y, 'WALKING ←');
+    xerath(o.x, o.y, { t, label: 'XERATH', facing: Math.atan2(c.y - o.y, c.x - o.x) });
+    measure(c, { x: c.x - 250 * S, y: c.y }, '~250 units in 0.75s', C.warn, 110);
+    panel(80, 560, 520, 90);
+    text('LANDS 0.75s AFTER YOU PRESS W', 110, 605, C.core, 22, 1, 800, 'left');
+    for (let i = 0; i < 6; i++) cue('cast', 0.6 + i * 3, 0.5), cue('boom', 1.35 + i * 3, 0.8);
+  },
+
+  eyeFeet(t, d, P) {
+    floor();
+    const o = { x: 160, y: 430 };
+    const walk = (s) => ({ x: lerp(1080, 560, s / Math.max(d, 3)), y: 300 + 20 * Math.sin(s) });
+    const castAt = 0.4;
+    const c = walk(castAt);
+    eye(c.x, c.y, 275 * S, (t - castAt) / 0.75);
+    const now = walk(t);
+    foe(now.x, now.y, '');
+    xerath(o.x, o.y, { t, label: 'KURBO', color: C.kurbo, facing: Math.atan2(c.y - o.y, c.x - o.x) });
+    if (t > castAt + 0.75) {
+      pop('EDGE ONLY', c.x, c.y - 140, C.warn, t, castAt + 0.75, 32);
+      if (P.verdict) text('centre: empty', c.x, c.y + 130, C.bad, 22);
+    }
+    cue('cast', castAt, 0.6); cue('boom', castAt + 0.75, 0.6); cue('buzz', castAt + 0.85, 0.5);
+  },
+
+  eyeCentre(t, d) {
+    floor(W / 2, H / 2);
+    const c = { x: W / 2, y: 340 };
+    const p = (t % 2.6) / 0.75;
+    eye(c.x, c.y, 275 * S * 1.6, p, C.blue, false);
+    ring(c.x, c.y, 50 * S * 1.6 + 8, C.core, 0.95, 4, null, 0.2);
+    text('EDGE', c.x + 190, c.y - 120, C.blue, 22);
+    text('100 dmg · 25% slow', c.x + 190, c.y - 92, C.dim, 18);
+    text('CENTRE', c.x, c.y - 52, C.core, 22, 1, 900);
+    text('+66% dmg · 60% slow', c.x, c.y + 60, C.good, 20, 1, 800);
+    text('a love tap', c.x + 300, c.y + 120, C.dim, 20, ramp(t, d * 0.3, 0.4));
+    text('a sentence', c.x - 280, c.y + 120, C.good, 22, ramp(t, d * 0.6, 0.4), 900);
+    for (let i = 0; i < 5; i++) cue('boom', 0.75 + i * 2.6, 0.5);
+  },
+
+  eyeLead(t, d) {
+    floor();
+    const o = { x: 160, y: 430 };
+    const walk = (s) => ({ x: lerp(1080, 560, s / Math.max(d, 3)), y: 300 + 20 * Math.sin(s) });
+    const castAt = 0.6;
+    const c = walk(castAt + 0.75);
+    eye(c.x, c.y, 275 * S, (t - castAt) / 0.75);
+    if (t >= castAt && t < castAt + 0.75) {
+      const from = walk(t);
+      ctx.save(); ctx.strokeStyle = C.good; ctx.setLineDash([6, 6]); ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(c.x, c.y); ctx.stroke(); ctx.restore();
+    }
+    const now = walk(t);
+    const slowed = t > castAt + 0.75;
+    foe(now.x, now.y, slowed ? 'SLOWED 60%' : '', { color: C.red });
+    xerath(o.x, o.y, { t, label: 'GOOD KURBO', facing: Math.atan2(c.y - o.y, c.x - o.x) });
+    if (t > castAt + 0.75) pop('CENTRE!', c.x, c.y - 140, C.good, t, castAt + 0.75, 40);
+    cue('cast', castAt, 0.6); cue('boom', castAt + 0.75); cue('ding', castAt + 0.8, 0.7);
+  },
+
+  eyeThenQ(t, d) {
+    floor();
+    const o = { x: 160, y: 430 };
+    const walk = (s) => ({ x: lerp(1000, 700, Math.min(s, 0.95) / 2), y: 330 });
+    const c = walk(0.95);
+    eye(c.x, c.y, 275 * S, (t - 0.2) / 0.75);
+    const tgt = t < 0.95 ? walk(t) : { x: c.x - 20 * Math.min(t - 0.95, 3) * 0.4 * 10 / 10, y: c.y };
+    const qAt = 1.3;
+    const ang = Math.atan2(tgt.y - o.y, tgt.x - o.x);
+    if (t >= qAt) pulse(o, ang, dist(o, tgt) + 40, t - qAt);
+    foe(tgt.x, tgt.y, t > 0.95 ? 'CRAWLING' : '');
+    xerath(o.x, o.y, { t, label: 'XERATH', facing: ang });
+    if (t > qAt + 0.5) pop('FREE PULSE', tgt.x, tgt.y - 60, C.good, t, qAt + 0.5, 34);
+    text('W', 120, 600, C.core, 34, 1, 900); text('→', 170, 600, C.dim, 30);
+    text('Q', 220, 600, C.core, 34, ramp(t, qAt, 0.2), 900);
+    cue('cast', 0.2, 0.5); cue('boom', 0.95); cue('release', qAt); cue('zap', qAt + 0.5); cue('ding', qAt + 0.55, 0.6);
+  },
+
+  // ----------------------------------------------------------------- ORB
+  orbScale(t, d, P) {
+    floor();
+    const rows = P.both ? [{ y: 250, far: false }, { y: 480, far: true }] : [{ y: 380, far: true }];
+    for (const r of rows) {
+      const o = { x: 150, y: r.y };
+      const tgt = { x: o.x + (r.far ? 1125 : 300) * S, y: r.y };
+      const flight = (r.far ? 1125 : 300) / 1400;
+      const k = t % 3.2;
+      const fly = ramp(k, 0.3, flight);
+      if (fly > 0 && fly < 1) orbShot(lerp(o.x, tgt.x, fly), r.y, 0);
+      const stun = r.far ? 2.25 : 0.75;
+      const since = k - 0.3 - flight;
+      foe(tgt.x, tgt.y, '', { stun: since > 0 && since < stun ? 1 - since / stun : 0 });
+      xerath(o.x, o.y, { t, label: '' });
+      if (since > 0) text(`${stun.toFixed(2)}s`, tgt.x + 90, r.y, r.far ? C.good : C.warn, 34, 1, 900);
+      measure(o, tgt, `${r.far ? 1125 : 300} units`, C.dim, 60);
+    }
+    panel(780, 70, 430, 90, C.blue);
+    text('STUN = 0.75s → 2.25s', 995, 100, C.core, 24, 1, 900);
+    text('by how far it flew', 995, 132, C.dim, 18);
+    for (let i = 0; i < 4; i++) cue('orb', 0.3 + i * 3.2, 0.7), cue('stun', 0.3 + 0.8 + i * 3.2, 0.6);
+  },
+
+  orbLate(t, d, P) {
+    floor();
+    const o = { x: 300, y: 400 };
+    const start = { x: 1150, y: 360 };
+    const arrive = { x: o.x + 70, y: o.y - 10 };
+    const k = smooth(t / Math.max(1.5, d * 0.7));
+    const z = { x: lerp(start.x, arrive.x, k), y: lerp(start.y, arrive.y, k) };
+    xerath(o.x, o.y, { t, label: 'KURBO', color: C.kurbo, facing: Math.atan2(z.y - o.y, z.x - o.x) });
+    foe(z.x, z.y, 'ZED', { stun: P.hit && t > 0.6 ? 1 - (t - 0.6) / 0.75 : 0 });
+    if (P.hit) {
+      const fly = ramp(t, 0.4, 0.15);
+      if (fly > 0 && fly < 1) orbShot(lerp(o.x, z.x, fly), lerp(o.y, z.y, fly), 0);
+      if (t > 0.6) text('0.75s', z.x + 70, z.y - 40, C.warn, 30, 1, 900);
+      pop('HUG', o.x + 40, o.y - 110, C.bad, t, 1.0, 48);
+      cue('orb', 0.4, 0.6); cue('stun', 0.6, 0.5); cue('thud', 1.4); cue('buzz', 1.0, 0.5);
+    } else {
+      cue('whoosh', 0.2, 0.5);
+    }
+  },
+
+  orbEarly(t, d) {
+    floor();
+    const o = { x: 200, y: 400 };
+    const z0 = { x: 1180, y: 360 };
+    const throwAt = 0.6;
+    const hitAt = throwAt + 0.7;
+    const z = t < hitAt ? { x: lerp(z0.x, 900, t / hitAt), y: 360 } : { x: 900, y: 360 };
+    const back = smooth(ramp(t, 0, d));
+    const me = { x: o.x - 60 * back, y: o.y };
+    const fly = ramp(t, throwAt, hitAt - throwAt);
+    if (fly > 0 && fly < 1) orbShot(lerp(o.x, z.x, fly), lerp(o.y, z.y, fly), Math.atan2(z.y - o.y, z.x - o.x));
+    foe(z.x, z.y, 'ZED', { stun: t > hitAt ? 1 - (t - hitAt) / 2.1 : 0 });
+    xerath(me.x, me.y, { t, label: 'GOOD KURBO', facing: Math.atan2(z.y - me.y, z.x - me.x) });
+    if (t > hitAt) { text('2.1s', z.x + 80, z.y - 40, C.good, 34, 1, 900); pop('STOPPED', z.x, z.y - 90, C.good, t, hitAt, 40); }
+    measure(me, z, 'still far away', C.good, 90);
+    if (t > hitAt + 0.4) { const qa = hitAt + 0.4; pulse(me, Math.atan2(z.y - me.y, z.x - me.x), dist(me, z) + 40, t - qa); }
+    cue('orb', throwAt); cue('stun', hitAt); cue('ding', hitAt + 0.1, 0.6); cue('release', hitAt + 0.4, 0.6); cue('zap', hitAt + 0.9);
+  },
+
+  orbBlocked(t, d, P) {
+    floor();
+    const me = P.fix ? { x: 200, y: lerp(400, 230, smooth(ramp(t, 0.3, 1))) } : { x: 200, y: 400 };
+    const mage = { x: 1050, y: 380 };
+    const wave = [{ x: 640, y: 330 }, { x: 650, y: 390 }, { x: 640, y: 450 }];
+    for (const m of wave) minion(m.x, m.y);
+    const throwAt = P.fix ? 1.5 : 0.3;
+    const aimTo = mage;
+    const ang = Math.atan2(aimTo.y - me.y, aimTo.x - me.x);
+    if (P.fix) {
+      ctx.save(); ctx.strokeStyle = C.good; ctx.setLineDash([8, 8]); ctx.lineWidth = 3; ctx.globalAlpha = ramp(t, 1.0, 0.4) * (1 - ramp(t, throwAt, 0.3));
+      ctx.beginPath(); ctx.moveTo(me.x, me.y); ctx.lineTo(mage.x, mage.y); ctx.stroke(); ctx.restore();
+      if (t < throwAt) text('CLEAR LANE', 640, 250, C.good, 24, ramp(t, 1.0, 0.3), 900);
+    }
+    const stopAt = P.fix ? mage : wave[1];
+    const flight = dist(me, stopAt) / (1400 * S);
+    const fly = ramp(t, throwAt, flight);
+    if (fly > 0 && fly < 1) orbShot(lerp(me.x, stopAt.x, fly), lerp(me.y, stopAt.y, fly), ang);
+    foe(mage.x, mage.y, 'MAGE', { stun: P.fix && fly >= 1 ? 1 - (t - throwAt - flight) / 2 : 0 });
+    xerath(me.x, me.y, { t, label: P.fix ? 'GOOD KURBO' : 'KURBO', color: P.fix ? C.blue : C.kurbo, facing: ang });
+    if (fly >= 1) {
+      if (P.fix) pop('LANDED', mage.x, mage.y - 80, C.good, t, throwAt + flight);
+      else { pop('BLOCKED', wave[1].x, wave[1].y - 60, C.warn, t, throwAt + flight, 38); burst(wave[1].x, wave[1].y, ramp(t, throwAt + flight, 0.4), C.warn, 60); }
+    }
+    cue('orb', throwAt); cue(P.fix ? 'stun' : 'thud', throwAt + flight, 0.7); cue(P.fix ? 'ding' : 'buzz', throwAt + flight + 0.1, 0.5);
+  },
+
+  // ------------------------------------------------------------- SPACING
+  threatRing(t, d) {
+    floor(W * 0.6, H * 0.45, C.red);
+    const z = { x: 800, y: 360 };
+    const r = 700 * S;
+    const grow = easeOut(ramp(t, 0.6, 1.4));
+    ring(z.x, z.y, r * grow, C.red, 0.8, 4, [16, 10], 0.06);
+    foe(z.x, z.y, 'ASSASSIN');
+    // the dash, demonstrated
+    const k = (t % 3);
+    if (k > 1.8) {
+      const p = ramp(k, 1.8, 0.4);
+      ctx.save(); ctx.strokeStyle = C.red; ctx.lineWidth = 6; ctx.globalAlpha = 1 - ramp(k, 2.4, 0.5);
+      ctx.beginPath(); ctx.moveTo(z.x, z.y); ctx.lineTo(z.x - r * p, z.y + 20 * p); ctx.stroke(); ctx.restore();
+    }
+    text('THREAT RANGE', z.x, z.y + r * grow + 30, C.red, 24, grow, 900);
+    text('walk + dash before you react', z.x, z.y + r * grow + 60, C.dim, 18, grow);
+    xerath(180, 380, { t, label: 'XERATH' });
+    cue('whoosh', 0.6, 0.5);
+    for (let i = 0; i < 4; i++) cue('dash', 1.8 + i * 3, 0.5);
+  },
+
+  band(t, d) {
+    floor(W * 0.6, H * 0.45, C.blue);
+    const z = { x: 860, y: 370 };
+    const rr = 700 * S, rb = 1450 * S;
+    ring(z.x, z.y, rr, C.red, 0.8, 4, [16, 10], 0.05);
+    const g = easeOut(ramp(t, 0.6, 1.4));
+    ring(z.x, z.y, rb * g, C.blue, 0.7, 4, [20, 12]);
+    if (t > 2) {
+      ctx.save(); ctx.globalAlpha = 0.14 * ramp(t, 2, 0.8); ctx.fillStyle = C.good;
+      ctx.beginPath(); ctx.arc(z.x, z.y, rb, 0, TAU); ctx.arc(z.x, z.y, rr, 0, TAU, true); ctx.fill(); ctx.restore();
+      text('THE BAND', z.x - (rr + rb) / 2, z.y + 150, C.good, 34, ramp(t, 2, 0.6), 900);
+    }
+    text('700', z.x - rr + 40, z.y + 30, C.red, 20);
+    text('1450', z.x - rb + 50, z.y + 120, C.blue, 20, g);
+    foe(z.x, z.y, 'ASSASSIN');
+    const a = Math.PI + 0.25 * Math.sin(t * 0.7);
+    const me = { x: z.x + Math.cos(a) * (rr + rb) / 2, y: z.y + Math.sin(a) * (rr + rb) / 2 };
+    xerath(me.x, me.y, { t, label: 'XERATH', facing: a + Math.PI });
+    cue('whoosh', 0.6, 0.4); cue('ding', 2.0, 0.6);
+  },
+
+  bandThree(t, d) {
+    floor(W / 2, H / 2);
+    const z = { x: 860, y: 370 };
+    const rr = 700 * S, rb = 1450 * S;
+    ring(z.x, z.y, rr, C.red, 0.8, 4, [16, 10], 0.05);
+    ring(z.x, z.y, rb, C.blue, 0.7, 4, [20, 12]);
+    foe(z.x, z.y, 'ASSASSIN');
+    const spots = [
+      { r: (rr + rb) / 2, a: Math.PI, label: 'IN THE BAND', color: C.good, note: 'you hit, they can\'t' },
+      { r: rb + 70, a: Math.PI + 0.42, label: 'TOO FAR', color: C.warn, note: 'useless' },
+      { r: rr * 0.6, a: Math.PI - 0.6, label: 'TOO CLOSE', color: C.bad, note: 'dead' },
+    ];
+    spots.forEach((s, i) => {
+      const at = d * (0.15 + i * 0.25);
+      const al = ramp(t, at, 0.4);
+      const p = { x: z.x + Math.cos(s.a) * s.r, y: z.y + Math.sin(s.a) * s.r };
+      xerath(p.x, p.y, { t, label: '', alpha: al, color: s.color });
+      text(s.label, p.x, p.y + 52, s.color, 22, al, 900);
+      text(s.note, p.x, p.y + 78, C.dim, 18, al);
+      cue(i === 0 ? 'ding' : i === 1 ? 'pop' : 'thud', at, 0.6);
+    });
+  },
+
+  kurboWalksIn(t, d, P) {
+    floor();
+    const z = { x: 900, y: 370 };
+    const rr = 700 * S;
+    ring(z.x, z.y, rr, C.red, 0.8, 4, [16, 10], 0.05);
+    ring(z.x, z.y, 1000 * S, C.blue, 0.35, 2, [8, 10]);
+    text('your W range from here', z.x - 1000 * S + 110, z.y - 160, C.blue, 16);
+    const k = P.dived ? 1 : smooth(ramp(t, 0.1, d * 0.9));
+    const me = { x: lerp(200, z.x - 1000 * S + 20, k), y: 380 };
+    foe(z.x, z.y, 'ASSASSIN');
+    xerath(me.x, me.y, { t, label: 'KURBO', color: C.kurbo, facing: 0 });
+    if (P.dived) {
+      const p = ramp(t, 0.6, 0.25);
+      ctx.save(); ctx.strokeStyle = C.red; ctx.lineWidth = 8; ctx.globalAlpha = 1 - ramp(t, 1.4, 0.6);
+      ctx.beginPath(); ctx.moveTo(z.x, z.y); ctx.lineTo(lerp(z.x, me.x + 30, p), lerp(z.y, me.y, p)); ctx.stroke(); ctx.restore();
+      pop('DIVED', me.x, me.y - 100, C.bad, t, 0.85, 52);
+      cue('dash', 0.6); cue('thud', 0.85); cue('buzz', 0.95, 0.5);
+    } else {
+      text('W range: 1000', me.x, me.y + 70, C.blue, 18);
+      cue('whoosh', 0.2, 0.3);
+    }
+  },
+
+  chargeBack(t, d) {
+    floor();
+    const z0 = { x: 1000, y: 360 };
+    const k = clamp01(t / d);
+    const z = { x: lerp(z0.x, 800, k), y: 360 };
+    const me = { x: lerp(560, 260, smooth(k)), y: 400 };
+    const rr = 700 * S;
+    ring(z.x, z.y, rr, C.red, 0.7, 3, [16, 10]);
+    const ch = (t % 2.4);
+    const charging = ch < 1.2;
+    const ang = Math.atan2(z.y - me.y, z.x - me.x);
+    const need = dist(me, z) / S + 40;
+    if (charging) pulse(me, ang, Math.min(need, 750 + 700 * clamp01(ch / 1.5)) * S, null);
+    else pulse(me, ang, need * S, ch - 1.2);
+    foe(z.x, z.y, 'ASSASSIN');
+    xerath(me.x, me.y, { t, label: 'GOOD KURBO', facing: ang, slowed: charging ? clamp01(ch / 1.5) : 0 });
+    text('◀ walking backwards while charging', me.x + 20, 560, C.good, 22, 1, 800);
+    for (let i = 0; i < 4; i++) cue('charge', i * 2.4, 0.4), cue('release', 1.2 + i * 2.4, 0.6), cue('zap', 1.7 + i * 2.4, 0.6);
+  },
+
+  dance(t, d) {
+    floor();
+    const rr = 700 * S, rb = 1450 * S;
+    const commit = (Math.sin(t * 1.4) + 1) / 2;
+    const z = { x: 860 - 160 * commit, y: 370 };
+    const me = { x: z.x - (rr + rb) / 2 - 40 * commit, y: 380 };
+    ring(z.x, z.y, rr, C.red, 0.7, 3, [16, 10], 0.05);
+    ring(z.x, z.y, rb, C.blue, 0.4, 3, [20, 12]);
+    foe(z.x, z.y, commit > 0.6 ? 'COMMITTING' : 'SETTLED', { color: commit > 0.6 ? C.red : C.warn });
+    xerath(me.x, me.y, { t, label: 'XERATH' });
+    text(commit > 0.6 ? '◀ back off' : 'step up ▶', me.x, me.y + 70, commit > 0.6 ? C.warn : C.good, 22, 1, 900);
+    text('keeping a distance', W / 2, 120, C.dim, 22);
+    for (let i = 0; i < 4; i++) cue('pop', 0.6 + i * 2.24, 0.3);
+  },
+
+  laneBand(t, d) {
+    floor();
+    const me = { x: 220, y: 390 };
+    const mage = { x: 1060, y: 380 };
+    for (let i = 0; i < 3; i++) minion(380 + i * 20, 330 + i * 60, 0.9); // ours? keep red for theirs
+    for (let i = 0; i < 4; i++) minion(700 + (i % 2) * 18, 300 + i * 55);
+    ring(mage.x, mage.y, 550 * S, C.red, 0.6, 3, [12, 10], 0.05);
+    text('their range', mage.x, mage.y + 550 * S + 24, C.red, 18);
+    const k = (t % 2.6);
+    const ang = Math.atan2(mage.y - me.y, mage.x - me.x);
+    if (k > 0.4) pulse(me, ang, dist(me, mage) + 40, k - 0.4);
+    foe(mage.x, mage.y, 'ENEMY MAGE');
+    xerath(me.x, me.y, { t, label: 'XERATH', facing: ang });
+    text('over the wave', 700, 200, C.good, 24, 1, 900);
+    for (let i = 0; i < 4; i++) cue('release', 0.4 + i * 2.6, 0.5), cue('zap', 0.9 + i * 2.6, 0.6);
+  },
+
+  // ---------------------------------------------------------------- COMBO
+  juke(t, d, P) {
+    floor();
+    const o = { x: 200, y: 400 };
+    const base = { x: 900, y: 360 };
+    const k = t % 2.2;
+    const step = k > 0.35 ? smooth(ramp(k, 0.35, 0.3)) * 120 : 0;
+    const z = { x: base.x, y: base.y + (Math.floor(t / 2.2) % 2 ? step : -step) };
+    const ang = Math.atan2(base.y - o.y, base.x - o.x);
+    pulse(o, ang, dist(o, base) + 60, k);
+    foe(z.x, z.y, P.lightshow ? 'EZREAL (enjoying it)' : 'EZREAL');
+    xerath(o.x, o.y, { t, label: 'XERATH', facing: ang });
+    pop('JUKED', z.x, z.y - 70, C.warn, t, Math.floor(t / 2.2) * 2.2 + 0.6, 30);
+    if (P.lightshow) {
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * TAU + t;
+        ring(z.x + Math.cos(a) * 80, z.y + Math.sin(a) * 50, 4 + 3 * Math.sin(t * 5 + i), [C.blue, C.violet, C.good, C.warn][i % 4], 0.8, 3);
+      }
+      text('✨ ✨ ✨', z.x, z.y + 70, C.warn, 26);
+    }
+    for (let i = 0; i < 4; i++) cue('zap', 0.5 + i * 2.2, 0.6), cue('whoosh', 0.35 + i * 2.2, 0.4);
+  },
+
+  comboSteps(t, d, P) {
+    floor();
+    const o = { x: 220, y: 400 };
+    const z = { x: 860, y: 370 };
+    const sp = P.fast ? 0.7 : 1;
+    const eAt = 0.4 * sp, hitAt = eAt + 0.45, wAt = hitAt + 0.5 * sp, qAt = wAt + 0.6 * sp;
+    const ang = Math.atan2(z.y - o.y, z.x - o.x);
+    const fly = ramp(t, eAt, hitAt - eAt);
+    if (fly > 0 && fly < 1) orbShot(lerp(o.x, z.x, fly), lerp(o.y, z.y, fly), ang);
+    eye(z.x, z.y, 275 * S, (t - wAt) / 0.75);
+    if (t >= qAt) pulse(o, ang, dist(o, z) + 40, t - qAt);
+    foe(z.x, z.y, 'EZREAL', { stun: t > hitAt ? 1 - (t - hitAt) / 2.2 : 0 });
+    xerath(o.x, o.y, { t, label: 'XERATH', facing: ang });
+    const steps = [['E', 'ORB', hitAt], ['W', 'EYE', wAt + 0.75], ['Q', 'PULSE', qAt + 0.5]];
+    steps.forEach(([k, n, at], i) => {
+      keycap(480 + i * 160, 600, k, t >= at - 0.3 && t < at + 0.3);
+      text(n, 480 + i * 160, 660, t >= at ? C.good : C.dim, 18, 1, 800);
+      if (i < 2) text('→', 560 + i * 160, 600, C.dim, 30);
+    });
+    if (t > qAt + 0.5) pop('COMBO', z.x, z.y - 120, C.good, t, qAt + 0.5, 44);
+    cue('orb', eAt); cue('stun', hitAt); cue('cast', wAt, 0.5); cue('boom', wAt + 0.75); cue('release', qAt); cue('zap', qAt + 0.5); cue('ding', qAt + 0.6, 0.8);
+  },
+
+  comboWrong(t, d, P) {
+    floor();
+    const o = { x: 220, y: 400 };
+    const z = { x: 860, y: 370 + 80 * Math.sin(t * 1.5) };
+    const ang = Math.atan2(370 - o.y, z.x - o.x);
+    const held = Math.min(t, 2.5);
+    pulse(o, ang, (750 + 700 * clamp01(held / 1.5)) * S, null);
+    foe(z.x, z.y, 'EZREAL');
+    xerath(o.x, o.y, { t, label: 'KURBO', color: C.kurbo, facing: ang, slowed: clamp01(held / 1.5) });
+    keycap(480, 600, 'Q', true, clamp01(held / 2));
+    keycap(640, 600, 'W', false); keycap(800, 600, 'E', false);
+    if (P.locked) {
+      for (const x of [640, 800]) { ctx.save(); ctx.strokeStyle = C.bad; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(x - 30, 570); ctx.lineTo(x + 30, 630); ctx.stroke(); ctx.restore(); }
+      text('LOCKED WHILE CHARGING', 720, 520, C.bad, 22, ramp(t, 0.3, 0.3), 900);
+      cue('buzz', 0.3, 0.6);
+    }
+    cue('charge', 0.05, 0.5);
+  },
+
+  // ----------------------------------------------------------------- RITE
+  riteIntro(t, d) {
+    floor(W * 0.2, H * 0.55, C.violet);
+    const me = { x: 160, y: 470 };
+    xerath(me.x, me.y, { t, label: 'XERATH', color: C.violet, rooted: true });
+    const run = (s) => ({ x: lerp(880, 1180, (s % 6) / 6), y: 260 + 60 * Math.sin(s * 0.9) });
+    for (let i = 0; i < 4; i++) {
+      const at = 0.8 + i * 1.4;
+      const aim = run(at + 0.6);
+      eye(aim.x, aim.y, 200 * S, (t - at) / 0.627, C.violet, false);
+      cue('rite', at, 0.5); cue('boom', at + 0.627, 0.8);
+    }
+    const z = run(t);
+    foe(z.x, z.y, 'LOW HP, RUNNING');
+    text('5000 RANGE · 4 SHOTS · 0.6s EACH', W / 2, 640, C.violet, 24, 1, 900);
+    ctx.save(); ctx.strokeStyle = rgba(C.violet, 0.3); ctx.setLineDash([4, 10]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(me.x, me.y); ctx.lineTo(z.x, z.y); ctx.stroke(); ctx.restore();
+  },
+
+  riteSpam(t, d, P) {
+    floor(W * 0.2, H * 0.55, C.violet);
+    const me = { x: 160, y: 470 };
+    xerath(me.x, me.y, { t, label: 'KURBO', color: C.kurbo, rooted: true });
+    const spot = { x: 980, y: 320 };
+    for (let i = 0; i < 4; i++) {
+      const at = 0.3 + i * 0.12;
+      eye(spot.x + i * 4, spot.y + i * 3, 200 * S, (t - at) / 0.627, C.violet, false);
+      cue('rite', at, 0.35); cue('boom', at + 0.627, 0.45);
+    }
+    const dodge = smooth(ramp(t, 0.55, 0.4));
+    const z = { x: spot.x + 30 * dodge, y: spot.y + 150 * dodge };
+    foe(z.x, z.y, 'LOW HP');
+    if (P.miss) { pop('0 / 4', spot.x, spot.y - 110, C.bad, t, 1.1, 48); pop('?', z.x + 40, z.y - 60, C.warn, t, 1.6, 60); cue('buzz', 1.1, 0.6); cue('ping', 1.6); }
+    else pop('ALL AT ONCE!', spot.x, spot.y - 110, C.warn, t, 0.4, 32);
+  },
+
+  riteRead(t, d) {
+    floor(W * 0.2, H * 0.55, C.violet);
+    const me = { x: 160, y: 470 };
+    xerath(me.x, me.y, { t, label: 'GOOD KURBO', color: C.violet, rooted: true });
+    // Walks up; sees the first shot and dodges down; the second is already there.
+    const pos = (s) => ({ x: 960 + 20 * s, y: 300 + 130 * smooth(ramp(s, 0.75, 0.5)) });
+    const shots = [[0.4, pos(0.4)], [1.6, pos(1.6 + 0.627)]];
+    shots.forEach(([at, aim]) => {
+      eye(aim.x, aim.y, 200 * S, (t - at) / 0.627, C.violet, false);
+      cue('rite', at, 0.5); cue('boom', at + 0.627, 0.8);
+    });
+    const dieAt = 1.6 + 0.627;
+    const dead = t > dieAt;
+    const z = pos(t);
+    foe(z.x, z.y, dead ? '' : t > 0.75 ? 'DODGING ↓' : 'LOW HP', { dead });
+    pop('READ IT', 1080, 330, C.warn, t, 0.9, 30);
+    if (dead) { pop('GOT HIM', z.x, z.y - 80, C.good, t, dieAt, 44); }
+    cue('ding', dieAt + 0.05, 0.8);
+    text('1 · watch the dodge   2 · shoot where it goes', W / 2, 640, C.dim, 22);
+  },
+
+  riteSafe(t, d) {
+    floor(W * 0.2, H * 0.55, C.violet);
+    const me = { x: 220, y: 420 };
+    const z = { x: 700, y: 380 };
+    ring(z.x, z.y, 700 * S, C.red, 0.7, 3, [16, 10], 0.05);
+    foe(z.x, z.y, 'ASSASSIN');
+    const ok = t > d * 0.5;
+    const mePos = ok ? { x: 140, y: 470 } : me;
+    xerath(mePos.x, mePos.y, { t, label: 'XERATH', color: C.violet, rooted: ok });
+    check(mePos.x, mePos.y - 110, ok, 1);
+    text(ok ? 'out of reach → now begin' : 'someone in range → not yet', 640, 620, ok ? C.good : C.bad, 24, 1, 900);
+    cue('buzz', 0.3, 0.4); cue('ding', d * 0.5, 0.6); cue('rite', d * 0.5 + 0.3, 0.5);
+  },
+
+  recap(t, d) {
+    floor(W / 2, H / 2);
+    const items = ['LET GO OF Q', 'LEAD THE EYE', 'ORB EARLY', 'LIVE IN THE BAND', 'STUN, THEN EVERYTHING'];
+    items.forEach((s, i) => {
+      const at = 0.2 + i * (d * 0.8 / items.length);
+      const a = ramp(t, at, 0.3);
+      text(`${i + 1}`, 330, 150 + i * 90, C.blue, 40, a, 900);
+      text(s, 380, 150 + i * 90, C.core, 36, a, 900, 'left');
+      cue('pop', at, 0.5);
+    });
+  },
+};
+
+// --------------------------------------------------------------- the frame
+let EP = null;
+let TIMELINE = [];
+const TITLE = 3.2;
+const SCENE_SCALE = 0.8;
+/**
+ * Scenes that are one short demonstration, and how often to repeat it. A
+ * line of narration is longer than the thing it describes, and a picture
+ * that has finished while the voice is still talking looks like a frozen
+ * video rather than a lesson.
+ */
+const LOOP = { eyeFeet: 2.6, eyeLead: 2.8, eyeThenQ: 3.4, comboSteps: 3.8, riteRead: 3.6, orbEarly: 3.8, orbBlocked: 3.8, riteSpam: 3.2 };
+const TAIL = 0.6;
+
+function load(episode, lengths, cast, pad = 0.55) {
+  EP = episode;
+  EP.cast = cast;
+  TIMELINE = [];
+  let at = TITLE;
+  episode.beats.forEach((b, i) => {
+    const dur = lengths[i] + pad;
+    TIMELINE.push({ ...b, start: at, dur, voice: lengths[i] });
+    at += dur;
+  });
+  cues = [];
+  return at + TAIL;
+}
+
+function titleCard(t) {
+  floor(W / 2, H / 2, C.blue);
+  const a = ramp(t, 0.1, 0.5) * (1 - ramp(t, TITLE - 0.5, 0.4));
+  for (let i = 0; i < 5; i++) ring(W / 2, 300, 60 + i * 55 * easeOut(ramp(t, 0, 1.2)), C.blue, 0.3 * a, 3, [10, 12]);
+  xerath(W / 2, 300, { t, scale: 1.2 * easeOut(ramp(t, 0, 0.8)), label: '', alpha: a });
+  text('XERATH SCHOOL', W / 2, 120, C.dim, 26, a, 800);
+  text(`EPISODE ${EP.number}`, W / 2, 460, C.blue, 26, a, 800);
+  text(EP.title, W / 2, 520, C.core, 58, a, 900);
+  text(EP.subtitle, W / 2, 580, C.warn, 28, a, 700);
+  text('a tutorial for Kurbo', W / 2, 660, C.dim, 18, a * 0.8, 600);
+}
+
+function wrap(s, max) {
+  const words = s.split(' ');
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    if ((cur + ' ' + w).trim().length > max) { lines.push(cur.trim()); cur = w; } else cur += ' ' + w;
+  }
+  if (cur.trim()) lines.push(cur.trim());
+  return lines;
+}
+
+/** The subtitle: who is talking, and the line, revealed as it is spoken. */
+function caption(b, t) {
+  const who = EP.cast[b.who];
+  const g = ctx.createLinearGradient(0, H - 190, 0, H);
+  g.addColorStop(0, 'rgba(2,5,11,0)'); g.addColorStop(0.35, 'rgba(2,5,11,0.82)'); g.addColorStop(1, 'rgba(2,5,11,0.95)');
+  ctx.fillStyle = g; ctx.fillRect(0, H - 190, W, 190);
+  const lines = wrap(b.say, 72);
+  const shown = Math.floor(b.say.length * clamp01(t / Math.max(0.3, b.voice * 0.95)));
+  let used = 0;
+  text(b.who, 70, H - 128, who.color, 22, 1, 900, 'left');
+  lines.forEach((ln, i) => {
+    const vis = Math.max(0, Math.min(ln.length, shown - used));
+    used += ln.length + 1;
+    ctx.save();
+    ctx.font = `700 27px 'DejaVu Sans', sans-serif`;
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    const y = H - 90 + i * 36 - (lines.length > 2 ? 18 : 0);
+    ctx.fillStyle = 'rgba(232,238,252,0.28)'; ctx.fillText(ln, 70, y);
+    ctx.fillStyle = '#ffffff'; ctx.fillText(ln.slice(0, vis), 70, y);
+    ctx.restore();
+  });
+}
+
+function badge(b) {
+  text(`XERATH SCHOOL · EP ${EP.number} · ${EP.title}`, 30, 34, C.dim, 16, 0.9, 700, 'left');
+  text('for Kurbo', W - 30, 34, C.kurbo, 16, 0.9, 800, 'right');
+}
+
+/** Draw the episode at `t` seconds. Cues are captured when `capture` is set. */
+function frame(t, capture = true, prevT = -1) {
+  capturing = capture;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (t < TITLE) {
+    beatStart = 0; beatPrev = prevT; beatNow = t;
+    cue('sting', 0.15, 0.9);
+    titleCard(t);
+    return;
+  }
+  let b = TIMELINE[TIMELINE.length - 1];
+  for (const x of TIMELINE) if (t >= x.start && t < x.start + x.dur) { b = x; break; }
+  const lt = Math.min(t - b.start, b.dur);
+  const per = LOOP[b.scene];
+  const rep = per ? Math.floor(lt / per) : 0;
+  const st = lt - rep * (per || 0);
+  beatStart = b.start + rep * (per || 0);
+  beatPrev = prevT - beatStart;
+  beatNow = st;
+  // Scenes are drawn at four fifths, centred and lifted, so the subtitles
+  // under them never cover anything a scene is saying.
+  ctx.setTransform(SCENE_SCALE, 0, 0, SCENE_SCALE, (W * (1 - SCENE_SCALE)) / 2, 22);
+  (SCENES[b.scene] || SCENES.throne)(st, per ? Math.min(per, b.dur) : b.dur, b.params || {});
+  vignette();
+  badge(b);
+  if (t < b.start + b.dur) caption(b, lt);
+  // a short fade between beats
+  const edge = Math.min(lt, b.start + b.dur - t);
+  if (edge < 0.12) { ctx.fillStyle = `rgba(2,5,11,${0.6 * (1 - edge / 0.12)})`; ctx.fillRect(0, 0, W, H); }
+}
+
+window.XS = {
+  load,
+  frame,
+  takeCues: () => { const c = cues; cues = []; return c; },
+  starts: () => TIMELINE.map((b) => b.start),
+  scenes: Object.keys(SCENES),
+};
+</script>
+</body>
+</html>

@@ -161,6 +161,11 @@ export class RiftCamera {
    * window, or rotating a tablet, must not quietly undo a zoom somebody chose.
    */
   private userZoom = false;
+  /**
+   * The width a run opens on. {@link OPENING_VIEW_WIDTH} for everything but a
+   * champion whose reach is the lesson — see {@link setOpeningWidth}.
+   */
+  private openingWidth = OPENING_VIEW_WIDTH;
 
   constructor() {
     this.camera = new THREE.PerspectiveCamera(FOV, 16 / 9, 40, 12000);
@@ -222,7 +227,7 @@ export class RiftCamera {
       this.zoomForDepth(this.bounds.h + OPENING_MARGIN * 2),
     );
     const z = THREE.MathUtils.clamp(
-      Math.min(this.framingCap, this.zoomForWidth(OPENING_VIEW_WIDTH), arena),
+      Math.min(this.framingCap, this.zoomForWidth(this.openingWidth), arena),
       ZOOM_MIN,
       ZOOM_MAX,
     );
@@ -289,6 +294,20 @@ export class RiftCamera {
    */
   setZoom(z: number): void {
     this.framingCap = THREE.MathUtils.clamp(z, ZOOM_MIN, ZOOM_MAX);
+    this.applyFraming();
+  }
+
+  /**
+   * Open on a wider scale than the default, in units of ground across.
+   *
+   * For the one kind of drill whose whole lesson is a distance longer than the
+   * default framing shows: a fourteen-hundred-and-fifty-unit pulse aimed at
+   * somebody you cannot see is a guess, and League's own camera — the one
+   * the habit has to transfer to — shows a Xerath his full reach either side.
+   * Never wider than League's, and the arena still caps it.
+   */
+  setOpeningWidth(width: number): void {
+    this.openingWidth = Math.min(Math.max(width, OPENING_VIEW_WIDTH), LEAGUE_VIEW_WIDTH);
     this.applyFraming();
   }
 

@@ -635,7 +635,11 @@ export class InputSystem {
 
   private onPointerUp = (e: PointerEvent): void => {
     this.updateCursor(e);
-    this.release(this.codeFor(e));
+    const code = this.codeFor(e);
+    // A mouse binding always quick-casts (see onPointerDown), so it always
+    // releases too.
+    if (!this.suspended) this.releaseAbility(code, e.timeStamp, true);
+    this.release(code);
   };
 
   private onKeyDown = (e: KeyboardEvent): void => {
@@ -724,8 +728,33 @@ export class InputSystem {
 
   private onKeyUp = (e: KeyboardEvent): void => {
     if (this.suspended) return;
+    this.releaseAbility(e.code, e.timeStamp, this.opts.quickCast);
     this.release(e.code);
   };
+
+  /**
+   * Letting go of an ability key.
+   *
+   * Almost nothing listens: a press is a cast, and what the hand does after it
+   * is nobody's business. A *charged* ability is the exception — Arcanopulse
+   * grows while the key is down and fires the instant it comes up — so the
+   * release is queued as its own event for the one kit that wants it.
+   *
+   * Only under quick-cast. Without it the press only arms the slot and the
+   * cast is the click after, so the key is long up before anything began;
+   * a charged ability is then fired by casting it a second time, which is the
+   * other way League lets you do it.
+   */
+  private releaseAbility(code: string, t: number, quick: boolean): void {
+    if (!quick || !this.held.has(code)) return;
+    const { x, y } = this.cursor;
+    for (const slot of ABILITY_SLOTS) {
+      if (this.matches(slot, code) && this.opts.activeSlots.has(slot)) {
+        this.queue.push({ kind: 'abilityRelease', slot, x, y, t });
+        return;
+      }
+    }
+  }
 
   /** Marks a code down, keeping the press order honest about repeats. */
   private press(code: string): void {

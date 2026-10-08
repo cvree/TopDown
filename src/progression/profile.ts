@@ -67,6 +67,14 @@ import {
   type KatarinaProgress,
   type KatarinaRunReport,
 } from './katarina';
+import {
+  applyXerathRun,
+  emptyXerathProgress,
+  isXerathStage,
+  normalizeXerathProgress,
+  type XerathProgress,
+  type XerathRunReport,
+} from './xerath';
 
 import { emptyWarmup, normalizeWarmup, type WarmupProgress } from './warmup';
 import type { LaneReport } from '../drills/lanereport';
@@ -431,6 +439,7 @@ export interface Profile {
   ezreal: EzrealProgress;
   twisted: TwistedProgress;
   katarina: KatarinaProgress;
+  xerath: XerathProgress;
   /** The APM trainer's own ladder: thirteen modes, ten explicit levels each. */
   apm: ApmProgress;
   /** The WASD academy: nine modules, taken in order, played on the keys. */
@@ -573,6 +582,7 @@ export const newProfile = (name = 'PLAYER'): Profile => ({
   ezreal: emptyEzrealProgress(),
   twisted: emptyTwistedProgress(),
   katarina: emptyKatarinaProgress(),
+  xerath: emptyXerathProgress(),
   apm: emptyApmProgress(),
   wasd: emptyWasdProgress(),
   lane: emptyLaneProgress(),
@@ -760,6 +770,7 @@ export const loadProfile = (): Profile => {
       ezreal: normalizeEzrealProgress(parsed.ezreal),
       twisted: normalizeTwistedProgress(parsed.twisted),
       katarina: normalizeKatarinaProgress(parsed.katarina),
+      xerath: normalizeXerathProgress(parsed.xerath),
       // The APM ladder is repaired rather than merged: a profile written
       // before it existed, or before a mode did, has to come back playable.
       apm: normalizeApmProgress(parsed.apm),
@@ -868,6 +879,8 @@ export interface ProgressReport {
   twisted: TwistedRunReport | null;
   /** Present only for runs on the Katarina path. */
   katarina: KatarinaRunReport | null;
+  /** Present only for runs on the Xerath path. */
+  xerath: XerathRunReport | null;
   /** Present only for runs in the APM trainer. */
   apm: ApmRunReport | null;
   /** Present only for runs in the WASD academy. */
@@ -1139,6 +1152,18 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
       )
     : null;
 
+  const xerath = isXerathStage(result.drill)
+    ? applyXerathRun(
+        p.xerath,
+        result.drill,
+        result.performance,
+        result.difficulty,
+        result.score,
+        Object.fromEntries(result.keyMetrics.map((k) => [k.id, k.value])),
+        p.settings.movementScheme === 'wasd',
+      )
+    : null;
+
   // The rate the ladder records is the *correct* one — the number the mode's
   // score is built on — rather than the raw headline rate, so a level record
   // can never be set by mashing.
@@ -1254,6 +1279,7 @@ export const applyRun = (p: Profile, result: RunResult, opts: RunContext = {}): 
     ezreal,
     twisted,
     katarina,
+    xerath,
     apm,
     wasd,
     lane,

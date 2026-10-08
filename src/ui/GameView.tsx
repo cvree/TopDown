@@ -446,6 +446,7 @@ export function GameView({
     );
     renderer.setQuality(settings.lowFx ? 'low' : 'high');
     if (meta.zoom !== undefined) renderer.setZoom(meta.zoom);
+    if (meta.viewWidth !== undefined) renderer.setOpeningWidth(meta.viewWidth);
     const minimap = new Minimap(minimapCanvas);
     minimap.resize(158);
     const minimapHost = minimapCanvas.parentElement;

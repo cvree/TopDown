@@ -1,11 +1,12 @@
 # APEX — MOBA Mechanics Trainer
 
 A browser-based MOBA mechanics trainer, built around one idea: the thing that
-feels rewarding should be the thing that actually makes you better. Three
+feels rewarding should be the thing that actually makes you better. Four
 champions, chosen because they ask different questions — Vayne grades a
 *distance* from perfect on everything she does, Twisted Fate grades a *choice*
-you either made in time or did not, and Katarina grades a *place* you either
-reached before the dagger did or did not.
+you either made in time or did not, Katarina grades a *place* you either
+reached before the dagger did or did not, and Xerath grades the *distance you
+keep* while you hit from the longest reach in the game.
 
 It plays in a real 3D arena — a locked overhead camera, champions with
 silhouettes you can read at a glance, and every piece of gameplay information
@@ -20,10 +21,10 @@ one click or Enter away), your stars and playlists beside it, and the grid of
 the first ten minutes of a game of League, at League's own numbers, against an
 enemy laner farming and trading on the other side of the wave. You pick the
 opponent and the length; everything else is the game. Under it are the parts
-of that lane, rehearsed one at a time, behind a switch between the three
+of that lane, rehearsed one at a time, behind a switch between the four
 champions: one distance, four pieces of Vayne and the opponent who shoots at
-her; nine stages of Twisted Fate's wheel; and nine stages of Katarina's
-daggers.
+her; nine stages of Twisted Fate's wheel; nine stages of Katarina's daggers;
+and nine stages of Xerath's artillery.
 Each mode has two ways to play it:
 
 - **PLAY** — thirty seconds. The same length every time, so a score means
@@ -127,12 +128,12 @@ npm run build      # production bundle
 
 ## What it trains
 
-One lane, and twenty-four modes made out of the pieces of it — six on Vayne,
-nine on Twisted Fate and nine on Katarina, with the distance all three of them
-assume at the top of each list.
+One lane, and thirty-three modes made out of the pieces of it — six on Vayne,
+nine on Twisted Fate, nine on Katarina and nine on Xerath, with the distance
+all four of them assume at the top of each list.
 
-The three champions are not three flavours of the same trainer, and that is the
-reason there are three. Everything Vayne asks is *analogue*: the roll a little
+The four champions are not four flavours of the same trainer, and that is the
+reason there are four. Everything Vayne asks is *analogue*: the roll a little
 early, the wall a little off the angle, the third bolt a little stale, and
 every one of her modes grades one of those distances. Everything Twisted Fate
 asks is *discrete*: Pick a Card is showing exactly one of three faces at any
@@ -144,7 +145,10 @@ thing none of her six can teach. And everything Katarina asks is *in the
 future*: a dagger thrown now lands a second from now somewhere else, lies there
 for four seconds, and is worth nothing unless you are standing on it — with
 somebody inside the slash — when it does. Neither of the others can ask where
-you are going to be.
+you are going to be. And everything Xerath asks is *spacing*: the longest
+reach here and the slowest feet, a pulse that slows him while he charges it,
+and every cast landing a beat late — so the whole champion is standing where
+nobody can reach him and aiming at where they will be.
 
 ### Lane phase
 
@@ -375,6 +379,53 @@ is drawn around you whenever a dagger is close enough that taking it is the next
 thing you do. Death Lotus ends on a move command — under WASD a held key ends it
 after a hundred and fifty milliseconds to let go — and Shunpo is the one way out
 of it that is not a mistake.
+
+### The artillery path
+
+Nine stages, each gated on the one before it, and every one of them is a
+question about how far away you are when you hit.
+
+| Stage | Keys | Measures | The habit it builds |
+| --- | --- | --- | --- |
+| **Arcanopulse** | Q F | Pulses landed, and seconds held past what the target needed | Letting go of Q the moment the line reaches, not at full charge |
+| **Eye of Destruction** | W F | Eyes landed, and on the centre | Leading a delayed circle by three quarters of a second |
+| **Shocking Orb** | E F | Orbs landed, average stun, orbs a minion took | Throwing the orb early and long, along a clear line |
+| **The Band** | Q W F | Time between the assassin's reach and yours, dives suffered, pulses landed | Living outside their ring and inside your own; charging while backing off |
+| **Stun, Then Everything** | Q W E F | Combos (orb, then a centred Eye and a pulse inside the stun), and the share of casts on a held body | Never throwing a skillshot at somebody who can still walk |
+| **The Retreat** | Q W E F | Divers stopped by an orb while still far out, health kept | The orb as a wall, thrown early |
+| **Rite of the Arcane** | R F | Rite shots landed on low champions running away | Leading each shot, and making every shot a different guess |
+| **Behind the Wave** | Q W E F | Damage traded with their mage, orbs blocked | Poking over the wave from outside their range |
+| **The Artillery** | Q W E R F | All of it, against an assassin, a mage, a wave and divers | Playing Xerath rather than owning his abilities |
+
+**Arcanopulse is the one charged ability in the client.** Q goes down and the
+line grows out of him from 750 to 1450 over a second and a half, slowing him by
+up to half; it fires when the key comes back up (or, with quick-cast off, when
+it is cast a second time) and lands half a second later. Letting go of an
+ability key is an input event of its own for exactly this reason. Held for four
+seconds it fizzles and half the cooldown comes back.
+
+**Everything he casts is telegraphed to the people it is cast at.** A body
+inside a pulse, an Eye or a Rite shot sees it and may walk out of it, once per
+blast, after a reaction that shortens with difficulty — which is what makes
+leading worth something and the combo stage possible: a body held by the orb
+cannot walk. The hunters on the band stages dive anybody who stays inside 700
+units of them for a beat, and both rings are drawn around them: the floor
+between is the band. The headless suite plays every stage as a spaced player
+who leads and a sloppy one who holds Q to full, aims at feet, throws the orb
+late through the wave and walks up to casting range, and checks that the
+second scores worse on every stage.
+
+His ranges, widths and delays are League's: 750 to 1450, the half second, the
+Eye's 275 radius, 50-unit centre and three quarters of a second, the orb's 1125
+at 1400 units a second and its 0.75 to 2.25 second stun, the Rite's 200 radius
+and six tenths. Cooldowns on the single-button stages are shortened so a run
+holds enough attempts to be a rep, and the Rite is charged in seconds.
+
+**Xerath School** (`tools/tutorials/`) is six short narrated videos — the
+pulse, the Eye, the orb, spacing, the combo and the Rite — drawn in the
+trainer's own floor vocabulary and voiced by a local text-to-speech model.
+`tools/tutorials/README.md` has the steps to rebuild them; the rendered
+episodes are in `docs/xerath-tutorials/`.
 
 ### The Sheriff
 

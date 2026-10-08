@@ -45,6 +45,9 @@ const HEAD: Record<string, string> = {
   // A close cap of hair and a tail swept off the back of it. The only head
   // here with nothing on it but itself.
   ponytail: 'M20 24 Q20 8 32 8 Q44 8 44 24 M42 12 Q54 16 56 30 Q57 40 52 48',
+  // A core and the shards standing off it: a circle with points around it,
+  // none of them touching.
+  runes: 'M26 18 Q32 10 38 18 Q42 26 32 30 Q22 26 26 18 M14 12 L18 20 M50 12 L46 20 M8 28 L16 28 M56 28 L48 28 M32 2 L32 8',
   none: '',
 };
 

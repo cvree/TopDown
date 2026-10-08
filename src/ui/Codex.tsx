@@ -7,6 +7,8 @@ import { VAYNE_STATS, tumbleCdAt, tumblePracticeCdAt, condemnCdAt, condemnPracti
 import { TWISTED_STATS } from '../engine/twistedfate';
 import { KATARINA_STATS } from '../engine/katarina';
 import { katarinaStage } from '../drills/katarina';
+import { XERATH_STATS } from '../engine/xerath';
+import { THREAT_RANGE, xerathStage } from '../drills/xerath';
 import { twistedStage } from '../drills/twistedfate';
 import { AccuracyReport } from './AccuracyReport';
 import { Why } from './components/Why';
@@ -34,12 +36,13 @@ import './practice.css';
  * champions: every number a mode is built from, printed, so a claim about
  * transfer is one the player can check rather than take.
  */
-type CodexId = 'vayne' | 'twisted' | 'katarina' | 'sheriff' | 'accuracy';
+type CodexId = 'vayne' | 'twisted' | 'katarina' | 'xerath' | 'sheriff' | 'accuracy';
 
 const CODEX: { id: CodexId; label: string; sub: string; accent: string }[] = [
   { id: 'vayne', label: 'VAYNE', sub: 'the one you play', accent: '#c86bff' },
   { id: 'twisted', label: 'TWISTED FATE', sub: 'the card one you play', accent: '#ffcf5c' },
   { id: 'katarina', label: 'KATARINA', sub: 'the dagger one you play', accent: '#ff4057' },
+  { id: 'xerath', label: 'XERATH', sub: 'the far-away one you play', accent: '#4fc3ff' },
   { id: 'sheriff', label: 'CAITLYN', sub: 'the one shooting at you', accent: '#ffb02e' },
   // Not a kit: the receipt for all three. Every League figure the lane runs,
   // the patch it was checked against and where each one came from.
@@ -88,6 +91,8 @@ export function CodexPanel() {
           <TwistedReference />
         ) : who === 'katarina' ? (
           <KatarinaReference />
+        ) : who === 'xerath' ? (
+          <XerathReference />
         ) : who === 'sheriff' ? (
           <SheriffReference />
         ) : (
@@ -300,6 +305,64 @@ function KatarinaReference() {
         the ultimate, and Preparation on the two stages that are about nothing else. Every delay
         and every distance — the second and a quarter, the three hundred and fifty units, the four
         seconds, the slash — is League's exactly, because those five figures are the champion.
+      </p>
+    </section>
+  );
+}
+
+function XerathReference() {
+  const X = XERATH_STATS;
+  const rows = [
+    {
+      slot: 'Q',
+      name: 'ARCANOPULSE',
+      body: `Hold the key and a line grows out of him from ${X.qMinRange} to ${X.qMaxRange} units over ${X.qChargeTime}s; let go (or, without quick-cast, cast it again) and it lands along that line ${X.qDelay}s later, ${X.qHalfWidth * 2} wide, for ${X.qDamage} to everything in it. While it charges he is slowed — here by up to ${Math.round(X.qSelfSlow * 100)}% at full charge — and cannot attack or cast anything else. Held ${X.qHoldLimit}s it fizzles and half the cooldown comes back. ${X.qCd}s cooldown, League's maxed (${X.qLeagueCd}s at rank one); the stage about it charges ${xerathStage('xerPulse').practice?.q}s.`,
+    },
+    {
+      slot: 'W',
+      name: 'EYE OF DESTRUCTION',
+      body: `A circle of ${X.wRadius} units anywhere within ${X.wRange}, landing ${X.wDelay}s after the cast for ${X.wDamage} and a ${Math.round(X.wSlow * 100)}% slow. A body touching the ${X.wCentre}-unit centre takes ${Math.round(X.wCentreBonus * 100)}% more and a ${Math.round(X.wCentreSlow * 100)}% slow, both for ${X.wSlowFor}s. ${X.wCd}s cooldown maxed, ${X.wLeagueCd}s at rank one.`,
+    },
+    {
+      slot: 'E',
+      name: 'SHOCKING ORB',
+      body: `A missile at ${X.eSpeed} units a second out to ${X.eRange}, ${X.eRadius * 2} wide, stopped by the first enemy it touches — minions included. It stuns for ${X.eStunMin}s at point blank rising to ${X.eStunMax}s at the end of its range, in proportion to how far it flew. ${X.eCd}s cooldown maxed, ${X.eLeagueCd}s at rank one.`,
+    },
+    {
+      slot: 'R',
+      name: 'RITE OF THE ARCANE',
+      body: `Roots him for up to ${X.rChannel}s and hands him ${X.rShots} shots (League's rank one), each a ${X.rRadius}-unit circle anywhere within ${X.rRange} units, landing ${X.rDelay}s after it is called for ${X.rDamage}, no sooner than ${X.rRecast}s apart. League charges it at ${X.rLeagueCd}s; here it is ${X.rCd}s, and ${xerathStage('xerRite').practice?.r}s on the stage about it.`,
+    },
+    {
+      slot: '↔',
+      name: 'THE BAND',
+      body: `Not an ability: the distance the whole path is about. The hunters on the band stages dive anybody who stays inside ${THREAT_RANGE} units of them for a beat; his pulse reaches ${X.qMaxRange}. Between the two he can hit them and they cannot reach him, and that ring of floor is drawn around them while the path is still drawing things.`,
+    },
+    {
+      slot: 'F',
+      name: 'FLASH',
+      body: `The same object everybody else's is. ${FLASH_RANGE} units toward the cursor, instantly, over terrain, on ${FLASH_PRACTICE_CD}s rather than League's ${FLASH_LEAGUE_CD}.`,
+    },
+  ];
+
+  return (
+    <section className="panel pad pr-kit" style={{ ['--c' as string]: '#4fc3ff' }}>
+      <div className="panel-title">Xerath's abilities, in full</div>
+      <div className="pr-kit-rows">
+        {rows.map((r) => (
+          <div className="pr-kit-row" key={r.name}>
+            <i className="pr-kit-slot">{r.slot}</i>
+            <b className="pr-kit-name">{r.name}</b>
+            <span className="pr-kit-body">{r.body}</span>
+          </div>
+        ))}
+      </div>
+      <p className="set-note">
+        The ranges, the widths and the delays are League's, because those are the champion: the
+        seven hundred and fifty to fourteen hundred and fifty, the half second, the three quarters,
+        the stun that grows with distance. The cooldowns on the stages about one button are
+        shorter, for the reason every path's are — a minute has to hold enough attempts to be a
+        rep — and the ultimate is charged in seconds rather than minutes.
       </p>
     </section>
   );

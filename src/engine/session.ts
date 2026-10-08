@@ -729,6 +729,11 @@ export class Session {
           this.castAbility(e.slot, w, player);
           break;
         }
+        case 'abilityRelease': {
+          const w = this.renderer.screenToWorld(e.x, e.y);
+          this.drill?.onAbilityRelease(e.slot, w);
+          break;
+        }
         case 'centerCamera':
           // One key, two answers: where am I, and how far do I reach. They
           // are the same question often enough that binding them apart would
@@ -1220,6 +1225,11 @@ export abstract class DrillBase {
   onAbility(slot: AbilitySlot, at: Vec2): void {
     this.summoner(slot, at);
   }
+  /**
+   * An ability key came back up. Only a charged ability cares — see
+   * `Input.releaseAbility` — so the default is to ignore it.
+   */
+  onAbilityRelease(_slot: AbilitySlot, _at: Vec2): void {}
 
   /**
    * The slot the *run* answers for rather than the drill.

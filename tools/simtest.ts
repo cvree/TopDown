@@ -58,7 +58,7 @@ import {
   type InputEventKind,
   type MovementScheme,
 } from '../src/engine/input';
-import { angleDelta, dist, norm } from '../src/engine/math';
+import { angleDelta, dist, distToSegment, norm } from '../src/engine/math';
 import { ARCHETYPES } from '../src/engine/archetypes';
 import { EnemyBrain, tuningFor, type BotBehavior } from '../src/engine/ai';
 import type { Actor, Vec2 } from '../src/engine/types';
@@ -111,6 +111,15 @@ import { CARD_ORDER, TWISTED_STATS, type CardColor, type TwistedKit } from '../s
 import { TWISTED_DRILL_IDS, twistedStage, type TwistedDrillId } from '../src/drills/twistedfate';
 import { KATARINA_STATS, type KatarinaKit } from '../src/engine/katarina';
 import { KATARINA_DRILL_IDS } from '../src/drills/katarina';
+import { XERATH_STATS, type XerathKit } from '../src/engine/xerath';
+import { THREAT_RANGE, XERATH_DRILL_IDS } from '../src/drills/xerath';
+import {
+  XERATH_STAGES,
+  applyXerathRun,
+  computeXerathMastery,
+  emptyXerathProgress,
+  xerStageUnlocked,
+} from '../src/progression/xerath';
 import {
   KATARINA_STAGES,
   applyKatarinaRun,
@@ -185,6 +194,8 @@ type Policy =
   | 'tfReactive'
   | 'katarina'
   | 'katChase'
+  | 'xerath'
+  | 'xerSloppy'
   | 'abilitySpam'
   | 'apmChaos'
   | 'holdOne'
@@ -344,6 +355,8 @@ const runDrill = (
   let lastMarkId = -1;
   /** Whether the lane policy is currently on its way home. */
   let laneBacking = false;
+  /** When the Xerath policy last gave its feet an order. */
+  let xerMoveAt = -1;
   const maxT = played + 2;
 
   while (session.phase !== 'ended' && t < maxT) {
@@ -2228,6 +2241,186 @@ const runDrill = (
             input.push({ kind: 'move', x: p.pos.x + Math.cos(a) * 40, y: p.pos.y + Math.sin(a) * 40, t: t * 1000 });
             break;
           }
+          case 'xerath':
+          case 'xerSloppy': {
+            // A Xerath who spaces and leads, and the same player with the
+            // habits the path exists to break.
+            //
+            // Both press every button the stage hands them as soon as it is
+            // up and there is somebody to press it at. They differ in four
+            // things, and each one is a stage:
+            //
+            //   1. The good one lets the pulse go when its end reaches the
+            //      body. The sloppy one holds it to full, every time, and a
+            //      beat past — the habit of a player who charges by feel.
+            //   2. The good one aims everything where the body will be when it
+            //      lands. The sloppy one aims at where it is standing.
+            //   3. The good one throws the orb along a clear line, early and
+            //      long. The sloppy one throws it late, through the wave.
+            //   4. The good one stands in the band — outside the hunter's
+            //      reach, inside its own — and backs away from divers. The
+            //      sloppy one walks up to casting range of whatever it wants.
+            //
+            // And on the combo stage the good one only spends the Eye and the
+            // pulse on a body the orb is holding.
+            reactTimer = 0.03;
+            const sloppy = policy === 'xerSloppy';
+            const kit = (drill as unknown as { kit?: XerathKit }).kit;
+            if (!kit) break;
+            const XS = XERATH_STATS;
+            const w = session.world;
+            const champs = w.enemies().filter((e) => !e.isMinion);
+            const minions = w.enemies().filter((e) => e.isMinion);
+            const threat = w.byId((drill as unknown as { threat?: { id: number } | null }).threat?.id ?? -1);
+            const divers = champs.filter((c) => c.label === 'DIVER');
+            const mage = champs.find((c) => c.label === 'MAGE');
+            const rank = (a: Actor) => dist(p.pos, a.pos) - (a.rootedFor > 0 ? 700 : 0) - (a.label === 'DIVER' ? 500 : 0) - (a.label === 'LOW' ? 300 : 0);
+            const want = champs.length ? champs.reduce((a, b) => (rank(a) <= rank(b) ? a : b)) : null;
+            const lead = (a: Actor, s2: number): Vec2 =>
+              sloppy || a.rootedFor > s2 ? { x: a.pos.x, y: a.pos.y } : { x: a.pos.x + a.vel.x * s2, y: a.pos.y + a.vel.y * s2 };
+            const now = t * 1000;
+            const combo = id === 'xerCombo' && !sloppy;
+            const held = (a: Actor) => a.rootedFor > 0.3;
+
+            // ---- The Rite: rooted, so only the cursor moves.
+            if (kit.rite) {
+              if (want) {
+                const aim = lead(want, XS.rDelay);
+                session.cursorWorld = aim;
+                input.push({ kind: 'ability', slot: 'r', x: aim.x, y: aim.y, t: now });
+              }
+              break;
+            }
+            if (kit.loadout.rite && kit.rCd <= 0.001 && !kit.charge && want) {
+              const g = dist(p.pos, want.pos);
+              if (id === 'xerRite' || (want.hp / want.maxHp < 0.4 && g > 900 && g < 2400)) {
+                input.push({ kind: 'ability', slot: 'r', x: want.pos.x, y: want.pos.y, t: now });
+                break;
+              }
+            }
+
+            // ---- The pulse in the hand: let it go when it reaches.
+            if (kit.charge) {
+              const aim = want ? lead(want, XS.qDelay) : session.cursorWorld;
+              session.cursorWorld = aim;
+              const need = dist(p.pos, aim) + 50;
+              const full = kit.held >= XS.qChargeTime;
+              const go = sloppy ? kit.held >= XS.qChargeTime + 0.7 : kit.reachNow >= need || full;
+              if (go || kit.held > 3.4 || !want) input.push({ kind: 'abilityRelease', slot: 'q', x: aim.x, y: aim.y, t: now });
+            } else if (want) {
+              const g = dist(p.pos, want.pos);
+              // A hunter inside the ring is orbed first, whoever else is about:
+              // the orb is the wall between him and the dive.
+              const close = !sloppy && threat && threat.alive && dist(p.pos, threat.pos) < 880 ? threat : null;
+              if (close && kit.loadout.orb && kit.eCd <= 0.001) {
+                const aim = lead(close, dist(p.pos, close.pos) / XS.eSpeed);
+                session.cursorWorld = aim;
+                input.push({ kind: 'ability', slot: 'e', x: aim.x, y: aim.y, t: now });
+              }
+              const castE = () => {
+                // ---- E: early, long and along a clear line.
+                if (kit.loadout.orb && kit.eCd <= 0.001) {
+                  const aim = lead(want, g / XS.eSpeed + 0.05);
+                  const ga = dist(p.pos, aim);
+                  const clear = !minions.some((m) => distToSegment(m.pos, p.pos, aim) < XS.eRadius + m.radius + 12 && dist(p.pos, m.pos) < ga);
+                  // The sloppy orb is an afterthought: thrown late, close, through
+                  // whatever is in the way, once the Eye and the pulse are spent.
+                  const spent = (!kit.loadout.eye || kit.wCd > 0) && (!kit.loadout.arcanopulse || kit.qCd > 0);
+                  // On the combo stage the orb is the whole combo, so it goes from
+                  // where it will land rather than from as far as it can.
+                  const reach = combo ? 880 : XS.eRange - 60;
+                  const throwIt = sloppy ? ga < 650 && spent : ga <= reach && clear;
+                  if (throwIt) {
+                    session.cursorWorld = aim;
+                    input.push({ kind: 'ability', slot: 'e', x: aim.x, y: aim.y, t: now });
+                  }
+                }
+              };
+              const castW = () => {
+                // ---- W: where they will be in three quarters of a second.
+                if (kit.loadout.eye && kit.wCd <= 0.001 && (!combo || held(want))) {
+                  const aim = lead(want, XS.wDelay);
+                  if (dist(p.pos, aim) <= XS.wRange) {
+                    session.cursorWorld = aim;
+                    input.push({ kind: 'ability', slot: 'w', x: aim.x, y: aim.y, t: now });
+                  }
+                }
+              };
+              const castQ = () => {
+                // ---- Q: start the charge when there is somebody it can reach.
+                if (kit.loadout.arcanopulse && kit.qCd <= 0.001 && g <= XS.qMaxRange + 60 && (!combo || held(want))) {
+                  // Not with the Eye about to be pressed, nor the orb about to be
+                  // needed: charging locks both out. And never with somebody
+                  // close enough to dive while the charge slows him.
+                  const eyeFirst = kit.loadout.eye && kit.wCd <= 0.001 && dist(p.pos, lead(want, XS.wDelay)) <= XS.wRange && (!combo || held(want));
+                  const orbFirst = !sloppy && kit.loadout.orb && kit.eCd <= 0.001 && g <= XS.eRange + 250 && !held(want);
+                  const tooClose = !sloppy && threat && threat.alive && threat.rootedFor <= 0.3 && dist(p.pos, threat.pos) < 960;
+                  if (!eyeFirst && !orbFirst && !tooClose) input.push({ kind: 'ability', slot: 'q', x: want.pos.x, y: want.pos.y, t: now });
+                }
+              };
+              // The order is the habit: the good one opens with the orb, the
+              // sloppy one with whatever its eye falls on first.
+              if (sloppy) {
+                castW();
+                castQ();
+                castE();
+              } else {
+                castE();
+                castW();
+                castQ();
+              }
+            }
+
+            // ---- The feet.
+            if (t - xerMoveAt < 0.12) break;
+            xerMoveAt = t;
+            // Holding a distance from somebody without backing into a wall:
+            // of two dozen headings, the step that lands nearest the distance
+            // wanted, kept off the walls, with a lean toward the way it was
+            // already going so it slides along a wall instead of dithering.
+            const keep = (from: Vec2, desired: number): Vec2 => {
+              let best: Vec2 = { x: p.pos.x, y: p.pos.y };
+              let bestScore = -Infinity;
+              const heading = norm(p.vel.x, p.vel.y);
+              for (let i = 0; i < 24; i++) {
+                const a = (i / 24) * Math.PI * 2;
+                const c = { x: p.pos.x + Math.cos(a) * 260, y: p.pos.y + Math.sin(a) * 260 };
+                const wall = Math.min(c.x, bounds.w - c.x, c.y, bounds.h - c.y);
+                if (wall < 70) continue;
+                const score =
+                  -Math.abs(dist(c, from) - desired) +
+                  Math.min(wall, 400) * 0.35 +
+                  (Math.cos(a) * heading.x + Math.sin(a) * heading.y) * 40;
+                if (score > bestScore) {
+                  bestScore = score;
+                  best = c;
+                }
+              }
+              return best;
+            };
+            let goal: Vec2 | null = null;
+            if (sloppy) {
+              // Walks up to whatever it wants until it is in casting range of everything.
+              if (want && dist(p.pos, want.pos) > 480) goal = { x: want.pos.x, y: want.pos.y };
+            } else if (threat && threat.alive) {
+              goal = keep(threat.pos, (THREAT_RANGE + XS.qMaxRange) / 2);
+            } else if (divers.length) {
+              const near = divers.reduce((a, b) => (dist(a.pos, p.pos) <= dist(b.pos, p.pos) ? a : b));
+              if (dist(near.pos, p.pos) < 1100 && near.rootedFor <= 0.4) goal = keep(near.pos, 1300);
+            } else if (mage && mage.alive) {
+              goal = keep(mage.pos, 1050);
+            } else if (want && id === 'xerOrb' && kit.eCd <= 0.3) {
+              // The line is blocked: step sideways for a clear one.
+              const blocked = minions.some((m) => distToSegment(m.pos, p.pos, want.pos) < XS.eRadius + m.radius + 12);
+              goal = blocked ? keep(want.pos, 900) : null;
+            } else if (want) {
+              const g = dist(p.pos, want.pos);
+              if (g > 1350 && id !== 'xerRite') goal = { x: want.pos.x, y: want.pos.y };
+              else if (g < 650) goal = keep(want.pos, 900);
+            }
+            if (goal) input.push({ kind: 'move', x: goal.x, y: goal.y, t: now });
+            break;
+          }
           case 'idle':
             reactTimer = 1;
             break;
@@ -2241,6 +2434,8 @@ const runDrill = (
         policy === 'tfReactive' ||
         policy === 'katarina' ||
         policy === 'katChase' ||
+        policy === 'xerath' ||
+        policy === 'xerSloppy' ||
         policy === 'vayneWasd' ||
         policy === 'vayneBolts' ||
         policy === 'vayneCondemn' ||
@@ -3410,6 +3605,164 @@ line('\n=== KATARINA: the path gets harder, not just longer ===');
   const test = perf('katFight');
   line(`  katPrep (LEARN) ${pct(learn)}  →  katFight (TEST) ${pct(test)}`);
   expect('the same player finds the test harder than the first stage', test < learn, `${pct(test)} vs ${pct(learn)}`);
+}
+
+line('\n=== XERATH: the path, stage by stage ===');
+{
+  // Every stage is played three ways: spaced and led, sloppy, and not at all.
+  // The sloppy player presses the same buttons as soon as they are up; it
+  // simply holds the pulse to full, aims where bodies are standing rather than
+  // where they will be, throws the orb late and through the wave, and walks up
+  // to casting range of whatever it wants. The path claims those are the
+  // habits that cost a Xerath, so that is the comparison that has to hold.
+  for (const id of XERATH_DRILL_IDS as unknown as DrillId[]) {
+    const good = runDrill(id, 'xerath', 0.4, 4242, 'click');
+    const bad = runDrill(id, 'xerSloppy', 0.4, 4242, 'click');
+    const idle = runDrill(id, 'idle', 0.4, 4242, 'click');
+    const k = (r: ReturnType<typeof runDrill>) => (r.drill as unknown as { kit: XerathKit }).kit;
+    const gk = k(good);
+    const bk = k(bad);
+    line(
+      `  ${id.padEnd(10)} good ${pct(good.out.performance)} (q ${gk.stats.qHits}/${gk.stats.qCasts} hold+${gk.overcharge.toFixed(2)} w ${gk.stats.wCentre}/${gk.stats.wHits}/${gk.stats.wCasts} e ${gk.stats.eHits}/${gk.stats.eCasts} r ${gk.stats.rHits}/${gk.stats.rShots})  |  sloppy ${pct(bad.out.performance)} (q ${bk.stats.qHits}/${bk.stats.qCasts} hold+${bk.overcharge.toFixed(2)} w ${bk.stats.wCentre}/${bk.stats.wCasts} e ${bk.stats.eHits}/${bk.stats.eCasts} blk ${bk.stats.eBlocked})  |  idle ${pct(idle.out.performance)}`,
+    );
+    expect(`${id}: playing it properly scores well`, good.out.performance > 0.5, pct(good.out.performance));
+    expect(`${id}: doing nothing scores near zero`, idle.out.performance < 0.3, pct(idle.out.performance));
+    expect(`${id}: the sloppy habits cost you`, bad.out.performance < good.out.performance - 0.05, `${pct(bad.out.performance)} vs ${pct(good.out.performance)}`);
+  }
+}
+
+line('\n=== XERATH: the mechanics behind the score are real ===');
+{
+  const k = (r: ReturnType<typeof runDrill>) => (r.drill as unknown as { kit: XerathKit }).kit;
+  const metric = (r: ReturnType<typeof runDrill>, mid: string) => r.out.keyMetrics.find((m) => m.id === mid)?.value ?? 0;
+
+  // The pulse: a held key grows it, a release fires it, and the hold is graded.
+  const pulse = runDrill('xerPulse', 'xerath', 0.4, 606, 'click');
+  const pulseHeld = runDrill('xerPulse', 'xerSloppy', 0.4, 606, 'click');
+  const pk = k(pulse);
+  const hk = k(pulseHeld);
+  line(`  pulse  : landed ${pk.stats.qHits}/${pk.stats.qCasts}, longest ${Math.round(pk.stats.qLongest)}u, held past need ${pk.overcharge.toFixed(2)}s vs ${hk.overcharge.toFixed(2)}s held to full`);
+  expect('a released pulse lands', pk.stats.qHits >= 6, `${pk.stats.qHits}`);
+  expect('and lands from beyond the minimum range', pk.stats.qLongest > XERATH_STATS.qMinRange + 150, `${Math.round(pk.stats.qLongest)}`);
+  expect('letting go when it reaches is measured as such', pk.overcharge < 0.3, pk.overcharge.toFixed(2));
+  expect('and holding it to full is measured as such', hk.overcharge > pk.overcharge + 0.4, `${hk.overcharge.toFixed(2)} vs ${pk.overcharge.toFixed(2)}`);
+  expect('nothing fizzled in a hand that let go', pk.stats.qFizzles === 0, `${pk.stats.qFizzles}`);
+  expect('charging slowed the body', pk.stats.qChargeTime > 0, `${pk.stats.qChargeTime}`);
+
+  // The Eye: leading the circle puts the centre on them.
+  const eye = runDrill('xerEye', 'xerath', 0.5, 313, 'click');
+  const eyeAt = runDrill('xerEye', 'xerSloppy', 0.5, 313, 'click');
+  line(`  eye    : centres — led ${pct(k(eye).centreRate)}, at their feet ${pct(k(eyeAt).centreRate)}`);
+  expect('leading the Eye lands the centre', k(eye).centreRate > k(eyeAt).centreRate + 0.1, `${pct(k(eye).centreRate)} vs ${pct(k(eyeAt).centreRate)}`);
+
+  // The orb: thrown long it stuns long.
+  const orb = runDrill('xerOrb', 'xerath', 0.4, 909, 'click');
+  const orbShort = runDrill('xerOrb', 'xerSloppy', 0.4, 909, 'click');
+  line(`  orb    : average stun — long ${k(orb).stunAvg.toFixed(2)}s, short ${k(orbShort).stunAvg.toFixed(2)}s; landed ${pct(k(orb).orbRate)}`);
+  expect('an orb thrown from far stuns for longer', k(orb).stunAvg > k(orbShort).stunAvg + 0.3, `${k(orb).stunAvg.toFixed(2)} vs ${k(orbShort).stunAvg.toFixed(2)}`);
+
+  // The band: standing in it keeps you from being dived.
+  const edge = runDrill('xerEdge', 'xerath', 0.4, 171, 'click');
+  const walk = runDrill('xerEdge', 'xerSloppy', 0.4, 171, 'click');
+  line(`  band   : in the band ${pct(metric(edge, 'xerBand'))} vs ${pct(metric(walk, 'xerBand'))}; dived ${metric(edge, 'xerDived')} vs ${metric(walk, 'xerDived')}`);
+  expect('a spaced Xerath lives in the band', metric(edge, 'xerBand') > 0.6, pct(metric(edge, 'xerBand')));
+  expect('one who walks up does not', metric(walk, 'xerBand') < 0.35, pct(metric(walk, 'xerBand')));
+  expect('and walking up is how you get dived', metric(walk, 'xerDived') > metric(edge, 'xerDived') + 2, `${metric(walk, 'xerDived')} vs ${metric(edge, 'xerDived')}`);
+
+  // The combo: a stunned body does not juke.
+  const combo = runDrill('xerCombo', 'xerath', 0.4, 55, 'click');
+  const spam = runDrill('xerCombo', 'xerSloppy', 0.4, 55, 'click');
+  line(`  combo  : ${metric(combo, 'xerCombo')} combos vs ${metric(spam, 'xerCombo')}; casts on a held body ${k(combo).stats.followUps} vs ${k(spam).stats.followUps}`);
+  expect('stun, then everything, is a combo a player can complete', metric(combo, 'xerCombo') >= 3, `${metric(combo, 'xerCombo')}`);
+  expect('throwing it all at a body that can walk is not', metric(spam, 'xerCombo') < metric(combo, 'xerCombo'), `${metric(spam, 'xerCombo')}`);
+
+  // The retreat: orbs stop divers out where they are harmless.
+  const ret = runDrill('xerRetreat', 'xerath', 0.4, 8080, 'click');
+  const stand = runDrill('xerRetreat', 'xerSloppy', 0.4, 8080, 'click');
+  line(`  retreat: stopped ${metric(ret, 'xerStopped')} vs ${metric(stand, 'xerStopped')}; health ${pct(ret.d.hpRetained)} vs ${pct(stand.d.hpRetained)}`);
+  expect('an early orb stops a diver', metric(ret, 'xerStopped') >= 2, `${metric(ret, 'xerStopped')}`);
+  expect('and backing off keeps your health', ret.d.hpRetained > stand.d.hpRetained, `${pct(ret.d.hpRetained)} vs ${pct(stand.d.hpRetained)}`);
+
+  // The Rite: led shots land.
+  const rite = runDrill('xerRite', 'xerath', 0.4, 4242, 'click');
+  const riteAt = runDrill('xerRite', 'xerSloppy', 0.4, 4242, 'click');
+  line(`  rite   : landed — led ${pct(k(rite).riteRate)} of ${k(rite).stats.rShots}, at their feet ${pct(k(riteAt).riteRate)} of ${k(riteAt).stats.rShots}`);
+  expect('the Rite fires all its shots', k(rite).stats.rShots >= 8, `${k(rite).stats.rShots}`);
+  expect('led shots land more than shots at their feet', k(rite).riteRate > k(riteAt).riteRate, `${pct(k(rite).riteRate)} vs ${pct(k(riteAt).riteRate)}`);
+
+  // The lane: the orb is for the gap.
+  const lane = runDrill('xerWave', 'xerath', 0.4, 4242, 'click');
+  const into = runDrill('xerWave', 'xerSloppy', 0.4, 4242, 'click');
+  line(`  lane   : orbs blocked ${k(lane).stats.eBlocked} vs ${k(into).stats.eBlocked}; trade ${pct(metric(lane, 'xerTrade'))} vs ${pct(metric(into, 'xerTrade'))}`);
+  expect('a clear line keeps the orb off the wave', k(lane).stats.eBlocked < k(into).stats.eBlocked, `${k(lane).stats.eBlocked} vs ${k(into).stats.eBlocked}`);
+  expect('and poking from outside their range wins the trade', metric(lane, 'xerTrade') > metric(into, 'xerTrade'), `${pct(metric(lane, 'xerTrade'))} vs ${pct(metric(into, 'xerTrade'))}`);
+}
+
+line('\n=== XERATH: the path is gated, and mastery only ever climbs ===');
+{
+  const p = emptyXerathProgress();
+  expect('the first stage is open and the second is not', xerStageUnlocked(p, XERATH_STAGES[0]) && !xerStageUnlocked(p, XERATH_STAGES[1]), 'gating');
+  applyXerathRun(p, 'xerPulse', 0.8, 0.5, 1000);
+  expect('clearing a stage opens the next one', xerStageUnlocked(p, XERATH_STAGES[1]), 'stage 2 still locked');
+  expect('and only the next one', !xerStageUnlocked(p, XERATH_STAGES[2]), 'stage 3 opened early');
+  const after = computeXerathMastery(p);
+  applyXerathRun(p, 'xerPulse', 0.2, 0.5, 10);
+  expect('a worse run cannot take mastery away', computeXerathMastery(p) === after, `${computeXerathMastery(p)} vs ${after}`);
+  for (const st of XERATH_STAGES) applyXerathRun(p, st.id, 0.95, 1, 5000);
+  expect('a perfect path is nearly all of it', computeXerathMastery(p) > 90, `${computeXerathMastery(p)}`);
+}
+
+line('\n=== XERATH: a held key is a charge, and either way of letting go fires it ===');
+{
+  // The release is the one input event that only this kit listens to, so it
+  // is checked end to end: through the input queue, into the session, out of
+  // the drill and into the kit — and the second press, which is how a player
+  // without quick-cast lets go, fires it as well.
+  const run = (release: 'keyup' | 'second') => {
+    const input = new FakeInput();
+    const session = new Session(
+      { duration: 10, mode: 'play', arena: arenaFor('xerPulse'), seed: 7, difficulty: 0.3, abilities: DRILLS.xerPulse.abilities, scheme: 'click', tumbleAim: 'hands' },
+      input as unknown as InputSystem,
+      fakeRenderer,
+    );
+    const drill = createDrill('xerPulse', session);
+    session.attachDrill(drill);
+    session.countdown = 0;
+    const kit = (drill as unknown as { kit: XerathKit }).kit;
+    let fired = -1;
+    let reach = 0;
+    for (let i = 0; i < 240 * 3; i++) {
+      const tt = i * SIM_DT;
+      if (i === 10) input.push({ kind: 'ability', slot: 'q', x: 2000, y: 750, t: tt * 1000 });
+      if (i === 10 + 240) {
+        reach = kit.reachNow;
+        input.push(release === 'keyup' ? { kind: 'abilityRelease', slot: 'q', x: 2000, y: 750, t: tt * 1000 } : { kind: 'ability', slot: 'q', x: 2000, y: 750, t: tt * 1000 });
+      }
+      session.step(SIM_DT);
+      if (fired < 0 && kit.blasts.length > 0) fired = i;
+    }
+    return { fired, reach, cd: kit.qCd, charging: kit.charge !== null };
+  };
+  for (const how of ['keyup', 'second'] as const) {
+    const r = run(how);
+    line(`  ${how.padEnd(6)}: fired at step ${r.fired}, reach after a second of charge ${Math.round(r.reach)}`);
+    expect(`${how}: the pulse fires on the release`, r.fired === 10 + 240 || r.fired === 10 + 241, `${r.fired}`);
+    expect(`${how}: a second of charge is most of the range`, Math.abs(r.reach - (XERATH_STATS.qMinRange + (XERATH_STATS.qMaxRange - XERATH_STATS.qMinRange) / 1.5)) < 30, `${Math.round(r.reach)}`);
+    expect(`${how}: and the hand is empty after it`, !r.charging, 'still charging');
+  }
+}
+
+line('\n=== XERATH: every timed stage still grades a thirty-second PLAY run ===');
+{
+  for (const id of (XERATH_DRILL_IDS as unknown as DrillId[]).filter((x) => DRILLS[x].duration > 0)) {
+    const g = runDrill(id, 'xerath', 0.4, 4242, 'click', 'hands', { seconds: PLAY_SECONDS });
+    const b = runDrill(id, 'xerSloppy', 0.4, 4242, 'click', 'hands', { seconds: PLAY_SECONDS });
+    const idle = runDrill(id, 'idle', 0.4, 4242, 'click', 'hands', { seconds: PLAY_SECONDS });
+    line(`  ${id.padEnd(11)} good ${pct(g.out.performance)}  |  sloppy ${pct(b.out.performance)}  |  idle ${pct(idle.out.performance)}`);
+    expect(`${id} @30s: playing it properly scores well`, g.out.performance > 0.5, pct(g.out.performance));
+    expect(`${id} @30s: doing nothing scores near zero`, idle.out.performance < 0.3, pct(idle.out.performance));
+    expect(`${id} @30s: the sloppy habits still cost you`, b.out.performance < g.out.performance, `${pct(b.out.performance)} vs ${pct(g.out.performance)}`);
+  }
 }
 
 line('\n=== Bots generate situations, not straight lines ===');
@@ -5751,6 +6104,10 @@ line('\n=== REWIND: a run rebuilt from its tape is the same run ===');
     // Daggers are world state the kit owns — thrown, in the air, on the
     // floor — so a mode made of them is a mode a rewind can get wrong.
     ['katBlink', 'katarina', 'wasd', 0.4],
+    // His blasts are the same kind of thing — telegraphs the kit owns, landing
+    // later — and the pulse is the one ability fired by letting go of a key,
+    // so the release has to be on the tape as well.
+    ['xerCombo', 'xerath', 'click', 0.4],
     ['wasdKite', 'wasd', 'wasd', 0.5],
     ['lanePhase', 'laneFarm', 'click', 0.32],
   ];

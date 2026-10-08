@@ -164,6 +164,11 @@ export class RiftRenderer {
     this.scene.rig.setZoom(z);
   }
 
+  /** Open on a wider scale than the default. See `RiftCamera.setOpeningWidth`. */
+  setOpeningWidth(width: number): void {
+    this.scene.rig.setOpeningWidth(width);
+  }
+
   /** Drop an actor into its cast pose. Driven by the session on a real cast. */
   castPose(actorId: number): void {
     this.units.castOn(actorId);

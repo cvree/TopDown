@@ -41,6 +41,26 @@ export const TAG_LABEL: Record<PatchTag, string> = {
 
 export const PATCH_NOTES: PatchEntry[] = [
   {
+    version: '2.31.0',
+    name: 'MAGUS ASCENDANT',
+    date: '2026-10-08',
+    headline: 'Xerath: nine modes about the distance you keep while you hit — and a pulse you charge by holding the key and fire by letting go.',
+    sections: [
+      {
+        tag: 'added',
+        items: [
+          'Xerath, the fourth champion on PRACTICE. Nine modes, each about how far away you are when you hit. ARCANOPULSE: hold Q and the line grows from 750 to 1450 over a second and a half, slowing you while it does; let go and it lands half a second later. It counts how long you held past what the target needed. EYE OF DESTRUCTION: it lands three quarters of a second late, and the centre is what counts. SHOCKING ORB: minions block it, and the stun runs from 0.75s point blank to 2.25s at full range.',
+          'THE BAND: an assassin walks at you. Its red ring is how close it gets before it dives you, and your blue ring is how far your pulse reaches. The floor between the two is where you live, and the time you spend there is the score. Charging slows you, so charge while you back away.',
+          'STUN, THEN EVERYTHING: a target that walks out of nearly anything it sees. Orb first, then the Eye and the pulse on the stunned body. Spells thrown at it while it can still walk count against you. THE RETREAT: divers coming one after another; orb them while they are still far out. RITE OF THE ARCANE: four shots from across the map at low champions running away, who dodge what they see. BEHIND THE WAVE: a lane, where the pulse goes over the minions and the orb does not. THE ARTILLERY: all of it at once.',
+          'Every target on the Xerath path can see your telegraphs and step out of them, after a reaction that shortens with difficulty. Aim where they will be.',
+          'His own ladder and titles, APPRENTICE to MAGUS ASCENDANT, on PROGRESS and the results screen; his page in the CODEX with every range, width and delay; nine clips; and his body for the roster — a lit core in a ring of shards.',
+          'Charged abilities: letting go of an ability key is now an input of its own. With quick-cast off, casting the pulse a second time fires it.',
+          'Xerath School: six short narrated video tutorials, one per lesson, made for Kurbo.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.30.0',
     name: 'ONE JOB',
     date: '2026-09-29',

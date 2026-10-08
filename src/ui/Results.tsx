@@ -12,6 +12,7 @@ import { APM_LEVELS, CLEAR_AT } from '../progression/apm';
 import { laneTierOf } from '../progression/lane';
 import { TWISTED_STAGES } from '../progression/twistedfate';
 import { KATARINA_STAGES } from '../progression/katarina';
+import { XERATH_STAGES } from '../progression/xerath';
 import { VAYNE_STAGES } from '../progression/vayne';
 import { WASD_MODULES } from '../progression/wasd';
 import { ReactionHistogram, RhythmTimeline, useCountUp } from './components/charts';
@@ -603,6 +604,26 @@ export function Results({
               unlocked: report.katarina.unlocked && {
                 step: report.katarina.unlocked.step,
                 title: report.katarina.unlocked.title,
+              },
+            }
+          }
+        />
+
+        <LadderPanel
+          shown={shown}
+          label="The artillery path"
+          noun="Stage"
+          total={XERATH_STAGES.length}
+          className="res-xerath"
+          runPerformance={result.performance}
+          report={
+            report.xerath && {
+              ...report.xerath,
+              step: report.xerath.stage.step,
+              name: report.xerath.stage.title,
+              unlocked: report.xerath.unlocked && {
+                step: report.xerath.unlocked.step,
+                title: report.xerath.unlocked.title,
               },
             }
           }
